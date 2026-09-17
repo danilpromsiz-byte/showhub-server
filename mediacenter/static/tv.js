@@ -9,6 +9,15 @@ const CURRENT_APP_VERSION = "1.9.8";
 const CURRENT_APP_VERSION_CODE = 27;
 window.isForceUpdateActive = false;
 
+// Migrate legacy local PC IP addresses to cloud server
+try {
+    const savedServer = localStorage.getItem("showhub_server");
+    if (!savedServer || savedServer.includes("192.168.") || savedServer.includes("localhost") || savedServer.includes("127.0.0.1") || savedServer.includes(":8000")) {
+        console.log("Migrating server from legacy IP to Render cloud:", savedServer);
+        localStorage.setItem("showhub_server", "https://showhub-server.onrender.com");
+    }
+} catch (e) {}
+
 // Universal API Base Interceptor for Android TV (supports both file:/// assets and http://)
 const originalFetch = window.fetch;
 window.fetch = function(url, options) {
@@ -676,6 +685,9 @@ function activateForceUpdateModal(data) {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
+    document.querySelectorAll(".badge-version, #header-version-badge, #settings-version-badge").forEach(el => {
+        el.textContent = `v${CURRENT_APP_VERSION}`;
+    });
     checkMandatoryUpdate();
     initThemeEngine();
     initSettingsModal();

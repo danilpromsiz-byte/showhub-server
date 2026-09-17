@@ -280,13 +280,13 @@ def get_media_poster(title: str = Query(...), year: Optional[int] = None, kp_id:
 def check_updates() -> Dict[str, Any]:
     return {
         "success": True,
-        "version_name": "1.9.7",
-        "version_code": 26,
+        "version_name": "1.9.8",
+        "version_code": 27,
         "force_update": True,
-        "min_version_code": 26,
+        "min_version_code": 27,
         "apk_url": "/ShowHub.apk",
         "download_url": "/ShowHub.apk",
-        "changelog": "ShowHub TV: принудительное обновление, чистый плеер с центральной паузой, превью с 22-й минуты, бегущая строка, быстрый облачный сервер."
+        "changelog": "ShowHub TV v1.9.8: принудительное обновление, чистый плеер с центральной паузой, превью с 22-й минуты, бегущая строка, быстрый облачный сервер."
     }
 
 @app.get("/api/catalog/stats")

@@ -5,8 +5,8 @@
  */
 
 // Application Version & Mandatory Update State
-const CURRENT_APP_VERSION = "1.9.7";
-const CURRENT_APP_VERSION_CODE = 26;
+const CURRENT_APP_VERSION = "1.9.8";
+const CURRENT_APP_VERSION_CODE = 27;
 window.isForceUpdateActive = false;
 
 // Universal API Base Interceptor for Android TV (supports both file:/// assets and http://)
@@ -6241,7 +6241,7 @@ function initSettingsUpdates() {
             if (!res.ok) throw new Error("HTTP " + res.status);
             const data = await res.json();
 
-            const currentVersionCode = 26; // v1.9.7
+            const currentVersionCode = 27; // v1.9.8
             if (data && data.version_code && data.version_code > currentVersionCode) {
                 if (statusText) {
                     statusText.textContent = `Доступна новая версия: v${data.version_name || data.version}! ${data.changelog || ''}`;
@@ -6254,7 +6254,7 @@ function initSettingsUpdates() {
                 }, 50);
             } else {
                 if (statusText) {
-                    statusText.textContent = `У вас установлена самая актуальная версия (${data.version_name || 'v1.9.7'}). Обновлений не требуется.`;
+                    statusText.textContent = `У вас установлена самая актуальная версия (${data.version_name || 'v1.9.8'}). Обновлений не требуется.`;
                     statusText.style.color = "var(--accent-success)";
                 }
             }

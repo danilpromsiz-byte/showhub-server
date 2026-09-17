@@ -124,17 +124,42 @@ def normalize_search_title(t: str) -> str:
         t = t.replace(ch, ' ')
     return " ".join(t.split())
 
-def rank_matches(items: list, target_year: Optional[int] = None, target_is_series: Optional[bool] = None) -> list:
+def safe_parse_year(val: Any) -> Optional[int]:
+    """Safely extracts a 4-digit year integer from any input (int, str, None, etc.)."""
+    if val is None:
+        return None
+    try:
+        s = str(val).strip()
+        if not s or s.lower() in ("none", "null", "undefined", "н/д"):
+            return None
+        if s.isdigit():
+            return int(s)
+        m = re.search(r'\b(19\d\d|20\d\d)\b', s)
+        if m:
+            return int(m.group(1))
+    except Exception:
+        pass
+    return None
+
+def rank_matches(items: list, target_year: Optional[Any] = None, target_is_series: Optional[Any] = None) -> list:
     if not items:
         return []
 
+    t_year = safe_parse_year(target_year)
+    t_series = None
+    if target_is_series is not None:
+        if str(target_is_series).isdigit():
+            t_series = bool(int(target_is_series))
+        else:
+            t_series = bool(target_is_series)
+
     def score_item(it):
         score = 0
-        it_yr = getattr(it, "year", None)
+        it_yr = safe_parse_year(getattr(it, "year", None))
         it_ser = getattr(it, "is_series", False)
         # Year matching
-        if target_year and it_yr:
-            diff = abs(it_yr - target_year)
+        if t_year and it_yr:
+            diff = abs(it_yr - t_year)
             if diff == 0:
                 score += 100
             elif diff == 1:
@@ -144,8 +169,8 @@ def rank_matches(items: list, target_year: Optional[int] = None, target_is_serie
             else:
                 score -= diff * 5
         # is_series matching
-        if target_is_series is not None:
-            if bool(it_ser) == bool(target_is_series):
+        if t_series is not None:
+            if bool(it_ser) == bool(t_series):
                 score += 50
             else:
                 score -= 30
@@ -153,7 +178,7 @@ def rank_matches(items: list, target_year: Optional[int] = None, target_is_serie
 
     return sorted(items, key=score_item, reverse=True)
 
-def find_best_match(items: list, target_year: Optional[int] = None, target_is_series: Optional[bool] = None):
+def find_best_match(items: list, target_year: Optional[Any] = None, target_is_series: Optional[Any] = None):
     ranked = rank_matches(items, target_year, target_is_series)
     return ranked[0] if ranked else None
 
@@ -234,11 +259,12 @@ def search_media(q: str = Query(..., min_length=1)) -> List[Dict[str, Any]]:
 
 _poster_cache: Dict[str, str] = {}
 
-def resolve_real_poster(title: str, year: Optional[int] = None, kp_id: Optional[str] = None) -> Optional[str]:
+def resolve_real_poster(title: str, year: Optional[Any] = None, kp_id: Optional[str] = None) -> Optional[str]:
     """Finds a valid high-resolution poster for a media item, resolving placeholders like no_image_poster.png."""
     if not title:
         return None
-    cache_key = f"{title.strip().lower()}_{year or 0}"
+    year_int = safe_parse_year(year)
+    cache_key = f"{title.strip().lower()}_{year_int or 0}"
     if cache_key in _poster_cache:
         return _poster_cache[cache_key]
 
@@ -251,7 +277,8 @@ def resolve_real_poster(title: str, year: Optional[int] = None, kp_id: Optional[
         rz_matches = hdrezka.search(clean_t)
         for it in rz_matches:
             if it.poster and "no_image_poster" not in it.poster and "noposter" not in it.poster:
-                if not year or not it.year or abs(it.year - year) <= 1:
+                it_year = safe_parse_year(it.year)
+                if not year_int or not it_year or abs(it_year - year_int) <= 1:
                     _poster_cache[cache_key] = it.poster
                     return it.poster
     except Exception:
@@ -262,7 +289,8 @@ def resolve_real_poster(title: str, year: Optional[int] = None, kp_id: Optional[
         fx_matches = filmix.search(clean_t)
         for it in fx_matches:
             if it.poster and "no_image_poster" not in it.poster and "noposter" not in it.poster:
-                if not year or not it.year or abs(it.year - year) <= 1:
+                it_year = safe_parse_year(it.year)
+                if not year_int or not it_year or abs(it_year - year_int) <= 1:
                     _poster_cache[cache_key] = it.poster
                     return it.poster
     except Exception:
@@ -271,7 +299,7 @@ def resolve_real_poster(title: str, year: Optional[int] = None, kp_id: Optional[
     return None
 
 @app.get("/api/media/poster")
-def get_media_poster(title: str = Query(...), year: Optional[int] = None, kp_id: Optional[str] = None) -> Dict[str, Any]:
+def get_media_poster(title: str = Query(...), year: Optional[str] = None, kp_id: Optional[str] = None) -> Dict[str, Any]:
     poster = resolve_real_poster(title, year, kp_id)
     return {"success": bool(poster), "poster": poster or "/noposter.png"}
 
@@ -280,13 +308,13 @@ def get_media_poster(title: str = Query(...), year: Optional[int] = None, kp_id:
 def check_updates() -> Dict[str, Any]:
     return {
         "success": True,
-        "version_name": "1.9.8",
-        "version_code": 27,
+        "version_name": "1.9.9",
+        "version_code": 28,
         "force_update": True,
-        "min_version_code": 27,
+        "min_version_code": 28,
         "apk_url": "/ShowHub.apk",
         "download_url": "/ShowHub.apk",
-        "changelog": "ShowHub TV v1.9.8: принудительное обновление, чистый плеер с центральной паузой, превью с 22-й минуты, бегущая строка, быстрый облачный сервер."
+        "changelog": "ShowHub TV v1.9.9: Прямые HLS/MP4 потоки без падений в iframe, мгновенный переход в верхнее меню, пульт ТВ на главном экране (D-Pad, OK, Назад)."
     }
 
 @app.get("/api/catalog/stats")
@@ -566,11 +594,14 @@ def _fetch_media_details(
     source: str,
     media_id: str,
     title: Optional[str] = None,
-    year: Optional[int] = None,
-    is_series: Optional[bool] = None,
+    year: Optional[Any] = None,
+    is_series: Optional[Any] = None,
     kp_id: Optional[str] = None
 ) -> Dict[str, Any]:
     """Returns rich metadata, ratings, cast, seasons, episodes, and translators unified across sources."""
+    year_int = safe_parse_year(year)
+    is_ser_bool = bool(int(is_series)) if str(is_series).isdigit() else (bool(is_series) if is_series is not None else None)
+
     details: Dict[str, Any] = {
         "media_id": media_id,
         "source_name": source,
@@ -586,7 +617,7 @@ def _fetch_media_details(
         "country": None,
         "translators": [],
         "seasons": [],
-        "is_series": bool(is_series),
+        "is_series": bool(is_ser_bool),
         "poster": None,
         "episodes_schedule": []
     }
@@ -602,7 +633,7 @@ def _fetch_media_details(
     if not resolved_kp and clean_title:
         try:
             b_items = bazon.search(clean_title)
-            b_match = find_best_match(b_items, year, is_series)
+            b_match = find_best_match(b_items, year_int, is_ser_bool)
             if b_match and b_match.kinopoisk_id:
                 resolved_kp = b_match.kinopoisk_id
         except Exception:
@@ -626,7 +657,7 @@ def _fetch_media_details(
         rz_id = media_id if (source == "hdrezka" and media_id.startswith("http")) else None
         if not rz_id and clean_title:
             rz_items = hdrezka.search(clean_title)
-            rz_match = find_best_match(rz_items, year, is_series)
+            rz_match = find_best_match(rz_items, year_int, is_ser_bool)
             if rz_match:
                 rz_id = rz_match.id
         if rz_id:
@@ -665,7 +696,7 @@ def _fetch_media_details(
         fx_id = media_id if (source == "filmix" and media_id.isdigit()) else None
         if not fx_id and clean_title:
             fx_items = filmix.search(clean_title)
-            fx_match = find_best_match(fx_items, year, is_series)
+            fx_match = find_best_match(fx_items, year_int, is_ser_bool)
             if fx_match:
                 fx_id = fx_match.id
         if fx_id:
@@ -718,14 +749,17 @@ def _fetch_media_streams(
     season: Optional[int] = None,
     episode: Optional[int] = None,
     audio_id: Optional[str] = None,
-    year: Optional[int] = None,
-    is_series: Optional[bool] = None,
+    year: Optional[Any] = None,
+    is_series: Optional[Any] = None,
     kp_id: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Resolves streams for a given media from ALL available sources.
     Supports season, episode, and audio_id for serials and multi-track movies.
     """
+    year_int = safe_parse_year(year)
+    is_ser_bool = bool(int(is_series)) if str(is_series).isdigit() else (bool(is_series) if is_series is not None else None)
+
     resolved: Dict[str, Any] = {}
     resolved_kp = kp_id
     if not resolved_kp and source in ["bazon", "videocdn", "delivembd"] and media_id.isdigit():
@@ -743,7 +777,7 @@ def _fetch_media_streams(
         for t_query in titles_to_try:
             try:
                 b_items = bazon.search(t_query)
-                b_match = find_best_match(b_items, year, is_series)
+                b_match = find_best_match(b_items, year_int, is_ser_bool)
                 if b_match and b_match.kinopoisk_id:
                     resolved_kp = b_match.kinopoisk_id
                     break
@@ -758,7 +792,7 @@ def _fetch_media_streams(
         if titles_to_try:
             for t_query in titles_to_try:
                 fx_items = filmix.search(t_query)
-                for it in rank_matches(fx_items, year, is_series):
+                for it in rank_matches(fx_items, year_int, is_ser_bool):
                     if it.id not in candidate_fx_ids:
                         candidate_fx_ids.append(it.id)
         for fx_id in candidate_fx_ids[:3]:
@@ -777,7 +811,7 @@ def _fetch_media_streams(
         if titles_to_try:
             for t_query in titles_to_try:
                 rz_items = hdrezka.search(t_query)
-                for it in rank_matches(rz_items, year, is_series):
+                for it in rank_matches(rz_items, year_int, is_ser_bool):
                     if it.id not in candidate_rz_ids:
                         candidate_rz_ids.append(it.id)
         for rz_id in candidate_rz_ids[:3]:
@@ -794,7 +828,7 @@ def _fetch_media_streams(
         if not vc_id and titles_to_try:
             for t_query in titles_to_try:
                 vc_items = videocdn.search(t_query)
-                vc_match = find_best_match(vc_items, year, is_series)
+                vc_match = find_best_match(vc_items, year_int, is_ser_bool)
                 if vc_match and vc_match.kinopoisk_id:
                     vc_id = vc_match.kinopoisk_id
                     break
@@ -819,7 +853,7 @@ def _fetch_media_streams(
         b_id = resolved_kp
         if not b_id and clean_title:
             b_items = bazon.search(clean_title)
-            b_match = find_best_match(b_items, year, is_series)
+            b_match = find_best_match(b_items, year_int, is_ser_bool)
             if b_match and b_match.kinopoisk_id:
                 b_id = b_match.kinopoisk_id
         if b_id:
@@ -875,14 +909,14 @@ def get_media_details_query(
     source: str = Query("bazon"),
     media_id: str = Query(...),
     title: Optional[str] = None,
-    year: Optional[int] = None,
-    is_series: Optional[bool] = None,
+    year: Optional[str] = None,
+    is_series: Optional[str] = None,
     kp_id: Optional[str] = None
 ) -> Dict[str, Any]:
     return _fetch_media_details(source, media_id, title, year, is_series, kp_id)
 
 @app.get("/api/media/{source}/{media_id}/details")
-def get_media_details_path(source: str, media_id: str, title: Optional[str] = None, year: Optional[int] = None, is_series: Optional[bool] = None, kp_id: Optional[str] = None) -> Dict[str, Any]:
+def get_media_details_path(source: str, media_id: str, title: Optional[str] = None, year: Optional[str] = None, is_series: Optional[str] = None, kp_id: Optional[str] = None) -> Dict[str, Any]:
     return _fetch_media_details(source, media_id, title, year, is_series, kp_id)
 
 
@@ -907,8 +941,8 @@ def get_media_streams_query(
     season: Optional[int] = None,
     episode: Optional[int] = None,
     audio_id: Optional[str] = None,
-    year: Optional[int] = None,
-    is_series: Optional[bool] = None,
+    year: Optional[str] = None,
+    is_series: Optional[str] = None,
     kp_id: Optional[str] = None
 ) -> Dict[str, Any]:
     return _fetch_media_streams(source, media_id, title, season, episode, audio_id, year, is_series, kp_id)
@@ -921,15 +955,15 @@ def get_media_streams_path(
     season: Optional[int] = None,
     episode: Optional[int] = None,
     audio_id: Optional[str] = None,
-    year: Optional[int] = None,
-    is_series: Optional[bool] = None,
+    year: Optional[str] = None,
+    is_series: Optional[str] = None,
     kp_id: Optional[str] = None
 ) -> Dict[str, Any]:
     return _fetch_media_streams(source, media_id, title, season, episode, audio_id, year, is_series, kp_id)
 
 
 @app.get("/api/media/trailer")
-def get_media_trailer(title: str = Query(...), year: Optional[int] = None, kp_id: Optional[str] = None) -> Dict[str, Any]:
+def get_media_trailer(title: str = Query(...), year: Optional[str] = None, kp_id: Optional[str] = None) -> Dict[str, Any]:
     """Resolves trailer for video, extracting YouTube video ID and returning clean embed URL."""
     import urllib.parse
     import urllib.request
@@ -978,8 +1012,8 @@ def get_media_preview_stream(
     source: Optional[str] = None,
     media_id: Optional[str] = None,
     kp_id: Optional[str] = None,
-    year: Optional[int] = None,
-    is_series: Optional[bool] = None
+    year: Optional[str] = None,
+    is_series: Optional[str] = None
 ) -> Dict[str, Any]:
     """Returns a fast silent preview direct video stream (HLS/MP4) for TV card hover. Strictly no trailers or iframes."""
     cache_key = f"{source}_{media_id}_{kp_id}_{title}_{year}_{is_series}"

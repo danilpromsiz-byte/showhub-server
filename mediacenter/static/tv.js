@@ -5,8 +5,8 @@
  */
 
 // Application Version & Mandatory Update State
-const CURRENT_APP_VERSION = "1.9.8";
-const CURRENT_APP_VERSION_CODE = 27;
+const CURRENT_APP_VERSION = "1.9.9";
+const CURRENT_APP_VERSION_CODE = 28;
 window.isForceUpdateActive = false;
 
 // Migrate legacy local PC IP addresses to cloud server
@@ -29,6 +29,16 @@ window.fetch = function(url, options) {
     }
     return originalFetch.call(this, url, options);
 };
+
+// Safe Year Parser for API Queries (never sends None, null, or invalid strings)
+function getValidYear(yr) {
+    if (!yr) return "";
+    const s = String(yr).trim();
+    if (s.toLowerCase() === "none" || s.toLowerCase() === "null" || s.toLowerCase() === "undefined") return "";
+    if (/^\d{4}$/.test(s)) return s;
+    const m = s.match(/\b(19\d\d|20\d\d)\b/);
+    return m ? m[1] : "";
+}
 
 // Android TV Remote Back Key Handler
 window.handleTvBack = function() {
@@ -1558,84 +1568,30 @@ function handleKeyDown(e) {
         }
     }
 
-    // Spatial navigation for TV remote
-    let searchRoots = [];
-    if (playerModal && playerModal.style.display !== "none") {
-        if (activeDrawer) {
-            searchRoots = [document.getElementById(`player-drawer-${activeDrawer}`) || playerModal];
-        } else {
-            searchRoots = [playerModal];
-        }
-    } else {
-        const currentModal = document.querySelector(".modal[style*='display: flex'], .modal[style*='display: block']");
-        if (currentModal) {
-            searchRoots = [currentModal];
-        } else if (currentView === "details") {
-            searchRoots = [document.getElementById("view-details") || document.body];
-        } else {
-            const topbar = document.querySelector(".topbar");
-            const activeView = document.getElementById(`view-${currentView}`);
-            if (topbar) searchRoots.push(topbar);
-            if (activeView) searchRoots.push(activeView);
-        }
-    }
-
-    const focusables = [];
-    const focusableSelector = "button:not([disabled]), [tabindex='0'], .player-skip-btn, .media-card, .stream-chip, .source-tab-btn, .genre-chip, .modal-tab-btn, .translator-chip, .season-chip, .episode-chip, .settings-tab-btn, .settings-select, .settings-input, .settings-toggle input, .osd-ctrl-btn, .osd-btn-back, .osd-center-play-btn, .player-drawer-item, .player-drawer-close, .up-next-actions button, #osd-progress-track, .filter-select, .filter-reset-btn, input, textarea";
-    
-    // Fast check for visible, focusable elements without window.getComputedStyle layout thrashing
-    searchRoots.forEach(root => {
-        root.querySelectorAll(focusableSelector).forEach(el => {
-            if (el.offsetParent !== null && !el.disabled) {
-                focusables.push(el);
-            }
-        });
-    });
-
-    const currentIndex = focusables.indexOf(document.activeElement);
-
     if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)) {
         e.preventDefault();
 
         // Navigation key throttle to avoid Android TV remote repeat spam / queue bursts
         const now = Date.now();
-        if (now - lastNavKeyTime < 60) {
+        if (now - lastNavKeyTime < 45) {
             return;
         }
         lastNavKeyTime = now;
 
-        if (currentIndex === -1) {
-            if (currentView === "catalog") {
-                const firstCard = document.querySelector("#catalog-grid .media-card");
-                if (firstCard) {
-                    firstCard.focus();
-                    firstCard.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-                    return;
-                }
-            }
-            if (focusables.length > 0) focusables[0].focus();
-            return;
-        }
-
         const currentEl = document.activeElement;
 
-        // Fast O(1) Grid Navigation when browsing catalog cards
-        const currentCard = currentEl.classList.contains("media-card") ? currentEl : currentEl.closest(".media-card");
-        if (currentCard && currentCard.parentElement && currentCard.parentElement.id === "catalog-grid") {
-            const gridCards = Array.from(document.querySelectorAll("#catalog-grid .media-card"));
+        // 1. FAST-PATH: Media Card Grid Navigation (Zero DOM queries, Zero reflows)
+        const currentCard = currentEl?.classList?.contains("media-card") ? currentEl : currentEl?.closest(".media-card");
+        const gridContainer = currentCard?.parentElement;
+
+        if (currentCard && gridContainer && (gridContainer.id === "catalog-grid" || gridContainer.id === "search-results" || gridContainer.id === "favorites-grid" || gridContainer.id === "history-grid" || gridContainer.id === "search-modal-results")) {
+            const gridCards = Array.from(gridContainer.children).filter(c => c.classList && c.classList.contains("media-card"));
             const cardIdx = gridCards.indexOf(currentCard);
             if (cardIdx !== -1) {
-                // Determine column count by finding where the row wraps
-                let cols = 5;
-                if (gridCards.length >= 2) {
-                    const top0 = gridCards[0].offsetTop;
-                    for (let i = 1; i < Math.min(10, gridCards.length); i++) {
-                        if (Math.abs(gridCards[i].offsetTop - top0) > 15) {
-                            cols = i;
-                            break;
-                        }
-                    }
-                }
+                // Compute columns from card/container width: instantaneous, zero reflow loop
+                const cardWidth = currentCard.offsetWidth || 230;
+                const gridWidth = gridContainer.clientWidth || 1920;
+                const cols = Math.max(1, Math.floor(gridWidth / cardWidth)) || 5;
 
                 if (e.key === "ArrowRight") {
                     if (cardIdx + 1 < gridCards.length) {
@@ -1670,90 +1626,27 @@ function handleKeyDown(e) {
                         gridCards[prevRowIdx].scrollIntoView({ block: 'nearest', inline: 'nearest' });
                         return;
                     } else {
-                        // User is on top row of cards: 1 click jumps directly into top menu (#nav-search)!
+                        // User is on top row of cards: INSTANT 1-click jump into top menu (#nav-search)!
                         const topbarNav = document.getElementById("nav-search") || document.querySelector(".topbar .nav-item");
                         if (topbarNav) {
                             topbarNav.focus();
-                            topbarNav.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+                            window.scrollTo({ top: 0, behavior: 'instant' });
                             return;
                         }
                     }
                 }
-            }
-        }
-
-        // Fast deterministic navigation between Filter Bar, Genre Bar, and Catalog Grid
-        const inFilterBar = currentEl && (currentEl.closest("#catalog-filter-bar") || currentEl.classList.contains("filter-select") || currentEl.classList.contains("filter-reset-btn"));
-        if (inFilterBar) {
-            if (e.key === "ArrowDown") {
-                const gridCards = Array.from(document.querySelectorAll("#catalog-grid .media-card"));
-                if (gridCards.length > 0) {
-                    const filterCenter = currentEl.getBoundingClientRect().left + currentEl.offsetWidth / 2;
-                    let bestCard = gridCards[0];
-                    let bestDiff = Infinity;
-                    for (let i = 0; i < Math.min(10, gridCards.length); i++) {
-                        const cCenter = gridCards[i].getBoundingClientRect().left + gridCards[i].offsetWidth / 2;
-                        const diff = Math.abs(cCenter - filterCenter);
-                        if (diff < bestDiff) {
-                            bestDiff = diff;
-                            bestCard = gridCards[i];
-                        }
-                    }
-                    bestCard.focus();
-                    bestCard.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-                    return;
-                }
-                // When catalog is still loading, stay on the filter element instead of losing focus
                 return;
-            } else if (e.key === "ArrowUp") {
-                const topbarNav = document.getElementById("nav-search") || document.querySelector(".topbar .nav-item");
-                if (topbarNav) {
-                    topbarNav.focus();
-                    topbarNav.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-                    return;
-                }
             }
         }
 
-        const inGenreBar = currentEl && (currentEl.classList.contains("genre-chip") || currentEl.closest("#genre-bar"));
-        if (inGenreBar) {
-            if (e.key === "ArrowDown") {
-                const filterBar = document.getElementById("catalog-filter-bar");
-                if (filterBar && filterBar.offsetParent !== null) {
-                    const filterElements = Array.from(filterBar.querySelectorAll("select, button")).filter(el => el.offsetParent !== null && !el.disabled);
-                    if (filterElements.length > 0) {
-                        const chipCenter = currentEl.getBoundingClientRect().left + currentEl.offsetWidth / 2;
-                        let bestFilter = filterElements[0];
-                        let bestDiff = Infinity;
-                        filterElements.forEach(fe => {
-                            const feCenter = fe.getBoundingClientRect().left + fe.offsetWidth / 2;
-                            const diff = Math.abs(feCenter - chipCenter);
-                            if (diff < bestDiff) {
-                                bestDiff = diff;
-                                bestFilter = fe;
-                            }
-                        });
-                        bestFilter.focus();
-                        bestFilter.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-                        return;
-                    }
-                }
-            } else if (e.key === "ArrowUp") {
-                const topbarNav = document.getElementById("nav-search") || document.querySelector(".topbar .nav-item");
-                if (topbarNav) {
-                    topbarNav.focus();
-                    return;
-                }
-            }
-        }
-
-        const inTopBar = currentEl && (currentEl.classList.contains("nav-item") || currentEl.classList.contains("nav-action-btn") || Boolean(currentEl.closest(".topbar")));
+        // 2. Fast Top Bar Navigation (Instant D-Pad horizontal & jump down into active grid)
+        const inTopBar = currentEl && (currentEl.classList?.contains("nav-item") || currentEl.classList?.contains("nav-action-btn") || Boolean(currentEl.closest(".topbar")));
         if (inTopBar) {
-            if (currentView === "catalog" && e.key === "ArrowDown") {
-                const activeGenre = document.querySelector(".genre-chip.active") || document.querySelector(".genre-chip");
-                if (activeGenre && activeGenre.offsetParent !== null) {
-                    activeGenre.focus();
-                    activeGenre.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+            if (e.key === "ArrowDown") {
+                const firstCard = document.querySelector(".view.active-view .media-card") || document.querySelector("#catalog-grid .media-card");
+                if (firstCard) {
+                    firstCard.focus();
+                    firstCard.scrollIntoView({ block: 'nearest', inline: 'nearest' });
                     return;
                 }
             } else if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
@@ -1767,6 +1660,85 @@ function handleKeyDown(e) {
                     }
                 }
             }
+        }
+
+        // 3. Fast deterministic navigation between Filter Bar, Genre Bar, and Catalog Grid
+        const inFilterBar = currentEl && (currentEl.closest("#catalog-filter-bar") || currentEl.classList?.contains("filter-select") || currentEl.classList?.contains("filter-reset-btn"));
+        if (inFilterBar) {
+            if (e.key === "ArrowDown") {
+                const firstCard = document.querySelector("#catalog-grid .media-card");
+                if (firstCard) {
+                    firstCard.focus();
+                    firstCard.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+                    return;
+                }
+                return;
+            } else if (e.key === "ArrowUp") {
+                const topbarNav = document.getElementById("nav-search") || document.querySelector(".topbar .nav-item");
+                if (topbarNav) {
+                    topbarNav.focus();
+                    window.scrollTo({ top: 0, behavior: 'instant' });
+                    return;
+                }
+            }
+        }
+
+        const inGenreBar = currentEl && (currentEl.classList?.contains("genre-chip") || currentEl.closest("#genre-bar"));
+        if (inGenreBar) {
+            if (e.key === "ArrowDown") {
+                const firstCard = document.querySelector("#catalog-grid .media-card");
+                if (firstCard) {
+                    firstCard.focus();
+                    firstCard.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+                    return;
+                }
+            } else if (e.key === "ArrowUp") {
+                const topbarNav = document.getElementById("nav-search") || document.querySelector(".topbar .nav-item");
+                if (topbarNav) {
+                    topbarNav.focus();
+                    window.scrollTo({ top: 0, behavior: 'instant' });
+                    return;
+                }
+            }
+        }
+
+        // 4. Fallback Spatial Navigation (Only runs for modals, drawers, or complex non-grid views)
+        let searchRoots = [];
+        if (playerModal && playerModal.style.display !== "none") {
+            if (activeDrawer) {
+                searchRoots = [document.getElementById(`player-drawer-${activeDrawer}`) || playerModal];
+            } else {
+                searchRoots = [playerModal];
+            }
+        } else {
+            const currentModal = document.querySelector(".modal[style*='display: flex'], .modal[style*='display: block']");
+            if (currentModal) {
+                searchRoots = [currentModal];
+            } else if (currentView === "details") {
+                searchRoots = [document.getElementById("view-details") || document.body];
+            } else {
+                const topbar = document.querySelector(".topbar");
+                const activeView = document.getElementById(`view-${currentView}`);
+                if (topbar) searchRoots.push(topbar);
+                if (activeView) searchRoots.push(activeView);
+            }
+        }
+
+        const focusables = [];
+        const focusableSelector = "button:not([disabled]), [tabindex='0'], .player-skip-btn, .media-card, .stream-chip, .source-tab-btn, .genre-chip, .modal-tab-btn, .translator-chip, .season-chip, .episode-chip, .settings-tab-btn, .settings-select, .settings-input, .settings-toggle input, .osd-ctrl-btn, .osd-btn-back, .osd-center-play-btn, .player-drawer-item, .player-drawer-close, .up-next-actions button, #osd-progress-track, .filter-select, .filter-reset-btn, input, textarea";
+
+        searchRoots.forEach(root => {
+            root.querySelectorAll(focusableSelector).forEach(el => {
+                if (el.offsetParent !== null && !el.disabled) {
+                    focusables.push(el);
+                }
+            });
+        });
+
+        const currentIndex = focusables.indexOf(document.activeElement);
+        if (currentIndex === -1) {
+            if (focusables.length > 0) focusables[0].focus();
+            return;
         }
 
         const currentRect = currentEl.getBoundingClientRect();
@@ -2311,16 +2283,19 @@ function buildSingleMediaCardHtml(it, favsObj = null) {
     `;
 }
 
+let activeTvMarqueeTitle = null;
+let activeTvFocusedCard = null;
+
 function stopAllCardMarquees(container) {
-    if (!container) return;
-    container.querySelectorAll(".media-title.marquee-scrolling").forEach(t => {
-        t.classList.remove("marquee-scrolling");
-        const s = t.querySelector(".title-text");
+    if (activeTvMarqueeTitle) {
+        activeTvMarqueeTitle.classList.remove("marquee-scrolling");
+        const s = activeTvMarqueeTitle.querySelector(".title-text");
         if (s) {
             s.style.removeProperty("--marquee-distance");
             s.style.removeProperty("--marquee-duration");
         }
-    });
+        activeTvMarqueeTitle = null;
+    }
 }
 
 function attachCardEvents(card, container) {
@@ -2344,10 +2319,11 @@ function attachCardEvents(card, container) {
         }
     });
     card.addEventListener("focus", () => {
-        container.querySelectorAll(".media-card.tv-focused").forEach(c => {
-            if (c !== card) c.classList.remove("tv-focused");
-        });
+        if (activeTvFocusedCard && activeTvFocusedCard !== card) {
+            activeTvFocusedCard.classList.remove("tv-focused");
+        }
         card.classList.add("tv-focused");
+        activeTvFocusedCard = card;
         handleCardFocus(card);
 
         // Cancel previous timers & animations immediately on focus switch
@@ -2381,6 +2357,7 @@ function attachCardEvents(card, container) {
                     span.style.setProperty("--marquee-distance", `${distance + 8}px`);
                     span.style.setProperty("--marquee-duration", `${duration}s`);
                     titleEl.classList.add("marquee-scrolling");
+                    activeTvMarqueeTitle = titleEl;
                 }
             }
 
@@ -2671,7 +2648,8 @@ async function fetchDetails(source, queryId, title, reqId, year, isSeries, kpId)
     const preloadKey = `${source}_${queryId}_${yr || ''}_${isSer ? '1' : '0'}`;
     try {
         let url = `/api/media/details?source=${encodeURIComponent(source)}&media_id=${encodeURIComponent(queryId)}&title=${encodeURIComponent(title)}`;
-        if (yr) url += `&year=${encodeURIComponent(yr)}`;
+        const validYr = getValidYear(yr);
+        if (validYr) url += `&year=${encodeURIComponent(validYr)}`;
         if (isSer !== undefined && isSer !== null) url += `&is_series=${encodeURIComponent(isSer ? 1 : 0)}`;
         if (kp) url += `&kp_id=${encodeURIComponent(kp)}`;
         const res = await fetch(url);
@@ -3024,7 +3002,8 @@ async function fetchStreams(source, queryId, title, reqId, year, isSeries, kpId)
                 url += `&audio_id=${encodeURIComponent(activeTranslatorId)}`;
             }
             const yr = year || currentMediaItem?.year;
-            if (yr) url += `&year=${encodeURIComponent(yr)}`;
+            const validYr = getValidYear(yr);
+            if (validYr) url += `&year=${encodeURIComponent(validYr)}`;
             const isSer = (isSeries !== undefined && isSeries !== null) ? isSeries : currentMediaItem?.isSeries;
             if (isSer !== undefined && isSer !== null) url += `&is_series=${encodeURIComponent(isSer ? 1 : 0)}`;
             const kp = kpId || currentMediaItem?.kpId;
@@ -4076,7 +4055,8 @@ function handleCardFocus(card) {
         const preloadKey = `${source}_${queryId}_${year}_${isSeries ? '1' : '0'}`;
         if (!detailsPreloadCache.has(preloadKey)) {
             let url = `/api/media/details?source=${encodeURIComponent(source)}&media_id=${encodeURIComponent(queryId)}&title=${encodeURIComponent(title)}`;
-            if (year) url += `&year=${encodeURIComponent(year)}`;
+            const validYr = getValidYear(year);
+            if (validYr) url += `&year=${encodeURIComponent(validYr)}`;
             if (isSeries) url += `&is_series=1`;
             if (kpId) url += `&kp_id=${encodeURIComponent(kpId)}`;
             fetch(url)
@@ -6253,7 +6233,7 @@ function initSettingsUpdates() {
             if (!res.ok) throw new Error("HTTP " + res.status);
             const data = await res.json();
 
-            const currentVersionCode = 27; // v1.9.8
+            const currentVersionCode = 28; // v1.9.9
             if (data && data.version_code && data.version_code > currentVersionCode) {
                 if (statusText) {
                     statusText.textContent = `Доступна новая версия: v${data.version_name || data.version}! ${data.changelog || ''}`;
@@ -6266,7 +6246,7 @@ function initSettingsUpdates() {
                 }, 50);
             } else {
                 if (statusText) {
-                    statusText.textContent = `У вас установлена самая актуальная версия (${data.version_name || 'v1.9.8'}). Обновлений не требуется.`;
+                    statusText.textContent = `У вас установлена самая актуальная версия (${data.version_name || 'v1.9.9'}). Обновлений не требуется.`;
                     statusText.style.color = "var(--accent-success)";
                 }
             }

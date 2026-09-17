@@ -3435,14 +3435,31 @@ body.in-details-view .main-content {
     vertical-align: middle;
 }
 
-/* ================= TV Footer Catalog Counter ================= */
+/* ================= TV Footer Catalog Counter & TV Remote Legend ================= */
 .tv-footer {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    z-index: 90;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 8px 32px;
-    background: rgba(8, 11, 18, 0.95);
+    padding: 6px 32px;
+    background: rgba(8, 12, 22, 0.94);
+    backdrop-filter: blur(10px);
     border-top: 1px solid rgba(255, 255, 255, 0.08);
+    box-sizing: border-box;
+    pointer-events: none;
+}
+
+body.in-details-view .tv-footer,
+body.in-player-mode .tv-footer {
+    display: none !important;
+}
+
+main.main-content {
+    padding-bottom: 48px;
 }
 
 .tv-footer-counter {

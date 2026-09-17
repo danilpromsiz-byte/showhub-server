@@ -1,7 +1,11 @@
 package com.example.tvmediaapp.ui.screens.player
 
+import android.annotation.SuppressLint
 import android.view.KeyEvent
 import android.view.ViewGroup
+import android.webkit.WebChromeClient
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import android.widget.FrameLayout
 import androidx.activity.compose.BackHandler
 import androidx.annotation.OptIn
@@ -41,7 +45,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.MediaItem
-import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
@@ -57,10 +60,146 @@ import com.example.tvmediaapp.ui.theme.TextGray
 import com.example.tvmediaapp.ui.theme.TextWhite
 import kotlinx.coroutines.delay
 
+fun isDirectVideoStream(url: String): Boolean {
+    val clean = url.lowercase().trim()
+    if (clean.contains("embed") || clean.contains("allarknow") || clean.contains("bazon.cc") || 
+        clean.contains("delivembd") || clean.contains("kinobase") || clean.contains("iframe") || 
+        clean.endsWith(".html") || clean.contains(".html?")) {
+        return false
+    }
+    return clean.contains(".m3u8") || clean.contains(".mp4") || clean.contains("voidboost") || 
+           clean.contains("/stream/") || clean.contains("/hls/") || clean.contains(".mkv") || clean.contains(".webm")
+}
+
+@Composable
+fun PlayerScreen(
+    movie: Movie,
+    startPositionMs: Long = 0L,
+    season: Int = 1,
+    episode: Int = 1,
+    onBackPress: () -> Unit
+) {
+    if (isDirectVideoStream(movie.videoUrl)) {
+        NativeExoPlayerScreen(
+            movie = movie,
+            startPositionMs = startPositionMs,
+            season = season,
+            episode = episode,
+            onBackPress = onBackPress
+        )
+    } else {
+        EmbedWebViewPlayerScreen(
+            movie = movie,
+            onBackPress = onBackPress
+        )
+    }
+}
+
+@SuppressLint("SetJavaScriptEnabled")
+@Composable
+private fun EmbedWebViewPlayerScreen(
+    movie: Movie,
+    onBackPress: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var webViewRef by remember { mutableStateOf<WebView?>(null) }
+
+    BackHandler {
+        webViewRef?.let { wv ->
+            if (wv.canGoBack()) {
+                wv.goBack()
+                return@BackHandler
+            }
+        }
+        onBackPress()
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            webViewRef?.let { wv ->
+                wv.stopLoading()
+                wv.loadUrl("about:blank")
+                wv.destroy()
+            }
+            webViewRef = null
+        }
+    }
+
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(Color.Black)
+    ) {
+        AndroidView(
+            factory = { ctx ->
+                WebView(ctx).apply {
+                    layoutParams = ViewGroup.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT
+                    )
+                    settings.apply {
+                        javaScriptEnabled = true
+                        domStorageEnabled = true
+                        mediaPlaybackRequiresUserGesture = false
+                        userAgentString = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+                        loadWithOverviewMode = true
+                        useWideViewPort = true
+                        allowFileAccess = true
+                        setSupportZoom(false)
+                        builtInZoomControls = false
+                        displayZoomControls = false
+                    }
+                    webChromeClient = WebChromeClient()
+                    webViewClient = object : WebViewClient() {
+                        override fun onPageFinished(view: WebView?, url: String?) {
+                            super.onPageFinished(view, url)
+                            view?.evaluateJavascript(
+                                """
+                                (function() {
+                                    document.body.style.backgroundColor = '#000';
+                                    document.body.style.margin = '0';
+                                    document.body.style.padding = '0';
+                                    document.body.style.overflow = 'hidden';
+                                    var f = document.querySelector('iframe');
+                                    if (f) {
+                                        f.style.width = '100vw';
+                                        f.style.height = '100vh';
+                                        f.style.border = '0';
+                                    }
+                                })();
+                                """.trimIndent(), null
+                            )
+                        }
+                    }
+                    val html = """
+                        <!DOCTYPE html>
+                        <html>
+                        <head>
+                        <meta charset="utf-8">
+                        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+                        <style>
+                          html, body { margin: 0; padding: 0; width: 100vw; height: 100vh; background: #000; overflow: hidden; }
+                          iframe { width: 100%; height: 100%; border: 0; position: absolute; top: 0; left: 0; }
+                        </style>
+                        </head>
+                        <body>
+                          <iframe src="${movie.videoUrl}" allow="autoplay; fullscreen" allowfullscreen></iframe>
+                        </body>
+                        </html>
+                    """.trimIndent()
+                    loadDataWithBaseURL("https://showhub-server.onrender.com", html, "text/html", "UTF-8", null)
+                    webViewRef = this
+                }
+            },
+            modifier = Modifier.fillMaxSize()
+        )
+    }
+}
+
 @OptIn(UnstableApi::class)
 @kotlin.OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
-fun PlayerScreen(
+private fun NativeExoPlayerScreen(
     movie: Movie,
     startPositionMs: Long = 0L,
     season: Int = 1,
@@ -239,9 +378,9 @@ fun PlayerScreen(
                             fontWeight = FontWeight.Bold
                         )
                         val subText = if (movie.isSeries) {
-                            "\u0421\u0435\u0437\u043e\u043d $season \u2022 \u0421\u0435\u0440\u0438\u044f $episode"
+                            "Сезон $season • Серия $episode"
                         } else {
-                            "${movie.releaseYear} \u2022 ${movie.duration}"
+                            "${movie.releaseYear} • ${movie.duration}"
                         }
                         Text(
                             text = subText,
@@ -249,54 +388,65 @@ fun PlayerScreen(
                             color = CyanNeon
                         )
                     }
+
+                    // Live Badge
+                    Box(
+                        modifier = Modifier
+                            .background(RedPrimary, shape = MaterialTheme.shapes.extraSmall)
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = if (isPlaying) "ВОСПРОИЗВЕДЕНИЕ" else "ПАУЗА",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextWhite
+                        )
+                    }
                 }
 
-                // Bottom Progress Bar and Time
+                // Bottom Timeline Bar
                 Column(
                     modifier = Modifier
-                        .fillMaxWidth()
                         .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
                         .padding(horizontal = 48.dp, vertical = 36.dp)
                 ) {
-                    // D-Pad Hints
+                    // D-Pad Quick Actions Hint
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.Center
                     ) {
                         Text(
-                            text = if (isPlaying) "\u23f8 OK \u2014 \u041f\u0430\u0443\u0437\u0430" else "\u25b6 OK \u2014 \u0412\u043e\u0441\u043f\u0440\u043e\u0438\u0437\u0432\u0435\u0434\u0435\u043d\u0438\u0435",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = TextGray
-                        )
-                        Spacer(modifier = Modifier.width(24.dp))
-                        Text(
-                            text = "\u25c0 \u0412\u043b\u0435\u0432\u043e / \u0412\u043f\u0440\u0430\u0432\u043e \u25b6 \u2014 \u041f\u0435\u0440\u0435\u043c\u043e\u0442\u043a\u0430 \u00b110 \u0441\u0435\u043a",
-                            style = MaterialTheme.typography.labelMedium,
+                            text = "◀◀  10 сек  •  ОК Пауза  •  10 сек  ▶▶",
+                            fontSize = 12.sp,
                             color = TextGray
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
 
-                    // Progress bar track
-                    val progress = if (duration > 0) currentPosition.toFloat() / duration.toFloat() else 0f
+                    // Progress Bar
+                    val progressFraction = if (duration > 0) {
+                        (currentPosition.toFloat() / duration.toFloat()).coerceIn(0f, 1f)
+                    } else 0f
+
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(6.dp)
-                            .background(Color.White.copy(alpha = 0.3f))
+                            .background(Color.White.copy(alpha = 0.2f), shape = MaterialTheme.shapes.extraSmall)
                     ) {
                         Box(
                             modifier = Modifier
-                                .fillMaxWidth(progress.coerceIn(0f, 1f))
+                                .fillMaxWidth(progressFraction)
                                 .height(6.dp)
-                                .background(CyanNeon)
+                                .background(CyanNeon, shape = MaterialTheme.shapes.extraSmall)
                         )
                     }
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    // Time labels
+                    // Duration Timestamps
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween

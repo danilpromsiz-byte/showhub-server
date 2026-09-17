@@ -178,7 +178,8 @@ object ShowHubApiClient {
         episode: Int? = null,
         audioId: String? = null
     ): List<StreamOption> = withContext(Dispatchers.IO) {
-        val streams = mutableListOf<StreamOption>()
+        val directStreams = mutableListOf<StreamOption>()
+        val embedStreams = mutableListOf<StreamOption>()
         try {
             val q = URLEncoder.encode(movie.title, "UTF-8")
             val sb = StringBuilder("$SERVER_BASE/api/media/streams?source=hdrezka&media_id=${movie.id}&title=$q")
@@ -190,38 +191,92 @@ object ShowHubApiClient {
             val conn = URL(sb.toString()).openConnection() as HttpURLConnection
             conn.connectTimeout = 12000
             conn.readTimeout = 18000
-            conn.setRequestProperty("User-Agent", "ShowHubTV-Native/2.3.0")
+            conn.setRequestProperty("User-Agent", "ShowHubTV-Native/2.4.0")
             conn.connect()
             if (conn.responseCode == 200) {
                 val body = BufferedReader(InputStreamReader(conn.inputStream, "UTF-8")).use { it.readText() }
                 val root = JSONObject(body)
-                val sources = listOf("hdrezka", "filmix", "delivembd", "bazon")
-                for (src in sources) {
-                    if (root.has(src)) {
-                        val srcObj = root.optJSONObject(src) ?: continue
-                        val strArr = srcObj.optJSONArray("streams") ?: continue
+                val keys = root.keys()
+                while (keys.hasNext()) {
+                    val src = keys.next()
+                    val srcObj = root.optJSONObject(src) ?: continue
+                    val strArr = srcObj.optJSONArray("streams")
+                    if (strArr != null) {
                         for (i in 0 until strArr.length()) {
                             val s = strArr.getJSONObject(i)
-                            val qStr = s.optString("quality", "HD")
+                            val qStr = s.optString("quality", src.uppercase())
                             val uStr = s.optString("url", "")
+                            val sType = s.optString("stream_type", "")
                             if (uStr.startsWith("http") && !uStr.contains("rhtie.mp4")) {
-                                streams.add(
-                                    StreamOption(
-                                        quality = qStr,
-                                        url = uStr,
-                                        isHls = uStr.contains(".m3u8")
+                                val isDirect = sType == "hls" || sType == "mp4" || uStr.contains(".m3u8") || uStr.contains(".mp4") || uStr.contains("voidboost")
+                                if (isDirect) {
+                                    directStreams.add(
+                                        StreamOption(
+                                            quality = qStr,
+                                            url = uStr,
+                                            isHls = uStr.contains(".m3u8")
+                                        )
                                     )
-                                )
+                                } else {
+                                    embedStreams.add(
+                                        StreamOption(
+                                            quality = qStr,
+                                            url = uStr,
+                                            isHls = false
+                                        )
+                                    )
+                                }
                             }
                         }
+                    }
+                    val embedUrl = srcObj.optString("embed_url", "")
+                    if (embedUrl.startsWith("http") && directStreams.none { it.url == embedUrl } && embedStreams.none { it.url == embedUrl }) {
+                        val label = when (src) {
+                            "videocdn" -> "VideoCDN Player (1080p)"
+                            "bazon" -> "Bazon Player (HD)"
+                            "delivembd" -> "Delivembd Player"
+                            else -> "${src.replaceFirstChar { it.uppercase() }} Player"
+                        }
+                        embedStreams.add(
+                            StreamOption(
+                                quality = label,
+                                url = embedUrl,
+                                isHls = false
+                            )
+                        )
                     }
                 }
             }
         } catch (e: Exception) {
             e.printStackTrace()
         }
-        streams
+        val result = mutableListOf<StreamOption>()
+        result.addAll(directStreams)
+        result.addAll(embedStreams)
+        result
     }
+
+    suspend fun fetchTrailerUrl(movie: Movie): String? = withContext(Dispatchers.IO) {
+        try {
+            val q = URLEncoder.encode(movie.title, "UTF-8")
+            val url = URL("$SERVER_BASE/api/media/trailer?title=$q&year=${movie.releaseYear}")
+            val conn = url.openConnection() as HttpURLConnection
+            conn.connectTimeout = 8000
+            conn.readTimeout = 8000
+            conn.setRequestProperty("User-Agent", "ShowHubTV-Native/2.4.0")
+            conn.connect()
+            if (conn.responseCode == 200) {
+                val body = BufferedReader(InputStreamReader(conn.inputStream, "UTF-8")).use { it.readText() }
+                val json = JSONObject(body)
+                val target = json.optString("web_url", json.optString("embed_url", json.optString("app_url", "")))
+                if (target.isNotEmpty()) return@withContext target
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        null
+    }
+
 
     private fun parseMoviesJson(arr: JSONArray, outList: MutableList<Movie>) {
         for (i in 0 until arr.length()) {

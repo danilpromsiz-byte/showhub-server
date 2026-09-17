@@ -55,6 +55,7 @@ import com.example.tvmediaapp.ui.theme.SurfaceDark
 import com.example.tvmediaapp.ui.theme.TextGray
 import com.example.tvmediaapp.ui.theme.TextWhite
 
+@Suppress("UNUSED_PARAMETER")
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 fun HistoryScreen(

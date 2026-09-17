@@ -1,10 +1,10 @@
 {
   "success": true,
-  "version_name": "2.3.0",
-  "version_code": 33,
+  "version_name": "2.4.0",
+  "version_code": 34,
   "force_update": true,
-  "min_version_code": 33,
+  "min_version_code": 34,
   "download_url": "https://showhub-server.onrender.com/ShowHub.apk",
   "apk_url": "https://showhub-server.onrender.com/ShowHub.apk",
-  "changelog": "ShowHub TV v2.3.0: Выбор озвучки/перевода, экранная клавиатура поиска для пульта, автопроверка обновлений при разворачивании."
+  "changelog": "ShowHub TV v2.4.0: Трейлеры, сторонние плееры (VLC/MX Player), все источники и балансеры (VideoCDN, Bazon, HDRezka, Filmix)."
 }

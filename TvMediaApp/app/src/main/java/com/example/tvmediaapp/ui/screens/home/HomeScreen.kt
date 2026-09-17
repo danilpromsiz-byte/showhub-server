@@ -47,6 +47,7 @@ fun HomeScreen(
     val selectedGenre by viewModel.selectedGenre.collectAsState()
     val selectedYear by viewModel.selectedYear.collectAsState()
     val selectedCountry by viewModel.selectedCountry.collectAsState()
+    @Suppress("UNUSED_VARIABLE")
     val favTrigger by viewModel.favoriteChangeTrigger.collectAsState()
 
     var featuredMovie by remember { mutableStateOf<Movie?>(null) }

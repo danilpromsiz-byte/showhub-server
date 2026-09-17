@@ -1,5 +1,9 @@
 package com.example.tvmediaapp.ui.screens.details
 
+import android.content.Intent
+import android.net.Uri
+import android.widget.Toast
+
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -93,6 +97,23 @@ fun DetailsScreen(
         }
         if (detailed.audioTracks.isNotEmpty() && selectedAudioId.isEmpty()) {
             selectedAudioId = detailed.audioTracks.first().id
+        }
+    }
+
+    // Pre-fetch streams in background so available sources and qualities show up immediately
+    LaunchedEffect(currentMovie.id, selectedSeason, selectedEpisode, selectedAudioId) {
+        try {
+            val streams = ShowHubApiClient.fetchStreams(
+                movie = currentMovie,
+                season = if (currentMovie.isSeries) selectedSeason else null,
+                episode = if (currentMovie.isSeries) selectedEpisode else null,
+                audioId = selectedAudioId
+            )
+            if (streams.isNotEmpty()) {
+                streamOptions = streams
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
     }
 
@@ -368,6 +389,112 @@ fun DetailsScreen(
                                 modifier = Modifier.padding(horizontal = 12.dp)
                             )
                         }
+                    }
+
+                    // TRAILER BUTTON
+                    Button(
+                        onClick = {
+                            coroutineScope.launch {
+                                streamStatus = "⏳ Поиск трейлера..."
+                                val trailerUrl = ShowHubApiClient.fetchTrailerUrl(currentMovie)
+                                if (!trailerUrl.isNullOrEmpty()) {
+                                    try {
+                                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(trailerUrl)).apply {
+                                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                        }
+                                        context.startActivity(intent)
+                                        streamStatus = null
+                                    } catch (e: Exception) {
+                                        streamStatus = "Ошибка запуска видео: ${e.message}"
+                                    }
+                                } else {
+                                    streamStatus = "⚠️ Трейлер не найден"
+                                }
+                            }
+                        },
+                        colors = ButtonDefaults.colors(
+                            containerColor = Color.White.copy(alpha = 0.12f),
+                            focusedContainerColor = CyanNeon,
+                            contentColor = TextWhite,
+                            focusedContentColor = Color.Black
+                        ),
+                        shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                        modifier = Modifier.height(44.dp)
+                    ) {
+                        Text(
+                            text = "🎬 Трейлер",
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 14.sp,
+                            modifier = Modifier.padding(horizontal = 6.dp)
+                        )
+                    }
+
+                    // EXTERNAL PLAYER BUTTON (VLC, MX Player, Nova)
+                    Button(
+                        onClick = {
+                            coroutineScope.launch {
+                                streamStatus = "⏳ Получение ссылки для стороннего плеера..."
+                                var streams = streamOptions
+                                if (streams.isEmpty()) {
+                                    streams = ShowHubApiClient.fetchStreams(
+                                        movie = currentMovie,
+                                        season = if (currentMovie.isSeries) selectedSeason else null,
+                                        episode = if (currentMovie.isSeries) selectedEpisode else null,
+                                        audioId = selectedAudioId
+                                    )
+                                }
+                                if (streams.isEmpty()) {
+                                    streams = RezkaNativeResolver.resolveStreams(
+                                        title = currentMovie.title,
+                                        year = currentMovie.releaseYear,
+                                        isSeries = currentMovie.isSeries,
+                                        season = selectedSeason,
+                                        episode = selectedEpisode
+                                    )
+                                }
+                                if (streams.isNotEmpty()) {
+                                    val matched = streams.firstOrNull { it.quality.contains(selectedQuality) } ?: streams.first()
+                                    try {
+                                        val intent = Intent(Intent.ACTION_VIEW).apply {
+                                            val uri = Uri.parse(matched.url)
+                                            val mime = if (matched.url.contains(".m3u8")) "application/x-mpegURL" else "video/*"
+                                            setDataAndType(uri, mime)
+                                            putExtra("title", currentMovie.title)
+                                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                        }
+                                        context.startActivity(Intent.createChooser(intent, "Выберите видеоплеер"))
+                                        streamStatus = null
+                                    } catch (e: Exception) {
+                                        try {
+                                            val webIntent = Intent(Intent.ACTION_VIEW, Uri.parse(matched.url)).apply {
+                                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                            }
+                                            context.startActivity(webIntent)
+                                            streamStatus = null
+                                        } catch (e2: Exception) {
+                                            streamStatus = "⚠️ Не найден внешний плеер"
+                                        }
+                                    }
+                                } else {
+                                    streamStatus = "⚠️ Потоки не найдены"
+                                }
+                            }
+                        },
+                        colors = ButtonDefaults.colors(
+                            containerColor = Color.White.copy(alpha = 0.12f),
+                            focusedContainerColor = CyanNeon,
+                            contentColor = TextWhite,
+                            focusedContentColor = Color.Black
+                        ),
+                        shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                        modifier = Modifier.height(44.dp)
+                    ) {
+                        Text(
+                            text = "📺 Сторонний плеер",
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 14.sp,
+                            modifier = Modifier.padding(horizontal = 6.dp)
+                        )
                     }
 
                     Button(

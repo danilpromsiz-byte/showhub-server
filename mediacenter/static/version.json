@@ -1,7 +1,10 @@
 {
-  "version_name": "2.0.1",
-  "version_code": 30,
+  "success": true,
+  "version_name": "2.3.0",
+  "version_code": 33,
+  "force_update": true,
+  "min_version_code": 33,
   "download_url": "https://showhub-server.onrender.com/ShowHub.apk",
   "apk_url": "https://showhub-server.onrender.com/ShowHub.apk",
-  "changelog": "ShowHub TV v2.0.1: Full cinema catalog, instant D-Pad response, 1080p direct streams."
+  "changelog": "ShowHub TV v2.3.0: Выбор озвучки/перевода, экранная клавиатура поиска для пульта, автопроверка обновлений при разворачивании."
 }

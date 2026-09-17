@@ -89,7 +89,7 @@ fun DetailsScreen(
 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = "? ${movie.rating}",
+                    text = "\u2605 ${movie.rating}",
                     style = MaterialTheme.typography.titleMedium,
                     color = RedPrimary,
                     fontWeight = FontWeight.Bold
@@ -108,7 +108,7 @@ fun DetailsScreen(
                 )
                 Spacer(modifier = Modifier.width(16.dp))
                 Text(
-                    text = movie.genres.joinToString(" ? "),
+                    text = movie.genres.joinToString(" \u2022 "),
                     style = MaterialTheme.typography.titleSmall,
                     color = TextGray
                 )
@@ -142,17 +142,16 @@ fun DetailsScreen(
                             onPlayClick(movie.videoUrl)
                         } else {
                             isResolving = true
-                            streamStatus = "????? ??????? HLS ?????? ?? ??..."
+                            streamStatus = "\u23f3  \u041f\u043e\u0438\u0441\u043a \u043f\u0440\u044f\u043c\u043e\u0433\u043e HLS \u043f\u043e\u0442\u043e\u043a\u0430 \u043d\u0430 \u0422\u0412..."
                             coroutineScope.launch {
-                                val streams = RezkaNativeResolver.resolveStreams(movie.title, movie.releaseYear)
+                                val streams = RezkaNativeResolver.resolveStreams(movie.title, movie.releaseYear, movie.isSeries)
                                 isResolving = false
                                 val bestStream = streams.firstOrNull { it.quality.contains("1080") } ?: streams.firstOrNull()
                                 if (bestStream != null) {
-                                    streamStatus = "?????? ????? ${bestStream.quality}! ??????..."
+                                    streamStatus = "\u2705  \u041d\u0430\u0439\u0434\u0435\u043d \u043f\u043e\u0442\u043e\u043a ${bestStream.quality}! \u0417\u0430\u043f\u0443\u0441\u043a..."
                                     onPlayClick(bestStream.url)
                                 } else {
-                                    streamStatus = "?????? ? ????????? ????????..."
-                                    onPlayClick("https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4")
+                                    streamStatus = "\u26a0\ufe0f  \u041f\u043e\u0442\u043e\u043a \u0432 \u043e\u0431\u0440\u0430\u0431\u043e\u0442\u043a\u0435, \u043f\u043e\u043f\u0440\u043e\u0431\u0443\u0439\u0442\u0435 \u0434\u0440\u0443\u0433\u043e\u0439 \u0444\u0438\u043b\u044c\u043c"
                                 }
                             }
                         }
@@ -163,7 +162,7 @@ fun DetailsScreen(
                     )
                 ) {
                     Text(
-                        text = if (isResolving) "? ????? ??????..." else "?  ???????? ??????",
+                        text = if (isResolving) "\u23f3  \u041f\u043e\u0438\u0441\u043a..." else "\u25b6  \u0421\u043c\u043e\u0442\u0440\u0435\u0442\u044c \u043e\u043d\u043b\u0430\u0439\u043d",
                         fontWeight = FontWeight.SemiBold,
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
                     )
@@ -173,7 +172,7 @@ fun DetailsScreen(
                     onClick = onBackClick
                 ) {
                     Text(
-                        text = "? ????? ? ???????",
+                        text = "\u2190  \u041d\u0430\u0437\u0430\u0434 \u0432 \u043a\u0430\u0442\u0430\u043b\u043e\u0433",
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
                     )
                 }

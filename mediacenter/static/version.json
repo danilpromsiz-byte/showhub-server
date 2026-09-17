@@ -1,7 +1,7 @@
-﻿{
-  "version_name": "2.0.0",
-  "version_code": 29,
+{
+  "version_name": "2.0.1",
+  "version_code": 30,
   "download_url": "https://showhub-server.onrender.com/ShowHub.apk",
   "apk_url": "https://showhub-server.onrender.com/ShowHub.apk",
-  "changelog": "ShowHub TV v2.0.0 — 100% Native Kotlin & Jetpack Compose TV remaster"
+  "changelog": "ShowHub TV v2.0.1: Full cinema catalog, instant D-Pad response, 1080p direct streams."
 }

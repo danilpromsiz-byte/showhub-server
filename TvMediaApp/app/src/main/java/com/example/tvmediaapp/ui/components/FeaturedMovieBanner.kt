@@ -150,7 +150,7 @@ fun FeaturedMovieBanner(
                 )
             ) {
                 Text(
-                    text = "▶  Смотреть",
+                    text = "\u25b6  \u0421\u043c\u043e\u0442\u0440\u0435\u0442\u044c",
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.padding(horizontal = 8.dp)
                 )

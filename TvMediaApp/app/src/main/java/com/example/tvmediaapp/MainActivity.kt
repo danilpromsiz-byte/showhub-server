@@ -49,8 +49,8 @@ enum class Screen {
 
 class MainActivity : ComponentActivity() {
     companion object {
-        const val VERSION_CODE = 29
-        const val VERSION_NAME = "2.0.0"
+        const val VERSION_CODE = 30
+        const val VERSION_NAME = "2.0.1"
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -95,8 +95,7 @@ fun TvAppNavHost(activity: MainActivity) {
                     },
                     onWatchClick = { movie ->
                         selectedMovie = movie
-                        activeVideoUrl = movie.videoUrl.ifEmpty { "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4" }
-                        currentScreen = Screen.PLAYER
+                        currentScreen = Screen.DETAILS
                     }
                 )
             }
@@ -145,7 +144,7 @@ fun TvAppNavHost(activity: MainActivity) {
                     modifier = Modifier.padding(32.dp)
                 ) {
                     Text(
-                        text = "???????? ?????????? ShowHub TV v${update.versionName}",
+                        text = "\u0414\u043e\u0441\u0442\u0443\u043f\u043d\u043e \u043e\u0431\u043d\u043e\u0432\u043b\u0435\u043d\u0438\u0435 ShowHub TV v${update.versionName}",
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold
                     )
@@ -173,7 +172,7 @@ fun TvAppNavHost(activity: MainActivity) {
                             )
                         ) {
                             Text(
-                                text = if (isDownloadingUpdate) "? ???????? APK..." else "???????? ??????",
+                                text = if (isDownloadingUpdate) "\u23f3  \u0417\u0430\u0433\u0440\u0443\u0437\u043a\u0430 APK..." else "\u2b07\ufe0f  \u041e\u0431\u043d\u043e\u0432\u0438\u0442\u044c \u0441\u0435\u0439\u0447\u0430\u0441",
                                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
                             )
                         }
@@ -182,7 +181,7 @@ fun TvAppNavHost(activity: MainActivity) {
                             onClick = { updateInfo = null }
                         ) {
                             Text(
-                                text = "????????? ?????",
+                                text = "\u041d\u0430\u043f\u043e\u043c\u043d\u0438\u0442\u044c \u043f\u043e\u0437\u0436\u0435",
                                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
                             )
                         }

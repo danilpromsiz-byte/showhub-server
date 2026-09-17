@@ -36,7 +36,7 @@ object UpdateManager {
                 val sCode = json.optInt("version_code", 0)
                 val sName = json.optString("version_name", "2.0.0")
                 val sUrl = json.optString("download_url", json.optString("apk_url", "https://showhub-server.onrender.com/ShowHub.apk"))
-                val sChangelog = json.optString("changelog", "Новая версия ShowHub TV")
+                val sChangelog = json.optString("changelog", "\u041d\u043e\u0432\u0430\u044f \u0432\u0435\u0440\u0441\u0438\u044f ShowHub TV")
                 val hasUpdate = sCode > currentVersionCode
                 return@withContext UpdateInfo(hasUpdate, sName, sCode, sUrl, sChangelog)
             }

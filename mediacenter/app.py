@@ -1181,6 +1181,39 @@ def refresh_health() -> Dict[str, Any]:
     health_checker.run_checks()
     return health_checker.get_summary()
 
+@app.get("/api/debug/stream-diag")
+def debug_stream_diag(title: str = "Интерстеллар", year: Optional[str] = "2014"):
+    import traceback
+    diag = {}
+    
+    # 1. Filmix
+    try:
+        fx_items = filmix.search(title)
+        diag["fx_search_count"] = len(fx_items)
+        diag["fx_items"] = [{"id": it.id, "title": it.title, "year": it.year} for it in fx_items[:3]]
+        if fx_items:
+            fx_st = filmix.get_streams(fx_items[0].id)
+            diag["fx_streams_count"] = len(fx_st.streams)
+            diag["fx_streams_err"] = fx_st.error
+            diag["fx_streams_sample"] = [s.model_dump() for s in fx_st.streams[:2]]
+    except Exception:
+        diag["fx_exception"] = traceback.format_exc()
+
+    # 2. HDRezka
+    try:
+        rz_items = hdrezka.search(title)
+        diag["rz_search_count"] = len(rz_items)
+        diag["rz_items"] = [{"id": it.id, "title": it.title, "year": it.year} for it in rz_items[:3]]
+        if rz_items:
+            rz_st = hdrezka.get_streams(rz_items[0].id)
+            diag["rz_streams_count"] = len(rz_st.streams)
+            diag["rz_streams_err"] = rz_st.error
+            diag["rz_streams_sample"] = [s.model_dump() for s in rz_st.streams[:2]]
+    except Exception:
+        diag["rz_exception"] = traceback.format_exc()
+        
+    return diag
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("mediacenter.app:app", host="0.0.0.0", port=8000, reload=False)

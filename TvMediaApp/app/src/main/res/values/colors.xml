@@ -1,0 +1,10 @@
+<resources>
+    <color name="primary">#E50914</color>
+    <color name="primary_variant">#B81D24</color>
+    <color name="background">#0F0F14</color>
+    <color name="surface">#1A1A24</color>
+    <color name="surface_variant">#2A2A38</color>
+    <color name="border_focused">#E50914</color>
+    <color name="text_primary">#FFFFFF</color>
+    <color name="text_secondary">#AAAAAA</color>
+</resources>

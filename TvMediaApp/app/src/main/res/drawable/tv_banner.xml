@@ -1,0 +1,23 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="320dp"
+    android:height="180dp"
+    android:viewportWidth="320"
+    android:viewportHeight="180">
+    <!-- Dark gradient background -->
+    <path
+        android:pathData="M0,0h320v180h-320z"
+        android:fillColor="#14141E" />
+    <path
+        android:pathData="M0,0h320v180h-320z"
+        android:fillColor="#E50914"
+        android:fillAlpha="0.15" />
+    <!-- TV / Cinema Screen icon -->
+    <path
+        android:pathData="M140,70 L140,110 L180,90 Z"
+        android:fillColor="#E50914" />
+    <path
+        android:pathData="M110,50 h100 c5.5,0 10,4.5 10,10 v60 c0,5.5 -4.5,10 -10,10 h-100 c-5.5,0 -10,-4.5 -10,-10 v-60 c0,-5.5 4.5,-10 10,-10 Z"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="4"
+        android:fillColor="#00000000" />
+</vector>

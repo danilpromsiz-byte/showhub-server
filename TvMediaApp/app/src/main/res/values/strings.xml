@@ -1,0 +1,11 @@
+<resources>
+    <string name="app_name">ShowHub TV</string>
+    <string name="action_watch">Смотреть</string>
+    <string name="action_trailer">Трейлер</string>
+    <string name="popular_movies">Популярное</string>
+    <string name="top_rated">Высокий рейтинг</string>
+    <string name="now_playing">Сейчас смотрят</string>
+    <string name="action_genre">Боевики и приключения</string>
+    <string name="comedy_genre">Комедии</string>
+    <string name="sci_fi_genre">Фантастика</string>
+</resources>

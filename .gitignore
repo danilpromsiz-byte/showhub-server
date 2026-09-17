@@ -9,8 +9,17 @@
 !/Dockerfile
 !/.gitignore
 !/README.md
+!/TvMediaApp/
+
+# Ignore build artifacts and caches
+TvMediaApp/.gradle/
+TvMediaApp/**/build/
+TvMediaApp/local.properties
+TvMediaApp/.idea/
+TvMediaApp/**/*.iml
 
 # Inside mediacenter, ignore caches and temp files
 **/__pycache__/
 **/*.pyc
 **/*.log
+

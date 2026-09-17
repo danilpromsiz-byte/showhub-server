@@ -2,6 +2,7 @@ package com.example.tvmediaapp
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -24,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.tv.material3.Button
 import androidx.tv.material3.ButtonDefaults
 import androidx.tv.material3.ExperimentalTvMaterial3Api
@@ -34,16 +36,19 @@ import com.example.tvmediaapp.data.updater.UpdateInfo
 import com.example.tvmediaapp.data.updater.UpdateManager
 import com.example.tvmediaapp.ui.screens.details.DetailsScreen
 import com.example.tvmediaapp.ui.screens.home.HomeScreen
+import com.example.tvmediaapp.ui.screens.home.HomeViewModel
 import com.example.tvmediaapp.ui.screens.player.PlayerScreen
+import com.example.tvmediaapp.ui.screens.search.SearchScreen
 import com.example.tvmediaapp.ui.theme.BackgroundDark
-import com.example.tvmediaapp.ui.theme.RedDark
-import com.example.tvmediaapp.ui.theme.RedPrimary
+import com.example.tvmediaapp.ui.theme.CyanDark
+import com.example.tvmediaapp.ui.theme.CyanNeon
 import com.example.tvmediaapp.ui.theme.TvMediaAppTheme
 import kotlinx.coroutines.launch
 
 enum class Screen {
     HOME,
     DETAILS,
+    SEARCH,
     PLAYER
 }
 
@@ -66,6 +71,7 @@ class MainActivity : ComponentActivity() {
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 fun TvAppNavHost(activity: MainActivity) {
+    val homeViewModel: HomeViewModel = viewModel()
     var currentScreen by remember { mutableStateOf(Screen.HOME) }
     var selectedMovie by remember { mutableStateOf<Movie?>(null) }
     var activeVideoUrl by remember { mutableStateOf<String>("") }
@@ -78,6 +84,16 @@ fun TvAppNavHost(activity: MainActivity) {
         val info = UpdateManager.checkUpdate(MainActivity.VERSION_CODE)
         if (info.hasUpdate) {
             updateInfo = info
+        }
+    }
+
+    // Hardware Back button handling for Android TV remotes
+    BackHandler(enabled = currentScreen != Screen.HOME) {
+        when (currentScreen) {
+            Screen.PLAYER -> currentScreen = Screen.DETAILS
+            Screen.DETAILS -> currentScreen = Screen.HOME
+            Screen.SEARCH -> currentScreen = Screen.HOME
+            Screen.HOME -> activity.finish()
         }
     }
 
@@ -96,12 +112,30 @@ fun TvAppNavHost(activity: MainActivity) {
                     onWatchClick = { movie ->
                         selectedMovie = movie
                         currentScreen = Screen.DETAILS
-                    }
+                    },
+                    onSearchClick = {
+                        currentScreen = Screen.SEARCH
+                    },
+                    viewModel = homeViewModel
+                )
+            }
+
+            Screen.SEARCH -> {
+                SearchScreen(
+                    onMovieSelect = { movie ->
+                        selectedMovie = movie
+                        currentScreen = Screen.DETAILS
+                    },
+                    onBackClick = {
+                        currentScreen = Screen.HOME
+                    },
+                    initialMovies = homeViewModel.getAllMovies()
                 )
             }
 
             Screen.DETAILS -> {
                 selectedMovie?.let { movie ->
+                    val isFav = homeViewModel.isFavorite(movie.id)
                     DetailsScreen(
                         movie = movie,
                         onPlayClick = { streamUrl ->
@@ -110,7 +144,11 @@ fun TvAppNavHost(activity: MainActivity) {
                         },
                         onBackClick = {
                             currentScreen = Screen.HOME
-                        }
+                        },
+                        onToggleFavorite = {
+                            homeViewModel.toggleFavorite(it)
+                        },
+                        isFavorite = isFav
                     )
                 } ?: run {
                     currentScreen = Screen.HOME
@@ -132,6 +170,7 @@ fun TvAppNavHost(activity: MainActivity) {
             }
         }
 
+        // Optional In-app Update Notification Banner/Dialog
         updateInfo?.let { update ->
             Box(
                 modifier = Modifier
@@ -146,7 +185,8 @@ fun TvAppNavHost(activity: MainActivity) {
                     Text(
                         text = "\u0414\u043e\u0441\u0442\u0443\u043f\u043d\u043e \u043e\u0431\u043d\u043e\u0432\u043b\u0435\u043d\u0438\u0435 ShowHub TV v${update.versionName}",
                         style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
@@ -167,13 +207,16 @@ fun TvAppNavHost(activity: MainActivity) {
                                 }
                             },
                             colors = ButtonDefaults.colors(
-                                containerColor = RedPrimary,
-                                focusedContainerColor = RedDark
+                                containerColor = CyanNeon,
+                                focusedContainerColor = Color.White,
+                                contentColor = Color.Black,
+                                focusedContentColor = Color.Black
                             )
                         ) {
                             Text(
                                 text = if (isDownloadingUpdate) "\u23f3  \u0417\u0430\u0433\u0440\u0443\u0437\u043a\u0430 APK..." else "\u2b07\ufe0f  \u041e\u0431\u043d\u043e\u0432\u0438\u0442\u044c \u0441\u0435\u0439\u0447\u0430\u0441",
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                                fontWeight = FontWeight.Bold
                             )
                         }
                         Spacer(modifier = Modifier.width(16.dp))

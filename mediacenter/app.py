@@ -1205,6 +1205,43 @@ def debug_stream_diag(title: str = "Интерстеллар", year: Optional[st
         diag["rz_search_count"] = len(rz_items)
         diag["rz_items"] = [{"id": it.id, "title": it.title, "year": it.year} for it in rz_items[:3]]
         if rz_items:
+            rz_id = rz_items[0].id
+            diag["rz_id"] = rz_id
+            base = hdrezka._get_base()
+            diag["rz_base"] = base
+            import urllib.parse
+            parsed = urllib.parse.urlparse(rz_id)
+            page_url = f"{base}{parsed.path}"
+            diag["rz_page_url"] = page_url
+            r_page = hdrezka._get_with_anubis(page_url, base)
+            diag["rz_page_status"] = r_page.status_code
+            diag["rz_page_len"] = len(r_page.text)
+            diag["rz_has_anubis"] = "anubis_challenge" in r_page.text
+            
+            cdn_m = re.search(r'initCDN(?:Movies|Series)Events\(\s*(\d+)\s*,\s*(\d+).*?,\s*(\{.*?\})\s*\);', r_page.text, re.DOTALL)
+            diag["rz_has_cdn_m"] = bool(cdn_m)
+            
+            id_match = re.search(r'data-id="(\d+)"', r_page.text)
+            trans_match = re.search(r'data-translator_id="(\d+)"', r_page.text)
+            diag["rz_data_id"] = id_match.group(1) if id_match else None
+            diag["rz_trans_id"] = trans_match.group(1) if trans_match else None
+            
+            if id_match:
+                t_now = int(time.time() * 1000)
+                ajax_url = f"{base}/ajax/get_cdn_series/?t={t_now}"
+                post_data = {
+                    "id": id_match.group(1),
+                    "translator_id": trans_match.group(1) if trans_match else "238",
+                    "action": "get_movie"
+                }
+                post_headers = {
+                    "X-Requested-With": "XMLHttpRequest",
+                    "Referer": page_url
+                }
+                r_ajax = hdrezka.session.post(ajax_url, data=post_data, headers=post_headers, timeout=6)
+                diag["rz_ajax_status"] = r_ajax.status_code
+                diag["rz_ajax_text_preview"] = r_ajax.text[:300]
+
             rz_st = hdrezka.get_streams(rz_items[0].id)
             diag["rz_streams_count"] = len(rz_st.streams)
             diag["rz_streams_err"] = rz_st.error

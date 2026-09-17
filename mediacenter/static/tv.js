@@ -9,7 +9,7 @@ const originalFetch = window.fetch;
 window.fetch = function(url, options) {
     if (typeof url === "string" && url.startsWith("/api/")) {
         const host = (window.location.protocol === "file:") 
-            ? (localStorage.getItem("showhub_server") || "http://192.168.50.222:8000")
+            ? (localStorage.getItem("showhub_server") || "https://showhub-server.onrender.com")
             : "";
         url = host.replace(/\/+$/, "") + url;
     }
@@ -1682,21 +1682,22 @@ function initServerConnection() {
     const currentUrl = document.getElementById("server-current-url");
     const connModal = document.getElementById("server-connect-modal");
 
-    const saved = localStorage.getItem("showhub_server") || "http://192.168.50.222:8000";
+    const saved = localStorage.getItem("showhub_server") || "https://showhub-server.onrender.com";
     if (input) input.value = saved;
     if (currentUrl) currentUrl.textContent = saved;
 
     function normalizeServerUrl(val) {
         let u = (val || "").trim();
-        if (!u) return "http://192.168.50.222:8000";
+        if (!u) return "https://showhub-server.onrender.com";
         if (!u.startsWith("http://") && !u.startsWith("https://")) {
-            u = "http://" + u;
+            u = (u.includes("onrender.com") || !u.match(/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/)) ? ("https://" + u) : ("http://" + u);
         }
-        // If no port specified after host, append :8000
-        const parsed = new URL(u);
-        if (!parsed.port && !u.includes(":", 6)) {
-            u = u.replace(/\/+$/, "") + ":8000";
-        }
+        try {
+            const parsed = new URL(u);
+            if (!parsed.port && parsed.hostname.match(/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/)) {
+                u = u.replace(/\/+$/, "") + ":8000";
+            }
+        } catch(e) {}
         return u.replace(/\/+$/, "");
     }
 
@@ -5902,13 +5903,15 @@ function initSettingsServer() {
     const input = document.getElementById("settings-server-ip");
     const statusMsg = document.getElementById("settings-server-msg");
 
-    const saved = localStorage.getItem("showhub_server") || "http://192.168.50.222:8000";
+    const saved = localStorage.getItem("showhub_server") || "https://showhub-server.onrender.com";
     if (input) input.value = saved;
 
     btnSave?.addEventListener("click", () => {
         if (!input) return;
         let u = input.value.trim();
-        if (!u.startsWith("http://") && !u.startsWith("https://")) u = "http://" + u;
+        if (!u.startsWith("http://") && !u.startsWith("https://")) {
+            u = (u.includes("onrender.com") || !u.match(/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/)) ? ("https://" + u) : ("http://" + u);
+        }
         localStorage.setItem("showhub_server", u.replace(/\/+$/, ""));
         input.value = u.replace(/\/+$/, "");
         if (statusMsg) {

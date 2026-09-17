@@ -699,11 +699,11 @@
                 <div class="settings-tab-content" id="stab-content-server" style="display: none;">
                     <div class="settings-row">
                         <div class="settings-label">
-                            <strong>Адрес ПК-сервера ShowHub:</strong>
-                            <span>IP-адрес и порт локального медиа-сервера в домашней Wi-Fi сети</span>
+                            <strong>Адрес сервера ShowHub:</strong>
+                            <span>Облачный или локальный адрес бэкенд-сервера (по умолчанию Render.com)</span>
                         </div>
                         <div class="settings-control">
-                            <input type="text" id="settings-server-ip" class="settings-input" value="http://192.168.50.222:8000" tabindex="0">
+                            <input type="text" id="settings-server-ip" class="settings-input" value="https://showhub-server.onrender.com" tabindex="0">
                         </div>
                     </div>
                     <div style="display: flex; gap: 10px; margin-top: 14px;">
@@ -1011,16 +1011,16 @@
         <div class="modal-dialog" style="max-width: 580px; flex-direction: column; text-align: center; gap: 20px;">
             <h2>ShowHub TV</h2>
             <p id="server-connect-status" style="color: #94a3b8; font-size: 15px;">
-                Подключение к серверу ShowHub: <strong id="server-current-url">http://192.168.50.222:8000</strong>...
+                Подключение к серверу ShowHub: <strong id="server-current-url">https://showhub-server.onrender.com</strong>...
             </p>
             <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
-                <input type="text" id="server-ip-input" class="search-hero-input" style="font-size: 16px; padding: 10px 16px; text-align: center; max-width: 320px;" value="http://192.168.50.222:8000" tabindex="0">
+                <input type="text" id="server-ip-input" class="search-hero-input" style="font-size: 16px; padding: 10px 16px; text-align: center; max-width: 320px;" value="https://showhub-server.onrender.com" tabindex="0">
                 <button class="btn-primary" id="btn-server-save" tabindex="0">Сохранить</button>
                 <button class="btn-secondary" id="btn-server-retry" tabindex="0">Повторить</button>
                 <button class="btn-secondary" id="btn-server-cancel" tabindex="0">Закрыть</button>
             </div>
             <p style="font-size: 13px; color: #64748b;">
-                Убедитесь, что ShowHub запущен на компьютере и подключен к той же домашней сети Wi-Fi.
+                Используется облачный сервер ShowHub (Render.com) или локальный адрес в сети Wi-Fi.
             </p>
         </div>
     </div>

@@ -1,0 +1,1043 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>ShowHub TV - Мульти-источник</title>
+    <!-- HLS.js for direct video streaming -->
+    <script src="hls.min.js"></script>
+    <link rel="stylesheet" href="tv.css">
+</head>
+<body class="tv-mode">
+    <!-- Top Bar with TV Navigation -->
+    <header class="topbar">
+        <div class="logo-wrapper">
+            <div class="logo">
+                <span class="logo-text">ShowHub <span class="badge-tv">TV</span> <span class="badge-version">v1.9.7</span></span>
+            </div>
+        </div>
+
+        <nav class="nav-links nav-categories">
+            <button class="nav-item nav-search-item" id="nav-search" data-nav="search" tabindex="0">
+                <svg class="action-svg" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                <span class="search-label">Поиск фильмов и сериалов...</span>
+                <span class="search-kbd-hint">OK</span>
+            </button>
+            <button class="nav-item" id="nav-cat-favorites" data-nav="favorites" tabindex="0">
+                <span>Избранное</span>
+                <span class="nav-badge" id="fav-new-badge" style="display: none;">●</span>
+            </button>
+            <button class="nav-item" id="nav-cat-history" data-nav="history" tabindex="0">История</button>
+        </nav>
+
+        <div class="nav-actions">
+            <button class="nav-action-btn" id="nav-settings" data-nav="settings" tabindex="0">
+                <svg class="action-svg" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                <span>Настройки</span>
+                <span class="status-dot online" id="health-icon"></span>
+                <span class="alert-pill" id="health-alert-badge" style="display:none;">!</span>
+            </button>
+        </div>
+
+        <div class="search-bar" id="search-container" style="display:none;">
+            <input type="text" id="search-input" placeholder="Название фильма... (Нажмите Enter)" tabindex="0">
+            <button id="search-btn" tabindex="0">Найти</button>
+        </div>
+    </header>
+
+    <!-- Source Change Warning Banner (Shows dynamically if any source broke) -->
+    <div id="canary-warning-banner" class="warning-banner" style="display: none;">
+        <div class="banner-icon">!</div>
+        <div class="banner-text">
+            <strong>ПРЕДУПРЕЖДЕНИЕ О СМЕНЕ ИСТОЧНИКОВ:</strong>
+            <span id="warning-text-details">Один или несколько источников изменили API или заблокированы. Требуется переделка парсера.</span>
+        </div>
+        <div style="display: flex; gap: 8px;">
+            <button class="banner-btn" id="btn-view-health" tabindex="0">Подробнее</button>
+            <button class="banner-btn btn-secondary" id="btn-dismiss-banner" tabindex="0">✕</button>
+        </div>
+    </div>
+
+    <!-- Main Content Container -->
+    <main class="main-content">
+        <!-- Catalog View -->
+        <section id="view-catalog" class="view active-view">
+            <div class="section-header">
+                <h2 id="catalog-heading">Новинки фильмов и сериалов</h2>
+                <span class="subtitle" id="catalog-subheading">Свежие релизы 2025–2026 из всех источников</span>
+            </div>
+
+            <!-- Genre Filter Ribbon -->
+            <div class="genre-bar" id="genre-bar">
+                <button class="genre-chip active" data-genre="" tabindex="0">Все жанры</button>
+                <button class="genre-chip" data-genre="боевик" tabindex="0">Боевик</button>
+                <button class="genre-chip" data-genre="комедия" tabindex="0">Комедия</button>
+                <button class="genre-chip" data-genre="фантастика" tabindex="0">Фантастика</button>
+                <button class="genre-chip" data-genre="драма" tabindex="0">Драма</button>
+                <button class="genre-chip" data-genre="триллер" tabindex="0">Триллер</button>
+                <button class="genre-chip" data-genre="ужасы" tabindex="0">Ужасы</button>
+                <button class="genre-chip" data-genre="приключения" tabindex="0">Приключения</button>
+                <button class="genre-chip" data-genre="фэнтези" tabindex="0">Фэнтези</button>
+                <button class="genre-chip" data-genre="детектив" tabindex="0">Детектив</button>
+                <button class="genre-chip" data-genre="криминал" tabindex="0">Криминал</button>
+            </div>
+
+            <!-- Extended Filters & Sorting Ribbon -->
+            <div class="catalog-filter-bar" id="catalog-filter-bar">
+                <div class="filter-group">
+                    <label class="filter-label" for="filter-sort">Сортировка:</label>
+                    <select class="filter-select" id="filter-sort" tabindex="0">
+                        <option value="newest" selected>Новинки (сначала новые)</option>
+                        <option value="rating">По рейтингу (высокий КП/IMDb)</option>
+                        <option value="popular">По популярности</option>
+                        <option value="year">По году выпуска</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label class="filter-label" for="filter-year">Год:</label>
+                    <select class="filter-select" id="filter-year" tabindex="0">
+                        <option value="all" selected>Все годы</option>
+                        <option value="2026">2026 год</option>
+                        <option value="2025">2025 год</option>
+                        <option value="2024">2024 год</option>
+                        <option value="2023">2023 год</option>
+                        <option value="2020-2022">2020–2022</option>
+                        <option value="2010s">2010–2019</option>
+                        <option value="2000s">2000–2009</option>
+                        <option value="before_2000">До 2000</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label class="filter-label" for="filter-type">Тип:</label>
+                    <select class="filter-select" id="filter-type" tabindex="0">
+                        <option value="all" selected>Все (фильмы и сериалы)</option>
+                        <option value="movie">Только фильмы</option>
+                        <option value="series">Только сериалы</option>
+                        <option value="cartoons">Мультфильмы</option>
+                        <option value="anime">Аниме</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label class="filter-label" for="filter-country">Страна:</label>
+                    <select class="filter-select" id="filter-country" tabindex="0">
+                        <option value="all" selected>Все страны</option>
+                        <option value="США">США</option>
+                        <option value="Россия">Россия</option>
+                        <option value="Великобритания">Великобритания</option>
+                        <option value="Корея">Южная Корея</option>
+                        <option value="Франция">Франция</option>
+                        <option value="Япония">Япония</option>
+                        <option value="Германия">Германия</option>
+                        <option value="Испания">Испания</option>
+                        <option value="Италия">Италия</option>
+                        <option value="Канада">Канада</option>
+                        <option value="Китай">Китай</option>
+                        <option value="Турция">Турция</option>
+                        <option value="Индия">Индия</option>
+                        <option value="Скандинавия">Скандинавия</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label class="filter-label" for="filter-rating">Рейтинг:</label>
+                    <select class="filter-select" id="filter-rating" tabindex="0">
+                        <option value="0" selected>Любой рейтинг</option>
+                        <option value="8.0">★ 8.0 и выше</option>
+                        <option value="7.0">★ 7.0 и выше</option>
+                        <option value="6.0">★ 6.0 и выше</option>
+                        <option value="5.0">★ 5.0 и выше</option>
+                    </select>
+                </div>
+                <button class="filter-reset-btn" id="btn-reset-filters" tabindex="0" title="Сбросить фильтры">Сброс</button>
+            </div>
+
+            <div class="media-grid" id="catalog-grid">
+                <div class="grid-loading-box">
+                    <div class="spinner-neon"></div>
+                    <span class="spinner-text">Загрузка каталога ShowHub TV...</span>
+                </div>
+                <div class="skeleton-card"><div class="skeleton-poster"></div><div class="skeleton-info"><div class="skeleton-line"></div><div class="skeleton-line short"></div></div></div>
+                <div class="skeleton-card"><div class="skeleton-poster"></div><div class="skeleton-info"><div class="skeleton-line"></div><div class="skeleton-line short"></div></div></div>
+                <div class="skeleton-card"><div class="skeleton-poster"></div><div class="skeleton-info"><div class="skeleton-line"></div><div class="skeleton-line short"></div></div></div>
+                <div class="skeleton-card"><div class="skeleton-poster"></div><div class="skeleton-info"><div class="skeleton-line"></div><div class="skeleton-line short"></div></div></div>
+                <div class="skeleton-card"><div class="skeleton-poster"></div><div class="skeleton-info"><div class="skeleton-line"></div><div class="skeleton-line short"></div></div></div>
+                <div class="skeleton-card"><div class="skeleton-poster"></div><div class="skeleton-info"><div class="skeleton-line"></div><div class="skeleton-line short"></div></div></div>
+                <div class="skeleton-card"><div class="skeleton-poster"></div><div class="skeleton-info"><div class="skeleton-line"></div><div class="skeleton-line short"></div></div></div>
+            </div>
+            <!-- Catalog Pagination Load More Container -->
+            <div class="catalog-load-more" id="catalog-load-more-container" style="display: none;">
+                <button class="catalog-load-more-btn" id="btn-catalog-load-more" tabindex="0">
+                    <svg class="btn-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                    <span>Загрузить ещё фильмы</span>
+                </button>
+            </div>
+        </section>
+
+        <!-- History & In-Progress View -->
+        <section id="view-history" class="view" style="display: none;">
+            <div class="section-header">
+                <h2>История просмотров и продолжить</h2>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <span class="subtitle" id="history-count-subtitle">0 видео</span>
+                    <button class="btn-secondary" id="btn-clear-history-view" tabindex="0" style="padding: 6px 14px; font-size: 13px;">Очистить</button>
+                </div>
+            </div>
+            <div class="media-grid" id="history-grid">
+                <!-- Populated via renderHistory() -->
+            </div>
+        </section>
+
+        <!-- Favorites View -->
+        <section id="view-favorites" class="view" style="display: none;">
+            <div class="section-header">
+                <h2>Избранное</h2>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <span class="subtitle" id="favorites-count-subtitle">0 видео</span>
+                    <button class="btn-secondary" id="btn-clear-favorites-view" tabindex="0" style="padding: 6px 14px; font-size: 13px;">Очистить</button>
+                </div>
+            </div>
+            <div class="media-grid" id="favorites-grid">
+                <!-- Populated via renderFavorites() -->
+            </div>
+        </section>
+
+        <!-- Search View -->
+        <section id="view-search" class="view" style="display: none;">
+            <div class="section-header">
+                <h2>Поиск по всем источникам</h2>
+                <span class="subtitle" id="search-subtitle">Bazon, Delivembd, HDRezka, Filmix, VideoCDN, Rutor</span>
+            </div>
+
+            <!-- TV Search Console Hero -->
+            <div class="search-view-hero">
+                <div class="search-view-input-wrap">
+                    <input type="text" id="search-view-input" class="search-hero-input" placeholder="Введите название фильма, сериала или аниме..." tabindex="0">
+                    <button class="btn-primary" id="btn-search-view-submit" tabindex="0">Найти</button>
+                    <button class="btn-secondary" id="btn-search-view-clear" tabindex="0">Очистить</button>
+                    <button class="btn-secondary" id="btn-open-search-modal" tabindex="0">Диалог поиска</button>
+                </div>
+                
+                <div class="search-suggestions-row">
+                    <span class="suggestions-label">Популярные запросы:</span>
+                    <div class="search-chips-row" id="search-view-chips">
+                        <button class="search-chip" data-query="Крестьянин 999 уровня" tabindex="0">Крестьянин 999 уровня</button>
+                        <button class="search-chip" data-query="Матрица" tabindex="0">Матрица</button>
+                        <button class="search-chip" data-query="Интерстеллар" tabindex="0">Интерстеллар</button>
+                        <button class="search-chip" data-query="Во все тяжкие" tabindex="0">Во все тяжкие</button>
+                        <button class="search-chip" data-query="Дюна" tabindex="0">Дюна</button>
+                        <button class="search-chip" data-query="Атака титанов" tabindex="0">Атака титанов</button>
+                        <button class="search-chip" data-query="Один дома" tabindex="0">Один дома</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="media-grid" id="search-grid">
+                <!-- Search results -->
+            </div>
+        </section>
+
+        <!-- Health / Canary Monitor View -->
+        <section id="view-health" class="view" style="display: none;">
+            <div class="section-header">
+                <h2>Диагностика и здоровье источников (Canary System)</h2>
+                <span class="subtitle">Автоматическая проверка API, зеркал и защиты от ботов</span>
+                <button class="btn-refresh" id="btn-refresh-health" tabindex="0">Проверить источники сейчас</button>
+            </div>
+            
+            <div class="health-summary-cards" id="health-summary">
+                <!-- Summary cards -->
+            </div>
+
+            <div class="sources-table-container">
+                <table class="sources-table">
+                    <thead>
+                        <tr>
+                            <th>Источник</th>
+                            <th>Тип</th>
+                            <th>Статус</th>
+                            <th>Задержка</th>
+                            <th>Диагностика и предупреждения</th>
+                            <th>Действие</th>
+                        </tr>
+                    </thead>
+                    <tbody id="health-table-body">
+                        <!-- Dynamic rows -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Filmix Account View -->
+        <section id="view-account" class="view" style="display: none;">
+            <div class="section-header">
+                <h2>Аккаунт Filmix (PRO+ разблокировка)</h2>
+                <span class="subtitle">Управление учетной записью Filmix для доступа к 1080p Ultra+, 4K UHD и закрытым каталогам</span>
+            </div>
+
+            <div class="account-container">
+                <!-- Status Card -->
+                <div class="account-card" id="account-status-card">
+                    <div class="account-header">
+                        <div class="account-avatar" id="account-avatar">U</div>
+                        <div class="account-info">
+                            <h3 id="account-user-name">Гостевой режим</h3>
+                            <div class="account-badges">
+                                <span class="badge-status" id="account-badge-status">Не авторизован</span>
+                                <span class="badge-pro" id="account-badge-pro" style="display:none;">PRO+</span>
+                            </div>
+                            <p class="account-meta" id="account-meta-text">Для просмотра фильмов в максимальном качестве 1080p/4K выполните вход.</p>
+                        </div>
+                    </div>
+                    <div class="account-actions" id="account-logged-actions" style="display: none;">
+                        <button class="btn-secondary" id="btn-refresh-account" tabindex="0">Обновить профиль</button>
+                        <button class="btn-danger" id="btn-logout-filmix" tabindex="0">Выйти из аккаунта</button>
+                    </div>
+                </div>
+
+                <!-- Login Form -->
+                <div class="account-card" id="account-login-card">
+                    <h3>Вход по логину и паролю</h3>
+                    <p class="form-help">Авторизация напрямую через API Filmix (как в Кино HD)</p>
+                    <div class="form-group">
+                        <label for="filmix-login">Логин или Email:</label>
+                        <input type="text" id="filmix-login" placeholder="Логин Filmix" tabindex="0">
+                    </div>
+                    <div class="form-group">
+                        <label for="filmix-password">Пароль:</label>
+                        <input type="password" id="filmix-password" placeholder="Пароль" tabindex="0">
+                    </div>
+                    <div class="form-actions">
+                        <button class="btn-primary" id="btn-submit-login" tabindex="0">Войти</button>
+                        <span id="login-status-msg" class="status-msg"></span>
+                    </div>
+                </div>
+
+                <!-- Cookie Import Card (Alternative) -->
+                <div class="account-card" id="account-cookie-card">
+                    <h3>Импорт Cookies (для 2FA или готовой сессии)</h3>
+                    <p class="form-help">Вставьте значение кук браузера (dle_user_id, dle_password, dle_hash или строку Cookie):</p>
+                    <div class="form-group">
+                        <textarea id="filmix-cookie-input" rows="3" placeholder="dle_user_id=...; dle_password=...; dle_hash=..." tabindex="0"></textarea>
+                    </div>
+                    <div class="form-actions">
+                        <button class="btn-secondary" id="btn-submit-cookies" tabindex="0">Применить Cookies</button>
+                        <span id="cookie-status-msg" class="status-msg"></span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Dedicated Fullscreen Media Details Screen -->
+        <section id="view-details" class="view details-view" style="display: none;">
+            <div class="details-top-bar">
+                <button class="btn-secondary btn-details-back" id="btn-modal-close" tabindex="0">
+                    <span style="font-size: 18px; line-height: 1;">←</span> Назад в каталог (Esc)
+                </button>
+                <div class="details-breadcrumbs">
+                    <span id="details-bc-category">Каталог ShowHub TV</span>
+                    <span class="bc-separator">/</span>
+                    <span id="details-bc-title" class="bc-current">Фильм</span>
+                </div>
+            </div>
+
+            <div class="details-layout">
+                <!-- Left Column: High-Res Poster, Ratings & Basic Meta -->
+                <div class="details-left-pane">
+                    <div class="details-poster-wrap">
+                        <img id="modal-poster" src="" alt="Poster" class="details-poster" onerror="this.src='noposter.png'">
+                        <video id="modal-preview-video" class="details-preview-video" muted playsinline loop style="display:none;"></video>
+                        <iframe id="modal-preview-iframe" class="details-preview-iframe" frameborder="0" allow="autoplay; encrypted-media" style="display:none;"></iframe>
+                    </div>
+                    <div class="modal-ratings-container" id="modal-ratings-container">
+                        <div class="rating-box kp" id="rating-kp-box" style="display:none;">
+                            <span class="rating-label">Кинопоиск</span>
+                            <span class="rating-score" id="rating-kp-val">0.0</span>
+                            <span class="rating-votes" id="rating-kp-votes"></span>
+                        </div>
+                        <div class="rating-box imdb" id="rating-imdb-box" style="display:none;">
+                            <span class="rating-label">IMDb</span>
+                            <span class="rating-score" id="rating-imdb-val">0.0</span>
+                            <span class="rating-votes" id="rating-imdb-votes"></span>
+                        </div>
+                    </div>
+                    <div class="modal-side-meta" id="modal-side-meta">
+                        <div class="meta-row" id="row-director" style="display:none;">
+                            <span class="meta-lbl">Режиссёр:</span>
+                            <span class="meta-val" id="val-director"></span>
+                        </div>
+                        <div class="meta-row" id="row-country" style="display:none;">
+                            <span class="meta-lbl">Страна:</span>
+                            <span class="meta-val" id="val-country"></span>
+                        </div>
+                        <div class="meta-row" id="row-genres" style="display:none;">
+                            <span class="meta-lbl">Жанр:</span>
+                            <span class="meta-val" id="val-genres"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Column: Title, Progress, Hero Actions, Tabs, Episodes -->
+                <div class="details-right-pane">
+                    <div class="details-header-info">
+                        <h1 id="modal-title" class="details-title">Название фильма</h1>
+                        <div class="details-meta" id="modal-meta">2026 • Сериал</div>
+                    </div>
+
+                    <!-- Watch Progress & Resume Banner -->
+                    <div id="modal-progress-banner" class="modal-progress-banner" style="display: none;">
+                        <div class="progress-info-text">
+                            <span class="progress-icon">🕒</span>
+                            <span id="modal-progress-text">Остановились: Сезон 1, Серия 3 (24:15)</span>
+                        </div>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <button class="banner-btn" id="btn-modal-resume" tabindex="0">▶ Продолжить просмотр</button>
+                            <button class="banner-btn banner-btn-secondary" id="btn-modal-restart" tabindex="0">С начала</button>
+                        </div>
+                    </div>
+
+                    <!-- Primary TV Hero Action Buttons -->
+                    <div class="details-hero-actions">
+                        <button class="btn-primary" id="btn-modal-play" tabindex="0">
+                            <svg class="btn-icon-svg" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                            <span>Смотреть</span>
+                        </button>
+                        <button class="btn-secondary" id="btn-modal-trailer" tabindex="0">
+                            <svg class="btn-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="2"></rect><line x1="7" y1="2" x2="7" y2="22"></line><line x1="17" y1="2" x2="17" y2="22"></line><line x1="2" y1="12" x2="22" y2="12"></line></svg>
+                            <span>Трейлер</span>
+                        </button>
+                        <button class="btn-secondary" id="btn-modal-fav" tabindex="0">
+                            <svg class="btn-icon-svg" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+                            <span>В избранное</span>
+                        </button>
+                        <button class="btn-secondary" id="btn-modal-external" tabindex="0">
+                            <svg class="btn-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+                            <span>Внешний плеер</span>
+                        </button>
+                        <button class="btn-secondary" id="btn-modal-toggle-watched" tabindex="0">
+                            <svg class="btn-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                            <span id="label-toggle-watched">Просмотрено</span>
+                        </button>
+                        <button class="btn-secondary" id="btn-modal-online" style="display: none;" tabindex="0">Онлайн веб-плеер</button>
+                    </div>
+
+                    <!-- Modal Navigation Tabs -->
+                    <div class="modal-nav-tabs details-nav-tabs">
+                        <button class="modal-tab-btn active" id="btn-tab-watch" data-tab="watch" tabindex="0">Просмотр и серии</button>
+                        <button class="modal-tab-btn" id="btn-tab-about" data-tab="about" tabindex="0">О фильме</button>
+                        <button class="modal-tab-btn" id="btn-tab-comments" data-tab="comments" tabindex="0">Отзывы (<span id="comments-tab-count">0</span>)</button>
+                        <button class="modal-tab-btn" id="btn-tab-schedule" data-tab="schedule" style="display:none;" tabindex="0">График серий</button>
+                    </div>
+
+                    <!-- Tab 1: Watch (Seasons, Episodes, Quality, Translators) -->
+                    <div class="modal-tab-content active" id="tab-content-watch">
+                        <!-- Seasons selector (for series) -->
+                        <div class="selection-section" id="section-seasons" style="display:none;">
+                            <div class="section-title-small">Сезон:</div>
+                            <div class="chips-scroll-row" id="modal-seasons-list"></div>
+                        </div>
+
+                        <!-- Episodes selector: Horizontal scroll track for TV -->
+                        <div class="selection-section" id="section-episodes" style="display:none;">
+                            <div class="section-title-small">Серия (листайте ◄ / ► на пульте):</div>
+                            <div class="episodes-scroll-track" id="modal-episodes-list"></div>
+                        </div>
+
+                        <!-- Sources & Quality -->
+                        <div class="selection-section" id="section-streams">
+                            <div class="section-title-small">Источник и качество:</div>
+                            <div class="source-tabs" id="modal-source-tabs"></div>
+                            <div class="streams-list" id="modal-streams-list"></div>
+                        </div>
+
+                        <!-- Translators / Audio tracks selector -->
+                        <div class="selection-section" id="section-translators" style="display:none;">
+                            <div class="section-title-small">Озвучка / Перевод:</div>
+                            <div class="chips-scroll-row" id="modal-translators-list"></div>
+                        </div>
+                    </div>
+
+                    <!-- Tab 2: About (Full Synopsis & Cast) -->
+                    <div class="modal-tab-content" id="tab-content-about" style="display: none;">
+                        <div class="about-section">
+                            <h3>Описание</h3>
+                            <p id="modal-full-desc" class="modal-full-desc">Загрузка описания...</p>
+                            
+                            <div class="cast-section" id="section-cast" style="display:none;">
+                                <h3>В главных ролях</h3>
+                                <p id="modal-cast-text" class="modal-cast-text"></p>
+                            </div>
+
+                            <!-- Duplicate Watch Button at bottom of about tab -->
+                            <div class="details-bottom-actions" id="details-bottom-about-actions">
+                                <button class="btn-primary" id="btn-bottom-play-about" tabindex="0" style="width: auto; padding: 10px 24px; font-size: 15px;">
+                                    <svg class="btn-icon-svg" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                                    <span>Смотреть</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tab 3: Comments (Viewer Reviews) -->
+                    <div class="modal-tab-content" id="tab-content-comments" style="display: none;">
+                        <div class="comments-container" id="modal-comments-list">
+                            <div class="loading-state">Загрузка отзывов зрителей...</div>
+                        </div>
+                    </div>
+
+                    <!-- Tab 4: Release Schedule -->
+                    <div class="modal-tab-content" id="tab-content-schedule" style="display: none;">
+                        <div class="schedule-container" id="modal-schedule-list">
+                            <div class="loading-state">Загрузка графика выхода серий...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Compatibility anchor for modal ID checks -->
+    <div id="media-modal" style="display: none;"></div>
+
+    <!-- Search Modal Dialog -->
+    <div id="search-modal" class="modal search-modal" style="display: none;">
+        <div class="modal-backdrop" id="btn-close-search-modal"></div>
+        <div class="modal-dialog search-dialog-box" style="max-width: 640px; background: #0d121c; border: 1.5px solid rgba(255,255,255,0.15); border-radius: 14px; padding: 24px; position: relative; z-index: 10;">
+            <div class="search-modal-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px;">
+                <h3 style="margin: 0; font-size: 20px; color: #fff;">🔍 Поиск по каталогу</h3>
+                <button class="btn-close-modal" id="btn-search-modal-cancel" tabindex="0">&times;</button>
+            </div>
+            <div class="search-modal-body" style="display: flex; flex-direction: column; gap: 14px;">
+                <div style="display: flex; gap: 10px;">
+                    <input type="text" id="search-modal-input" class="search-hero-input" placeholder="Введите название фильма или сериала..." tabindex="0" style="flex: 1;">
+                    <button class="btn-primary" id="btn-search-modal-submit" tabindex="0">Найти</button>
+                    <button class="btn-secondary" id="btn-search-modal-clear" tabindex="0">✕</button>
+                </div>
+                <div id="search-history-section" style="display: none;">
+                    <div style="font-size: 13px; font-weight: 700; color: #94a3b8; margin-bottom: 8px;">История поиска:</div>
+                    <div id="search-history-chips" class="search-chips-row" style="display: flex; flex-wrap: wrap; gap: 8px;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Unified Settings Modal -->
+    <div id="settings-modal" class="modal settings-modal" style="display: none;">
+        <div class="modal-backdrop"></div>
+        <div class="modal-dialog settings-dialog-box">
+            <div class="settings-modal-header">
+                <h2><svg class="btn-icon-svg" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:8px;"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>Настройки ShowHub TV <span class="badge-version">v1.9.7</span></h2>
+                <button class="btn-close-modal" id="btn-close-settings-modal" tabindex="0">&times;</button>
+            </div>
+
+            <!-- Settings Tabs Navigation -->
+            <div class="settings-nav-tabs">
+                <button class="settings-tab-btn active" data-stab="player" tabindex="0">
+                    <svg class="btn-icon-svg" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"></rect><line x1="7" y1="2" x2="7" y2="22"></line><line x1="17" y1="2" x2="17" y2="22"></line><line x1="2" y1="12" x2="22" y2="12"></line></svg>
+                    <span>Плеер и оформление</span>
+                </button>
+                <button class="settings-tab-btn" data-stab="sources" tabindex="0">
+                    <svg class="btn-icon-svg" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 11a9 9 0 0 1 9 9"></path><path d="M4 4a16 16 0 0 1 16 16"></path><circle cx="5" cy="19" r="1"></circle></svg>
+                    <span>Источники</span>
+                </button>
+                <button class="settings-tab-btn" data-stab="filmix" tabindex="0">
+                    <svg class="btn-icon-svg" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                    <span>Filmix</span>
+                </button>
+                <button class="settings-tab-btn" data-stab="server" tabindex="0">
+                    <svg class="btn-icon-svg" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect><rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect><line x1="6" y1="6" x2="6.01" y2="6"></line><line x1="6" y1="18" x2="6.01" y2="18"></line></svg>
+                    <span>Сервер</span>
+                </button>
+                <button class="settings-tab-btn" data-stab="history" tabindex="0">
+                    <svg class="btn-icon-svg" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                    <span>История</span>
+                </button>
+                <button class="settings-tab-btn" data-stab="updates" tabindex="0">
+                    <svg class="btn-icon-svg" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                    <span>Обновления</span>
+                </button>
+            </div>
+
+            <div class="settings-modal-body">
+                <!-- Tab 1: Player & Quality & Theme -->
+                <div class="settings-tab-content active" id="stab-content-player">
+                    <div class="settings-row">
+                        <div class="settings-label">
+                            <strong>Цветовая схема оформления:</strong>
+                            <span>Неоновая акцентная подсветка меню, фокуса и активных элементов</span>
+                        </div>
+                        <div class="settings-control">
+                            <select id="pref-theme" class="settings-select" tabindex="0">
+                                <option value="cyan" selected>Киберпанк Бирюза (Cyan Neon) — По умолчанию</option>
+                                <option value="emerald">Изумрудный Кинопоиск (Emerald)</option>
+                                <option value="amber">Золотой Янтарь (Amber / Gold)</option>
+                                <option value="ruby">Рубиновый (Netflix Ruby Red)</option>
+                                <option value="amethyst">Аметистовый (Amethyst Purple)</option>
+                                <option value="sapphire">Сапфировый (Sapphire Blue)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="settings-row">
+                        <div class="settings-label">
+                            <strong>Основной плеер:</strong>
+                            <span>Действие по умолчанию при нажатии кнопки «Смотреть»</span>
+                        </div>
+                        <div class="settings-control">
+                            <select id="pref-player" class="settings-select" tabindex="0">
+                                <option value="internal" selected>Встроенный плеер ShowHub (Озвучки, Субтитры, Качество, Серии) [По умолчанию]</option>
+                                <option value="external">Внешний плеер (VLC / MX Player / Just Player)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="settings-row">
+                        <div class="settings-label">
+                            <strong>Предпочитаемое качество видео:</strong>
+                            <span>Автоматически предвыбирать стрим указанного разрешения</span>
+                        </div>
+                        <div class="settings-control">
+                            <select id="pref-quality" class="settings-select" tabindex="0">
+                                <option value="1080p" selected>1080p (Full HD) — Рекомендуется</option>
+                                <option value="4k">4K (Ultra HD / 2160p)</option>
+                                <option value="720p">720p (HD)</option>
+                                <option value="480p">480p (SD)</option>
+                                <option value="max">Максимальное доступное</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="settings-row">
+                        <div class="settings-label">
+                            <strong>Предпочитаемая озвучка / перевод:</strong>
+                            <span>Автовыбор перевода при открытии фильмов и сериалов</span>
+                        </div>
+                        <div class="settings-control">
+                            <select id="pref-voice" class="settings-select" tabindex="0">
+                                <option value="any" selected>Любая / Оригинал</option>
+                                <option value="Дубляж">Дубляж (Чистый звук / Red Head Sound / RHS)</option>
+                                <option value="LostFilm">LostFilm</option>
+                                <option value="HDRezka">HDRezka Studio</option>
+                                <option value="Кубик в кубе">Кубик в кубе</option>
+                                <option value="NewStudio">NewStudio</option>
+                                <option value="AlexFilm">AlexFilm</option>
+                                <option value="TVShows">TVShows</option>
+                                <option value="Сыендук">Сыендук</option>
+                                <option value="Пифагор">Пифагор</option>
+                                <option value="custom">Своя студия вручную...</option>
+                            </select>
+                            <input type="text" id="pref-voice-custom" class="settings-input" placeholder="Название студии (например: Кураж-Бамбей)..." style="display: none; margin-top: 8px;" tabindex="0">
+                        </div>
+                    </div>
+
+                    <div class="settings-row">
+                        <div class="settings-label">
+                            <strong>Автоматический предвыбор:</strong>
+                            <span>Сразу активировать подходящую озвучку и качество в карточке</span>
+                        </div>
+                        <div class="settings-control">
+                            <label class="settings-toggle">
+                                <input type="checkbox" id="pref-auto-select" checked tabindex="0">
+                                <span>Включен</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab 2: Sources Diagnostics -->
+                <div class="settings-tab-content" id="stab-content-sources" style="display: none;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+                        <span style="font-size: 14px; color: var(--text-muted);">Состояние онлайн-источников и парсеров:</span>
+                        <button class="btn-secondary" id="btn-settings-refresh-health" style="padding: 6px 14px; font-size: 13px;" tabindex="0">🔄 Проверить заново</button>
+                    </div>
+                    <div class="sources-table-container">
+                        <table class="sources-table">
+                            <thead>
+                                <tr>
+                                    <th>Источник</th>
+                                    <th>Статус</th>
+                                    <th>Задержка</th>
+                                    <th>Потоки / Инфо</th>
+                                </tr>
+                            </thead>
+                            <tbody id="settings-health-tbody"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Tab 3: Filmix Account -->
+                <div class="settings-tab-content" id="stab-content-filmix" style="display: none;">
+                    <div class="account-header" style="margin-bottom: 20px;">
+                        <div class="account-avatar">F</div>
+                        <div class="account-info">
+                            <h3 id="settings-filmix-login-text">Гостевой режим (Filmix)</h3>
+                            <div class="account-badges">
+                                <span class="badge-status" id="settings-filmix-badge">Гость</span>
+                                <span class="badge-pro" id="settings-filmix-pro" style="display:none;">PRO PLUS</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Логин / Email:</label>
+                        <input type="text" id="settings-filmix-login" placeholder="Логин на Filmix..." tabindex="0">
+                    </div>
+                    <div class="form-group">
+                        <label>Пароль:</label>
+                        <input type="password" id="settings-filmix-password" placeholder="Пароль..." tabindex="0">
+                    </div>
+                    <div style="display: flex; gap: 10px; margin-bottom: 16px;">
+                        <button class="btn-primary" id="btn-settings-filmix-login" tabindex="0">Войти в Filmix</button>
+                        <button class="btn-secondary" id="btn-settings-filmix-logout" style="display:none;" tabindex="0">Выйти</button>
+                        <span id="settings-filmix-msg" class="status-msg"></span>
+                    </div>
+                    <div class="form-group">
+                        <label>Или вставьте Cookies напрямую (если включена 2FA):</label>
+                        <textarea id="settings-filmix-cookie" rows="2" placeholder="dle_user_id=...; dle_password=...;" tabindex="0" class="cookie-input-textarea"></textarea>
+                        <button class="btn-secondary" id="btn-settings-filmix-save-cookie" style="margin-top: 8px; align-self: flex-start;" tabindex="0">Сохранить Cookies</button>
+                    </div>
+                </div>
+
+                <!-- Tab 4: Server Connection -->
+                <div class="settings-tab-content" id="stab-content-server" style="display: none;">
+                    <div class="settings-row">
+                        <div class="settings-label">
+                            <strong>Адрес ПК-сервера ShowHub:</strong>
+                            <span>IP-адрес и порт локального медиа-сервера в домашней Wi-Fi сети</span>
+                        </div>
+                        <div class="settings-control">
+                            <input type="text" id="settings-server-ip" class="settings-input" value="http://192.168.50.222:8000" tabindex="0">
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 10px; margin-top: 14px;">
+                        <button class="btn-primary" id="btn-settings-server-save" tabindex="0">Сохранить адрес</button>
+                        <button class="btn-secondary" id="btn-settings-server-test" tabindex="0">Проверить связь</button>
+                        <span id="settings-server-msg" class="status-msg"></span>
+                    </div>
+                </div>
+
+                <!-- Tab 5: History Management -->
+                <div class="settings-tab-content" id="stab-content-history" style="display: none;">
+                    <div class="settings-row">
+                        <div class="settings-label">
+                            <strong>История просмотров и таймкоды</strong>
+                            <span id="settings-history-count">Сохранено: 0 фильмов и сериалов</span>
+                        </div>
+                        <div class="settings-control">
+                            <button class="btn-danger" id="btn-settings-clear-history" tabindex="0">Очистить историю просмотров</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab 6: Updates -->
+                <div class="settings-tab-content" id="stab-content-updates">
+                    <div class="settings-row">
+                        <div class="settings-label">
+                            <strong>Текущая версия приложения:</strong>
+                            <span id="current-version-info">ShowHub TV v1.9.7 (Сборка 26)</span>
+                        </div>
+                        <div class="settings-control">
+                            <button class="btn-primary" id="btn-check-updates" tabindex="0">
+                                <span>Проверить обновления</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="settings-row">
+                        <div class="settings-label">
+                            <strong>Статус обновления:</strong>
+                            <span id="update-status-text">Используется актуальная версия.</span>
+                        </div>
+                        <div class="settings-control" id="update-action-container" style="display: none;">
+                            <button class="btn-primary" id="btn-do-update" tabindex="0">
+                                <span>Скачать и обновить</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="settings-row">
+                        <div class="settings-label">
+                            <strong>Google Диск / URL источника релизов:</strong>
+                            <span>Прямой URL к manifest version.json или папке Google Drive</span>
+                        </div>
+                        <div class="settings-control">
+                            <input type="text" id="pref-update-url" class="settings-input" placeholder="https://..." value="" tabindex="0" style="width: 260px;">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="settings-modal-footer">
+                <span class="search-tip">Настройки сохраняются автоматически</span>
+                <button class="btn-primary" id="btn-close-settings-save" tabindex="0">Готово (Esc)</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Integrated Video Player Modal with Advanced TV OSD -->
+    <div id="player-modal" class="modal player-modal" style="display: none;">
+        <div class="player-container">
+            <!-- Video & Subtitle Display Layer -->
+            <div class="player-video-viewport" id="player-viewport">
+                <!-- Native Video for HLS/MP4 with transparent placeholder to suppress default browser icons -->
+                <video id="tv-video" playsinline preload="auto" poster="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='1' height='1'></svg>" style="display:none; opacity:0;"></video>
+                <!-- Iframe for Web/Balancer Embeds fallback -->
+                <iframe id="tv-iframe" allowfullscreen allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" style="display:none;"></iframe>
+
+                <!-- High-visibility TV Subtitles Layer -->
+                <div id="player-subtitles-overlay" class="player-subtitles-overlay" style="display:none;"></div>
+
+                <!-- Clean Non-Stretched Video Loading Placeholder -->
+                <div id="player-loading-backdrop" class="player-loading-backdrop" style="display:none;">
+                    <div class="player-loading-box">
+                        <div class="spinner-neon"></div>
+                        <div class="player-loading-title" id="player-loading-title">Загрузка видео...</div>
+                        <div class="player-loading-sub" id="player-loading-sub">ShowHub TV подключается к источнику</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Intro & Outro Skip Floating Controls -->
+            <div class="player-skip-container" id="player-skip-container">
+                <button id="player-btn-skip-intro" class="player-skip-btn" style="display: none;" tabindex="0">
+                    <span class="skip-icon">⏭</span> Пропустить заставку
+                </button>
+                <button id="player-btn-skip-outro" class="player-skip-btn" style="display: none;" tabindex="0">
+                    <span class="skip-icon">⏭</span> Пропустить титры
+                </button>
+            </div>
+
+            <!-- On-Screen Display (OSD) Overlay -->
+            <div id="player-osd" class="player-osd visible">
+                <!-- OSD Top Bar -->
+                <div class="osd-topbar">
+                    <button class="osd-btn-back" id="osd-btn-back" tabindex="0" title="Назад в каталог (Esc)">
+                        <span class="osd-icon">←</span>
+                        <span>Назад</span>
+                    </button>
+                    <div class="osd-title-group">
+                        <div class="osd-main-title" id="osd-main-title">Воспроизведение</div>
+                        <div class="osd-sub-title" id="osd-sub-title"></div>
+                    </div>
+                    <div class="osd-top-meta">
+                        <button class="osd-btn-action" id="osd-btn-external-youtube" style="display:none;" tabindex="0" title="Открыть трейлер в приложении YouTube или SmartTube">
+                            <span>📺 В YouTube / SmartTube</span>
+                        </button>
+                        <span class="osd-badge" id="osd-badge-voice" style="display:none;">Озвучка</span>
+                        <span class="osd-badge" id="osd-badge-quality">1080p</span>
+                        <span class="osd-clock" id="osd-clock">--:--</span>
+                    </div>
+                </div>
+
+                <!-- Center Play/Pause / Rewind Feedback Glyphs & Focusable Center Action -->
+                <div class="osd-center-feedback" id="osd-center-feedback">
+                    <button class="osd-center-play-btn" id="osd-center-play-btn" tabindex="0" title="Пауза / Воспроизведение (OK)">
+                        <span id="osd-center-play-icon">
+                            <svg viewBox="0 0 24 24" width="38" height="38" fill="currentColor"><polygon points="6 4 20 12 6 20 6 4"></polygon></svg>
+                        </span>
+                    </button>
+                    <div class="osd-feedback-icon" id="osd-feedback-icon" style="display: none;"></div>
+                    <div class="osd-feedback-label" id="osd-feedback-label" style="display: none;">Воспроизведение</div>
+                </div>
+
+                <!-- Buffering Spinner Indicator -->
+                <div class="osd-buffering" id="osd-buffering" style="display: none;">
+                    <div class="spinner-neon"></div>
+                    <span>Буферизация...</span>
+                </div>
+
+                <!-- OSD Bottom Transport Bar -->
+                <div class="osd-bottombar">
+                    <!-- Progress Timeline / Scrubber -->
+                    <div class="osd-timeline-row">
+                        <span class="osd-time osd-time-cur" id="osd-time-cur">00:00</span>
+                        <div class="osd-progress-track" id="osd-progress-track" tabindex="0" role="slider" aria-label="Полоса воспроизведения">
+                            <div class="osd-progress-buffered" id="osd-progress-buffered" style="width: 0%;"></div>
+                            <div class="osd-progress-played" id="osd-progress-played" style="width: 0%;">
+                                <div class="osd-progress-thumb"></div>
+                            </div>
+                        </div>
+                        <span class="osd-time osd-time-dur" id="osd-time-dur">00:00</span>
+                        <span class="osd-time osd-time-rem" id="osd-time-rem">-00:00</span>
+                        <span class="osd-time osd-time-buf" id="osd-time-buf" title="Буферизовано">Буфер: 0%</span>
+                    </div>
+
+                    <!-- Action Controls Buttons Row -->
+                    <div class="osd-controls-row">
+                        <div class="osd-controls-group osd-controls-playback">
+                            <button class="osd-ctrl-btn osd-play-btn" id="osd-btn-play" tabindex="0" title="Пауза / Воспроизведение (OK / Пробел)">
+                                <span class="osd-ctrl-icon" id="osd-play-icon">
+                                    <svg class="btn-icon-svg-only" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>
+                                </span>
+                            </button>
+                            <button class="osd-ctrl-btn" id="osd-btn-prev-ep" tabindex="0" title="Предыдущая серия" style="display:none;">
+                                <span class="osd-ctrl-icon">
+                                    <svg class="btn-icon-svg-only" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="19 20 9 12 19 4 19 20"></polygon><line x1="5" y1="19" x2="5" y2="5"></line></svg>
+                                </span>
+                            </button>
+                            <button class="osd-ctrl-btn" id="osd-btn-rewind" tabindex="0" title="-10 секунд (Влево)">
+                                <span class="osd-ctrl-icon">
+                                    <svg class="btn-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 19 2 12 11 5 11 19"></polygon><polygon points="22 19 13 12 22 5 22 19"></polygon></svg>
+                                </span>
+                                <span class="osd-btn-text">-10с</span>
+                            </button>
+                            <button class="osd-ctrl-btn" id="osd-btn-forward" tabindex="0" title="+10 секунд (Вправо)">
+                                <span class="osd-ctrl-icon">
+                                    <svg class="btn-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 19 22 12 13 5 13 19"></polygon><polygon points="2 19 11 12 2 5 2 19"></polygon></svg>
+                                </span>
+                                <span class="osd-btn-text">+10с</span>
+                            </button>
+                            <button class="osd-ctrl-btn" id="osd-btn-next-ep" tabindex="0" title="Следующая серия" style="display:none;">
+                                <span class="osd-ctrl-icon">
+                                    <svg class="btn-icon-svg-only" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 4 15 12 5 20 5 4"></polygon><line x1="19" y1="5" x2="19" y2="19"></line></svg>
+                                </span>
+                            </button>
+                        </div>
+
+                        <div class="osd-controls-group osd-controls-options">
+                            <button class="osd-ctrl-btn osd-pill-btn" id="osd-btn-audio" tabindex="0" title="Выбор озвучки">
+                                <svg class="osd-ctrl-svg" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
+                                <span class="osd-btn-text" id="osd-label-audio">Озвучка</span>
+                            </button>
+                            <button class="osd-ctrl-btn osd-pill-btn" id="osd-btn-subs" tabindex="0" title="Выбор субтитров">
+                                <svg class="osd-ctrl-svg" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                                <span class="osd-btn-text" id="osd-label-subs">Субтитры</span>
+                            </button>
+                            <button class="osd-ctrl-btn osd-pill-btn" id="osd-btn-quality" tabindex="0" title="Качество видео">
+                                <svg class="osd-ctrl-svg" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
+                                <span class="osd-btn-text" id="osd-label-quality">1080p</span>
+                            </button>
+                            <button class="osd-ctrl-btn osd-pill-btn" id="osd-btn-episodes" tabindex="0" title="Серии и сезоны" style="display:none;">
+                                <svg class="osd-ctrl-svg" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
+                                <span class="osd-btn-text">Серии</span>
+                            </button>
+                            <button class="osd-ctrl-btn" id="osd-btn-external" tabindex="0" title="Открыть во внешнем плеере (VLC / MX)">
+                                <svg class="osd-ctrl-svg" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Flyout Drawer: Audio / Voiceovers -->
+            <div id="player-drawer-audio" class="player-drawer" style="display: none;">
+                <div class="player-drawer-panel">
+                    <div class="player-drawer-header">
+                        <div class="player-drawer-title">🔊 Выбор дорожки и озвучки</div>
+                        <button class="player-drawer-close" id="btn-close-drawer-audio" tabindex="0">✕ (Esc)</button>
+                    </div>
+                    <div class="player-drawer-body" id="player-audio-list">
+                        <!-- Dynamic audio track items -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Flyout Drawer: Subtitles -->
+            <div id="player-drawer-subs" class="player-drawer" style="display: none;">
+                <div class="player-drawer-panel">
+                    <div class="player-drawer-header">
+                        <div class="player-drawer-title">💬 Субтитры</div>
+                        <button class="player-drawer-close" id="btn-close-drawer-subs" tabindex="0">✕ (Esc)</button>
+                    </div>
+                    <div class="player-drawer-body" id="player-subs-list">
+                        <!-- Dynamic subtitle options -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Flyout Drawer: Quality Selection -->
+            <div id="player-drawer-quality" class="player-drawer" style="display: none;">
+                <div class="player-drawer-panel">
+                    <div class="player-drawer-header">
+                        <div class="player-drawer-title">⚙️ Качество видео</div>
+                        <button class="player-drawer-close" id="btn-close-drawer-quality" tabindex="0">✕ (Esc)</button>
+                    </div>
+                    <div class="player-drawer-body" id="player-quality-list">
+                        <!-- Dynamic quality options -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Flyout Drawer: Episodes & Seasons -->
+            <div id="player-drawer-episodes" class="player-drawer player-drawer-wide" style="display: none;">
+                <div class="player-drawer-panel">
+                    <div class="player-drawer-header">
+                        <div class="player-drawer-title">📑 Выбор сезона и серии</div>
+                        <button class="player-drawer-close" id="btn-close-drawer-episodes" tabindex="0">✕ (Esc)</button>
+                    </div>
+                    <div class="player-drawer-seasons" id="player-seasons-tabs">
+                        <!-- Seasons chips -->
+                    </div>
+                    <div class="player-drawer-episodes" id="player-episodes-list">
+                        <!-- Episodes chips -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Auto-Play Next Episode ("Up Next") Banner -->
+            <div id="player-up-next-banner" class="player-up-next-card" style="display: none;">
+                <div class="up-next-content">
+                    <div class="up-next-tag">СЛЕДУЮЩАЯ СЕРИЯ</div>
+                    <div class="up-next-title" id="up-next-title">Сезон 1, Серия 2</div>
+                    <div class="up-next-timer" id="up-next-timer">Автопереход через 10 сек</div>
+                </div>
+                <div class="up-next-actions">
+                    <button class="btn-primary" id="btn-up-next-play" tabindex="0">▶ Смотреть сейчас</button>
+                    <button class="btn-secondary" id="btn-up-next-cancel" tabindex="0">Отмена</button>
+                </div>
+            </div>
+
+            <!-- Unobtrusive Toast for Quick Feedback / Resume -->
+            <div id="player-toast" class="player-toast" style="display: none;">
+                <span id="player-toast-text">▶ Воспроизведение продолжено с 14:25</span>
+            </div>
+
+            <!-- Legacy button anchor for compatibility -->
+            <button id="btn-close-player" style="display:none;"></button>
+
+            <!-- Player Error Overlay -->
+            <div id="player-error-overlay" class="player-error-overlay" style="display:none;">
+                <div class="player-error-box">
+                    <div class="player-error-icon">!</div>
+                    <h3 id="player-error-title">Видео недоступно в этом потоке</h3>
+                    <p id="player-error-desc">Сервер источника не ответил или видео заблокировано.</p>
+                    <div class="player-error-actions">
+                        <button id="btn-player-next-source" class="btn-primary" tabindex="0">Другой источник</button>
+                        <button id="btn-player-retry" class="btn-secondary" tabindex="0">Повторить</button>
+                        <button id="btn-player-close-error" class="btn-secondary" tabindex="0">Закрыть</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Server Connection Modal (for Android TV) -->
+    <div id="server-connect-modal" class="modal" style="display: none;">
+        <div class="modal-dialog" style="max-width: 580px; flex-direction: column; text-align: center; gap: 20px;">
+            <h2>ShowHub TV</h2>
+            <p id="server-connect-status" style="color: #94a3b8; font-size: 15px;">
+                Подключение к серверу ShowHub: <strong id="server-current-url">http://192.168.50.222:8000</strong>...
+            </p>
+            <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+                <input type="text" id="server-ip-input" class="search-hero-input" style="font-size: 16px; padding: 10px 16px; text-align: center; max-width: 320px;" value="http://192.168.50.222:8000" tabindex="0">
+                <button class="btn-primary" id="btn-server-save" tabindex="0">Сохранить</button>
+                <button class="btn-secondary" id="btn-server-retry" tabindex="0">Повторить</button>
+                <button class="btn-secondary" id="btn-server-cancel" tabindex="0">Закрыть</button>
+            </div>
+            <p style="font-size: 13px; color: #64748b;">
+                Убедитесь, что ShowHub запущен на компьютере и подключен к той же домашней сети Wi-Fi.
+            </p>
+        </div>
+    </div>
+
+    <!-- TV Remote Control Legend & Catalog Stats -->
+    <footer class="tv-footer">
+        <div class="tv-legend">
+            <span>[▲/▼/◄/►] Навигация</span>
+            <span>[Enter] Выбор</span>
+            <span>[Esc/Back] Назад</span>
+            <span>[F] Полноэкранный режим</span>
+        </div>
+        <div class="tv-footer-counter" id="catalog-footer-counter">
+            Доступно в каталоге: ~30 260 наименований (18 450 фильмов, 6 210 сериалов, 3 120 мультфильмов, 2 480 аниме)
+        </div>
+    </footer>
+
+    <script src="tv.js"></script>
+</body>
+</html>

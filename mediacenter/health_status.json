@@ -1,0 +1,69 @@
+{
+  "total_sources": 6,
+  "ok_sources": 6,
+  "broken_sources": 0,
+  "has_warnings": false,
+  "last_checked": 1789650770.8370583,
+  "reports": [
+    {
+      "source_name": "bazon",
+      "is_active": true,
+      "status": "OK",
+      "latency_ms": 573.0674266815186,
+      "message": "Bazon API fully operational (https://bazon.cc/api). Returns embeds and metadata.",
+      "needs_rework": false,
+      "endpoint_tested": "https://bazon.cc/api/search?token=***&title=Matrix",
+      "last_tested": 1789650759.3880408
+    },
+    {
+      "source_name": "videocdn",
+      "is_active": true,
+      "status": "OK",
+      "latency_ms": 668.3182716369629,
+      "message": "VideoCDN (Allarknow) fully operational! Active player: https://bayas.allarknow.online/?token_movie=7...",
+      "needs_rework": false,
+      "endpoint_tested": "https://api.apbugall.org/?token=bfbb025034f40bbe51d8d640f8d182&kp=301",
+      "last_tested": 1789650759.485301
+    },
+    {
+      "source_name": "delivembd",
+      "is_active": true,
+      "status": "OK",
+      "latency_ms": 673.328161239624,
+      "message": "Delivembd fully operational! Extracted 95 HLS streams with Russian audio.",
+      "needs_rework": false,
+      "endpoint_tested": "https://api.delivembd.ws/embed/movie/301",
+      "last_tested": 1789650759.490307
+    },
+    {
+      "source_name": "filmix",
+      "is_active": true,
+      "status": "OK",
+      "latency_ms": 681.2124252319336,
+      "message": "Filmix API online (https://filmix.quest) (Гостевой режим; для 1080p/4K войдите в аккаунт Filmix)",
+      "needs_rework": false,
+      "endpoint_tested": "https://filmix.quest/engine/ajax/sphinx_search.php",
+      "last_tested": 1789650759.499198
+    },
+    {
+      "source_name": "hdrezka",
+      "is_active": true,
+      "status": "OK",
+      "latency_ms": 1384.728193283081,
+      "message": "HDRezka полностью онлайн на https://hdrezka-home.tv! Anubis PoW решён за 1385мс. Плеер и потоки активны.",
+      "needs_rework": false,
+      "endpoint_tested": "https://hdrezka-home.tv/search/?do=search&subaction=search&q=Matrix",
+      "last_tested": 1789650760.6625001
+    },
+    {
+      "source_name": "torrents",
+      "is_active": true,
+      "status": "OK",
+      "latency_ms": 11958.07433128357,
+      "message": "Rutor Tracker fully online! Found 100 torrent magnets with seeders.",
+      "needs_rework": false,
+      "endpoint_tested": "http://rutor.info/search/0/0/0/0/Matrix",
+      "last_tested": 1789650770.8370583
+    }
+  ]
+}

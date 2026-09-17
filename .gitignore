@@ -1,0 +1,16 @@
+# Ignore everything by default in root
+/*
+
+# Whitelist only what is needed for the cloud server
+!/mediacenter/
+!/requirements.txt
+!/Procfile
+!/render.yaml
+!/Dockerfile
+!/.gitignore
+!/README.md
+
+# Inside mediacenter, ignore caches and temp files
+**/__pycache__/
+**/*.pyc
+**/*.log

@@ -54,8 +54,8 @@ enum class Screen {
 
 class MainActivity : ComponentActivity() {
     companion object {
-        const val VERSION_CODE = 30
-        const val VERSION_NAME = "2.0.1"
+        const val VERSION_CODE = 31
+        const val VERSION_NAME = "2.1.0"
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {

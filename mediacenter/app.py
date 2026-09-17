@@ -307,13 +307,13 @@ def get_media_poster(title: str = Query(...), year: Optional[str] = None, kp_id:
 def check_updates() -> Dict[str, Any]:
     return {
         "success": True,
-        "version_name": "2.0.1",
-        "version_code": 30,
+        "version_name": "2.1.0",
+        "version_code": 31,
         "force_update": True,
-        "min_version_code": 30,
+        "min_version_code": 31,
         "apk_url": "https://showhub-server.onrender.com/ShowHub.apk",
         "download_url": "https://showhub-server.onrender.com/ShowHub.apk",
-        "changelog": "ShowHub TV v2.0.1: Full cinema catalog, instant D-Pad response, 1080p direct streams."
+        "changelog": "ShowHub TV v2.1.0: Полное нативное ТВ-меню, живой предпросмотр карточек, выбор серий и качества, поиск и избранное."
     }
 
 @app.get("/api/catalog/stats")

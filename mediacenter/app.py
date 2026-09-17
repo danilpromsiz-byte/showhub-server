@@ -1220,6 +1220,16 @@ def debug_stream_diag(title: str = "Интерстеллар", year: Optional[st
             
             cdn_m = re.search(r'initCDN(?:Movies|Series)Events\(\s*(\d+)\s*,\s*(\d+).*?,\s*(\{.*?\})\s*\);', r_page.text, re.DOTALL)
             diag["rz_has_cdn_m"] = bool(cdn_m)
+            if cdn_m:
+                diag["rz_cdn_m_group1"] = cdn_m.group(1)
+                diag["rz_cdn_m_group2"] = cdn_m.group(2)
+                diag["rz_cdn_m_raw_group3"] = cdn_m.group(3)[:500]
+                try:
+                    ej = json.loads(cdn_m.group(3))
+                    diag["rz_ej_keys"] = list(ej.keys())
+                    diag["rz_ej_streams_val"] = str(ej.get("streams"))[:200]
+                except Exception as ex:
+                    diag["rz_ej_json_err"] = str(ex)
             
             id_match = re.search(r'data-id="(\d+)"', r_page.text)
             trans_match = re.search(r'data-translator_id="(\d+)"', r_page.text)

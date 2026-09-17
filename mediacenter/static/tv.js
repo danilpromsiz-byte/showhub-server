@@ -4,6 +4,11 @@
  * embedded HLS playback, and real-time Canary Health monitoring.
  */
 
+// Application Version & Mandatory Update State
+const CURRENT_APP_VERSION = "1.9.7";
+const CURRENT_APP_VERSION_CODE = 26;
+window.isForceUpdateActive = false;
+
 // Universal API Base Interceptor for Android TV (supports both file:/// assets and http://)
 const originalFetch = window.fetch;
 window.fetch = function(url, options) {
@@ -18,6 +23,17 @@ window.fetch = function(url, options) {
 
 // Android TV Remote Back Key Handler
 window.handleTvBack = function() {
+    if (window.isForceUpdateActive) {
+        const btnExit = document.getElementById("btn-force-update-exit");
+        if (document.activeElement !== btnExit) {
+            btnExit?.focus();
+        } else {
+            if (window.AndroidBridge && typeof window.AndroidBridge.closeApp === "function") {
+                window.AndroidBridge.closeApp();
+            }
+        }
+        return true;
+    }
     const playerModal = document.getElementById("player-modal");
     if (playerModal && playerModal.style.display !== "none") {
         if (typeof handlePlayerBack === "function" && handlePlayerBack()) {
@@ -540,7 +556,127 @@ let activeEpisodeId = 1;
 let hlsInstance = null;
 let activeModalRequestId = 0;
 
+/* =========================================================
+   Mandatory Forced Update System (Hard Gate)
+   ========================================================= */
+let mandatoryUpdateData = null;
+
+async function checkMandatoryUpdate() {
+    try {
+        const res = await fetch("/api/updates/check");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!data || !data.success) return;
+
+        const serverVersionCode = Number(data.version_code || 0);
+        const minVersionCode = Number(data.min_version_code || 0);
+        const isMandatory = (data.force_update && serverVersionCode > CURRENT_APP_VERSION_CODE) ||
+                            (minVersionCode > CURRENT_APP_VERSION_CODE) ||
+                            (serverVersionCode > CURRENT_APP_VERSION_CODE);
+
+        if (isMandatory) {
+            activateForceUpdateModal(data);
+        }
+    } catch (e) {
+        console.warn("Auto-update check exception:", e);
+    }
+}
+
+function activateForceUpdateModal(data) {
+    mandatoryUpdateData = data;
+    window.isForceUpdateActive = true;
+
+    // 1. Stop any background or active video preview immediately
+    try {
+        if (typeof stopActivePreview === "function") stopActivePreview();
+        if (typeof closePlayer === "function") closePlayer();
+    } catch (e) {}
+
+    // 2. Hide catalog and other overlays ("иначе ничего не показываем")
+    const catalogContent = document.getElementById("catalog-grid");
+    if (catalogContent) {
+        catalogContent.style.filter = "blur(10px)";
+        catalogContent.style.pointerEvents = "none";
+    }
+
+    const overlay = document.getElementById("force-update-overlay");
+    if (!overlay) return;
+
+    const titleEl = document.getElementById("force-update-title");
+    const verLabel = document.getElementById("force-update-version-label");
+    const changelogEl = document.getElementById("force-update-changelog-text");
+    const btnNow = document.getElementById("btn-force-update-now");
+    const btnExit = document.getElementById("btn-force-update-exit");
+    const statusMsg = document.getElementById("force-update-status-msg");
+    const progressCont = document.getElementById("force-update-progress-bar");
+
+    if (titleEl) {
+        titleEl.textContent = `Доступно обязательное обновление ShowHub TV v${data.version_name || ''}`;
+    }
+    if (verLabel) {
+        verLabel.textContent = `У вас: v${CURRENT_APP_VERSION} (код ${CURRENT_APP_VERSION_CODE}) → Доступна: v${data.version_name || 'новое'} (код ${data.version_code || '27'})`;
+    }
+    if (changelogEl && data.changelog) {
+        changelogEl.textContent = data.changelog;
+    }
+    if (statusMsg) statusMsg.style.display = "none";
+    if (progressCont) progressCont.style.display = "none";
+
+    overlay.style.display = "flex";
+
+    // Action handlers (ensure single binding)
+    if (btnNow && !btnNow._bound) {
+        btnNow._bound = true;
+        btnNow.addEventListener("click", () => {
+            if (!mandatoryUpdateData) return;
+            if (statusMsg) {
+                statusMsg.textContent = `Подготовка к загрузке обновления v${mandatoryUpdateData.version_name || ''}...`;
+                statusMsg.style.display = "block";
+            }
+            if (progressCont) {
+                progressCont.style.display = "block";
+            }
+            btnNow.disabled = true;
+            btnNow.style.opacity = "0.7";
+
+            let targetUrl = mandatoryUpdateData.download_url || mandatoryUpdateData.apk_url || "/ShowHub.apk";
+            if (!targetUrl.startsWith("http://") && !targetUrl.startsWith("https://")) {
+                const host = (localStorage.getItem("showhub_server") || "https://showhub-server.onrender.com").replace(/\/+$/, "");
+                targetUrl = host + (targetUrl.startsWith("/") ? "" : "/") + targetUrl;
+            }
+
+            console.log("Starting forced update download from:", targetUrl);
+            setTimeout(() => {
+                if (window.AndroidBridge && typeof window.AndroidBridge.installUpdate === "function") {
+                    window.AndroidBridge.installUpdate(targetUrl);
+                } else if (window.AndroidBridge && typeof window.AndroidBridge.openUrl === "function") {
+                    window.AndroidBridge.openUrl(targetUrl);
+                } else {
+                    window.location.href = targetUrl;
+                }
+            }, 300);
+        });
+    }
+
+    if (btnExit && !btnExit._bound) {
+        btnExit._bound = true;
+        btnExit.addEventListener("click", () => {
+            if (window.AndroidBridge && typeof window.AndroidBridge.closeApp === "function") {
+                window.AndroidBridge.closeApp();
+            } else {
+                window.close();
+            }
+        });
+    }
+
+    // Set initial focus on primary update button
+    setTimeout(() => {
+        try { btnNow?.focus(); } catch (e) {}
+    }, 100);
+}
+
 document.addEventListener("DOMContentLoaded", () => {
+    checkMandatoryUpdate();
     initThemeEngine();
     initSettingsModal();
     initServerConnection();
@@ -843,6 +979,34 @@ function renderSearchHistory() {
 let lastNavKeyTime = 0;
 
 function handleKeyDown(e) {
+    if (window.isForceUpdateActive) {
+        const btnNow = document.getElementById("btn-force-update-now");
+        const btnExit = document.getElementById("btn-force-update-exit");
+        if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+            e.preventDefault();
+            e.stopPropagation();
+            btnNow?.focus();
+            return;
+        }
+        if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+            e.preventDefault();
+            e.stopPropagation();
+            btnExit?.focus();
+            return;
+        }
+        if (e.key === "Escape" || e.key === "Back" || e.key === "BrowserBack" || e.key === "Backspace" || e.keyCode === 4 || e.keyCode === 27) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (typeof window.handleTvBack === "function") window.handleTvBack();
+            return;
+        }
+        if (e.key === "Enter" || e.keyCode === 13) {
+            return; // allow click on active button
+        }
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+    }
     const activeModal = document.querySelector(".modal[style*='display: flex'], .modal[style*='display: block']");
     const playerModal = document.getElementById("player-modal");
 

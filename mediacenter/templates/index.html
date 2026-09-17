@@ -1025,6 +1025,51 @@
         </div>
     </div>
 
+    <!-- Mandatory Forced Update Blocker Overlay -->
+    <div id="force-update-overlay" class="force-update-overlay" style="display: none;">
+        <div class="force-update-dialog">
+            <div class="force-update-badge">
+                <span class="force-update-pulse"></span>
+                ТРЕБУЕТСЯ ОБНОВЛЕНИЕ
+            </div>
+            <div class="force-update-icon-wrapper">
+                <svg viewBox="0 0 24 24" width="64" height="64" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="7 10 12 15 17 10"/>
+                    <line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+            </div>
+            <h1 class="force-update-title" id="force-update-title">Вышло обновление ShowHub TV</h1>
+            <div class="force-update-version-tag" id="force-update-version-label">Доступна новая версия</div>
+            <p class="force-update-desc">
+                Текущая версия приложения устарела. Для продолжения просмотра фильмов и сериалов необходимо установить новую версию.
+            </p>
+            <div class="force-update-changelog-card">
+                <div class="force-update-changelog-title">Что изменилось:</div>
+                <div class="force-update-changelog-body" id="force-update-changelog-text">
+                    - Улучшена стабильность потоков и облачного сервера
+                </div>
+            </div>
+            <div class="force-update-status" id="force-update-status-msg" style="display: none;"></div>
+            <div class="force-update-progress-container" id="force-update-progress-bar" style="display: none;">
+                <div class="force-update-progress-fill" id="force-update-progress-fill"></div>
+            </div>
+            <div class="force-update-actions">
+                <button class="force-update-btn-primary" id="btn-force-update-now" tabindex="0">
+                    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 8px; vertical-align: middle;">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                        <polyline points="7 10 12 15 17 10"/>
+                        <line x1="12" y1="15" x2="12" y2="3"/>
+                    </svg>
+                    <span>Обновить сейчас</span>
+                </button>
+                <button class="force-update-btn-secondary" id="btn-force-update-exit" tabindex="0">
+                    Выйти из приложения
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- TV Remote Control Legend & Catalog Stats -->
     <footer class="tv-footer">
         <div class="tv-legend">

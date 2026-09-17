@@ -28,25 +28,14 @@ import com.example.tvmediaapp.ui.theme.CyanNeon
 import com.example.tvmediaapp.ui.theme.TextGray
 import com.example.tvmediaapp.ui.theme.TextWhite
 
-data class NavTabItem(
-    val id: String,
-    val title: String,
-    val icon: String = ""
-)
-
-// In the top menu: Search, Favorites, and History
-val NAV_TABS = listOf(
-    NavTabItem("search", "\ud83d\udd0d \u041f\u043e\u0438\u0441\u043a"),
-    NavTabItem("favorites", "\u2b50 \u0418\u0437\u0431\u0440\u0430\u043d\u043d\u043e\u0435"),
-    NavTabItem("history", "\ud83d\udd52 \u0418\u0441\u0442\u043e\u0440\u0438\u044f")
-)
-
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 fun TvTopBar(
     onSearchClick: () -> Unit,
     onFavoritesClick: () -> Unit,
     onHistoryClick: () -> Unit,
+    onCheckUpdateClick: (() -> Unit)? = null,
+    hasUpdateAvailable: Boolean = false,
     currentScreenName: String = "home",
     modifier: Modifier = Modifier
 ) {
@@ -86,7 +75,7 @@ fun TvTopBar(
             }
         }
 
-        // Top Navigation items: Search, Favorites, History
+        // Top Navigation items: Search, Favorites, History, Update
         Row(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -161,6 +150,31 @@ fun TvTopBar(
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 14.sp
                 )
+            }
+
+            // Update Check / Action Button
+            if (onCheckUpdateClick != null) {
+                Button(
+                    onClick = onCheckUpdateClick,
+                    colors = ButtonDefaults.colors(
+                        containerColor = if (hasUpdateAvailable) CyanNeon else Color.White.copy(alpha = 0.08f),
+                        focusedContainerColor = CyanNeon,
+                        contentColor = if (hasUpdateAvailable) Color.Black else TextWhite,
+                        focusedContentColor = Color.Black
+                    ),
+                    border = ButtonDefaults.border(
+                        border = Border(BorderStroke(1.dp, if (hasUpdateAvailable) CyanNeon else Color.Transparent)),
+                        focusedBorder = Border(BorderStroke(2.dp, TextWhite))
+                    ),
+                    shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                    modifier = Modifier.height(38.dp)
+                ) {
+                    Text(
+                        text = if (hasUpdateAvailable) "\u2b07\ufe0f \u041e\u0431\u043d\u043e\u0432\u0438\u0442\u044c" else "\ud83d\udd04",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp
+                    )
+                }
             }
         }
     }

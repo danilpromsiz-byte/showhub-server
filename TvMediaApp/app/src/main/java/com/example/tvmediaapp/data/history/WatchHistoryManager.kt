@@ -15,6 +15,7 @@ data class HistoryItem(
     val isSeries: Boolean,
     val season: Int,
     val episode: Int,
+    val audioId: String,
     val positionMs: Long,
     val durationMs: Long,
     val percentage: Int,
@@ -29,7 +30,8 @@ class WatchHistoryManager(context: Context) {
         positionMs: Long,
         durationMs: Long,
         season: Int = 1,
-        episode: Int = 1
+        episode: Int = 1,
+        audioId: String = ""
     ) {
         if (movie.id.isEmpty() || positionMs <= 3000L) return
         val percentage = if (durationMs > 0) ((positionMs * 100) / durationMs).toInt().coerceIn(0, 100) else 0
@@ -43,6 +45,7 @@ class WatchHistoryManager(context: Context) {
             isSeries = movie.isSeries,
             season = season,
             episode = episode,
+            audioId = audioId,
             positionMs = positionMs,
             durationMs = durationMs,
             percentage = percentage,
@@ -76,6 +79,7 @@ class WatchHistoryManager(context: Context) {
                         isSeries = obj.optBoolean("isSeries", false),
                         season = obj.optInt("season", 1),
                         episode = obj.optInt("episode", 1),
+                        audioId = obj.optString("audioId", ""),
                         positionMs = obj.optLong("positionMs", 0L),
                         durationMs = obj.optLong("durationMs", 0L),
                         percentage = obj.optInt("percentage", 0),
@@ -105,6 +109,7 @@ class WatchHistoryManager(context: Context) {
                 put("isSeries", item.isSeries)
                 put("season", item.season)
                 put("episode", item.episode)
+                put("audioId", item.audioId)
                 put("positionMs", item.positionMs)
                 put("durationMs", item.durationMs)
                 put("percentage", item.percentage)

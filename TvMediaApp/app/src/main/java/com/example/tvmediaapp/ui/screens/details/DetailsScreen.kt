@@ -78,6 +78,7 @@ fun DetailsScreen(
     var currentMovie by remember { mutableStateOf(movie) }
     var selectedSeason by remember { mutableStateOf(savedHistory?.season ?: 1) }
     var selectedEpisode by remember { mutableStateOf(savedHistory?.episode ?: 1) }
+    var selectedAudioId by remember { mutableStateOf(savedHistory?.audioId ?: "") }
     var selectedQuality by remember { mutableStateOf("1080p") }
     var isResolving by remember { mutableStateOf(false) }
     var streamStatus by remember { mutableStateOf<String?>(null) }
@@ -90,11 +91,15 @@ fun DetailsScreen(
         if (detailed.seasons.isNotEmpty() && savedHistory == null) {
             selectedSeason = detailed.seasons.first().seasonNumber
         }
+        if (detailed.audioTracks.isNotEmpty() && selectedAudioId.isEmpty()) {
+            selectedAudioId = detailed.audioTracks.first().id
+        }
     }
 
     fun startPlayback(
         targetSeason: Int = selectedSeason,
         targetEpisode: Int = selectedEpisode,
+        targetAudioId: String = selectedAudioId,
         startPos: Long = 0L
     ) {
         if (isResolving) return
@@ -105,7 +110,8 @@ fun DetailsScreen(
             var streams = ShowHubApiClient.fetchStreams(
                 movie = currentMovie,
                 season = if (currentMovie.isSeries) targetSeason else null,
-                episode = if (currentMovie.isSeries) targetEpisode else null
+                episode = if (currentMovie.isSeries) targetEpisode else null,
+                audioId = targetAudioId
             )
 
             if (streams.isEmpty()) {
@@ -291,7 +297,6 @@ fun DetailsScreen(
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // If we have saved watch progress, show "Resume" button as primary!
                     if (savedHistory != null && savedHistory.positionMs > 10_000L) {
                         val mins = savedHistory.positionMs / 60000L
                         val resumeLabel = if (currentMovie.isSeries) {
@@ -305,6 +310,7 @@ fun DetailsScreen(
                                 startPlayback(
                                     targetSeason = savedHistory.season,
                                     targetEpisode = savedHistory.episode,
+                                    targetAudioId = savedHistory.audioId.ifEmpty { selectedAudioId },
                                     startPos = savedHistory.positionMs
                                 )
                             },
@@ -325,7 +331,6 @@ fun DetailsScreen(
                             )
                         }
 
-                        // Restart from beginning button
                         Button(
                             onClick = { startPlayback(startPos = 0L) },
                             colors = ButtonDefaults.colors(
@@ -345,7 +350,6 @@ fun DetailsScreen(
                             )
                         }
                     } else {
-                        // Standard Play button
                         Button(
                             onClick = { startPlayback(startPos = 0L) },
                             colors = ButtonDefaults.colors(
@@ -366,7 +370,6 @@ fun DetailsScreen(
                         }
                     }
 
-                    // Favorite Button
                     Button(
                         onClick = { onToggleFavorite(currentMovie) },
                         colors = ButtonDefaults.colors(
@@ -394,7 +397,6 @@ fun DetailsScreen(
                         )
                     }
 
-                    // Back Button
                     OutlinedButton(
                         onClick = onBackClick,
                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
@@ -416,6 +418,46 @@ fun DetailsScreen(
                         fontSize = 14.sp,
                         color = CyanNeon
                     )
+                }
+
+                // TRANSLATORS / AUDIO TRACKS SELECTION RIBBON
+                if (currentMovie.audioTracks.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "\u041e\u0437\u0432\u0443\u0447\u043a\u0430 / \u041f\u0435\u0440\u0435\u0432\u043e\u0434:",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextWhite
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    TvLazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(currentMovie.audioTracks) { track ->
+                            val isSelected = track.id == selectedAudioId
+                            Button(
+                                onClick = {
+                                    selectedAudioId = track.id
+                                    startPlayback(targetAudioId = track.id, startPos = 0L)
+                                },
+                                colors = ButtonDefaults.colors(
+                                    containerColor = if (isSelected) CyanNeon else ChipBackground,
+                                    focusedContainerColor = CyanNeon,
+                                    contentColor = if (isSelected) Color.Black else TextWhite,
+                                    focusedContentColor = Color.Black
+                                ),
+                                shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                                modifier = Modifier.height(34.dp)
+                            ) {
+                                Text(
+                                    text = track.name,
+                                    fontSize = 13.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                )
+                            }
+                        }
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))

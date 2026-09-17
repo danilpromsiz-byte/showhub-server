@@ -18,6 +18,11 @@ data class SeasonInfo(
     val episodes: List<EpisodeInfo> = emptyList()
 )
 
+data class AudioTrackInfo(
+    val id: String,
+    val name: String
+)
+
 data class Movie(
     val id: String,
     val title: String,
@@ -37,7 +42,7 @@ data class Movie(
     val streams: List<StreamOption> = emptyList(),
     val isSeries: Boolean = false,
     val seasons: List<SeasonInfo> = emptyList(),
-    val audioTracks: List<String> = emptyList(),
+    val audioTracks: List<AudioTrackInfo> = emptyList(),
     val isFavorite: Boolean = false
 )
 

@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -25,8 +26,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.tv.material3.Button
 import androidx.tv.material3.ButtonDefaults
@@ -60,13 +64,12 @@ enum class Screen {
 
 class MainActivity : ComponentActivity() {
     companion object {
-        const val VERSION_CODE = 32
-        const val VERSION_NAME = "2.2.0"
+        const val VERSION_CODE = 33
+        const val VERSION_NAME = "2.3.0"
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Initialize Coil with custom HTTP headers (User-Agent + Referer) and disk caching
         CoilSetup.init(this)
 
         setContent {
@@ -81,6 +84,9 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun TvAppNavHost(activity: MainActivity) {
     val homeViewModel: HomeViewModel = viewModel()
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val coroutineScope = rememberCoroutineScope()
+
     var currentScreen by remember { mutableStateOf(Screen.HOME) }
     var selectedMovie by remember { mutableStateOf<Movie?>(null) }
     var activeVideoUrl by remember { mutableStateOf<String>("") }
@@ -90,12 +96,31 @@ fun TvAppNavHost(activity: MainActivity) {
 
     var updateInfo by remember { mutableStateOf<UpdateInfo?>(null) }
     var isDownloadingUpdate by remember { mutableStateOf(false) }
-    val coroutineScope = rememberCoroutineScope()
 
+    fun triggerUpdateCheck() {
+        coroutineScope.launch {
+            val info = UpdateManager.checkUpdate(MainActivity.VERSION_CODE)
+            if (info.hasUpdate) {
+                updateInfo = info
+            }
+        }
+    }
+
+    // Auto-check on launch
     LaunchedEffect(Unit) {
-        val info = UpdateManager.checkUpdate(MainActivity.VERSION_CODE)
-        if (info.hasUpdate) {
-            updateInfo = info
+        triggerUpdateCheck()
+    }
+
+    // Auto-check on ON_RESUME (whenever app returns to foreground)
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                triggerUpdateCheck()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
         }
     }
 
@@ -228,12 +253,12 @@ fun TvAppNavHost(activity: MainActivity) {
             }
         }
 
-        // Optional In-app Update Notification Banner/Dialog
+        // In-app Update Notification Banner/Dialog
         updateInfo?.let { update ->
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.85f)),
+                    .background(Color.Black.copy(alpha = 0.88f)),
                 contentAlignment = Alignment.Center
             ) {
                 Column(

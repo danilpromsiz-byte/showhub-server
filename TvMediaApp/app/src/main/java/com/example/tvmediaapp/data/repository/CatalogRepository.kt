@@ -3,6 +3,7 @@ package com.example.tvmediaapp.data.repository
 import android.content.Context
 import android.content.SharedPreferences
 import com.example.tvmediaapp.data.api.ShowHubApiClient
+import com.example.tvmediaapp.data.models.AudioTrackInfo
 import com.example.tvmediaapp.data.models.EpisodeInfo
 import com.example.tvmediaapp.data.models.Movie
 import com.example.tvmediaapp.data.models.MovieCategory
@@ -69,7 +70,7 @@ class CatalogRepository(context: Context? = null) {
                 SeasonInfo(2, "\u0421\u0435\u0437\u043e\u043d 2", generateDefaultEpisodes(2, 52)),
                 SeasonInfo(3, "\u0421\u0435\u0437\u043e\u043d 3", generateDefaultEpisodes(3, 52))
             ),
-            audioTracks = listOf("\u041e\u0440\u0438\u0433\u0438\u043d\u0430\u043b \u0441 \u0441\u0443\u0431\u0442\u0438\u0442\u0440\u0430\u043c\u0438", "AniStar", "SHIZA Project")
+            audioTracks = listOf(AudioTrackInfo("1", "Original"))
         ),
         Movie(
             id = "1115471",
@@ -88,7 +89,7 @@ class CatalogRepository(context: Context? = null) {
             genres = listOf("\u0414\u0440\u0430\u043c\u0430", "\u0424\u044d\u043d\u0442\u0435\u0437\u0438"),
             videoUrl = "",
             isSeries = false,
-            audioTracks = listOf("\u041e\u0440\u0438\u0433\u0438\u043d\u0430\u043b")
+            audioTracks = listOf(AudioTrackInfo("1", "Original"))
         ),
         Movie(
             id = "5244522",
@@ -110,7 +111,7 @@ class CatalogRepository(context: Context? = null) {
             seasons = listOf(
                 SeasonInfo(1, "\u0421\u0435\u0437\u043e\u043d 1", generateDefaultEpisodes(1, 8))
             ),
-            audioTracks = listOf("\u041e\u0440\u0438\u0433\u0438\u043d\u0430\u043b")
+            audioTracks = listOf(AudioTrackInfo("1", "Original"))
         ),
         Movie(
             id = "404900",
@@ -129,7 +130,7 @@ class CatalogRepository(context: Context? = null) {
             genres = listOf("\u0424\u0430\u043d\u0442\u0430\u0441\u0442\u0438\u043a\u0430", "\u0411\u043e\u0435\u0432\u0438\u043a"),
             videoUrl = "",
             isSeries = false,
-            audioTracks = listOf("\u0414\u0443\u0431\u043b\u044f\u0436 (Red Head Sound)", "\u041f\u0440\u043e\u0444. \u043c\u043d\u043e\u0433\u043e\u0433\u043e\u043b\u043e\u0441\u044b\u0439", "\u041e\u0440\u0438\u0433\u0438\u043d\u0430\u043b")
+            audioTracks = listOf(AudioTrackInfo("1", "Original"))
         ),
         Movie(
             id = "4664634",
@@ -242,7 +243,7 @@ class CatalogRepository(context: Context? = null) {
                 SeasonInfo(1, "\u0421\u0435\u0437\u043e\u043d 1", generateDefaultEpisodes(1, 16)),
                 SeasonInfo(2, "\u0421\u0435\u0437\u043e\u043d 2", generateDefaultEpisodes(2, 16))
             ),
-            audioTracks = listOf("\u041e\u0440\u0438\u0433\u0438\u043d\u0430\u043b")
+            audioTracks = listOf(AudioTrackInfo("1", "Original"))
         )
     )
 

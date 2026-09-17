@@ -1,5 +1,6 @@
 package com.example.tvmediaapp.data.api
 
+import com.example.tvmediaapp.data.models.AudioTrackInfo
 import com.example.tvmediaapp.data.models.EpisodeInfo
 import com.example.tvmediaapp.data.models.Movie
 import com.example.tvmediaapp.data.models.SeasonInfo
@@ -24,7 +25,7 @@ object ShowHubApiClient {
             val conn = url.openConnection() as HttpURLConnection
             conn.connectTimeout = 12000
             conn.readTimeout = 12000
-            conn.setRequestProperty("User-Agent", "ShowHubTV-Native/2.2.0")
+            conn.setRequestProperty("User-Agent", "ShowHubTV-Native/2.3.0")
             conn.connect()
             if (conn.responseCode == 200) {
                 val body = BufferedReader(InputStreamReader(conn.inputStream, "UTF-8")).use { it.readText() }
@@ -64,7 +65,7 @@ object ShowHubApiClient {
             val conn = url.openConnection() as HttpURLConnection
             conn.connectTimeout = 15000
             conn.readTimeout = 25000
-            conn.setRequestProperty("User-Agent", "ShowHubTV-Native/2.2.0")
+            conn.setRequestProperty("User-Agent", "ShowHubTV-Native/2.3.0")
             conn.connect()
             if (conn.responseCode == 200) {
                 val body = BufferedReader(InputStreamReader(conn.inputStream, "UTF-8")).use { it.readText() }
@@ -86,7 +87,7 @@ object ShowHubApiClient {
             val conn = url.openConnection() as HttpURLConnection
             conn.connectTimeout = 12000
             conn.readTimeout = 18000
-            conn.setRequestProperty("User-Agent", "ShowHubTV-Native/2.2.0")
+            conn.setRequestProperty("User-Agent", "ShowHubTV-Native/2.3.0")
             conn.connect()
             if (conn.responseCode == 200) {
                 val body = BufferedReader(InputStreamReader(conn.inputStream, "UTF-8")).use { it.readText() }
@@ -106,7 +107,7 @@ object ShowHubApiClient {
             val conn = URL(urlStr).openConnection() as HttpURLConnection
             conn.connectTimeout = 10000
             conn.readTimeout = 15000
-            conn.setRequestProperty("User-Agent", "ShowHubTV-Native/2.2.0")
+            conn.setRequestProperty("User-Agent", "ShowHubTV-Native/2.3.0")
             conn.connect()
             if (conn.responseCode == 200) {
                 val body = BufferedReader(InputStreamReader(conn.inputStream, "UTF-8")).use { it.readText() }
@@ -133,13 +134,19 @@ object ShowHubApiClient {
                     }
                 }
 
-                val audioList = mutableListOf<String>()
+                val audioList = mutableListOf<AudioTrackInfo>()
                 val trArr = obj.optJSONArray("translators")
                 if (trArr != null) {
                     for (tIdx in 0 until trArr.length()) {
                         val trObj = trArr.optJSONObject(tIdx)
-                        val name = trObj?.optString("name", "") ?: trArr.optString(tIdx, "")
-                        if (name.isNotEmpty()) audioList.add(name)
+                        if (trObj != null) {
+                            val id = trObj.optString("id", tIdx.toString())
+                            val name = trObj.optString("name", "")
+                            if (name.isNotEmpty()) audioList.add(AudioTrackInfo(id, name))
+                        } else {
+                            val name = trArr.optString(tIdx, "")
+                            if (name.isNotEmpty()) audioList.add(AudioTrackInfo(tIdx.toString(), name))
+                        }
                     }
                 }
 
@@ -168,7 +175,8 @@ object ShowHubApiClient {
     suspend fun fetchStreams(
         movie: Movie,
         season: Int? = null,
-        episode: Int? = null
+        episode: Int? = null,
+        audioId: String? = null
     ): List<StreamOption> = withContext(Dispatchers.IO) {
         val streams = mutableListOf<StreamOption>()
         try {
@@ -176,12 +184,13 @@ object ShowHubApiClient {
             val sb = StringBuilder("$SERVER_BASE/api/media/streams?source=hdrezka&media_id=${movie.id}&title=$q")
             if (season != null) sb.append("&season=$season")
             if (episode != null) sb.append("&episode=$episode")
+            if (!audioId.isNullOrEmpty()) sb.append("&audio_id=").append(URLEncoder.encode(audioId, "UTF-8"))
             sb.append("&year=${movie.releaseYear}")
 
             val conn = URL(sb.toString()).openConnection() as HttpURLConnection
             conn.connectTimeout = 12000
             conn.readTimeout = 18000
-            conn.setRequestProperty("User-Agent", "ShowHubTV-Native/2.2.0")
+            conn.setRequestProperty("User-Agent", "ShowHubTV-Native/2.3.0")
             conn.connect()
             if (conn.responseCode == 200) {
                 val body = BufferedReader(InputStreamReader(conn.inputStream, "UTF-8")).use { it.readText() }

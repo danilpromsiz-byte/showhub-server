@@ -1,5 +1,6 @@
 package com.example.tvmediaapp.ui.screens.search
 
+import android.content.Context
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -23,6 +24,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -31,7 +33,6 @@ import androidx.tv.foundation.lazy.grid.TvLazyVerticalGrid
 import androidx.tv.foundation.lazy.grid.items
 import androidx.tv.foundation.lazy.list.TvLazyRow
 import androidx.tv.foundation.lazy.list.items
-import androidx.tv.material3.Border
 import androidx.tv.material3.Button
 import androidx.tv.material3.ButtonDefaults
 import androidx.tv.material3.ExperimentalTvMaterial3Api
@@ -43,10 +44,10 @@ import com.example.tvmediaapp.ui.components.MovieCard
 import com.example.tvmediaapp.ui.theme.BackgroundDark
 import com.example.tvmediaapp.ui.theme.ChipBackground
 import com.example.tvmediaapp.ui.theme.CyanNeon
-import com.example.tvmediaapp.ui.theme.SurfaceDark
 import com.example.tvmediaapp.ui.theme.TextGray
 import com.example.tvmediaapp.ui.theme.TextWhite
 import kotlinx.coroutines.launch
+import org.json.JSONArray
 
 val POPULAR_QUERIES = listOf(
     "\u041f\u043e\u0436\u0438\u0440\u0430\u0442\u0435\u043b\u044c \u0437\u0432\u0451\u0437\u0434",
@@ -60,6 +61,9 @@ val POPULAR_QUERIES = listOf(
     "\u0413\u043e\u043b\u043e\u0432\u043e\u043b\u043e\u043c\u043a\u0430 2"
 )
 
+val RU_KEYBOARD_ROW1 = listOf("А", "Б", "В", "Г", "Д", "Е", "Ж", "З", "И", "К", "Л", "М", "Н", "О", "П", "Р")
+val RU_KEYBOARD_ROW2 = listOf("С", "Т", "У", "Ф", "Х", "Ц", "Ч", "Ш", "Щ", "Э", "Ю", "Я", "1", "2", "3", "4", "5", "6", "7", "8", "9", "0")
+
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 fun SearchScreen(
@@ -68,6 +72,30 @@ fun SearchScreen(
     initialMovies: List<Movie> = emptyList(),
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
+    val searchPrefs = remember { context.getSharedPreferences("showhub_search_history", Context.MODE_PRIVATE) }
+
+    fun loadHistory(): List<String> {
+        val raw = searchPrefs.getString("queries", "[]") ?: "[]"
+        val list = mutableListOf<String>()
+        try {
+            val arr = JSONArray(raw)
+            for (i in 0 until arr.length()) list.add(arr.getString(i))
+        } catch (e: Exception) {}
+        return list
+    }
+
+    fun saveQuery(q: String) {
+        if (q.trim().isEmpty()) return
+        val list = loadHistory().toMutableList()
+        list.removeAll { it.equals(q.trim(), ignoreCase = true) }
+        list.add(0, q.trim())
+        val arr = JSONArray()
+        list.take(10).forEach { arr.put(it) }
+        searchPrefs.edit().putString("queries", arr.toString()).apply()
+    }
+
+    var recentQueries by remember { mutableStateOf(loadHistory()) }
     var query by remember { mutableStateOf("") }
     var results by remember { mutableStateOf(initialMovies) }
     var isSearching by remember { mutableStateOf(false) }
@@ -79,6 +107,8 @@ fun SearchScreen(
             results = initialMovies
             return
         }
+        saveQuery(q)
+        recentQueries = loadHistory()
         isSearching = true
         coroutineScope.launch {
             val res = ShowHubApiClient.searchMovies(q)
@@ -93,7 +123,7 @@ fun SearchScreen(
         modifier = modifier
             .fillMaxSize()
             .background(BackgroundDark)
-            .padding(horizontal = 48.dp, vertical = 32.dp)
+            .padding(horizontal = 48.dp, vertical = 24.dp)
     ) {
         // Top Header
         Row(
@@ -103,7 +133,7 @@ fun SearchScreen(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = "\ud83d\udd0d \u041f\u043e\u0438\u0441\u043a \u0444\u0438\u043b\u044c\u043c\u043e\u0432 \u0438 \u0441\u0435\u0440\u0438\u0430\u043b\u043e\u0432",
+                    text = "\ud83d\udd0d \u041f\u043e\u0438\u0441\u043a",
                     fontSize = 24.sp,
                     fontWeight = FontWeight.Bold,
                     color = TextWhite
@@ -111,7 +141,7 @@ fun SearchScreen(
                 if (query.isNotEmpty()) {
                     Spacer(modifier = Modifier.width(12.dp))
                     Text(
-                        text = ": \"$query\"",
+                        text = ": '$query'",
                         fontSize = 22.sp,
                         color = CyanNeon,
                         fontWeight = FontWeight.SemiBold
@@ -129,16 +159,104 @@ fun SearchScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(10.dp))
+
+        // On-screen TV Remote Keyboard Rows
+        TvLazyRow(
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            items(RU_KEYBOARD_ROW1) { char ->
+                Button(
+                    onClick = { performSearch(query + char) },
+                    colors = ButtonDefaults.colors(
+                        containerColor = ChipBackground,
+                        focusedContainerColor = CyanNeon,
+                        contentColor = TextWhite,
+                        focusedContentColor = Color.Black
+                    ),
+                    shape = ButtonDefaults.shape(RoundedCornerShape(6.dp)),
+                    modifier = Modifier.height(32.dp)
+                ) {
+                    Text(text = char, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(4.dp))
+
+        TvLazyRow(
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            items(RU_KEYBOARD_ROW2) { char ->
+                Button(
+                    onClick = { performSearch(query + char) },
+                    colors = ButtonDefaults.colors(
+                        containerColor = ChipBackground,
+                        focusedContainerColor = CyanNeon,
+                        contentColor = TextWhite,
+                        focusedContentColor = Color.Black
+                    ),
+                    shape = ButtonDefaults.shape(RoundedCornerShape(6.dp)),
+                    modifier = Modifier.height(32.dp)
+                ) {
+                    Text(text = char, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+
+            item {
+                Button(
+                    onClick = { performSearch(query + " ") },
+                    colors = ButtonDefaults.colors(
+                        containerColor = Color.White.copy(alpha = 0.15f),
+                        focusedContainerColor = CyanNeon,
+                        contentColor = TextWhite,
+                        focusedContentColor = Color.Black
+                    ),
+                    shape = ButtonDefaults.shape(RoundedCornerShape(6.dp)),
+                    modifier = Modifier.height(32.dp)
+                ) {
+                    Text(text = "[_]", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+
+            item {
+                Button(
+                    onClick = {
+                        if (query.isNotEmpty()) performSearch(query.dropLast(1))
+                    },
+                    colors = ButtonDefaults.colors(
+                        containerColor = Color.White.copy(alpha = 0.15f),
+                        focusedContainerColor = CyanNeon,
+                        contentColor = TextWhite,
+                        focusedContentColor = Color.Black
+                    ),
+                    shape = ButtonDefaults.shape(RoundedCornerShape(6.dp)),
+                    modifier = Modifier.height(32.dp)
+                ) {
+                    Text(text = "\u232b", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+
+            item {
+                Button(
+                    onClick = { performSearch("") },
+                    colors = ButtonDefaults.colors(
+                        containerColor = Color.Red.copy(alpha = 0.3f),
+                        focusedContainerColor = Color.Red,
+                        contentColor = TextWhite,
+                        focusedContentColor = TextWhite
+                    ),
+                    shape = ButtonDefaults.shape(RoundedCornerShape(6.dp)),
+                    modifier = Modifier.height(32.dp)
+                ) {
+                    Text(text = "\u2715 \u041e\u0447\u0438\u0441\u0442\u0438\u0442\u044c", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
 
         // Popular Quick Queries
-        Text(
-            text = "\u041f\u043e\u043f\u0443\u043b\u044f\u0440\u043d\u044b\u0435 \u0437\u0430\u043f\u0440\u043e\u0441\u044b:",
-            fontSize = 14.sp,
-            color = TextGray
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-
         TvLazyRow(
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
@@ -152,27 +270,27 @@ fun SearchScreen(
                         contentColor = if (isSelected) Color.Black else TextWhite,
                         focusedContentColor = Color.Black
                     ),
-                    shape = ButtonDefaults.shape(RoundedCornerShape(12.dp)),
-                    modifier = Modifier.height(36.dp)
+                    shape = ButtonDefaults.shape(RoundedCornerShape(10.dp)),
+                    modifier = Modifier.height(32.dp)
                 ) {
                     Text(
                         text = itemQuery,
-                        fontSize = 13.sp,
+                        fontSize = 12.sp,
                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                     )
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(14.dp))
 
         if (isSearching) {
             Text(
                 text = "\u23f3 \u041f\u043e\u0438\u0441\u043a \u043f\u043e \u0432\u0441\u0435\u043c \u0431\u0430\u0437\u0430\u043c \u0434\u0430\u043d\u043d\u044b\u0445 ShowHub...",
                 color = CyanNeon,
-                fontSize = 16.sp
+                fontSize = 14.sp
             )
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(8.dp))
         }
 
         // Results Grid

@@ -109,20 +109,6 @@ def serve_apk(version: Optional[str] = None):
     if os.path.exists(fallback_path):
         return FileResponse(fallback_path, media_type="application/vnd.android.package-archive", filename="ShowHub.apk")
     raise HTTPException(status_code=404, detail="APK not found")
-
-@app.get("/version.json")
-def get_version_info():
-    version_file = os.path.join(static_dir, "version.json")
-    if os.path.exists(version_file):
-        with open(version_file, "r", encoding="utf-8") as f:
-            return json.load(f)
-    return {
-        "version_name": "2.0.0",
-        "version_code": 29,
-        "download_url": "https://showhub-server.onrender.com/ShowHub.apk",
-        "changelog": "ShowHub TV v2.0.0 — 100% Native Kotlin & Jetpack Compose TV remaster"
-    }
-
 @app.get("/api/popular")
 def get_popular() -> List[Dict[str, Any]]:
     """Returns dynamic fresh releases (новинки) from live sources."""

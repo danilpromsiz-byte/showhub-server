@@ -313,7 +313,7 @@ def check_updates() -> Dict[str, Any]:
         "min_version_code": 29,
         "apk_url": "https://showhub-server.onrender.com/ShowHub.apk",
         "download_url": "https://showhub-server.onrender.com/ShowHub.apk",
-        "changelog": "ShowHub TV v2.0.0: Нативный автозагрузчик обновлений в 1 клик, прямое воспроизведение 1080p Ultra HLS/MP4 с ТВ, мгновенный D-Pad отклик меню."
+        "changelog": "ShowHub TV v2.0.0: 100% Native Kotlin & Jetpack Compose TV, 1080p Ultra HLS/MP4 direct streams, zero-lag D-Pad navigation."
     }
 
 @app.get("/api/catalog/stats")

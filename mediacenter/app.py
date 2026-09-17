@@ -55,7 +55,7 @@ hdrezka = HDRezkaSource()
 filmix = FilmixSource()
 videocdn = VideoCDNSource()
 
-@app.get("/", response_class=HTMLResponse)
+@app.api_route("/", methods=["GET", "HEAD"], response_class=HTMLResponse)
 async def serve_index():
     index_path = os.path.join(CURRENT_DIR, "templates", "index.html")
     if os.path.exists(index_path):
@@ -79,17 +79,27 @@ def serve_hls_js():
 def serve_noposter():
     return FileResponse(os.path.join(static_dir, "noposter.png"))
 
-@app.get("/ShowHub.apk")
-@app.get("/ShowHub-v{version}.apk")
-@app.get("/apk")
+@app.api_route("/ShowHub.apk", methods=["GET", "HEAD"])
+@app.api_route("/ShowHub-v{version}.apk", methods=["GET", "HEAD"])
+@app.api_route("/apk", methods=["GET", "HEAD"])
 def serve_apk(version: Optional[str] = None):
+    # 1. Check static directory (packaged for cloud / Render deployment)
+    if version:
+        static_target = os.path.join(static_dir, f"ShowHub-v{version}.apk")
+        if os.path.exists(static_target):
+            return FileResponse(static_target, media_type="application/vnd.android.package-archive", filename=f"ShowHub-v{version}.apk")
+    static_apk = os.path.join(static_dir, "ShowHub.apk")
+    if os.path.exists(static_apk):
+        return FileResponse(static_apk, media_type="application/vnd.android.package-archive", filename="ShowHub.apk")
+
+    # 2. Check parent directory (local development)
     if version:
         target_name = f"ShowHub-v{version}.apk"
         apk_path = os.path.join(PARENT_DIR, target_name)
         if os.path.exists(apk_path):
             return FileResponse(apk_path, media_type="application/vnd.android.package-archive", filename=target_name)
 
-    # Automatically find latest versioned APK
+    # Automatically find latest versioned APK in parent directory
     candidates = [f for f in os.listdir(PARENT_DIR) if f.startswith("ShowHub-v") and f.endswith(".apk")]
     if candidates:
         latest = sorted(candidates)[-1]
@@ -265,16 +275,18 @@ def get_media_poster(title: str = Query(...), year: Optional[int] = None, kp_id:
     poster = resolve_real_poster(title, year, kp_id)
     return {"success": bool(poster), "poster": poster or "/noposter.png"}
 
-@app.get("/api/updates/check")
-@app.get("/version.json")
+@app.api_route("/api/updates/check", methods=["GET", "HEAD"])
+@app.api_route("/version.json", methods=["GET", "HEAD"])
 def check_updates() -> Dict[str, Any]:
     return {
         "success": True,
         "version_name": "1.9.7",
         "version_code": 26,
+        "force_update": True,
+        "min_version_code": 26,
         "apk_url": "/ShowHub.apk",
-        "download_url": "/ShowHub-v1.9.7.apk",
-        "changelog": "ShowHub TV v1.9.7: автообновление, чистый плеер с центральной паузой, превью с 22-й минуты, расширенная сортировка и удаление рамок в меню."
+        "download_url": "/ShowHub.apk",
+        "changelog": "ShowHub TV: принудительное обновление, чистый плеер с центральной паузой, превью с 22-й минуты, бегущая строка, быстрый облачный сервер."
     }
 
 @app.get("/api/catalog/stats")
@@ -1123,8 +1135,8 @@ def logout_filmix() -> Dict[str, Any]:
     filmix.logout()
     return {"success": True, "message": "Сессия очищена, выполнен выход из Filmix."}
 
-@app.get("/health")
-@app.get("/api/health")
+@app.api_route("/health", methods=["GET", "HEAD"])
+@app.api_route("/api/health", methods=["GET", "HEAD"])
 def get_health() -> Dict[str, Any]:
     """Returns live Canary Health Check summary with rework warnings."""
     return health_checker.get_summary()

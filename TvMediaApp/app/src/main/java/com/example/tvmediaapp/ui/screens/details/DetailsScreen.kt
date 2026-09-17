@@ -6,7 +6,6 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -32,6 +31,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -46,18 +46,16 @@ import androidx.tv.material3.OutlinedButton
 import androidx.tv.material3.Text
 import coil.compose.AsyncImage
 import com.example.tvmediaapp.data.api.ShowHubApiClient
+import com.example.tvmediaapp.data.history.WatchHistoryManager
 import com.example.tvmediaapp.data.models.Movie
-import com.example.tvmediaapp.data.models.SeasonInfo
 import com.example.tvmediaapp.data.models.StreamOption
 import com.example.tvmediaapp.data.resolver.RezkaNativeResolver
 import com.example.tvmediaapp.ui.theme.BackgroundDark
 import com.example.tvmediaapp.ui.theme.ChipBackground
-import com.example.tvmediaapp.ui.theme.CyanDark
 import com.example.tvmediaapp.ui.theme.CyanNeon
 import com.example.tvmediaapp.ui.theme.FavoriteGold
 import com.example.tvmediaapp.ui.theme.ImdbGold
 import com.example.tvmediaapp.ui.theme.KpOrange
-import com.example.tvmediaapp.ui.theme.SurfaceDark
 import com.example.tvmediaapp.ui.theme.TextGray
 import com.example.tvmediaapp.ui.theme.TextWhite
 import kotlinx.coroutines.launch
@@ -66,16 +64,20 @@ import kotlinx.coroutines.launch
 @Composable
 fun DetailsScreen(
     movie: Movie,
-    onPlayClick: (String) -> Unit,
+    onPlayClick: (url: String, startPositionMs: Long, season: Int, episode: Int) -> Unit,
     onBackClick: () -> Unit,
     onToggleFavorite: (Movie) -> Unit = {},
     isFavorite: Boolean = false,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
+    val historyManager = remember { WatchHistoryManager(context) }
+    val savedHistory = remember { historyManager.getProgress(movie.id) }
+
     val coroutineScope = rememberCoroutineScope()
     var currentMovie by remember { mutableStateOf(movie) }
-    var selectedSeason by remember { mutableStateOf(1) }
-    var selectedEpisode by remember { mutableStateOf(1) }
+    var selectedSeason by remember { mutableStateOf(savedHistory?.season ?: 1) }
+    var selectedEpisode by remember { mutableStateOf(savedHistory?.episode ?: 1) }
     var selectedQuality by remember { mutableStateOf("1080p") }
     var isResolving by remember { mutableStateOf(false) }
     var streamStatus by remember { mutableStateOf<String?>(null) }
@@ -85,25 +87,27 @@ fun DetailsScreen(
     LaunchedEffect(movie.id) {
         val detailed = ShowHubApiClient.fetchMediaDetails(movie)
         currentMovie = detailed
-        if (detailed.seasons.isNotEmpty()) {
+        if (detailed.seasons.isNotEmpty() && savedHistory == null) {
             selectedSeason = detailed.seasons.first().seasonNumber
         }
     }
 
-    fun startPlayback(targetSeason: Int = selectedSeason, targetEpisode: Int = selectedEpisode) {
+    fun startPlayback(
+        targetSeason: Int = selectedSeason,
+        targetEpisode: Int = selectedEpisode,
+        startPos: Long = 0L
+    ) {
         if (isResolving) return
         isResolving = true
         streamStatus = "\u23f3  \u041f\u043e\u0438\u0441\u043a \u043f\u0440\u044f\u043c\u043e\u0433\u043e HLS \u043f\u043e\u0442\u043e\u043a\u0430..."
 
         coroutineScope.launch {
-            // 1. Try ShowHub Media Center multi-source streams
             var streams = ShowHubApiClient.fetchStreams(
                 movie = currentMovie,
                 season = if (currentMovie.isSeries) targetSeason else null,
                 episode = if (currentMovie.isSeries) targetEpisode else null
             )
 
-            // 2. Fallback to direct client-side Rezka resolver
             if (streams.isEmpty()) {
                 streams = RezkaNativeResolver.resolveStreams(
                     title = currentMovie.title,
@@ -120,7 +124,7 @@ fun DetailsScreen(
             if (streams.isNotEmpty()) {
                 val matched = streams.firstOrNull { it.quality.contains(selectedQuality) } ?: streams.first()
                 streamStatus = "\u2705  \u041d\u0430\u0439\u0434\u0435\u043d \u043f\u043e\u0442\u043e\u043a ${matched.quality}! \u0417\u0430\u043f\u0443\u0441\u043a..."
-                onPlayClick(matched.url)
+                onPlayClick(matched.url, startPos, targetSeason, targetEpisode)
             } else {
                 streamStatus = "\u26a0\ufe0f  \u041f\u043e\u0442\u043e\u043a \u0432 \u043e\u0431\u0440\u0430\u0431\u043e\u0442\u043a\u0435. \u041f\u043e\u043f\u0440\u043e\u0431\u0443\u0439\u0442\u0435 \u0434\u0440\u0443\u0433\u043e\u0439 \u0444\u0438\u043b\u044c\u043c."
             }
@@ -128,7 +132,7 @@ fun DetailsScreen(
     }
 
     Box(modifier = modifier.fillMaxSize().background(BackgroundDark)) {
-        // High-res blurred/dimmed backdrop
+        // High-res backdrop
         AsyncImage(
             model = currentMovie.backdropUrl.ifEmpty { currentMovie.posterUrl },
             contentDescription = currentMovie.title,
@@ -187,7 +191,6 @@ fun DetailsScreen(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    // KP
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(6.dp))
@@ -202,7 +205,6 @@ fun DetailsScreen(
                         )
                     }
 
-                    // IMDb
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(6.dp))
@@ -220,7 +222,6 @@ fun DetailsScreen(
 
                 Spacer(modifier = Modifier.height(14.dp))
 
-                // Meta Info Lines
                 if (currentMovie.director.isNotEmpty()) {
                     Text(
                         text = "\u0420\u0435\u0436\u0438\u0441\u0441\u0451\u0440: ${currentMovie.director}",
@@ -285,30 +286,87 @@ fun DetailsScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Action Buttons
+                // Action Buttons Row
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Button(
-                        onClick = { startPlayback() },
-                        colors = ButtonDefaults.colors(
-                            containerColor = CyanNeon,
-                            focusedContainerColor = Color.White,
-                            contentColor = Color.Black,
-                            focusedContentColor = Color.Black
-                        ),
-                        shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                        modifier = Modifier.height(44.dp)
-                    ) {
-                        Text(
-                            text = if (isResolving) "\u23f3 \u041f\u043e\u0438\u0441\u043a..." else "\u25b6  \u0421\u043c\u043e\u0442\u0440\u0435\u0442\u044c \u043e\u043d\u043b\u0430\u0439\u043d",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp,
-                            modifier = Modifier.padding(horizontal = 12.dp)
-                        )
+                    // If we have saved watch progress, show "Resume" button as primary!
+                    if (savedHistory != null && savedHistory.positionMs > 10_000L) {
+                        val mins = savedHistory.positionMs / 60000L
+                        val resumeLabel = if (currentMovie.isSeries) {
+                            "\u25b6  \u041f\u0440\u043e\u0434\u043e\u043b\u0436\u0438\u0442\u044c (S${savedHistory.season} E${savedHistory.episode}, ${mins} \u043c\u0438\u043d)"
+                        } else {
+                            "\u25b6  \u041f\u0440\u043e\u0434\u043e\u043b\u0436\u0438\u0442\u044c (${mins} \u043c\u0438\u043d)"
+                        }
+
+                        Button(
+                            onClick = {
+                                startPlayback(
+                                    targetSeason = savedHistory.season,
+                                    targetEpisode = savedHistory.episode,
+                                    startPos = savedHistory.positionMs
+                                )
+                            },
+                            colors = ButtonDefaults.colors(
+                                containerColor = CyanNeon,
+                                focusedContainerColor = Color.White,
+                                contentColor = Color.Black,
+                                focusedContentColor = Color.Black
+                            ),
+                            shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                            modifier = Modifier.height(44.dp)
+                        ) {
+                            Text(
+                                text = resumeLabel,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp,
+                                modifier = Modifier.padding(horizontal = 10.dp)
+                            )
+                        }
+
+                        // Restart from beginning button
+                        Button(
+                            onClick = { startPlayback(startPos = 0L) },
+                            colors = ButtonDefaults.colors(
+                                containerColor = Color.White.copy(alpha = 0.12f),
+                                focusedContainerColor = CyanNeon,
+                                contentColor = TextWhite,
+                                focusedContentColor = Color.Black
+                            ),
+                            shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                            modifier = Modifier.height(44.dp)
+                        ) {
+                            Text(
+                                text = "\u0421 \u043d\u0430\u0447\u0430\u043b\u0430",
+                                fontWeight = FontWeight.Medium,
+                                fontSize = 14.sp,
+                                modifier = Modifier.padding(horizontal = 8.dp)
+                            )
+                        }
+                    } else {
+                        // Standard Play button
+                        Button(
+                            onClick = { startPlayback(startPos = 0L) },
+                            colors = ButtonDefaults.colors(
+                                containerColor = CyanNeon,
+                                focusedContainerColor = Color.White,
+                                contentColor = Color.Black,
+                                focusedContentColor = Color.Black
+                            ),
+                            shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                            modifier = Modifier.height(44.dp)
+                        ) {
+                            Text(
+                                text = if (isResolving) "\u23f3 \u041f\u043e\u0438\u0441\u043a..." else "\u25b6  \u0421\u043c\u043e\u0442\u0440\u0435\u0442\u044c \u043e\u043d\u043b\u0430\u0439\u043d",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp,
+                                modifier = Modifier.padding(horizontal = 12.dp)
+                            )
+                        }
                     }
 
+                    // Favorite Button
                     Button(
                         onClick = { onToggleFavorite(currentMovie) },
                         colors = ButtonDefaults.colors(
@@ -336,6 +394,7 @@ fun DetailsScreen(
                         )
                     }
 
+                    // Back Button
                     OutlinedButton(
                         onClick = onBackClick,
                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
@@ -447,7 +506,7 @@ fun DetailsScreen(
                             Button(
                                 onClick = {
                                     selectedEpisode = ep.episodeNumber
-                                    startPlayback(targetSeason = selectedSeason, targetEpisode = ep.episodeNumber)
+                                    startPlayback(targetSeason = selectedSeason, targetEpisode = ep.episodeNumber, startPos = 0L)
                                 },
                                 colors = ButtonDefaults.colors(
                                     containerColor = if (isSelected) CyanNeon.copy(alpha = 0.3f) else ChipBackground,

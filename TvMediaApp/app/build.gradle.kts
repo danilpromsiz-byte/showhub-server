@@ -11,8 +11,8 @@ android {
         applicationId = "com.showhub.tv"
         minSdk = 21
         targetSdk = 34
-        versionCode = 31
-        versionName = "2.1.0"
+        versionCode = 32
+        versionName = "2.2.0"
 
         vectorDrawables {
             useSupportLibrary = true
@@ -76,6 +76,7 @@ dependencies {
 
     // Coil for Images
     implementation(libs.coil.compose)
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
     // Coroutines
     implementation(libs.kotlinx.coroutines.android)

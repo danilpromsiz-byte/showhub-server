@@ -16,6 +16,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -31,16 +33,18 @@ import androidx.tv.material3.ButtonDefaults
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import com.example.tvmediaapp.data.image.CoilSetup
 import com.example.tvmediaapp.data.models.Movie
 import com.example.tvmediaapp.data.updater.UpdateInfo
 import com.example.tvmediaapp.data.updater.UpdateManager
 import com.example.tvmediaapp.ui.screens.details.DetailsScreen
+import com.example.tvmediaapp.ui.screens.favorites.FavoritesScreen
+import com.example.tvmediaapp.ui.screens.history.HistoryScreen
 import com.example.tvmediaapp.ui.screens.home.HomeScreen
 import com.example.tvmediaapp.ui.screens.home.HomeViewModel
 import com.example.tvmediaapp.ui.screens.player.PlayerScreen
 import com.example.tvmediaapp.ui.screens.search.SearchScreen
 import com.example.tvmediaapp.ui.theme.BackgroundDark
-import com.example.tvmediaapp.ui.theme.CyanDark
 import com.example.tvmediaapp.ui.theme.CyanNeon
 import com.example.tvmediaapp.ui.theme.TvMediaAppTheme
 import kotlinx.coroutines.launch
@@ -49,17 +53,22 @@ enum class Screen {
     HOME,
     DETAILS,
     SEARCH,
+    FAVORITES,
+    HISTORY,
     PLAYER
 }
 
 class MainActivity : ComponentActivity() {
     companion object {
-        const val VERSION_CODE = 31
-        const val VERSION_NAME = "2.1.0"
+        const val VERSION_CODE = 32
+        const val VERSION_NAME = "2.2.0"
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Initialize Coil with custom HTTP headers (User-Agent + Referer) and disk caching
+        CoilSetup.init(this)
+
         setContent {
             TvMediaAppTheme {
                 TvAppNavHost(activity = this)
@@ -75,6 +84,9 @@ fun TvAppNavHost(activity: MainActivity) {
     var currentScreen by remember { mutableStateOf(Screen.HOME) }
     var selectedMovie by remember { mutableStateOf<Movie?>(null) }
     var activeVideoUrl by remember { mutableStateOf<String>("") }
+    var startPositionMs by remember { mutableLongStateOf(0L) }
+    var activeSeason by remember { mutableIntStateOf(1) }
+    var activeEpisode by remember { mutableIntStateOf(1) }
 
     var updateInfo by remember { mutableStateOf<UpdateInfo?>(null) }
     var isDownloadingUpdate by remember { mutableStateOf(false) }
@@ -93,6 +105,8 @@ fun TvAppNavHost(activity: MainActivity) {
             Screen.PLAYER -> currentScreen = Screen.DETAILS
             Screen.DETAILS -> currentScreen = Screen.HOME
             Screen.SEARCH -> currentScreen = Screen.HOME
+            Screen.FAVORITES -> currentScreen = Screen.HOME
+            Screen.HISTORY -> currentScreen = Screen.HOME
             Screen.HOME -> activity.finish()
         }
     }
@@ -116,6 +130,12 @@ fun TvAppNavHost(activity: MainActivity) {
                     onSearchClick = {
                         currentScreen = Screen.SEARCH
                     },
+                    onFavoritesClick = {
+                        currentScreen = Screen.FAVORITES
+                    },
+                    onHistoryClick = {
+                        currentScreen = Screen.HISTORY
+                    },
                     viewModel = homeViewModel
                 )
             }
@@ -133,13 +153,48 @@ fun TvAppNavHost(activity: MainActivity) {
                 )
             }
 
+            Screen.FAVORITES -> {
+                FavoritesScreen(
+                    onMovieSelect = { movie ->
+                        selectedMovie = movie
+                        currentScreen = Screen.DETAILS
+                    },
+                    onBackClick = {
+                        currentScreen = Screen.HOME
+                    },
+                    viewModel = homeViewModel
+                )
+            }
+
+            Screen.HISTORY -> {
+                HistoryScreen(
+                    onMovieSelect = { movie ->
+                        selectedMovie = movie
+                        currentScreen = Screen.DETAILS
+                    },
+                    onResumePlay = { movie, pos, s, ep ->
+                        selectedMovie = movie
+                        startPositionMs = pos
+                        activeSeason = s
+                        activeEpisode = ep
+                        currentScreen = Screen.DETAILS
+                    },
+                    onBackClick = {
+                        currentScreen = Screen.HOME
+                    }
+                )
+            }
+
             Screen.DETAILS -> {
                 selectedMovie?.let { movie ->
                     val isFav = homeViewModel.isFavorite(movie.id)
                     DetailsScreen(
                         movie = movie,
-                        onPlayClick = { streamUrl ->
+                        onPlayClick = { streamUrl, startPos, season, episode ->
                             activeVideoUrl = streamUrl
+                            startPositionMs = startPos
+                            activeSeason = season
+                            activeEpisode = episode
                             currentScreen = Screen.PLAYER
                         },
                         onBackClick = {
@@ -160,6 +215,9 @@ fun TvAppNavHost(activity: MainActivity) {
                     val playMovie = if (activeVideoUrl.isNotEmpty()) movie.copy(videoUrl = activeVideoUrl) else movie
                     PlayerScreen(
                         movie = playMovie,
+                        startPositionMs = startPositionMs,
+                        season = activeSeason,
+                        episode = activeEpisode,
                         onBackPress = {
                             currentScreen = Screen.DETAILS
                         }

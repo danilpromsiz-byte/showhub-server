@@ -38,6 +38,7 @@ import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
@@ -47,10 +48,13 @@ import androidx.media3.ui.PlayerView
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import com.example.tvmediaapp.data.history.WatchHistoryManager
 import com.example.tvmediaapp.data.models.Movie
 import com.example.tvmediaapp.ui.theme.BackgroundDark
+import com.example.tvmediaapp.ui.theme.CyanNeon
 import com.example.tvmediaapp.ui.theme.RedPrimary
 import com.example.tvmediaapp.ui.theme.TextGray
+import com.example.tvmediaapp.ui.theme.TextWhite
 import kotlinx.coroutines.delay
 
 @OptIn(UnstableApi::class)
@@ -58,33 +62,50 @@ import kotlinx.coroutines.delay
 @Composable
 fun PlayerScreen(
     movie: Movie,
+    startPositionMs: Long = 0L,
+    season: Int = 1,
+    episode: Int = 1,
     onBackPress: () -> Unit
 ) {
     val context = LocalContext.current
+    val historyManager = remember { WatchHistoryManager(context) }
     var isPlaying by remember { mutableStateOf(true) }
-    var currentPosition by remember { mutableLongStateOf(0L) }
+    var currentPosition by remember { mutableLongStateOf(startPositionMs) }
     var duration by remember { mutableLongStateOf(0L) }
     var isControlsVisible by remember { mutableStateOf(true) }
 
     val focusRequester = remember { FocusRequester() }
 
-    // Initialize Media3 ExoPlayer
+    // Initialize Media3 ExoPlayer with resume support
     val exoPlayer = remember {
         ExoPlayer.Builder(context).build().apply {
             val mediaItem = MediaItem.fromUri(movie.videoUrl)
             setMediaItem(mediaItem)
+            if (startPositionMs > 1000L) {
+                seekTo(startPositionMs)
+            }
             prepare()
             playWhenReady = true
         }
     }
 
-    // Monitor playback progress
+    // Monitor playback progress & periodically save to WatchHistoryManager
     LaunchedEffect(exoPlayer) {
         while (true) {
             currentPosition = exoPlayer.currentPosition
             duration = if (exoPlayer.duration > 0) exoPlayer.duration else 0L
             isPlaying = exoPlayer.isPlaying
-            delay(500)
+
+            if (currentPosition > 3000L && duration > 0L) {
+                historyManager.saveProgress(
+                    movie = movie,
+                    positionMs = currentPosition,
+                    durationMs = duration,
+                    season = season,
+                    episode = episode
+                )
+            }
+            delay(1000)
         }
     }
 
@@ -101,9 +122,24 @@ fun PlayerScreen(
         onBackPress()
     }
 
-    // Cleanup player on screen exit
+    // Cleanup player on screen exit & save final position
     DisposableEffect(Unit) {
         onDispose {
+            try {
+                val pos = exoPlayer.currentPosition
+                val dur = exoPlayer.duration
+                if (pos > 3000L && dur > 0L) {
+                    historyManager.saveProgress(
+                        movie = movie,
+                        positionMs = pos,
+                        durationMs = dur,
+                        season = season,
+                        episode = episode
+                    )
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
             exoPlayer.stop()
             exoPlayer.release()
         }
@@ -202,10 +238,15 @@ fun PlayerScreen(
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold
                         )
+                        val subText = if (movie.isSeries) {
+                            "\u0421\u0435\u0437\u043e\u043d $season \u2022 \u0421\u0435\u0440\u0438\u044f $episode"
+                        } else {
+                            "${movie.releaseYear} \u2022 ${movie.duration}"
+                        }
                         Text(
-                            text = "${movie.releaseYear} • ${movie.duration}",
+                            text = subText,
                             style = MaterialTheme.typography.bodySmall,
-                            color = TextGray
+                            color = CyanNeon
                         )
                     }
                 }
@@ -223,13 +264,13 @@ fun PlayerScreen(
                         horizontalArrangement = Arrangement.Center
                     ) {
                         Text(
-                            text = if (isPlaying) "⏸ OK / Center — Пауза" else "▶ OK / Center — Воспроизведение",
+                            text = if (isPlaying) "\u23f8 OK \u2014 \u041f\u0430\u0443\u0437\u0430" else "\u25b6 OK \u2014 \u0412\u043e\u0441\u043f\u0440\u043e\u0438\u0437\u0432\u0435\u0434\u0435\u043d\u0438\u0435",
                             style = MaterialTheme.typography.labelMedium,
                             color = TextGray
                         )
                         Spacer(modifier = Modifier.width(24.dp))
                         Text(
-                            text = "◀ Влево / Вправо ▶ — Перемотка ±10 сек",
+                            text = "\u25c0 \u0412\u043b\u0435\u0432\u043e / \u0412\u043f\u0440\u0430\u0432\u043e \u25b6 \u2014 \u041f\u0435\u0440\u0435\u043c\u043e\u0442\u043a\u0430 \u00b110 \u0441\u0435\u043a",
                             style = MaterialTheme.typography.labelMedium,
                             color = TextGray
                         )
@@ -249,7 +290,7 @@ fun PlayerScreen(
                             modifier = Modifier
                                 .fillMaxWidth(progress.coerceIn(0f, 1f))
                                 .height(6.dp)
-                                .background(RedPrimary)
+                                .background(CyanNeon)
                         )
                     }
 
@@ -263,7 +304,7 @@ fun PlayerScreen(
                         Text(
                             text = formatDuration(currentPosition),
                             style = MaterialTheme.typography.bodySmall,
-                            color = TextGray
+                            color = TextWhite
                         )
                         Text(
                             text = formatDuration(duration),

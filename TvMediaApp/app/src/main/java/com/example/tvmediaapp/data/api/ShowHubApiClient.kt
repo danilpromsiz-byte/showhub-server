@@ -24,7 +24,7 @@ object ShowHubApiClient {
             val conn = url.openConnection() as HttpURLConnection
             conn.connectTimeout = 12000
             conn.readTimeout = 12000
-            conn.setRequestProperty("User-Agent", "ShowHubTV-Native/2.0.1")
+            conn.setRequestProperty("User-Agent", "ShowHubTV-Native/2.2.0")
             conn.connect()
             if (conn.responseCode == 200) {
                 val body = BufferedReader(InputStreamReader(conn.inputStream, "UTF-8")).use { it.readText() }
@@ -41,6 +41,8 @@ object ShowHubApiClient {
         category: String = "all",
         genre: String? = null,
         sortBy: String = "newest",
+        year: String? = null,
+        country: String? = null,
         page: Int = 1
     ): List<Movie> = withContext(Dispatchers.IO) {
         val movies = mutableListOf<Movie>()
@@ -52,11 +54,17 @@ object ShowHubApiClient {
             if (sortBy.isNotEmpty()) {
                 sb.append("&sort_by=").append(sortBy)
             }
+            if (!year.isNullOrEmpty() && year != "all") {
+                sb.append("&year=").append(URLEncoder.encode(year, "UTF-8"))
+            }
+            if (!country.isNullOrEmpty() && country != "all") {
+                sb.append("&country=").append(URLEncoder.encode(country, "UTF-8"))
+            }
             val url = URL(sb.toString())
             val conn = url.openConnection() as HttpURLConnection
             conn.connectTimeout = 15000
             conn.readTimeout = 25000
-            conn.setRequestProperty("User-Agent", "ShowHubTV-Native/2.0.1")
+            conn.setRequestProperty("User-Agent", "ShowHubTV-Native/2.2.0")
             conn.connect()
             if (conn.responseCode == 200) {
                 val body = BufferedReader(InputStreamReader(conn.inputStream, "UTF-8")).use { it.readText() }
@@ -78,7 +86,7 @@ object ShowHubApiClient {
             val conn = url.openConnection() as HttpURLConnection
             conn.connectTimeout = 12000
             conn.readTimeout = 18000
-            conn.setRequestProperty("User-Agent", "ShowHubTV-Native/2.0.1")
+            conn.setRequestProperty("User-Agent", "ShowHubTV-Native/2.2.0")
             conn.connect()
             if (conn.responseCode == 200) {
                 val body = BufferedReader(InputStreamReader(conn.inputStream, "UTF-8")).use { it.readText() }
@@ -98,7 +106,7 @@ object ShowHubApiClient {
             val conn = URL(urlStr).openConnection() as HttpURLConnection
             conn.connectTimeout = 10000
             conn.readTimeout = 15000
-            conn.setRequestProperty("User-Agent", "ShowHubTV-Native/2.0.1")
+            conn.setRequestProperty("User-Agent", "ShowHubTV-Native/2.2.0")
             conn.connect()
             if (conn.responseCode == 200) {
                 val body = BufferedReader(InputStreamReader(conn.inputStream, "UTF-8")).use { it.readText() }
@@ -173,7 +181,7 @@ object ShowHubApiClient {
             val conn = URL(sb.toString()).openConnection() as HttpURLConnection
             conn.connectTimeout = 12000
             conn.readTimeout = 18000
-            conn.setRequestProperty("User-Agent", "ShowHubTV-Native/2.0.1")
+            conn.setRequestProperty("User-Agent", "ShowHubTV-Native/2.2.0")
             conn.connect()
             if (conn.responseCode == 200) {
                 val body = BufferedReader(InputStreamReader(conn.inputStream, "UTF-8")).use { it.readText() }
@@ -265,4 +273,3 @@ object ShowHubApiClient {
         }
     }
 }
-

@@ -18,14 +18,20 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private val _categories = MutableStateFlow<List<MovieCategory>>(emptyList())
     val categories: StateFlow<List<MovieCategory>> = _categories.asStateFlow()
 
-    private val _selectedTab = MutableStateFlow("all")
-    val selectedTab: StateFlow<String> = _selectedTab.asStateFlow()
+    private val _selectedType = MutableStateFlow("all")
+    val selectedType: StateFlow<String> = _selectedType.asStateFlow()
+
+    private val _selectedSort = MutableStateFlow("newest")
+    val selectedSort: StateFlow<String> = _selectedSort.asStateFlow()
 
     private val _selectedGenre = MutableStateFlow("\u0412\u0441\u0435 \u0436\u0430\u043d\u0440\u044b")
     val selectedGenre: StateFlow<String> = _selectedGenre.asStateFlow()
 
-    private val _selectedSort = MutableStateFlow("newest")
-    val selectedSort: StateFlow<String> = _selectedSort.asStateFlow()
+    private val _selectedYear = MutableStateFlow("all")
+    val selectedYear: StateFlow<String> = _selectedYear.asStateFlow()
+
+    private val _selectedCountry = MutableStateFlow("all")
+    val selectedCountry: StateFlow<String> = _selectedCountry.asStateFlow()
 
     private val _favoriteChangeTrigger = MutableStateFlow(0)
     val favoriteChangeTrigger: StateFlow<Int> = _favoriteChangeTrigger.asStateFlow()
@@ -34,8 +40,13 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         loadCatalog()
     }
 
-    fun selectTab(tabId: String) {
-        _selectedTab.value = tabId
+    fun selectType(type: String) {
+        _selectedType.value = type
+        loadCatalog()
+    }
+
+    fun selectSort(sortBy: String) {
+        _selectedSort.value = sortBy
         loadCatalog()
     }
 
@@ -44,8 +55,22 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         loadCatalog()
     }
 
-    fun selectSort(sortBy: String) {
-        _selectedSort.value = sortBy
+    fun selectYear(year: String) {
+        _selectedYear.value = year
+        loadCatalog()
+    }
+
+    fun selectCountry(country: String) {
+        _selectedCountry.value = country
+        loadCatalog()
+    }
+
+    fun resetFilters() {
+        _selectedType.value = "all"
+        _selectedSort.value = "newest"
+        _selectedGenre.value = "\u0412\u0441\u0435 \u0436\u0430\u043d\u0440\u044b"
+        _selectedYear.value = "all"
+        _selectedCountry.value = "all"
         loadCatalog()
     }
 
@@ -56,9 +81,6 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     fun toggleFavorite(movie: Movie): Boolean {
         val res = repository.toggleFavorite(movie)
         _favoriteChangeTrigger.value += 1
-        if (_selectedTab.value == "favorites") {
-            loadCatalog()
-        }
         return res
     }
 
@@ -69,9 +91,11 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private fun loadCatalog() {
         viewModelScope.launch {
             repository.getCatalog(
-                category = _selectedTab.value,
+                category = _selectedType.value,
                 genre = _selectedGenre.value,
-                sortBy = _selectedSort.value
+                sortBy = _selectedSort.value,
+                year = _selectedYear.value,
+                country = _selectedCountry.value
             ).collect { data ->
                 _categories.value = data
             }

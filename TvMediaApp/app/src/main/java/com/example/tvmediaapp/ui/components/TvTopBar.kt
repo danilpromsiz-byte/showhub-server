@@ -30,24 +30,24 @@ import com.example.tvmediaapp.ui.theme.TextWhite
 
 data class NavTabItem(
     val id: String,
-    val title: String
+    val title: String,
+    val icon: String = ""
 )
 
+// In the top menu: Search, Favorites, and History
 val NAV_TABS = listOf(
-    NavTabItem("all", "\u0412\u0441\u0435"),
-    NavTabItem("movies", "\u0424\u0438\u043b\u044c\u043c\u044b"),
-    NavTabItem("series", "\u0421\u0435\u0440\u0438\u0430\u043b\u044b"),
-    NavTabItem("cartoons", "\u041c\u0443\u043b\u044c\u0442\u0444\u0438\u043b\u044c\u043c\u044b"),
-    NavTabItem("anime", "\u0410\u043d\u0438\u043c\u0435"),
+    NavTabItem("search", "\ud83d\udd0d \u041f\u043e\u0438\u0441\u043a"),
     NavTabItem("favorites", "\u2b50 \u0418\u0437\u0431\u0440\u0430\u043d\u043d\u043e\u0435"),
-    NavTabItem("search", "\ud83d\udd0d \u041f\u043e\u0438\u0441\u043a")
+    NavTabItem("history", "\ud83d\udd52 \u0418\u0441\u0442\u043e\u0440\u0438\u044f")
 )
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 fun TvTopBar(
-    selectedTabId: String,
-    onTabSelected: (String) -> Unit,
+    onSearchClick: () -> Unit,
+    onFavoritesClick: () -> Unit,
+    onHistoryClick: () -> Unit,
+    currentScreenName: String = "home",
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -86,41 +86,81 @@ fun TvTopBar(
             }
         }
 
-        // Navigation Tabs
+        // Top Navigation items: Search, Favorites, History
         Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            NAV_TABS.forEach { tab ->
-                val isSelected = tab.id == selectedTabId
-                Button(
-                    onClick = { onTabSelected(tab.id) },
-                    colors = ButtonDefaults.colors(
-                        containerColor = if (isSelected) CyanNeon.copy(alpha = 0.25f) else Color.Transparent,
-                        focusedContainerColor = CyanNeon,
-                        contentColor = if (isSelected) CyanNeon else TextGray,
-                        focusedContentColor = Color.Black
-                    ),
-                    border = ButtonDefaults.border(
-                        border = Border(
-                            border = BorderStroke(
-                                1.5.dp,
-                                if (isSelected) CyanNeon else Color.Transparent
-                            )
-                        ),
-                        focusedBorder = Border(
-                            border = BorderStroke(2.dp, TextWhite)
-                        )
-                    ),
-                    shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                    modifier = Modifier.height(38.dp)
-                ) {
-                    Text(
-                        text = tab.title,
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                        fontSize = 14.sp
-                    )
-                }
+            // Search
+            val isSearch = currentScreenName == "search"
+            Button(
+                onClick = onSearchClick,
+                colors = ButtonDefaults.colors(
+                    containerColor = if (isSearch) CyanNeon.copy(alpha = 0.3f) else Color.White.copy(alpha = 0.08f),
+                    focusedContainerColor = CyanNeon,
+                    contentColor = if (isSearch) CyanNeon else TextWhite,
+                    focusedContentColor = Color.Black
+                ),
+                border = ButtonDefaults.border(
+                    border = Border(BorderStroke(1.dp, if (isSearch) CyanNeon else Color.Transparent)),
+                    focusedBorder = Border(BorderStroke(2.dp, TextWhite))
+                ),
+                shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                modifier = Modifier.height(38.dp)
+            ) {
+                Text(
+                    text = "\ud83d\udd0d \u041f\u043e\u0438\u0441\u043a",
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 14.sp
+                )
+            }
+
+            // Favorites
+            val isFav = currentScreenName == "favorites"
+            Button(
+                onClick = onFavoritesClick,
+                colors = ButtonDefaults.colors(
+                    containerColor = if (isFav) CyanNeon.copy(alpha = 0.3f) else Color.White.copy(alpha = 0.08f),
+                    focusedContainerColor = CyanNeon,
+                    contentColor = if (isFav) CyanNeon else TextWhite,
+                    focusedContentColor = Color.Black
+                ),
+                border = ButtonDefaults.border(
+                    border = Border(BorderStroke(1.dp, if (isFav) CyanNeon else Color.Transparent)),
+                    focusedBorder = Border(BorderStroke(2.dp, TextWhite))
+                ),
+                shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                modifier = Modifier.height(38.dp)
+            ) {
+                Text(
+                    text = "\u2b50 \u0418\u0437\u0431\u0440\u0430\u043d\u043d\u043e\u0435",
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 14.sp
+                )
+            }
+
+            // History
+            val isHist = currentScreenName == "history"
+            Button(
+                onClick = onHistoryClick,
+                colors = ButtonDefaults.colors(
+                    containerColor = if (isHist) CyanNeon.copy(alpha = 0.3f) else Color.White.copy(alpha = 0.08f),
+                    focusedContainerColor = CyanNeon,
+                    contentColor = if (isHist) CyanNeon else TextWhite,
+                    focusedContentColor = Color.Black
+                ),
+                border = ButtonDefaults.border(
+                    border = Border(BorderStroke(1.dp, if (isHist) CyanNeon else Color.Transparent)),
+                    focusedBorder = Border(BorderStroke(2.dp, TextWhite))
+                ),
+                shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                modifier = Modifier.height(38.dp)
+            ) {
+                Text(
+                    text = "\ud83d\udd52 \u0418\u0441\u0442\u043e\u0440\u0438\u044f",
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 14.sp
+                )
             }
         }
     }

@@ -4,9 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -23,7 +21,6 @@ import androidx.tv.foundation.lazy.list.TvLazyColumn
 import androidx.tv.foundation.lazy.list.TvLazyRow
 import androidx.tv.foundation.lazy.list.items
 import androidx.tv.material3.ExperimentalTvMaterial3Api
-import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import com.example.tvmediaapp.data.models.Movie
 import com.example.tvmediaapp.ui.components.FeaturedMovieBanner
@@ -31,7 +28,6 @@ import com.example.tvmediaapp.ui.components.FilterBar
 import com.example.tvmediaapp.ui.components.MovieCard
 import com.example.tvmediaapp.ui.components.TvTopBar
 import com.example.tvmediaapp.ui.theme.BackgroundDark
-import com.example.tvmediaapp.ui.theme.CyanNeon
 import com.example.tvmediaapp.ui.theme.TextWhite
 
 @OptIn(ExperimentalTvMaterial3Api::class)
@@ -40,13 +36,17 @@ fun HomeScreen(
     onMovieSelect: (Movie) -> Unit,
     onWatchClick: (Movie) -> Unit,
     onSearchClick: () -> Unit,
+    onFavoritesClick: () -> Unit,
+    onHistoryClick: () -> Unit,
     viewModel: HomeViewModel = viewModel(),
     modifier: Modifier = Modifier
 ) {
     val categories by viewModel.categories.collectAsState()
-    val selectedTab by viewModel.selectedTab.collectAsState()
-    val selectedGenre by viewModel.selectedGenre.collectAsState()
+    val selectedType by viewModel.selectedType.collectAsState()
     val selectedSort by viewModel.selectedSort.collectAsState()
+    val selectedGenre by viewModel.selectedGenre.collectAsState()
+    val selectedYear by viewModel.selectedYear.collectAsState()
+    val selectedCountry by viewModel.selectedCountry.collectAsState()
     val favTrigger by viewModel.favoriteChangeTrigger.collectAsState()
 
     var featuredMovie by remember { mutableStateOf<Movie?>(null) }
@@ -64,16 +64,12 @@ fun HomeScreen(
             .fillMaxSize()
             .background(BackgroundDark)
     ) {
-        // TOP NAVIGATION BAR
+        // TOP NAVIGATION BAR: Logo + Search + Favorites + History
         TvTopBar(
-            selectedTabId = selectedTab,
-            onTabSelected = { tabId ->
-                if (tabId == "search") {
-                    onSearchClick()
-                } else {
-                    viewModel.selectTab(tabId)
-                }
-            }
+            onSearchClick = onSearchClick,
+            onFavoritesClick = onFavoritesClick,
+            onHistoryClick = onHistoryClick,
+            currentScreenName = "home"
         )
 
         TvLazyColumn(
@@ -92,16 +88,21 @@ fun HomeScreen(
                 )
             }
 
-            // 2. Filter & Sorting Ribbon (only when not in favorites)
-            if (selectedTab != "favorites") {
-                item {
-                    FilterBar(
-                        selectedGenre = selectedGenre,
-                        onGenreSelected = { viewModel.selectGenre(it) },
-                        selectedSort = selectedSort,
-                        onSortSelected = { viewModel.selectSort(it) }
-                    )
-                }
+            // 2. Full Extended Catalog Filter Ribbon (Content Type, Sort, Genres, Year, Country, Reset)
+            item {
+                FilterBar(
+                    selectedType = selectedType,
+                    onTypeSelected = { viewModel.selectType(it) },
+                    selectedSort = selectedSort,
+                    onSortSelected = { viewModel.selectSort(it) },
+                    selectedGenre = selectedGenre,
+                    onGenreSelected = { viewModel.selectGenre(it) },
+                    selectedYear = selectedYear,
+                    onYearSelected = { viewModel.selectYear(it) },
+                    selectedCountry = selectedCountry,
+                    onCountrySelected = { viewModel.selectCountry(it) },
+                    onResetFilters = { viewModel.resetFilters() }
+                )
             }
 
             // 3. Movie Rows / Categories
@@ -113,7 +114,7 @@ fun HomeScreen(
                             .padding(top = 40.dp, start = 48.dp)
                     ) {
                         Text(
-                            text = if (selectedTab == "favorites") "\u0423 \u0432\u0430\u0441 \u043f\u043e\u043a\u0430 \u043d\u0435\u0442 \u0434\u043e\u0431\u0430\u0432\u043b\u0435\u043d\u043d\u044b\u0445 \u0444\u0438\u043b\u044c\u043c\u043e\u0432 \u0432 \u0418\u0437\u0431\u0440\u0430\u043d\u043d\u043e\u0435." else "\u041f\u043e \u0432\u044b\u0431\u0440\u0430\u043d\u043d\u044b\u043c \u0444\u0438\u043b\u044c\u0442\u0440\u0430\u043c \u043d\u0438\u0447\u0435\u0433\u043e \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d\u043e.",
+                            text = "\u041f\u043e \u0432\u044b\u0431\u0440\u0430\u043d\u043d\u044b\u043c \u0444\u0438\u043b\u044c\u0442\u0440\u0430\u043c \u043d\u0438\u0447\u0435\u0433\u043e \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d\u043e.",
                             fontSize = 18.sp,
                             color = TextWhite
                         )

@@ -75,7 +75,7 @@ class CatalogRepository(context: Context? = null) {
             id = "1115471",
             title = "\u041c\u0430\u0441\u0442\u0435\u0440 \u0438 \u041c\u0430\u0440\u0433\u0430\u0440\u0438\u0442\u0430",
             originalTitle = "The Master and Margarita",
-            description = "\u041c\u043e\u0441\u043a\u0432\u0430, 1930-\u0435 \u0433\u043e\u0434\u044b. \u0418\u0437\u0432\u0435\u0441\u0442\u043d\u044b\u0439 \u043f\u0438\u0441\u0430\u0442\u0435\u043b\u044c \u043e\u043a\u0430\u0437\u044b\u0432\u0430\u0435\u0442\u0441\u044f \u0432 \u0446\u0435\u043d\u0442\u0440\u0435 \u0441\u043a\u0430\u043d\u0434\u0430\u043b\u0430. \u0412\u0434\u043e\u0445\u043d\u043e\u0432\u0438\u0432\u0448\u0438\u0441\u044c \u041c\u0430\u0440\u0433\u0430\u0440\u0438\u0442\u043e\u0439, \u043e\u043d \u043f\u0438\u0448\u0435\u0442 \u0440\u043e\u043c\u0430\u043d \u043e \u0412\u043e\u043b\u0430\u043d\u0434\u0435.",
+            description = "\u041c\u043e\u0441\u043a\u0432\u0430, 1930-\u0435 \u0433\u043e\u0434\u044b. \u0418\u0437\u0432\u0435\u0441\u0442\u043d\u044b\u0439 \u043f\u0438\u0441\u0430\u0442\u0435\u043b\u044c \u043e\u043a\u0430\u0437\u044b\u0432\u0430\u0435\u0442\u0441\u044f \u0432 \u0446\u0435\u043d\u0442\u0440\u0435 \u0441\u043a\u0430\u043d\u0434\u0430\u043b\u0430.",
             posterUrl = "https://avatars.mds.yandex.net/get-kinopoisk-image/10592371/4c676451-f7ea-4d89-9d5a-bf98b1eb7980/600x900",
             backdropUrl = "https://avatars.mds.yandex.net/get-kinopoisk-image/10592371/4c676451-f7ea-4d89-9d5a-bf98b1eb7980/1920x1080",
             rating = 7.8,
@@ -153,7 +153,7 @@ class CatalogRepository(context: Context? = null) {
             id = "505898",
             title = "\u0413\u043e\u043b\u043e\u0432\u043e\u043b\u043e\u043c\u043a\u0430 2",
             originalTitle = "Inside Out 2",
-            description = "\u0412 \u0433\u043e\u043b\u043e\u0432\u0435 \u043f\u043e\u0434\u0440\u043e\u0441\u0442\u043a\u0430 \u0420\u0430\u0439\u043b\u0438 \u043f\u043e\u044f\u0432\u043b\u044f\u044e\u0442\u0441\u044f \u043d\u043e\u0432\u044b\u0435 \u044d\u043c\u043e\u0446\u0438\u0438: \u0422\u0440\u0435\u0432\u043e\u0436\u043d\u043e\u0441\u0442\u044c, \u0417\u0430\u0432\u0438\u0441\u0442\u044c \u0438 \u0421\u0442\u044b\u0434.",
+            description = "\u0412 \u0433\u043e\u043b\u043e\u0432\u0435 \u043f\u043e\u0434\u0440\u043e\u0441\u0442\u043a\u0430 \u0420\u0430\u0439\u043b\u0438 \u043f\u043e\u044f\u0432\u043b\u044f\u044e\u0442\u0441\u044f \u043d\u043e\u0432\u044b\u0435 \u044d\u043c\u043e\u0446\u0438\u0438.",
             posterUrl = "https://avatars.mds.yandex.net/get-kinopoisk-image/10592371/da7c92b2-f155-46f9-b3a5-1d07c0b05b38/600x900",
             backdropUrl = "https://avatars.mds.yandex.net/get-kinopoisk-image/10592371/da7c92b2-f155-46f9-b3a5-1d07c0b05b38/1920x1080",
             rating = 8.1,
@@ -189,7 +189,7 @@ class CatalogRepository(context: Context? = null) {
             id = "258687",
             title = "\u0418\u043d\u0442\u0435\u0440\u0441\u0442\u0435\u043b\u043b\u0430\u0440",
             originalTitle = "Interstellar",
-            description = "\u041a\u043e\u043b\u043b\u0435\u043a\u0442\u0438\u0432 \u0438\u0441\u0441\u043b\u0435\u0434\u043e\u0432\u0430\u0442\u0435\u043b\u0435\u0439 \u043e\u0442\u043f\u0440\u0430\u0432\u043b\u044f\u0435\u0442\u0441\u044f \u0441\u043a\u0432\u043e\u0437\u044c \u0447\u0435\u0440\u0432\u043e\u0442\u043e\u0447\u0438\u043d\u0443 \u0432 \u043f\u043e\u0438\u0441\u043a\u0430\u0445 \u043d\u043e\u0432\u043e\u0433\u043e \u0434\u043e\u043c\u0430.",
+            description = "\u041a\u043e\u043b\u043b\u0435\u043a\u0442\u0438\u0432 \u0438\u0441\u0441\u043b\u0435\u0434\u043e\u0432\u0430\u0442\u0435\u043b\u0435\u0439 \u043e\u0442\u043f\u0440\u0430\u0432\u043b\u044f\u0435\u0442\u0441\u044f \u0441\u043a\u0432\u043e\u0437\u044c \u0447\u0435\u0440\u0432\u043e\u0442\u043e\u0447\u0438\u043d\u0443.",
             posterUrl = "https://avatars.mds.yandex.net/get-kinopoisk-image/1600647/430042eb-ee69-4818-aed0-a31235fa9a2b/600x900",
             backdropUrl = "https://avatars.mds.yandex.net/get-kinopoisk-image/1600647/430042eb-ee69-4818-aed0-a31235fa9a2b/1920x1080",
             rating = 8.6,
@@ -207,7 +207,7 @@ class CatalogRepository(context: Context? = null) {
             id = "1143242",
             title = "\u0414\u0436\u0435\u043d\u0442\u043b\u044c\u043c\u0435\u043d\u044b",
             originalTitle = "The Gentlemen",
-            description = "\u041e\u043a\u0441\u0444\u043e\u0440\u0434\u0441\u043a\u0438\u0439 \u0432\u044b\u043f\u0443\u0441\u043a\u043d\u0438\u043a \u043f\u0440\u0438\u0434\u0443\u043c\u044b\u0432\u0430\u0435\u0442 \u0445\u0438\u0442\u0440\u0443\u044e \u0441\u0445\u0435\u043c\u0443 \u043d\u0435\u043b\u0435\u0433\u0430\u043b\u044c\u043d\u043e\u0433\u043e \u0431\u0438\u0437\u043d\u0435\u0441\u0430 \u0432 \u041b\u043e\u043d\u0434\u043e\u043d\u0435.",
+            description = "\u041e\u043a\u0441\u0444\u043e\u0440\u0434\u0441\u043a\u0438\u0439 \u0432\u044b\u043f\u0443\u0441\u043a\u043d\u0438\u043a \u043f\u0440\u0438\u0434\u0443\u043c\u044b\u0432\u0430\u0435\u0442 \u0445\u0438\u0442\u0440\u0443\u044e \u0441\u0445\u0435\u043c\u0443 \u043d\u0435\u043b\u0435\u0433\u0430\u043b\u044c\u043d\u043e\u0433\u043e \u0431\u0438\u0437\u043d\u0435\u0441\u0430.",
             posterUrl = "https://avatars.mds.yandex.net/get-kinopoisk-image/1599028/637f7170-e547-4152-8802-8323e63ab328/600x900",
             backdropUrl = "https://avatars.mds.yandex.net/get-kinopoisk-image/1599028/637f7170-e547-4152-8802-8323e63ab328/1920x1080",
             rating = 8.6,
@@ -225,7 +225,7 @@ class CatalogRepository(context: Context? = null) {
             id = "1100777",
             title = "\u0422\u0440\u0438\u0433\u0433\u0435\u0440",
             originalTitle = "Trigger",
-            description = "\u041f\u0441\u0438\u0445\u043e\u043b\u043e\u0433 \u0410\u0440\u0442\u0451\u043c \u0421\u0442\u0440\u0435\u043b\u0435\u0446\u043a\u0438\u0439 \u043f\u0440\u0430\u043a\u0442\u0438\u043a\u0443\u0435\u0442 \u0448\u043e\u043a\u043e\u0432\u0443\u044e \u0442\u0435\u0440\u0430\u043f\u0438\u044e \u0434\u043b\u044f \u043a\u043b\u0438\u0435\u043d\u0442\u043e\u0432.",
+            description = "\u041f\u0441\u0438\u0445\u043e\u043b\u043e\u0433 \u0410\u0440\u0442\u0451\u043c \u0421\u0442\u0440\u0435\u043b\u0435\u0446\u043a\u0438\u0439 \u043f\u0440\u0430\u043a\u0442\u0438\u043a\u0443\u0435\u0442 \u0448\u043e\u043a\u043e\u0432\u0443\u044e \u0442\u0435\u0440\u0430\u043f\u0438\u044e.",
             posterUrl = "https://avatars.mds.yandex.net/get-kinopoisk-image/4303601/447a111a-7b3b-483a-86fa-b0548ca783f9/600x900",
             backdropUrl = "https://avatars.mds.yandex.net/get-kinopoisk-image/4303601/447a111a-7b3b-483a-86fa-b0548ca783f9/1920x1080",
             rating = 8.5,
@@ -246,46 +246,70 @@ class CatalogRepository(context: Context? = null) {
         )
     )
 
-    private fun applyGenreAndSort(list: List<Movie>, genre: String?, sortBy: String): List<Movie> {
-        var filtered = if (!genre.isNullOrEmpty() && genre != "all" && genre != "\u0412\u0441\u0435 \u0436\u0430\u043d\u0440\u044b") {
-            list.filter { movie ->
-                movie.genres.any { g -> g.contains(genre, ignoreCase = true) }
-            }
-        } else {
-            list
+    private fun filterAndSort(
+        list: List<Movie>,
+        category: String,
+        genre: String?,
+        sortBy: String,
+        year: String?,
+        country: String?
+    ): List<Movie> {
+        var res = list
+
+        // Category filter
+        res = when (category) {
+            "movies" -> res.filter { !it.isSeries }
+            "series" -> res.filter { it.isSeries }
+            "cartoons" -> res.filter { it.genres.any { g -> g.contains("\u041c\u0443\u043b\u044c\u0442", ignoreCase = true) } }
+            "anime" -> res.filter { it.genres.any { g -> g.contains("\u0410\u043d\u0438\u043c\u0435", ignoreCase = true) } }
+            "favorites" -> res.filter { isFavorite(it.id) }
+            else -> res
         }
 
+        // Genre filter
+        if (!genre.isNullOrEmpty() && genre != "all" && genre != "\u0412\u0441\u0435 \u0436\u0430\u043d\u0440\u044b") {
+            res = res.filter { m -> m.genres.any { g -> g.contains(genre, ignoreCase = true) } }
+        }
+
+        // Year filter
+        if (!year.isNullOrEmpty() && year != "all" && year != "\u0412\u0441\u0435 \u0433\u043e\u0434\u044b") {
+            res = when (year) {
+                "2020-2022" -> res.filter { it.releaseYear in listOf("2020", "2021", "2022") }
+                "2010s" -> res.filter { (it.releaseYear.toIntOrNull() ?: 0) in 2010..2019 }
+                "before_2000" -> res.filter { (it.releaseYear.toIntOrNull() ?: 0) < 2000 }
+                else -> res.filter { it.releaseYear == year }
+            }
+        }
+
+        // Country filter
+        if (!country.isNullOrEmpty() && country != "all" && country != "\u0412\u0441\u0435 \u0441\u0442\u0440\u0430\u043d\u044b") {
+            res = res.filter { it.country.contains(country, ignoreCase = true) }
+        }
+
+        // Sorting
         return when (sortBy) {
-            "rating" -> filtered.sortedByDescending { it.rating }
-            "popular" -> filtered.sortedByDescending { it.ratingKp }
-            else -> filtered.sortedByDescending { it.releaseYear }
+            "rating" -> res.sortedByDescending { it.rating }
+            "popular" -> res.sortedByDescending { it.ratingKp }
+            "year" -> res.sortedByDescending { it.releaseYear }
+            else -> res.sortedByDescending { it.releaseYear }
         }
     }
 
     fun getCatalog(
         category: String = "all",
         genre: String? = null,
-        sortBy: String = "newest"
+        sortBy: String = "newest",
+        year: String? = null,
+        country: String? = null
     ): Flow<List<MovieCategory>> = flow {
-        // Build base list according to selected category
-        val baseMovies = when (category) {
-            "movies" -> sampleMovies.filter { !it.isSeries }
-            "series" -> sampleMovies.filter { it.isSeries }
-            "cartoons" -> sampleMovies.filter { it.genres.any { g -> g.contains("\u041c\u0443\u043b\u044c\u0442", ignoreCase = true) } }
-            "anime" -> sampleMovies.filter { it.genres.any { g -> g.contains("\u0410\u043d\u0438\u043c\u0435", ignoreCase = true) } }
-            "favorites" -> sampleMovies.filter { isFavorite(it.id) }
-            else -> sampleMovies
-        }
+        val filtered = filterAndSort(sampleMovies, category, genre, sortBy, year, country)
 
-        val filteredMovies = applyGenreAndSort(baseMovies, genre, sortBy)
-
-        // 1. Instant 0 ms emit of local cached titles
         val initialCategories = if (category == "all" && (genre.isNullOrEmpty() || genre == "\u0412\u0441\u0435 \u0436\u0430\u043d\u0440\u044b")) {
             listOf(
-                MovieCategory(id = "popular", title = "\u041f\u043e\u043f\u0443\u043b\u044f\u0440\u043d\u044b\u0435 \u043d\u043e\u0432\u0438\u043d\u043a\u0438", movies = filteredMovies),
-                MovieCategory(id = "top_rated", title = "\u0422\u043e\u043f \u0440\u0435\u0439\u0442\u0438\u043d\u0433\u0430", movies = filteredMovies.sortedByDescending { it.rating }),
-                MovieCategory(id = "series", title = "\u0421\u0435\u0440\u0438\u0430\u043b\u044b", movies = filteredMovies.filter { it.isSeries }),
-                MovieCategory(id = "movies", title = "\u0424\u0438\u043b\u044c\u043c\u044b", movies = filteredMovies.filter { !it.isSeries })
+                MovieCategory(id = "popular", title = "\u041f\u043e\u043f\u0443\u043b\u044f\u0440\u043d\u044b\u0435 \u043d\u043e\u0432\u0438\u043d\u043a\u0438", movies = filtered),
+                MovieCategory(id = "top_rated", title = "\u0422\u043e\u043f \u0440\u0435\u0439\u0442\u0438\u043d\u0433\u0430", movies = filtered.sortedByDescending { it.rating }),
+                MovieCategory(id = "series", title = "\u0421\u0435\u0440\u0438\u0430\u043b\u044b", movies = filtered.filter { it.isSeries }),
+                MovieCategory(id = "movies", title = "\u0424\u0438\u043b\u044c\u043c\u044b", movies = filtered.filter { !it.isSeries })
             )
         } else {
             val title = when (category) {
@@ -296,21 +320,23 @@ class CatalogRepository(context: Context? = null) {
                 "favorites" -> "\u0418\u0437\u0431\u0440\u0430\u043d\u043d\u043e\u0435"
                 else -> "\u041a\u0430\u0442\u0430\u043b\u043e\u0433"
             }
-            listOf(MovieCategory(id = category, title = title, movies = filteredMovies))
+            listOf(MovieCategory(id = category, title = title, movies = filtered))
         }
         emit(initialCategories)
 
-        // 2. Fetch live updates from ShowHub server
+        // Live API fetch
         if (category != "favorites") {
             try {
-                val liveMovies = if (category == "all" && (genre.isNullOrEmpty() || genre == "\u0412\u0441\u0435 \u0436\u0430\u043d\u0440\u044b") && sortBy == "newest") {
-                    ShowHubApiClient.fetchPopular()
-                } else {
-                    ShowHubApiClient.fetchCatalog(category = category, genre = genre, sortBy = sortBy)
-                }
+                val liveMovies = ShowHubApiClient.fetchCatalog(
+                    category = category,
+                    genre = genre,
+                    sortBy = sortBy,
+                    year = year,
+                    country = country
+                )
 
                 if (liveMovies.isNotEmpty()) {
-                    val combined = (liveMovies + filteredMovies).distinctBy { it.title.lowercase().trim() }
+                    val combined = (liveMovies + filtered).distinctBy { it.title.lowercase().trim() }
                     val updatedCategories = if (category == "all" && (genre.isNullOrEmpty() || genre == "\u0412\u0441\u0435 \u0436\u0430\u043d\u0440\u044b")) {
                         listOf(
                             MovieCategory(id = "popular", title = "\u041f\u043e\u043f\u0443\u043b\u044f\u0440\u043d\u044b\u0435 \u043d\u043e\u0432\u0438\u043d\u043a\u0438", movies = combined.take(24)),
@@ -329,9 +355,4 @@ class CatalogRepository(context: Context? = null) {
             }
         }
     }
-
-    fun getMovieById(id: String): Movie? {
-        return sampleMovies.find { it.id == id }
-    }
 }
-

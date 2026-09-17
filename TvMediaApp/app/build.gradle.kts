@@ -8,7 +8,7 @@ android {
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.example.tvmediaapp"
+        applicationId = "com.showhub.tv"
         minSdk = 21
         targetSdk = 34
         versionCode = 29

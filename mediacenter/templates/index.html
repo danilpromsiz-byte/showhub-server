@@ -13,7 +13,7 @@
     <header class="topbar">
         <div class="logo-wrapper">
             <div class="logo">
-                <span class="logo-text">ShowHub <span class="badge-tv">TV</span> <span class="badge-version" id="header-version-badge">v1.9.9</span></span>
+                <span class="logo-text">ShowHub <span class="badge-tv">TV</span> <span class="badge-version" id="header-version-badge">v2.0.0</span></span>
             </div>
         </div>
 
@@ -40,7 +40,7 @@
         </div>
 
         <div class="search-bar" id="search-container" style="display:none;">
-            <input type="text" id="search-input" placeholder="Название фильма... (Нажмите Enter)" tabindex="0">
+            <input type="text" id="search-input" placeholder="Поиск фильмов и сериалов... (OK)" tabindex="0">
             <button id="search-btn" tabindex="0">Найти</button>
         </div>
     </header>
@@ -330,7 +330,7 @@
         <section id="view-details" class="view details-view" style="display: none;">
             <div class="details-top-bar">
                 <button class="btn-secondary btn-details-back" id="btn-modal-close" tabindex="0">
-                    <span style="font-size: 18px; line-height: 1;">←</span> Назад в каталог (Esc)
+                    <span style="font-size: 18px; line-height: 1;">←</span> Назад (Назад)
                 </button>
                 <div class="details-breadcrumbs">
                     <span id="details-bc-category">Каталог ShowHub TV</span>
@@ -524,7 +524,7 @@
         <div class="modal-backdrop"></div>
         <div class="modal-dialog settings-dialog-box">
             <div class="settings-modal-header">
-                <h2><svg class="btn-icon-svg" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:8px;"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>Настройки ShowHub TV <span class="badge-version" id="settings-version-badge">v1.9.8</span></h2>
+                <h2><svg class="btn-icon-svg" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:8px;"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1 2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06-.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>Настройки ShowHub TV <span class="badge-version" id="settings-version-badge">v2.0.0</span></h2>
                 <button class="btn-close-modal" id="btn-close-settings-modal" tabindex="0">&times;</button>
             </div>
 
@@ -731,7 +731,7 @@
                     <div class="settings-row">
                         <div class="settings-label">
                             <strong>Текущая версия приложения:</strong>
-                            <span id="current-version-info">ShowHub TV v1.9.8 (Сборка 27)</span>
+                            <span id="current-version-info">ShowHub TV v2.0.0 (Сборка 29)</span>
                         </div>
                         <div class="settings-control">
                             <button class="btn-primary" id="btn-check-updates" tabindex="0">
@@ -764,7 +764,7 @@
 
             <div class="settings-modal-footer">
                 <span class="search-tip">Настройки сохраняются автоматически</span>
-                <button class="btn-primary" id="btn-close-settings-save" tabindex="0">Готово (Esc)</button>
+                <button class="btn-primary" id="btn-close-settings-save" tabindex="0">Готово (Назад)</button>
             </div>
         </div>
     </div>
@@ -806,7 +806,7 @@
             <div id="player-osd" class="player-osd visible">
                 <!-- OSD Top Bar -->
                 <div class="osd-topbar">
-                    <button class="osd-btn-back" id="osd-btn-back" tabindex="0" title="Назад в каталог (Esc)">
+                    <button class="osd-btn-back" id="osd-btn-back" tabindex="0" title="Назад (Назад)">
                         <span class="osd-icon">←</span>
                         <span>Назад</span>
                     </button>
@@ -919,7 +919,7 @@
                 <div class="player-drawer-panel">
                     <div class="player-drawer-header">
                         <div class="player-drawer-title">🔊 Выбор дорожки и озвучки</div>
-                        <button class="player-drawer-close" id="btn-close-drawer-audio" tabindex="0">✕ (Esc)</button>
+                        <button class="player-drawer-close" id="btn-close-drawer-audio" tabindex="0">✕ (Назад)</button>
                     </div>
                     <div class="player-drawer-body" id="player-audio-list">
                         <!-- Dynamic audio track items -->
@@ -932,7 +932,7 @@
                 <div class="player-drawer-panel">
                     <div class="player-drawer-header">
                         <div class="player-drawer-title">💬 Субтитры</div>
-                        <button class="player-drawer-close" id="btn-close-drawer-subs" tabindex="0">✕ (Esc)</button>
+                        <button class="player-drawer-close" id="btn-close-drawer-subs" tabindex="0">✕ (Назад)</button>
                     </div>
                     <div class="player-drawer-body" id="player-subs-list">
                         <!-- Dynamic subtitle options -->
@@ -945,7 +945,7 @@
                 <div class="player-drawer-panel">
                     <div class="player-drawer-header">
                         <div class="player-drawer-title">⚙️ Качество видео</div>
-                        <button class="player-drawer-close" id="btn-close-drawer-quality" tabindex="0">✕ (Esc)</button>
+                        <button class="player-drawer-close" id="btn-close-drawer-quality" tabindex="0">✕ (Назад)</button>
                     </div>
                     <div class="player-drawer-body" id="player-quality-list">
                         <!-- Dynamic quality options -->
@@ -958,7 +958,7 @@
                 <div class="player-drawer-panel">
                     <div class="player-drawer-header">
                         <div class="player-drawer-title">📑 Выбор сезона и серии</div>
-                        <button class="player-drawer-close" id="btn-close-drawer-episodes" tabindex="0">✕ (Esc)</button>
+                        <button class="player-drawer-close" id="btn-close-drawer-episodes" tabindex="0">✕ (Назад)</button>
                     </div>
                     <div class="player-drawer-seasons" id="player-seasons-tabs">
                         <!-- Seasons chips -->

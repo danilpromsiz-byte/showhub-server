@@ -5,8 +5,8 @@
  */
 
 // Application Version & Mandatory Update State
-const CURRENT_APP_VERSION = "1.9.9";
-const CURRENT_APP_VERSION_CODE = 28;
+const CURRENT_APP_VERSION = "2.0.0";
+const CURRENT_APP_VERSION_CODE = 29;
 window.isForceUpdateActive = false;
 
 // Migrate legacy local PC IP addresses to cloud server
@@ -665,8 +665,13 @@ function activateForceUpdateModal(data) {
             }
 
             console.log("Starting forced update download from:", targetUrl);
+            if (statusMsg) {
+                statusMsg.textContent = "Загрузка ShowHub APK в память телевизора... Пожалуйста, подождите.";
+            }
             setTimeout(() => {
-                if (window.AndroidBridge && typeof window.AndroidBridge.installUpdate === "function") {
+                if (window.AndroidBridge && typeof window.AndroidBridge.downloadAndInstall === "function") {
+                    window.AndroidBridge.downloadAndInstall(targetUrl);
+                } else if (window.AndroidBridge && typeof window.AndroidBridge.installUpdate === "function") {
                     window.AndroidBridge.installUpdate(targetUrl);
                 } else if (window.AndroidBridge && typeof window.AndroidBridge.openUrl === "function") {
                     window.AndroidBridge.openUrl(targetUrl);
@@ -2987,6 +2992,125 @@ async function fetchComments(source, queryId, title, reqId) {
     }
 }
 
+/* =========================================================
+   ShowHub Native On-Device Stream Resolver (Direct TV Mode)
+   Queries HDRezka directly from the Android TV's residential IP
+   to bypass datacenter anti-piracy blocks (url: false / 403).
+   ========================================================= */
+async function resolveDeviceStreams(title, year, isSeries, season, episode, translatorId) {
+    if (!window.AndroidBridge || typeof window.AndroidBridge.httpRequest !== "function") {
+        return null;
+    }
+    const cleanTitle = (title || "").split(":")[0].split(" - ")[0].trim();
+    if (!cleanTitle) return null;
+
+    const results = {};
+
+    // 1. Resolve HDRezka directly on Android TV
+    try {
+        const rezkaBase = "https://hdrezka-home.tv";
+        const searchUrl = `${rezkaBase}/search/?do=search&subaction=search&q=${encodeURIComponent(cleanTitle)}`;
+        const headers = JSON.stringify({
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+            "Referer": `${rezkaBase}/`
+        });
+
+        const sRaw = window.AndroidBridge.httpRequest(searchUrl, "GET", null, headers);
+        if (sRaw) {
+            const sParsed = JSON.parse(sRaw);
+            if (sParsed.status === 200 && sParsed.body) {
+                const idMatch = sParsed.body.match(/data-id="(\d+)"/);
+                const linkMatch = sParsed.body.match(/class="b-content__inline_item-link"[^>]*><a href="([^"]+)"/);
+                if (idMatch && linkMatch) {
+                    const dataId = idMatch[1];
+                    const pageUrl = linkMatch[1].startsWith("http") ? linkMatch[1] : `${rezkaBase}${linkMatch[1]}`;
+
+                    // Extract translator
+                    let transId = translatorId;
+                    if (!transId) {
+                        const pageHeaders = JSON.stringify({
+                            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+                            "Referer": `${rezkaBase}/`
+                        });
+                        const pRaw = window.AndroidBridge.httpRequest(pageUrl, "GET", null, pageHeaders);
+                        if (pRaw) {
+                            try {
+                                const pParsed = JSON.parse(pRaw);
+                                if (pParsed.body) {
+                                    const trM = pParsed.body.match(/data-translator_id="(\d+)"/);
+                                    if (trM) transId = trM[1];
+                                    else {
+                                        const initM = pParsed.body.match(/initCDN(?:Movies|Series)Events\(\s*\d+\s*,\s*(\d+)/);
+                                        if (initM) transId = initM[1];
+                                    }
+                                }
+                            } catch (e) {}
+                        }
+                    }
+                    if (!transId) transId = "56";
+
+                    // Query Ajax from the TV's home IP
+                    const tNow = Date.now();
+                    const ajaxUrl = `${rezkaBase}/ajax/get_cdn_series/?t=${tNow}`;
+                    let postData = `id=${dataId}&translator_id=${transId}&action=${isSeries ? "get_stream" : "get_movie"}`;
+                    if (isSeries) {
+                        postData += `&season=${season || 1}&episode=${episode || 1}`;
+                    }
+                    const ajaxHeaders = JSON.stringify({
+                        "X-Requested-With": "XMLHttpRequest",
+                        "Referer": pageUrl,
+                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+                    });
+
+                    const ajaxRaw = window.AndroidBridge.httpRequest(ajaxUrl, "POST", postData, ajaxHeaders);
+                    if (ajaxRaw) {
+                        const ajaxParsed = JSON.parse(ajaxRaw);
+                        if (ajaxParsed.status === 200 && ajaxParsed.body) {
+                            const cdnData = JSON.parse(ajaxParsed.body);
+                            const streamStr = cdnData.url || cdnData.streams || "";
+                            if (streamStr && typeof streamStr === "string" && streamStr.length > 5) {
+                                const streams = [];
+                                const parts = streamStr.split(/,\s*(?=\[[^\]]+\])/);
+                                for (const part of parts) {
+                                    const m = part.match(/\[([^\]]+)\](.*)/);
+                                    if (m) {
+                                        const quality = m[1].replace(/<[^>]+>/g, '').trim();
+                                        const urls = m[2].split(" or ").map(u => u.trim().replace(/\\\//g, '/')).filter(u => u.startsWith("http"));
+                                        const working = urls.filter(u => !u.includes("ukrtelcdn"))[0] || urls[0];
+                                        if (working) {
+                                            const isPrem = working.includes("rhtie.mp4") || /ultra|4k|2160|1440/i.test(quality);
+                                            streams.push({
+                                                quality: `${quality} (HDRezka Direct)`,
+                                                url: working,
+                                                stream_type: working.includes(".m3u8") ? "hls" : "mp4",
+                                                headers: { "Referer": `${rezkaBase}/`, "User-Agent": "Mozilla/5.0" },
+                                                is_premium: isPrem
+                                            });
+                                        }
+                                    }
+                                }
+                                if (streams.length > 0) {
+                                    results["hdrezka"] = {
+                                        source_name: "HDRezka (Direct Device)",
+                                        title: title,
+                                        streams: streams,
+                                        embed_url: pageUrl,
+                                        error: null
+                                    };
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    } catch (rezkaErr) {
+        console.warn("Device-side HDRezka resolution failed:", rezkaErr);
+    }
+
+    return Object.keys(results).length > 0 ? results : null;
+}
+
 let isStreamsLoading = false;
 let currentStreamsPromise = null;
 
@@ -3014,6 +3138,20 @@ async function fetchStreams(source, queryId, title, reqId, year, isSeries, kpId)
             const data = await res.json();
             if (reqId !== activeModalRequestId) return; // Ignore stale responses
 
+            // If backend returned no direct HLS/MP4 streams (e.g. Render datacenter IP blocked),
+            // resolve HDRezka directly from the Android TV's residential IP!
+            const hasDirectStreams = Object.values(data).some(s => s && s.streams && s.streams.some(st => (st.stream_type === "hls" || st.stream_type === "mp4") && !st.is_premium));
+            if (!hasDirectStreams && window.AndroidBridge && typeof window.AndroidBridge.httpRequest === "function") {
+                try {
+                    const devStreams = await resolveDeviceStreams(title, validYr, isSer, activeSeasonId, activeEpisodeId, activeTranslatorId);
+                    if (devStreams && reqId === activeModalRequestId) {
+                        Object.assign(data, devStreams);
+                    }
+                } catch (devErr) {
+                    console.warn("Device stream resolution error:", devErr);
+                }
+            }
+
             currentStreams = data;
             renderSourceTabs(data);
 
@@ -3023,8 +3161,15 @@ async function fetchStreams(source, queryId, title, reqId, year, isSeries, kpId)
         } catch (err) {
             if (reqId !== activeModalRequestId) return;
             console.warn("PC streams fetch failed, attempting direct autonomous stream fallback:", err);
-            // Direct stream fallback for autonomous TV mode
-            const autoStreams = {};
+            let devStreams = null;
+            if (window.AndroidBridge && typeof window.AndroidBridge.httpRequest === "function") {
+                try {
+                    const validYr = getValidYear(year || currentMediaItem?.year);
+                    const isSer = (isSeries !== undefined && isSeries !== null) ? isSeries : currentMediaItem?.isSeries;
+                    devStreams = await resolveDeviceStreams(title, validYr, isSer, activeSeasonId, activeEpisodeId, activeTranslatorId);
+                } catch (e) {}
+            }
+            const autoStreams = devStreams || {};
             if (queryId) {
                 autoStreams["delivembd"] = {
                     source_name: "delivembd",
@@ -6233,7 +6378,7 @@ function initSettingsUpdates() {
             if (!res.ok) throw new Error("HTTP " + res.status);
             const data = await res.json();
 
-            const currentVersionCode = 28; // v1.9.9
+            const currentVersionCode = CURRENT_APP_VERSION_CODE;
             if (data && data.version_code && data.version_code > currentVersionCode) {
                 if (statusText) {
                     statusText.textContent = `Доступна новая версия: v${data.version_name || data.version}! ${data.changelog || ''}`;
@@ -6246,7 +6391,7 @@ function initSettingsUpdates() {
                 }, 50);
             } else {
                 if (statusText) {
-                    statusText.textContent = `У вас установлена самая актуальная версия (${data.version_name || 'v1.9.9'}). Обновлений не требуется.`;
+                    statusText.textContent = `У вас установлена самая актуальная версия (${data.version_name || 'v' + CURRENT_APP_VERSION}). Обновлений не требуется.`;
                     statusText.style.color = "var(--accent-success)";
                 }
             }
@@ -6259,10 +6404,12 @@ function initSettingsUpdates() {
     });
 
     btnDoUpdate?.addEventListener("click", () => {
-        if (window.AndroidBridge && typeof window.AndroidBridge.openUrl === "function") {
-            window.AndroidBridge.openUrl(latestUpdateApkUrl);
+        if (window.AndroidBridge && typeof window.AndroidBridge.downloadAndInstall === "function") {
+            window.AndroidBridge.downloadAndInstall(latestUpdateApkUrl);
         } else if (window.AndroidBridge && typeof window.AndroidBridge.installUpdate === "function") {
             window.AndroidBridge.installUpdate(latestUpdateApkUrl);
+        } else if (window.AndroidBridge && typeof window.AndroidBridge.openUrl === "function") {
+            window.AndroidBridge.openUrl(latestUpdateApkUrl);
         } else {
             window.open(latestUpdateApkUrl, "_blank");
         }

@@ -327,13 +327,13 @@ def get_media_poster(title: str = Query(...), year: Optional[str] = None, kp_id:
 def check_updates() -> Dict[str, Any]:
     return {
         "success": True,
-        "version_name": "2.5.1",
-        "version_code": 37,
+        "version_name": "2.5.2",
+        "version_code": 38,
         "force_update": True,
-        "min_version_code": 37,
+        "min_version_code": 38,
         "apk_url": "https://showhub-server.onrender.com/ShowHub.apk",
         "download_url": "https://showhub-server.onrender.com/ShowHub.apk",
-        "changelog": "ShowHub TV v2.5.1: Устранение 6 замечаний (предпросмотр видео на обложках, полное название кнопки «В избранное», подробные описания и отзывы зрителей, фокус левой панели с обложкой, поле ввода в поиске, неоновый спиннер)."
+        "changelog": "ShowHub TV v2.5.2: Исправление установки обновления («Приложение не установлено») с оригинальной цифровой подписью debug.keystore, предпросмотр видео, детальная информация и отзывы."
     }
 
 @app.get("/api/catalog/stats")

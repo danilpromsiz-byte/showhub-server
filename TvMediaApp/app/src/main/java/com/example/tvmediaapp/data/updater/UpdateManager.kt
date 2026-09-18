@@ -79,6 +79,9 @@ object UpdateManager {
 
             val cacheDir = activity.externalCacheDir ?: activity.cacheDir
             val apkFile = File(cacheDir, "ShowHub-update.apk")
+            if (apkFile.exists()) {
+                try { apkFile.delete() } catch (_: Exception) {}
+            }
 
             conn.inputStream.use { input ->
                 FileOutputStream(apkFile).use { output ->
@@ -91,6 +94,8 @@ object UpdateManager {
                 }
             }
 
+            apkFile.setReadable(true, false)
+
             withContext(Dispatchers.Main) {
                 val intent = Intent(Intent.ACTION_VIEW).apply {
                     val apkUri = FileProvider.getUriForFile(
@@ -99,7 +104,8 @@ object UpdateManager {
                         apkFile
                     )
                     setDataAndType(apkUri, "application/vnd.android.package-archive")
-                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 }
                 activity.startActivity(intent)
             }

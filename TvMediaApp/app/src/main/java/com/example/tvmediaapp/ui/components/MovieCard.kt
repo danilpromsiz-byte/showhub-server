@@ -82,6 +82,10 @@ fun MovieCard(
 ) {
     val context = LocalContext.current
     val accent = LocalAccentColor.current
+    val historyManager = remember { com.example.tvmediaapp.data.history.WatchHistoryManager(context) }
+    val newEpisodesCount = remember(movie.id) {
+        if (movie.isSeries) historyManager.getNewEpisodesCount(movie.id) else 0
+    }
     var isFocused by remember { mutableStateOf(false) }
 
     // Video preview state
@@ -203,7 +207,20 @@ fun MovieCard(
         }
     }
 
-    // Cleanup player when card leaves composition
+    // Cleanup player when card leaves composition or app goes to background
+    val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, previewPlayer) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_PAUSE || event == androidx.lifecycle.Lifecycle.Event.ON_STOP) {
+                previewPlayer?.pause()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
     DisposableEffect(Unit) {
         onDispose {
             isPreviewBuffering = false
@@ -316,24 +333,41 @@ fun MovieCard(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.Top
                     ) {
-                        // Left: Series / Episodes Info
+                        // Left: Series / Episodes Info or New Episodes Alert
                         if (movie.isSeries) {
-                            val epText = if (movie.episodesInfo.isNotBlank()) movie.episodesInfo else "Сериал"
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f, fill = false)
-                                    .clip(RoundedCornerShape(4.dp))
-                                    .background(Color.Black.copy(alpha = 0.85f))
-                                    .padding(horizontal = 4.dp, vertical = 2.dp)
-                            ) {
-                                Text(
-                                    text = epText,
-                                    fontSize = 9.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.White,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
+                            if (newEpisodesCount > 0) {
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(Color(0xFFE53935).copy(alpha = 0.95f))
+                                        .padding(horizontal = 4.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = "+$newEpisodesCount новых",
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White,
+                                        maxLines = 1
+                                    )
+                                }
+                            } else {
+                                val epText = if (movie.episodesInfo.isNotBlank()) movie.episodesInfo else "Сериал"
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f, fill = false)
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(Color.Black.copy(alpha = 0.85f))
+                                        .padding(horizontal = 4.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = epText,
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
                             }
                         } else {
                             Spacer(modifier = Modifier.width(1.dp))

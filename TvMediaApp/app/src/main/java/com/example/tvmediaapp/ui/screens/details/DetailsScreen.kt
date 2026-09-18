@@ -135,6 +135,27 @@ fun DetailsScreen(
         return sq.contains(tq)
     }
 
+    val availableQualities = remember(streamOptions) {
+        if (streamOptions.isNotEmpty()) {
+            val qualSet = linkedSetOf<String>()
+            val order = listOf("4K Ultra", "1080p", "720p", "480p", "360p")
+            for (target in order) {
+                if (streamOptions.any { matchStreamQuality(it, target) }) {
+                    qualSet.add(target)
+                }
+            }
+            if (qualSet.isNotEmpty()) qualSet.toList() else listOf("1080p", "720p", "480p")
+        } else {
+            listOf("1080p", "720p", "480p")
+        }
+    }
+
+    LaunchedEffect(availableQualities) {
+        if (availableQualities.isNotEmpty() && !availableQualities.any { it.equals(selectedQuality, ignoreCase = true) }) {
+            selectedQuality = availableQualities.first()
+        }
+    }
+
     fun pickSafePreviewStream(streams: List<StreamOption>): String? {
         val nonPremium = streams.filter {
             val q = it.quality.lowercase()
@@ -176,6 +197,8 @@ fun DetailsScreen(
         isLoadingComments = false
     }
 
+    var newEpisodesCount by remember { mutableIntStateOf(0) }
+
     // Fetch deep metadata (seasons, episodes, translators, KP rating) in background
     LaunchedEffect(movie.id) {
         val detailed = ShowHubApiClient.fetchMediaDetails(movie)
@@ -185,6 +208,11 @@ fun DetailsScreen(
         }
         if (detailed.audioTracks.isNotEmpty() && selectedAudioId.isEmpty()) {
             selectedAudioId = detailed.audioTracks.first().id
+        }
+        if (detailed.isSeries && detailed.seasons.isNotEmpty()) {
+            val total = detailed.seasons.sumOf { it.episodes.size }
+            val n = historyManager.updateKnownTotalEpisodes(detailed.id, total)
+            newEpisodesCount = n
         }
     }
 
@@ -293,6 +321,22 @@ fun DetailsScreen(
                     e.printStackTrace()
                 }
             }
+        }
+    }
+
+    val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, detailsPreviewPlayer) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            when (event) {
+                androidx.lifecycle.Lifecycle.Event.ON_PAUSE, androidx.lifecycle.Lifecycle.Event.ON_STOP -> {
+                    detailsPreviewPlayer?.pause()
+                }
+                else -> {}
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
         }
     }
 
@@ -631,6 +675,24 @@ fun DetailsScreen(
                     fontWeight = FontWeight.Medium
                 )
 
+                if (newEpisodesCount > 0) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(Color(0xFFE53935).copy(alpha = 0.25f))
+                            .border(1.dp, Color(0xFFE53935), RoundedCornerShape(6.dp))
+                            .padding(horizontal = 10.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = "🔥 Вышли новые серии! (+$newEpisodesCount новых)",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFFF8A80)
+                        )
+                    }
+                }
+
                 // Prominent Synopsis directly under Title & Genres
                 if (currentMovie.description.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(10.dp))
@@ -674,8 +736,7 @@ fun DetailsScreen(
                         fontWeight = FontWeight.SemiBold,
                         color = TextGray
                     )
-                    val qualities = listOf("1080p", "720p", "480p", "4K Ultra")
-                    qualities.forEach { q ->
+                    availableQualities.forEach { q ->
                         val isSelected = selectedQuality.equals(q, ignoreCase = true) ||
                                 (q == "4K Ultra" && (selectedQuality.contains("ultra", ignoreCase = true) || selectedQuality.contains("4k", ignoreCase = true)))
                         Button(
@@ -684,14 +745,14 @@ fun DetailsScreen(
                                 prefs.edit().putString("pref_quality", q).apply()
                             },
                             colors = ButtonDefaults.colors(
-                                containerColor = if (isSelected) accent.copy(alpha = 0.22f) else ChipBackground,
+                                containerColor = if (isSelected) accent.copy(alpha = 0.75f) else ChipBackground,
                                 focusedContainerColor = Color.White,
-                                contentColor = if (isSelected) accent else TextWhite,
+                                contentColor = if (isSelected) Color.Black else TextWhite,
                                 focusedContentColor = Color.Black
                             ),
                             border = ButtonDefaults.border(
-                                border = if (isSelected) Border(BorderStroke(1.5.dp, accent)) else Border.None,
-                                focusedBorder = Border.None
+                                border = if (isSelected) Border(BorderStroke(2.dp, accent)) else Border.None,
+                                focusedBorder = if (isSelected) Border(BorderStroke(2.5.dp, accent)) else Border.None
                             ),
                             shape = ButtonDefaults.shape(RoundedCornerShape(6.dp)),
                             scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
@@ -1157,14 +1218,14 @@ fun DetailsScreen(
                         Button(
                             onClick = { selectedDetailTab = index },
                             colors = ButtonDefaults.colors(
-                                containerColor = if (isSelected) accent.copy(alpha = 0.25f) else ChipBackground,
+                                containerColor = if (isSelected) accent.copy(alpha = 0.75f) else ChipBackground,
                                 focusedContainerColor = Color.White,
-                                contentColor = if (isSelected) accent else TextWhite,
+                                contentColor = if (isSelected) Color.Black else TextWhite,
                                 focusedContentColor = Color.Black
                             ),
                             border = ButtonDefaults.border(
-                                border = if (isSelected) Border(BorderStroke(1.5.dp, accent)) else Border.None,
-                                focusedBorder = Border.None
+                                border = if (isSelected) Border(BorderStroke(2.dp, accent)) else Border.None,
+                                focusedBorder = if (isSelected) Border(BorderStroke(2.5.dp, accent)) else Border.None
                             ),
                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                             scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
@@ -1203,14 +1264,14 @@ fun DetailsScreen(
                                             startPlayback(targetSeason = selectedSeason, targetEpisode = selectedEpisode, targetAudioId = track.id)
                                         },
                                         colors = ButtonDefaults.colors(
-                                            containerColor = if (isSelected) accent.copy(alpha = 0.22f) else ChipBackground,
+                                            containerColor = if (isSelected) accent.copy(alpha = 0.75f) else ChipBackground,
                                             focusedContainerColor = Color.White,
-                                            contentColor = if (isSelected) accent else TextWhite,
+                                            contentColor = if (isSelected) Color.Black else TextWhite,
                                             focusedContentColor = Color.Black
                                         ),
                                         border = ButtonDefaults.border(
-                                            border = if (isSelected) Border(BorderStroke(1.5.dp, accent)) else Border.None,
-                                            focusedBorder = Border.None
+                                            border = if (isSelected) Border(BorderStroke(2.dp, accent)) else Border.None,
+                                            focusedBorder = if (isSelected) Border(BorderStroke(2.5.dp, accent)) else Border.None
                                         ),
                                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                                         scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
@@ -1238,14 +1299,14 @@ fun DetailsScreen(
                                             selectedEpisode = 1
                                         },
                                         colors = ButtonDefaults.colors(
-                                            containerColor = if (isSelected) accent.copy(alpha = 0.22f) else ChipBackground,
+                                            containerColor = if (isSelected) accent.copy(alpha = 0.75f) else ChipBackground,
                                             focusedContainerColor = Color.White,
-                                            contentColor = if (isSelected) accent else TextWhite,
+                                            contentColor = if (isSelected) Color.Black else TextWhite,
                                             focusedContentColor = Color.Black
                                         ),
                                         border = ButtonDefaults.border(
-                                            border = if (isSelected) Border(BorderStroke(1.5.dp, accent)) else Border.None,
-                                            focusedBorder = Border.None
+                                            border = if (isSelected) Border(BorderStroke(2.dp, accent)) else Border.None,
+                                            focusedBorder = if (isSelected) Border(BorderStroke(2.5.dp, accent)) else Border.None
                                         ),
                                         shape = ButtonDefaults.shape(RoundedCornerShape(6.dp)),
                                         scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
@@ -1271,27 +1332,50 @@ fun DetailsScreen(
                             TvLazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 items(activeSeason.episodes) { ep ->
                                     val isSelected = ep.episodeNumber == selectedEpisode
+                                    val isWatched = historyManager.isEpisodeWatched(currentMovie.id, selectedSeason, ep.episodeNumber)
                                     Button(
                                         onClick = {
                                             selectedEpisode = ep.episodeNumber
+                                            historyManager.markEpisodeWatched(currentMovie.id, selectedSeason, ep.episodeNumber)
+                                            if (newEpisodesCount > 0) {
+                                                historyManager.clearNewEpisodes(currentMovie.id)
+                                                newEpisodesCount = 0
+                                            }
                                             startPlayback(targetSeason = selectedSeason, targetEpisode = ep.episodeNumber, startPos = 0L)
                                         },
                                         colors = ButtonDefaults.colors(
-                                            containerColor = if (isSelected) accent.copy(alpha = 0.22f) else ChipBackground,
+                                            containerColor = if (isSelected) accent.copy(alpha = 0.75f) else ChipBackground,
                                             focusedContainerColor = Color.White,
-                                            contentColor = if (isSelected) accent else TextWhite,
+                                            contentColor = if (isSelected) Color.Black else TextWhite,
                                             focusedContentColor = Color.Black
                                         ),
                                         border = ButtonDefaults.border(
-                                            border = if (isSelected) Border(BorderStroke(1.5.dp, accent)) else Border.None,
-                                            focusedBorder = Border.None
+                                            border = if (isSelected) Border(BorderStroke(2.dp, accent)) else Border.None,
+                                            focusedBorder = if (isSelected) Border(BorderStroke(2.5.dp, accent)) else Border.None
                                         ),
                                         shape = ButtonDefaults.shape(RoundedCornerShape(6.dp)),
                                         scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                                         contentPadding = PaddingValues(horizontal = 7.dp, vertical = 0.dp),
                                         modifier = Modifier.height(24.dp)
                                     ) {
-                                        Text(text = ep.title, fontSize = 10.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(3.dp)
+                                        ) {
+                                            if (isWatched) {
+                                                Text(
+                                                    text = "✓",
+                                                    fontSize = 10.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = if (isSelected) Color.Black else Color(0xFF4ADE80)
+                                                )
+                                            }
+                                            Text(
+                                                text = ep.title,
+                                                fontSize = 10.sp,
+                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                            )
+                                        }
                                     }
                                 }
                             }

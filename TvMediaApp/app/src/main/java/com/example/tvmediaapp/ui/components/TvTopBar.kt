@@ -77,14 +77,14 @@ fun TvTopBar(
             Button(
                 onClick = onSearchClick,
                 colors = ButtonDefaults.colors(
-                    containerColor = if (isSearch) accent.copy(alpha = 0.25f) else Color.White.copy(alpha = 0.08f),
+                    containerColor = if (isSearch) accent.copy(alpha = 0.75f) else Color.White.copy(alpha = 0.08f),
                     focusedContainerColor = Color.White,
-                    contentColor = if (isSearch) accent else TextWhite,
+                    contentColor = if (isSearch) Color.Black else TextWhite,
                     focusedContentColor = Color.Black
                 ),
                 border = ButtonDefaults.border(
-                    border = if (isSearch) Border(BorderStroke(1.5.dp, accent)) else Border.None,
-                    focusedBorder = Border.None
+                    border = if (isSearch) Border(BorderStroke(2.dp, accent)) else Border.None,
+                    focusedBorder = if (isSearch) Border(BorderStroke(2.5.dp, accent)) else Border.None
                 ),
                 shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                 scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
@@ -100,12 +100,11 @@ fun TvTopBar(
                 ) {
                     AppIcon(
                         resId = com.example.tvmediaapp.R.drawable.ic_search,
-                        tint = if (isSearch) accent else TextWhite,
                         size = 13.dp
                     )
                     Text(
                         text = "Поиск",
-                        fontWeight = FontWeight.SemiBold,
+                        fontWeight = if (isSearch) FontWeight.Bold else FontWeight.SemiBold,
                         fontSize = 11.sp,
                         lineHeight = 13.sp
                     )
@@ -117,14 +116,14 @@ fun TvTopBar(
             Button(
                 onClick = onFavoritesClick,
                 colors = ButtonDefaults.colors(
-                    containerColor = if (isFav) accent.copy(alpha = 0.25f) else Color.White.copy(alpha = 0.08f),
+                    containerColor = if (isFav) accent.copy(alpha = 0.75f) else Color.White.copy(alpha = 0.08f),
                     focusedContainerColor = Color.White,
-                    contentColor = if (isFav) accent else TextWhite,
+                    contentColor = if (isFav) Color.Black else TextWhite,
                     focusedContentColor = Color.Black
                 ),
                 border = ButtonDefaults.border(
-                    border = if (isFav) Border(BorderStroke(1.5.dp, accent)) else Border.None,
-                    focusedBorder = Border.None
+                    border = if (isFav) Border(BorderStroke(2.dp, accent)) else Border.None,
+                    focusedBorder = if (isFav) Border(BorderStroke(2.5.dp, accent)) else Border.None
                 ),
                 shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                 scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
@@ -139,12 +138,11 @@ fun TvTopBar(
                 ) {
                     AppIcon(
                         resId = com.example.tvmediaapp.R.drawable.ic_star,
-                        tint = if (isFav) accent else TextWhite,
                         size = 13.dp
                     )
                     Text(
                         text = "Избранное",
-                        fontWeight = FontWeight.SemiBold,
+                        fontWeight = if (isFav) FontWeight.Bold else FontWeight.SemiBold,
                         fontSize = 11.sp,
                         lineHeight = 13.sp
                     )
@@ -156,14 +154,14 @@ fun TvTopBar(
             Button(
                 onClick = onHistoryClick,
                 colors = ButtonDefaults.colors(
-                    containerColor = if (isHist) accent.copy(alpha = 0.25f) else Color.White.copy(alpha = 0.08f),
+                    containerColor = if (isHist) accent.copy(alpha = 0.75f) else Color.White.copy(alpha = 0.08f),
                     focusedContainerColor = Color.White,
-                    contentColor = if (isHist) accent else TextWhite,
+                    contentColor = if (isHist) Color.Black else TextWhite,
                     focusedContentColor = Color.Black
                 ),
                 border = ButtonDefaults.border(
-                    border = if (isHist) Border(BorderStroke(1.5.dp, accent)) else Border.None,
-                    focusedBorder = Border.None
+                    border = if (isHist) Border(BorderStroke(2.dp, accent)) else Border.None,
+                    focusedBorder = if (isHist) Border(BorderStroke(2.5.dp, accent)) else Border.None
                 ),
                 shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                 scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
@@ -178,12 +176,11 @@ fun TvTopBar(
                 ) {
                     AppIcon(
                         resId = com.example.tvmediaapp.R.drawable.ic_history,
-                        tint = if (isHist) accent else TextWhite,
                         size = 13.dp
                     )
                     Text(
                         text = "История",
-                        fontWeight = FontWeight.SemiBold,
+                        fontWeight = if (isHist) FontWeight.Bold else FontWeight.SemiBold,
                         fontSize = 11.sp,
                         lineHeight = 13.sp
                     )
@@ -196,14 +193,14 @@ fun TvTopBar(
                 Button(
                     onClick = onSettingsClick,
                     colors = ButtonDefaults.colors(
-                        containerColor = if (isSettings) accent.copy(alpha = 0.25f) else Color.White.copy(alpha = 0.08f),
+                        containerColor = if (isSettings) accent.copy(alpha = 0.75f) else Color.White.copy(alpha = 0.08f),
                         focusedContainerColor = Color.White,
-                        contentColor = if (isSettings) accent else TextWhite,
+                        contentColor = if (isSettings) Color.Black else TextWhite,
                         focusedContentColor = Color.Black
                     ),
                     border = ButtonDefaults.border(
-                        border = if (isSettings) Border(BorderStroke(1.5.dp, accent)) else Border.None,
-                        focusedBorder = Border.None
+                        border = if (isSettings) Border(BorderStroke(2.dp, accent)) else Border.None,
+                        focusedBorder = if (isSettings) Border(BorderStroke(2.5.dp, accent)) else Border.None
                     ),
                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                     scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
@@ -218,12 +215,11 @@ fun TvTopBar(
                     ) {
                         AppIcon(
                             resId = com.example.tvmediaapp.R.drawable.ic_settings,
-                            tint = if (isSettings) accent else TextWhite,
                             size = 13.dp
                         )
                         Text(
                             text = "Настройки",
-                            fontWeight = FontWeight.SemiBold,
+                            fontWeight = if (isSettings) FontWeight.Bold else FontWeight.SemiBold,
                             fontSize = 11.sp,
                             lineHeight = 13.sp
                         )
@@ -236,14 +232,14 @@ fun TvTopBar(
                 Button(
                     onClick = onCheckUpdateClick,
                     colors = ButtonDefaults.colors(
-                        containerColor = if (hasUpdateAvailable) accent.copy(alpha = 0.25f) else Color.White.copy(alpha = 0.08f),
+                        containerColor = if (hasUpdateAvailable) accent.copy(alpha = 0.75f) else Color.White.copy(alpha = 0.08f),
                         focusedContainerColor = Color.White,
-                        contentColor = if (hasUpdateAvailable) accent else TextWhite,
+                        contentColor = if (hasUpdateAvailable) Color.Black else TextWhite,
                         focusedContentColor = Color.Black
                     ),
                     border = ButtonDefaults.border(
-                        border = if (hasUpdateAvailable) Border(BorderStroke(1.5.dp, accent)) else Border.None,
-                        focusedBorder = Border.None
+                        border = if (hasUpdateAvailable) Border(BorderStroke(2.dp, accent)) else Border.None,
+                        focusedBorder = if (hasUpdateAvailable) Border(BorderStroke(2.5.dp, accent)) else Border.None
                     ),
                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                     scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
@@ -258,7 +254,6 @@ fun TvTopBar(
                     ) {
                         AppIcon(
                             resId = com.example.tvmediaapp.R.drawable.ic_refresh,
-                            tint = if (hasUpdateAvailable) accent else TextWhite,
                             size = 13.dp
                         )
                         Text(

@@ -366,7 +366,7 @@ private fun NativeExoPlayerScreen(
 
         val renderersFactory = DefaultRenderersFactory(context).apply {
             setEnableDecoderFallback(true)
-            setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
+            setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF)
         }
 
         ExoPlayer.Builder(context)
@@ -374,19 +374,29 @@ private fun NativeExoPlayerScreen(
             .setLoadControl(loadControl)
             .setRenderersFactory(renderersFactory)
             .build().apply {
-                setWakeMode(C.WAKE_MODE_NETWORK)
+                try {
+                    setWakeMode(C.WAKE_MODE_NETWORK)
+                } catch (_: Throwable) {}
                 videoScalingMode = C.VIDEO_SCALING_MODE_SCALE_TO_FIT
                 if (currentStreamUrl.isNotBlank() && isDirectVideoStream(currentStreamUrl)) {
-                    setMediaItem(MediaItem.fromUri(currentStreamUrl))
-                    if (startPositionMs > 1000L) {
-                        seekTo(startPositionMs)
+                    try {
+                        setMediaItem(MediaItem.fromUri(currentStreamUrl))
+                        if (startPositionMs > 1000L) {
+                            seekTo(startPositionMs)
+                        }
+                        prepare()
+                        playWhenReady = true
+                    } catch (e: Exception) {
+                        e.printStackTrace()
                     }
-                    prepare()
-                    playWhenReady = true
                 }
                 addListener(object : androidx.media3.common.Player.Listener {
                     override fun onPlaybackStateChanged(state: Int) {
                         isBuffering = (state == androidx.media3.common.Player.STATE_BUFFERING)
+                    }
+                    override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                        error.printStackTrace()
+                        isBuffering = false
                     }
                 })
             }
@@ -446,9 +456,27 @@ private fun NativeExoPlayerScreen(
         return srcSet.toList()
     }
 
-    var availableSources by remember { mutableStateOf<List<String>>(listOf("HDrezka")) }
+    fun extractQualities(streams: List<com.example.tvmediaapp.data.models.StreamOption>): List<String> {
+        val qualSet = linkedSetOf<String>()
+        val order = listOf("4K", "1080p Ultra", "1080p", "720p", "480p", "360p")
+        for (target in order) {
+            if (streams.any { matchQuality(it.quality, target) }) {
+                qualSet.add(target)
+            }
+        }
+        for (st in streams) {
+            val q = st.quality.trim()
+            if (q.isNotBlank() && !qualSet.any { it.equals(q, ignoreCase = true) }) {
+                qualSet.add(q)
+            }
+        }
+        return if (qualSet.isNotEmpty()) qualSet.toList() else listOf("1080p", "720p", "480p")
+    }
 
-    // Proactively discover all actual sources available for this media/episode
+    var availableSources by remember { mutableStateOf<List<String>>(listOf("HDrezka")) }
+    var availableQualities by remember { mutableStateOf<List<String>>(listOf("1080p", "720p", "480p")) }
+
+    // Proactively discover all actual sources and qualities available for this media/episode
     LaunchedEffect(movie.id, currentSeason, currentEpisode) {
         try {
             val serverDeferred = async(Dispatchers.IO) {
@@ -473,9 +501,13 @@ private fun NativeExoPlayerScreen(
             val serverStreams = serverDeferred.await()
             val rezkaStreams = rezkaDeferred.await()
             val combined = (serverStreams + rezkaStreams)
-            val extracted = extractSources(combined)
-            if (extracted.isNotEmpty()) {
-                availableSources = extracted
+            val extractedSrc = extractSources(combined)
+            if (extractedSrc.isNotEmpty()) {
+                availableSources = extractedSrc
+            }
+            val extractedQual = extractQualities(combined)
+            if (extractedQual.isNotEmpty()) {
+                availableQualities = extractedQual
             }
         } catch (_: Exception) {}
     }
@@ -990,7 +1022,7 @@ private fun NativeExoPlayerScreen(
 
                 // Middle Drawers Overlays (Quality, Source, Audio Tracks, Episodes)
                 if (activeDrawer == "quality") {
-                    val qualities = listOf("1080p Ultra", "1080p", "720p", "480p", "360p")
+                    val qualities = if (availableQualities.isNotEmpty()) availableQualities else listOf("1080p", "720p", "480p")
                     Column(
                         modifier = Modifier
                             .align(Alignment.Center)
@@ -1016,14 +1048,14 @@ private fun NativeExoPlayerScreen(
                                         switchStream(currentSeason, currentEpisode, currentAudioId, qual, selectedSource)
                                     },
                                     colors = ButtonDefaults.colors(
-                                        containerColor = if (isSel) accent.copy(alpha = 0.25f) else ChipBackground,
+                                        containerColor = if (isSel) accent.copy(alpha = 0.75f) else ChipBackground,
                                         focusedContainerColor = if (isVip) Color(0xFFFFD700) else Color.White,
-                                        contentColor = if (isSel) accent else TextWhite,
+                                        contentColor = if (isSel) Color.Black else TextWhite,
                                         focusedContentColor = Color.Black
                                     ),
                                     border = ButtonDefaults.border(
-                                        border = if (isSel) Border(BorderStroke(1.5.dp, accent)) else Border.None,
-                                        focusedBorder = Border.None
+                                        border = if (isSel) Border(BorderStroke(2.dp, accent)) else Border.None,
+                                        focusedBorder = if (isSel) Border(BorderStroke(2.5.dp, accent)) else Border.None
                                     ),
                                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                                     scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
@@ -1035,7 +1067,7 @@ private fun NativeExoPlayerScreen(
                                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                                     ) {
                                         if (isVip) {
-                                            Text("★ VIP", fontSize = 10.sp, fontWeight = FontWeight.Black, color = Color(0xFFFFD700))
+                                            Text("★ VIP", fontSize = 10.sp, fontWeight = FontWeight.Black, color = if (isSel) Color.Black else Color(0xFFFFD700))
                                         }
                                         Text(
                                             text = qual,
@@ -1074,14 +1106,14 @@ private fun NativeExoPlayerScreen(
                                         switchStream(currentSeason, currentEpisode, currentAudioId, selectedQuality, src)
                                     },
                                     colors = ButtonDefaults.colors(
-                                        containerColor = if (isSel) accent.copy(alpha = 0.25f) else ChipBackground,
+                                        containerColor = if (isSel) accent.copy(alpha = 0.75f) else ChipBackground,
                                         focusedContainerColor = Color.White,
-                                        contentColor = if (isSel) accent else TextWhite,
+                                        contentColor = if (isSel) Color.Black else TextWhite,
                                         focusedContentColor = Color.Black
                                     ),
                                     border = ButtonDefaults.border(
-                                        border = if (isSel) Border(BorderStroke(1.5.dp, accent)) else Border.None,
-                                        focusedBorder = Border.None
+                                        border = if (isSel) Border(BorderStroke(2.dp, accent)) else Border.None,
+                                        focusedBorder = if (isSel) Border(BorderStroke(2.5.dp, accent)) else Border.None
                                     ),
                                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                                     scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
@@ -1123,14 +1155,14 @@ private fun NativeExoPlayerScreen(
                                         switchStream(currentSeason, currentEpisode, track.id, selectedQuality, selectedSource)
                                     },
                                     colors = ButtonDefaults.colors(
-                                        containerColor = if (isSel) accent.copy(alpha = 0.25f) else ChipBackground,
+                                        containerColor = if (isSel) accent.copy(alpha = 0.75f) else ChipBackground,
                                         focusedContainerColor = Color.White,
-                                        contentColor = if (isSel) accent else TextWhite,
+                                        contentColor = if (isSel) Color.Black else TextWhite,
                                         focusedContentColor = Color.Black
                                     ),
                                     border = ButtonDefaults.border(
-                                        border = if (isSel) Border(BorderStroke(1.5.dp, accent)) else Border.None,
-                                        focusedBorder = Border.None
+                                        border = if (isSel) Border(BorderStroke(2.dp, accent)) else Border.None,
+                                        focusedBorder = if (isSel) Border(BorderStroke(2.5.dp, accent)) else Border.None
                                     ),
                                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                                     scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
@@ -1223,6 +1255,7 @@ private fun NativeExoPlayerScreen(
                             TvLazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 items(activeSeason.episodes) { ep ->
                                     val isSel = ep.episodeNumber == currentEpisode
+                                    val isWatched = historyManager.isEpisodeWatched(currentMovieState.id, currentSeason, ep.episodeNumber)
                                     val epFocusMod = if (isSel) Modifier.focusRequester(activeEpFocusRequester) else Modifier
                                     Button(
                                         onClick = {
@@ -1230,14 +1263,14 @@ private fun NativeExoPlayerScreen(
                                             switchStream(currentSeason, ep.episodeNumber, currentAudioId, selectedQuality, selectedSource)
                                         },
                                         colors = ButtonDefaults.colors(
-                                            containerColor = if (isSel) accent.copy(alpha = 0.25f) else ChipBackground,
+                                            containerColor = if (isSel) accent.copy(alpha = 0.75f) else if (isWatched) Color.White.copy(alpha = 0.16f) else ChipBackground,
                                             focusedContainerColor = Color.White,
-                                            contentColor = if (isSel) accent else TextWhite,
+                                            contentColor = if (isSel) Color.Black else TextWhite,
                                             focusedContentColor = Color.Black
                                         ),
                                         border = ButtonDefaults.border(
-                                            border = if (isSel) Border(BorderStroke(1.5.dp, accent)) else Border.None,
-                                            focusedBorder = Border.None
+                                            border = if (isSel) Border(BorderStroke(2.dp, accent)) else Border.None,
+                                            focusedBorder = if (isSel) Border(BorderStroke(2.5.dp, accent)) else Border.None
                                         ),
                                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                                         scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
@@ -1251,9 +1284,11 @@ private fun NativeExoPlayerScreen(
                                             if (isSel) {
                                                 AppIcon(
                                                     resId = R.drawable.ic_play_arrow,
-                                                    tint = accent,
+                                                    tint = Color.Black,
                                                     size = 12.dp
                                                 )
+                                            } else if (isWatched) {
+                                                Text("✓", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF4ADE80))
                                             }
                                             Text(
                                                 text = if (ep.title.isNotBlank() && ep.title != "null") ep.title else "Серия ${ep.episodeNumber}",
@@ -1295,20 +1330,21 @@ private fun NativeExoPlayerScreen(
                                 ) {
                                     items(episodeList) { ep ->
                                         val isCurrentEp = ep.episodeNumber == currentEpisode
+                                        val isWatched = historyManager.isEpisodeWatched(currentMovieState.id, currentSeason, ep.episodeNumber)
                                         val epReq = if (isCurrentEp) Modifier.focusRequester(episodesRowFocusRequester) else Modifier
                                         Button(
                                             onClick = {
                                                 switchStream(currentSeason, ep.episodeNumber, currentAudioId, selectedQuality, selectedSource)
                                             },
                                             colors = ButtonDefaults.colors(
-                                                containerColor = if (isCurrentEp) accent.copy(alpha = 0.25f) else Color.White.copy(alpha = 0.08f),
+                                                containerColor = if (isCurrentEp) accent.copy(alpha = 0.75f) else if (isWatched) Color.White.copy(alpha = 0.16f) else Color.White.copy(alpha = 0.08f),
                                                 focusedContainerColor = Color.White,
-                                                contentColor = if (isCurrentEp) accent else TextWhite,
+                                                contentColor = if (isCurrentEp) Color.Black else TextWhite,
                                                 focusedContentColor = Color.Black
                                             ),
                                             border = ButtonDefaults.border(
-                                                border = if (isCurrentEp) Border(BorderStroke(1.5.dp, accent)) else Border.None,
-                                                focusedBorder = Border.None
+                                                border = if (isCurrentEp) Border(BorderStroke(2.dp, accent)) else Border.None,
+                                                focusedBorder = if (isCurrentEp) Border(BorderStroke(2.5.dp, accent)) else Border.None
                                             ),
                                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                                             scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
@@ -1327,8 +1363,11 @@ private fun NativeExoPlayerScreen(
                                                 if (isCurrentEp) {
                                                     AppIcon(
                                                         resId = R.drawable.ic_play_arrow,
-                                                        size = 12.dp
+                                                        tint = Color.Black,
+                                                        size = 11.dp
                                                     )
+                                                } else if (isWatched) {
+                                                    Text("✓", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF4ADE80))
                                                 }
                                                 Text(
                                                     text = if (ep.title.isNotBlank() && ep.title != "null") ep.title else "Серия ${ep.episodeNumber}",
@@ -1625,14 +1664,14 @@ private fun NativeExoPlayerScreen(
                                 activeDrawer = if (activeDrawer == "quality") null else "quality"
                             },
                             colors = ButtonDefaults.colors(
-                                containerColor = if (isQualityActive) accent.copy(alpha = 0.25f) else Color.White.copy(alpha = 0.12f),
+                                containerColor = if (isQualityActive) accent.copy(alpha = 0.75f) else Color.White.copy(alpha = 0.12f),
                                 focusedContainerColor = Color.White,
-                                contentColor = if (isQualityActive) accent else TextWhite,
+                                contentColor = if (isQualityActive) Color.Black else TextWhite,
                                 focusedContentColor = Color.Black
                             ),
                             border = ButtonDefaults.border(
-                                border = if (isQualityActive) Border(BorderStroke(1.5.dp, accent)) else Border.None,
-                                focusedBorder = Border.None
+                                border = if (isQualityActive) Border(BorderStroke(2.dp, accent)) else Border.None,
+                                focusedBorder = if (isQualityActive) Border(BorderStroke(2.5.dp, accent)) else Border.None
                             ),
                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                             scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
@@ -1669,14 +1708,14 @@ private fun NativeExoPlayerScreen(
                                 activeDrawer = if (activeDrawer == "source") null else "source"
                             },
                             colors = ButtonDefaults.colors(
-                                containerColor = if (isSourceActive) accent.copy(alpha = 0.25f) else Color.White.copy(alpha = 0.12f),
+                                containerColor = if (isSourceActive) accent.copy(alpha = 0.75f) else Color.White.copy(alpha = 0.12f),
                                 focusedContainerColor = Color.White,
-                                contentColor = if (isSourceActive) accent else TextWhite,
+                                contentColor = if (isSourceActive) Color.Black else TextWhite,
                                 focusedContentColor = Color.Black
                             ),
                             border = ButtonDefaults.border(
-                                border = if (isSourceActive) Border(BorderStroke(1.5.dp, accent)) else Border.None,
-                                focusedBorder = Border.None
+                                border = if (isSourceActive) Border(BorderStroke(2.dp, accent)) else Border.None,
+                                focusedBorder = if (isSourceActive) Border(BorderStroke(2.5.dp, accent)) else Border.None
                             ),
                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                             scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
@@ -1715,14 +1754,14 @@ private fun NativeExoPlayerScreen(
                                     activeDrawer = if (activeDrawer == "audio") null else "audio"
                                 },
                                 colors = ButtonDefaults.colors(
-                                    containerColor = if (isAudioActive) accent.copy(alpha = 0.25f) else Color.White.copy(alpha = 0.12f),
+                                    containerColor = if (isAudioActive) accent.copy(alpha = 0.75f) else Color.White.copy(alpha = 0.12f),
                                     focusedContainerColor = Color.White,
-                                    contentColor = if (isAudioActive) accent else TextWhite,
+                                    contentColor = if (isAudioActive) Color.Black else TextWhite,
                                     focusedContentColor = Color.Black
                                 ),
                                 border = ButtonDefaults.border(
-                                    border = if (isAudioActive) Border(BorderStroke(1.5.dp, accent)) else Border.None,
-                                    focusedBorder = Border.None
+                                    border = if (isAudioActive) Border(BorderStroke(2.dp, accent)) else Border.None,
+                                    focusedBorder = if (isAudioActive) Border(BorderStroke(2.5.dp, accent)) else Border.None
                                 ),
                                 shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                                 scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
@@ -1794,14 +1833,14 @@ private fun NativeExoPlayerScreen(
                                     activeDrawer = if (activeDrawer == "episodes") null else "episodes"
                                 },
                                 colors = ButtonDefaults.colors(
-                                    containerColor = if (isEpisodesActive) accent.copy(alpha = 0.25f) else Color.White.copy(alpha = 0.12f),
+                                    containerColor = if (isEpisodesActive) accent.copy(alpha = 0.75f) else Color.White.copy(alpha = 0.12f),
                                     focusedContainerColor = Color.White,
-                                    contentColor = if (isEpisodesActive) accent else TextWhite,
+                                    contentColor = if (isEpisodesActive) Color.Black else TextWhite,
                                     focusedContentColor = Color.Black
                                 ),
                                 border = ButtonDefaults.border(
-                                    border = if (isEpisodesActive) Border(BorderStroke(1.5.dp, accent)) else Border.None,
-                                    focusedBorder = Border.None
+                                    border = if (isEpisodesActive) Border(BorderStroke(2.dp, accent)) else Border.None,
+                                    focusedBorder = if (isEpisodesActive) Border(BorderStroke(2.5.dp, accent)) else Border.None
                                 ),
                                 shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                                 scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),

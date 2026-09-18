@@ -56,6 +56,66 @@ class WatchHistoryManager(context: Context) {
         list.removeAll { it.id == movie.id }
         list.add(0, item)
         saveList(list.take(60))
+
+        if (movie.isSeries) {
+            markEpisodeWatched(movie.id, season, episode)
+        }
+    }
+
+    fun markEpisodeWatched(seriesId: String, season: Int, episode: Int) {
+        if (seriesId.isBlank()) return
+        val key = "watched_episodes_$seriesId"
+        val existing = prefs.getStringSet(key, emptySet())?.toMutableSet() ?: mutableSetOf()
+        existing.add("s${season}e${episode}")
+        prefs.edit().putStringSet(key, existing).apply()
+    }
+
+    fun isEpisodeWatched(seriesId: String, season: Int, episode: Int): Boolean {
+        if (seriesId.isBlank()) return false
+        val key = "watched_episodes_$seriesId"
+        val watched = prefs.getStringSet(key, emptySet()) ?: return false
+        return watched.contains("s${season}e${episode}")
+    }
+
+    fun getWatchedEpisodes(seriesId: String): Set<String> {
+        if (seriesId.isBlank()) return emptySet()
+        val key = "watched_episodes_$seriesId"
+        return prefs.getStringSet(key, emptySet()) ?: emptySet()
+    }
+
+    fun updateKnownTotalEpisodes(seriesId: String, currentTotal: Int): Int {
+        if (seriesId.isBlank() || currentTotal <= 0) return 0
+        val keyKnown = "known_episodes_$seriesId"
+        val keyNew = "new_episodes_$seriesId"
+        val previousTotal = prefs.getInt(keyKnown, 0)
+        
+        if (previousTotal in 1 until currentTotal) {
+            val newlyAdded = currentTotal - previousTotal
+            val existingNew = prefs.getInt(keyNew, 0)
+            val updatedNew = (existingNew + newlyAdded).coerceAtLeast(newlyAdded)
+            prefs.edit()
+                .putInt(keyKnown, currentTotal)
+                .putInt(keyNew, updatedNew)
+                .apply()
+            return updatedNew
+        } else if (previousTotal == 0) {
+            prefs.edit().putInt(keyKnown, currentTotal).apply()
+        }
+        return prefs.getInt(keyNew, 0)
+    }
+
+    fun getNewEpisodesCount(seriesId: String): Int {
+        if (seriesId.isBlank()) return 0
+        return prefs.getInt("new_episodes_$seriesId", 0)
+    }
+
+    fun hasNewEpisodes(seriesId: String): Boolean {
+        return getNewEpisodesCount(seriesId) > 0
+    }
+
+    fun clearNewEpisodes(seriesId: String) {
+        if (seriesId.isBlank()) return
+        prefs.edit().remove("new_episodes_$seriesId").apply()
     }
 
     fun getProgress(movieId: String): HistoryItem? {

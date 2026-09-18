@@ -12,6 +12,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -90,6 +94,13 @@ val COUNTRY_OPTIONS = listOf(
     Pair("Китай", "Китай")
 )
 
+enum class FilterCategory {
+    GENRES,
+    SORT,
+    YEAR,
+    COUNTRY
+}
+
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 fun FilterBar(
@@ -111,6 +122,7 @@ fun FilterBar(
     modifier: Modifier = Modifier
 ) {
     val accent = LocalAccentColor.current
+    var activeCategory by remember { mutableStateOf(FilterCategory.GENRES) }
 
     Column(
         modifier = modifier
@@ -118,7 +130,7 @@ fun FilterBar(
             .padding(vertical = 4.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        // ROW 1: Content Type + Sort + Reset
+        // ROW 1: Content Type + Category Switchers (Sort, Genres, Year, Country) + Reset
         val row1DirectionMod = Modifier.focusProperties {
             if (focusUpRequester != null) up = focusUpRequester
             if (row2FocusRequester != null) down = row2FocusRequester
@@ -129,25 +141,25 @@ fun FilterBar(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Type Chips
+            // 1. Type Chips
             itemsIndexed(TYPE_OPTIONS) { index, (typeKey, typeLabel) ->
                 val isSelected = typeKey == selectedType
                 val firstMod = if (index == 0 && row1FocusRequester != null) Modifier.focusRequester(row1FocusRequester) else Modifier
                 Button(
                     onClick = { onTypeSelected(typeKey) },
                     colors = ButtonDefaults.colors(
-                        containerColor = if (isSelected) accent.copy(alpha = 0.25f) else ChipBackground,
+                        containerColor = if (isSelected) accent.copy(alpha = 0.75f) else ChipBackground,
                         focusedContainerColor = Color.White,
-                        contentColor = if (isSelected) accent else TextWhite,
+                        contentColor = if (isSelected) Color.Black else TextWhite,
                         focusedContentColor = Color.Black
                     ),
                     border = ButtonDefaults.border(
-                        border = if (isSelected) Border(BorderStroke(1.5.dp, accent)) else Border.None,
-                        focusedBorder = Border.None
+                        border = if (isSelected) Border(BorderStroke(2.dp, accent)) else Border.None,
+                        focusedBorder = if (isSelected) Border(BorderStroke(2.5.dp, accent)) else Border.None
                     ),
                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                     scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
                     modifier = Modifier
                         .height(28.dp)
                         .then(firstMod)
@@ -163,61 +175,117 @@ fun FilterBar(
             }
 
             item {
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(6.dp))
             }
 
-            // Sort Options
-            items(SORT_OPTIONS) { (sortKey, sortLabel) ->
-                val isSelected = sortKey == selectedSort
+            // 2. Category Switcher Buttons
+            val categories = listOf(
+                FilterCategory.SORT,
+                FilterCategory.GENRES,
+                FilterCategory.YEAR,
+                FilterCategory.COUNTRY
+            )
+
+            items(categories) { category ->
+                val isCategoryActive = activeCategory == category
+                val (hasCustomFilter, label) = when (category) {
+                    FilterCategory.SORT -> {
+                        val isCustom = selectedSort != "newest"
+                        val name = SORT_OPTIONS.find { it.first == selectedSort }?.second ?: "Сортировка"
+                        Pair(isCustom, if (isCustom) "⚡ $name" else "⚡ Сортировка")
+                    }
+                    FilterCategory.GENRES -> {
+                        val isCustom = selectedGenre != "Все жанры"
+                        Pair(isCustom, if (isCustom) "🎭 $selectedGenre" else "🎭 Жанры")
+                    }
+                    FilterCategory.YEAR -> {
+                        val isCustom = selectedYear != "all"
+                        val name = YEAR_OPTIONS.find { it.first == selectedYear }?.second ?: selectedYear
+                        Pair(isCustom, if (isCustom) "📅 $name" else "📅 Год")
+                    }
+                    FilterCategory.COUNTRY -> {
+                        val isCustom = selectedCountry != "all"
+                        val name = COUNTRY_OPTIONS.find { it.first == selectedCountry }?.second ?: selectedCountry
+                        Pair(isCustom, if (isCustom) "🌍 $name" else "🌍 Страна")
+                    }
+                }
+
                 Button(
-                    onClick = { onSortSelected(sortKey) },
+                    onClick = { activeCategory = category },
                     colors = ButtonDefaults.colors(
-                        containerColor = if (isSelected) accent.copy(alpha = 0.25f) else ChipBackground.copy(alpha = 0.6f),
+                        containerColor = when {
+                            isCategoryActive -> accent.copy(alpha = 0.75f)
+                            hasCustomFilter -> accent.copy(alpha = 0.25f)
+                            else -> ChipBackground.copy(alpha = 0.6f)
+                        },
                         focusedContainerColor = Color.White,
-                        contentColor = if (isSelected) accent else TextGray,
+                        contentColor = when {
+                            isCategoryActive -> Color.Black
+                            hasCustomFilter -> accent
+                            else -> TextGray
+                        },
                         focusedContentColor = Color.Black
                     ),
                     border = ButtonDefaults.border(
-                        border = if (isSelected) Border(BorderStroke(1.5.dp, accent)) else Border.None,
-                        focusedBorder = Border.None
+                        border = when {
+                            isCategoryActive -> Border(BorderStroke(2.dp, accent))
+                            hasCustomFilter -> Border(BorderStroke(1.5.dp, accent))
+                            else -> Border.None
+                        },
+                        focusedBorder = when {
+                            isCategoryActive || hasCustomFilter -> Border(BorderStroke(2.5.dp, accent))
+                            else -> Border.None
+                        }
                     ),
                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                     scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
                     modifier = Modifier
                         .height(28.dp)
                         .then(row1DirectionMod)
                 ) {
                     Text(
-                        text = sortLabel,
+                        text = label,
                         fontSize = 11.sp,
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                        fontWeight = if (isCategoryActive || hasCustomFilter) FontWeight.Bold else FontWeight.Medium,
                         lineHeight = 13.sp
                     )
                 }
             }
 
             item {
-                Spacer(modifier = Modifier.width(8.dp))
-                // Reset Button
+                Spacer(modifier = Modifier.width(6.dp))
+                // 3. Reset Button
+                val hasAnyFilter = selectedType != "all" ||
+                        selectedSort != "newest" ||
+                        selectedGenre != "Все жанры" ||
+                        selectedYear != "all" ||
+                        selectedCountry != "all"
+
                 Button(
-                    onClick = onResetFilters,
+                    onClick = {
+                        onResetFilters()
+                        activeCategory = FilterCategory.GENRES
+                    },
                     colors = ButtonDefaults.colors(
-                        containerColor = Color.White.copy(alpha = 0.08f),
+                        containerColor = if (hasAnyFilter) Color(0xFFE53935).copy(alpha = 0.2f) else Color.White.copy(alpha = 0.08f),
                         focusedContainerColor = Color.White,
-                        contentColor = TextGray,
+                        contentColor = if (hasAnyFilter) Color(0xFFFF8A80) else TextGray,
                         focusedContentColor = Color(0xFFE53935)
                     ),
-                    border = ButtonDefaults.border(border = Border.None, focusedBorder = Border.None),
+                    border = ButtonDefaults.border(
+                        border = if (hasAnyFilter) Border(BorderStroke(1.dp, Color(0xFFE53935).copy(alpha = 0.5f))) else Border.None,
+                        focusedBorder = Border.None
+                    ),
                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                     scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
                     modifier = Modifier
                         .height(28.dp)
                         .then(row1DirectionMod)
                 ) {
                     Text(
-                        text = "Сброс",
+                        text = "✖ Сброс",
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Medium,
                         lineHeight = 13.sp
@@ -226,7 +294,7 @@ fun FilterBar(
             }
         }
 
-        // ROW 2: Genres Ribbon
+        // ROW 2: Dynamic Category Ribbon (Genres, Sort, Year, Country)
         val row2DirectionMod = Modifier.focusProperties {
             if (row1FocusRequester != null) up = row1FocusRequester
             if (focusDownRequester != null) down = focusDownRequester
@@ -237,35 +305,138 @@ fun FilterBar(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            itemsIndexed(GENRES_LIST) { index, genre ->
-                val isSelected = genre == selectedGenre
-                val firstMod = if (index == 0 && row2FocusRequester != null) Modifier.focusRequester(row2FocusRequester) else Modifier
-                Button(
-                    onClick = { onGenreSelected(genre) },
-                    colors = ButtonDefaults.colors(
-                        containerColor = if (isSelected) accent.copy(alpha = 0.25f) else ChipBackground,
-                        focusedContainerColor = Color.White,
-                        contentColor = if (isSelected) accent else TextWhite,
-                        focusedContentColor = Color.Black
-                    ),
-                    border = ButtonDefaults.border(
-                        border = if (isSelected) Border(BorderStroke(1.5.dp, accent)) else Border.None,
-                        focusedBorder = Border.None
-                    ),
-                    shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                    modifier = Modifier
-                        .height(28.dp)
-                        .then(firstMod)
-                        .then(row2DirectionMod)
-                ) {
-                    Text(
-                        text = genre,
-                        fontSize = 11.sp,
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                        lineHeight = 13.sp
-                    )
+            when (activeCategory) {
+                FilterCategory.GENRES -> {
+                    itemsIndexed(GENRES_LIST) { index, genre ->
+                        val isSelected = genre == selectedGenre
+                        val firstMod = if (index == 0 && row2FocusRequester != null) Modifier.focusRequester(row2FocusRequester) else Modifier
+                        Button(
+                            onClick = { onGenreSelected(genre) },
+                            colors = ButtonDefaults.colors(
+                                containerColor = if (isSelected) accent.copy(alpha = 0.75f) else ChipBackground,
+                                focusedContainerColor = Color.White,
+                                contentColor = if (isSelected) Color.Black else TextWhite,
+                                focusedContentColor = Color.Black
+                            ),
+                            border = ButtonDefaults.border(
+                                border = if (isSelected) Border(BorderStroke(2.dp, accent)) else Border.None,
+                                focusedBorder = if (isSelected) Border(BorderStroke(2.5.dp, accent)) else Border.None
+                            ),
+                            shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                            modifier = Modifier
+                                .height(28.dp)
+                                .then(firstMod)
+                                .then(row2DirectionMod)
+                        ) {
+                            Text(
+                                text = genre,
+                                fontSize = 11.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                lineHeight = 13.sp
+                            )
+                        }
+                    }
+                }
+                FilterCategory.SORT -> {
+                    itemsIndexed(SORT_OPTIONS) { index, (sortKey, sortLabel) ->
+                        val isSelected = sortKey == selectedSort
+                        val firstMod = if (index == 0 && row2FocusRequester != null) Modifier.focusRequester(row2FocusRequester) else Modifier
+                        Button(
+                            onClick = { onSortSelected(sortKey) },
+                            colors = ButtonDefaults.colors(
+                                containerColor = if (isSelected) accent.copy(alpha = 0.75f) else ChipBackground,
+                                focusedContainerColor = Color.White,
+                                contentColor = if (isSelected) Color.Black else TextWhite,
+                                focusedContentColor = Color.Black
+                            ),
+                            border = ButtonDefaults.border(
+                                border = if (isSelected) Border(BorderStroke(2.dp, accent)) else Border.None,
+                                focusedBorder = if (isSelected) Border(BorderStroke(2.5.dp, accent)) else Border.None
+                            ),
+                            shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                            modifier = Modifier
+                                .height(28.dp)
+                                .then(firstMod)
+                                .then(row2DirectionMod)
+                        ) {
+                            Text(
+                                text = sortLabel,
+                                fontSize = 11.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                lineHeight = 13.sp
+                            )
+                        }
+                    }
+                }
+                FilterCategory.YEAR -> {
+                    itemsIndexed(YEAR_OPTIONS) { index, (yearKey, yearLabel) ->
+                        val isSelected = yearKey == selectedYear
+                        val firstMod = if (index == 0 && row2FocusRequester != null) Modifier.focusRequester(row2FocusRequester) else Modifier
+                        Button(
+                            onClick = { onYearSelected(yearKey) },
+                            colors = ButtonDefaults.colors(
+                                containerColor = if (isSelected) accent.copy(alpha = 0.75f) else ChipBackground,
+                                focusedContainerColor = Color.White,
+                                contentColor = if (isSelected) Color.Black else TextWhite,
+                                focusedContentColor = Color.Black
+                            ),
+                            border = ButtonDefaults.border(
+                                border = if (isSelected) Border(BorderStroke(2.dp, accent)) else Border.None,
+                                focusedBorder = if (isSelected) Border(BorderStroke(2.5.dp, accent)) else Border.None
+                            ),
+                            shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                            modifier = Modifier
+                                .height(28.dp)
+                                .then(firstMod)
+                                .then(row2DirectionMod)
+                        ) {
+                            Text(
+                                text = yearLabel,
+                                fontSize = 11.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                lineHeight = 13.sp
+                            )
+                        }
+                    }
+                }
+                FilterCategory.COUNTRY -> {
+                    itemsIndexed(COUNTRY_OPTIONS) { index, (countryKey, countryLabel) ->
+                        val isSelected = countryKey == selectedCountry
+                        val firstMod = if (index == 0 && row2FocusRequester != null) Modifier.focusRequester(row2FocusRequester) else Modifier
+                        Button(
+                            onClick = { onCountrySelected(countryKey) },
+                            colors = ButtonDefaults.colors(
+                                containerColor = if (isSelected) accent.copy(alpha = 0.75f) else ChipBackground,
+                                focusedContainerColor = Color.White,
+                                contentColor = if (isSelected) Color.Black else TextWhite,
+                                focusedContentColor = Color.Black
+                            ),
+                            border = ButtonDefaults.border(
+                                border = if (isSelected) Border(BorderStroke(2.dp, accent)) else Border.None,
+                                focusedBorder = if (isSelected) Border(BorderStroke(2.5.dp, accent)) else Border.None
+                            ),
+                            shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                            modifier = Modifier
+                                .height(28.dp)
+                                .then(firstMod)
+                                .then(row2DirectionMod)
+                        ) {
+                            Text(
+                                text = countryLabel,
+                                fontSize = 11.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                lineHeight = 13.sp
+                            )
+                        }
+                    }
                 }
             }
         }

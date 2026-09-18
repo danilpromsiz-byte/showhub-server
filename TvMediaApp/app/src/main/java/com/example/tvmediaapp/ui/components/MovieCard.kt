@@ -97,17 +97,25 @@ fun MovieCard(
     LaunchedEffect(isFocused) {
         if (isFocused) {
             targetTimelineProgress = 1f
-            // Wait 1.5 seconds before starting preview
-            delay(1500)
+            // Wait 1.1 seconds before starting preview
+            delay(1100)
             if (isFocused) {
                 isPreviewBuffering = true
-                var streamUrl = ShowHubApiClient.fetchPreviewStream(movie)
-                if (streamUrl.isNullOrEmpty()) {
+                var streamUrl: String? = null
+                try {
                     val nativeStreams = RezkaNativeResolver.resolveStreams(
                         title = movie.title,
-                        year = movie.releaseYear
+                        year = movie.releaseYear,
+                        isSeries = movie.isSeries
                     )
-                    streamUrl = nativeStreams.firstOrNull()?.url
+                    streamUrl = nativeStreams.firstOrNull { it.url.contains(".m3u8") || it.url.contains(".mp4") }?.url
+                        ?: nativeStreams.firstOrNull()?.url
+                } catch (e: Exception) {
+                    // fallback to server
+                }
+
+                if (streamUrl.isNullOrEmpty()) {
+                    streamUrl = ShowHubApiClient.fetchPreviewStream(movie)
                 }
 
                 if (isFocused && !streamUrl.isNullOrEmpty()) {
@@ -120,19 +128,24 @@ fun MovieCard(
                             .setAllowCrossProtocolRedirects(true)
                         val mediaSourceFactory = DefaultMediaSourceFactory(httpDataSourceFactory)
 
+                        var hasSeeked = false
                         val player = ExoPlayer.Builder(context)
                             .setMediaSourceFactory(mediaSourceFactory)
                             .build().apply {
                                 val targetSeekMs = if (movie.isSeries) 12 * 60 * 1000L else 22 * 60 * 1000L
                                 setMediaItem(MediaItem.fromUri(streamUrl))
-                                seekTo(targetSeekMs)
                                 volume = 0f // strictly silent
                                 repeatMode = Player.REPEAT_MODE_ALL
                                 addListener(object : Player.Listener {
                                     override fun onPlaybackStateChanged(state: Int) {
                                         if (state == Player.STATE_READY) {
-                                            if (duration > 0 && currentPosition >= duration) {
-                                                seekTo((duration * 0.2).toLong())
+                                            if (!hasSeeked) {
+                                                hasSeeked = true
+                                                if (duration > 0 && duration > targetSeekMs + 20_000L) {
+                                                    seekTo(targetSeekMs)
+                                                } else if (duration > 0) {
+                                                    seekTo((duration * 0.25).toLong())
+                                                }
                                             }
                                             isPreviewBuffering = false
                                             isPreviewPlaying = true

@@ -338,13 +338,13 @@ def get_media_poster(title: str = Query(...), year: Optional[str] = None, kp_id:
 def check_updates() -> Dict[str, Any]:
     return {
         "success": True,
-        "version_name": "2.6.1",
-        "version_code": 40,
+        "version_name": "2.6.2",
+        "version_code": 41,
         "force_update": True,
-        "min_version_code": 40,
+        "min_version_code": 41,
         "apk_url": "https://showhub-server.onrender.com/ShowHub.apk",
         "download_url": "https://showhub-server.onrender.com/ShowHub.apk",
-        "changelog": "ShowHub TV v2.6.1: Исправлена навигация фокуса пульта между верхним меню, фильтрами и каталогом фильмов, унифицирован стиль кнопки возврата в настройках."
+        "changelog": "ShowHub TV v2.6.2: Полноценный предпросмотр видеофрагментов (в каталоге и карточке фильма), автономный обход защиты HDRezka (Anubis PoW), мгновенный фокус на кнопке просмотра."
     }
 
 @app.get("/api/catalog/stats")
@@ -1041,59 +1041,6 @@ def get_media_trailer(
         "app_url": trailer or ""
     }
 
-
-_preview_cache: Dict[str, Tuple[float, str]] = {}
-
-@app.get("/api/media/preview-stream")
-def get_media_preview_stream(
-    title: str = Query(...),
-    year: Optional[str] = None,
-    media_id: Optional[str] = None,
-    is_series: Optional[str] = None,
-    kp_id: Optional[str] = None
-) -> Dict[str, Any]:
-    cache_key = f"{title}_{year}_{media_id}_{is_series}_{kp_id}"
-    now = time.time()
-    if cache_key in _preview_cache:
-        t, cached_url = _preview_cache[cache_key]
-        if now - t < 3600:
-            return {"success": True, "stream_url": cached_url, "source": "cache"}
-
-    # 1. Try to fetch direct stream from Filmix or HDRezka or VideoCDN
-    try:
-        resolved = _fetch_media_streams(
-            source="hdrezka",
-            media_id=media_id or "0",
-            title=title,
-            season=1,
-            episode=1,
-            year=year,
-            is_series=is_series,
-            kp_id=kp_id
-        )
-        for src_key in ["hdrezka", "filmix", "videocdn"]:
-            src_data = resolved.get(src_key)
-            if src_data and isinstance(src_data, dict):
-                streams = src_data.get("streams", [])
-                for st in streams:
-                    u = st.get("url", "")
-                    s_type = st.get("stream_type", "")
-                    if u.startswith("http") and (s_type in ["hls", "mp4"] or ".m3u8" in u or ".mp4" in u):
-                        _preview_cache[cache_key] = (now, u)
-                        return {"success": True, "stream_url": u, "source": src_key}
-    except Exception as e:
-        logger.warning(f"Preview stream error for {title}: {e}")
-
-    # 2. Fallback to trailer stream if available
-    try:
-        tr = _resolve_trailer(title, year, kp_id)
-        if tr and (".m3u8" in tr or ".mp4" in tr):
-            _preview_cache[cache_key] = (now, tr)
-            return {"success": True, "stream_url": tr, "source": "trailer"}
-    except Exception:
-        pass
-
-    return {"success": False, "stream_url": None}
 
 
 @app.get("/api/media/streams")

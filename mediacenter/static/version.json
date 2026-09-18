@@ -1,10 +1,10 @@
 {
   "success": true,
-  "version_name": "2.6.1",
-  "version_code": 40,
+  "version_name": "2.6.2",
+  "version_code": 41,
   "force_update": true,
-  "min_version_code": 40,
+  "min_version_code": 41,
   "download_url": "https://showhub-server.onrender.com/ShowHub.apk",
   "apk_url": "https://showhub-server.onrender.com/ShowHub.apk",
-  "changelog": "ShowHub TV v2.6.1: Исправлена навигация фокуса пульта между верхним меню, фильтрами и каталогом фильмов, унифицирован стиль кнопки возврата в настройках."
+  "changelog": "ShowHub TV v2.6.2: Полноценный предпросмотр видеофрагментов (в каталоге и карточке фильма), автономный обход защиты HDRezka (Anubis PoW), мгновенный фокус на кнопке просмотра."
 }

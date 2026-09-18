@@ -23,7 +23,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -33,7 +36,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -43,9 +50,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.foundation.focusable
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
+import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.ui.AspectRatioFrameLayout
+import androidx.media3.ui.PlayerView
 import androidx.tv.foundation.lazy.list.TvLazyRow
 import androidx.tv.foundation.lazy.list.items
+import kotlinx.coroutines.delay
 import androidx.tv.material3.Border
 import androidx.tv.material3.Button
 import androidx.tv.material3.ButtonDefaults
@@ -104,6 +119,28 @@ fun DetailsScreen(
     var comments by remember { mutableStateOf<List<CommentItem>>(emptyList()) }
     var isLoadingComments by remember { mutableStateOf(false) }
 
+    // Focus Requesters for instant TV remote control & bidirectional navigation
+    val playButtonFocusRequester = remember { FocusRequester() }
+    val fromStartButtonFocusRequester = remember { FocusRequester() }
+    val trailerButtonFocusRequester = remember { FocusRequester() }
+    val externalPlayerFocusRequester = remember { FocusRequester() }
+    val favoriteButtonFocusRequester = remember { FocusRequester() }
+    val backButtonFocusRequester = remember { FocusRequester() }
+    val leftPaneFocusRequester = remember { FocusRequester() }
+    val tabsFocusRequester = remember { FocusRequester() }
+
+    // Automatically focus the primary play button as soon as movie card opens
+    LaunchedEffect(Unit) {
+        delay(150)
+        try {
+            playButtonFocusRequester.requestFocus()
+        } catch (_: Exception) {}
+    }
+
+    // Background video preview state
+    var detailsPreviewPlayer by remember { mutableStateOf<ExoPlayer?>(null) }
+    var isDetailsPreviewPlaying by remember { mutableStateOf(false) }
+
     // Fetch comments in background
     LaunchedEffect(currentMovie.id, currentMovie.title) {
         isLoadingComments = true
@@ -155,6 +192,86 @@ fun DetailsScreen(
         }
     }
 
+    // Background video preview in details screen (starts after 1.2s, silent clip from 22/12 min)
+    LaunchedEffect(currentMovie.id) {
+        delay(1200)
+        if (detailsPreviewPlayer == null) {
+            var streamUrl: String? = streamOptions.firstOrNull { isDirectVideoStream(it.url) }?.url
+            if (streamUrl.isNullOrEmpty()) {
+                try {
+                    val nativeStreams = RezkaNativeResolver.resolveStreams(
+                        title = currentMovie.title,
+                        year = currentMovie.releaseYear,
+                        isSeries = currentMovie.isSeries
+                    )
+                    streamUrl = nativeStreams.firstOrNull { it.url.contains(".m3u8") || it.url.contains(".mp4") }?.url
+                        ?: nativeStreams.firstOrNull()?.url
+                } catch (_: Exception) {}
+            }
+            if (streamUrl.isNullOrEmpty()) {
+                streamUrl = ShowHubApiClient.fetchPreviewStream(currentMovie)
+            }
+
+            if (!streamUrl.isNullOrEmpty()) {
+                try {
+                    val httpDataSourceFactory = DefaultHttpDataSource.Factory()
+                        .setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
+                        .setDefaultRequestProperties(mapOf("Referer" to "https://hdrezka.ag/"))
+                        .setConnectTimeoutMs(8000)
+                        .setReadTimeoutMs(15000)
+                        .setAllowCrossProtocolRedirects(true)
+                    val mediaSourceFactory = DefaultMediaSourceFactory(httpDataSourceFactory)
+
+                    var hasSeeked = false
+                    val player = ExoPlayer.Builder(context)
+                        .setMediaSourceFactory(mediaSourceFactory)
+                        .build().apply {
+                            val targetSeekMs = if (currentMovie.isSeries) 12 * 60 * 1000L else 22 * 60 * 1000L
+                            setMediaItem(MediaItem.fromUri(streamUrl))
+                            volume = 0f
+                            repeatMode = Player.REPEAT_MODE_ALL
+                            addListener(object : Player.Listener {
+                                override fun onPlaybackStateChanged(state: Int) {
+                                    if (state == Player.STATE_READY) {
+                                        if (!hasSeeked) {
+                                            hasSeeked = true
+                                            if (duration > 0 && duration > targetSeekMs + 20_000L) {
+                                                seekTo(targetSeekMs)
+                                            } else if (duration > 0) {
+                                                seekTo((duration * 0.25).toLong())
+                                            }
+                                        }
+                                        isDetailsPreviewPlaying = true
+                                    } else if (state == Player.STATE_ENDED) {
+                                        seekTo(0L)
+                                        play()
+                                    }
+                                }
+
+                                override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                                    isDetailsPreviewPlaying = false
+                                }
+                            })
+                            prepare()
+                            playWhenReady = true
+                        }
+                    detailsPreviewPlayer = player
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+        }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            isDetailsPreviewPlaying = false
+            detailsPreviewPlayer?.stop()
+            detailsPreviewPlayer?.release()
+            detailsPreviewPlayer = null
+        }
+    }
+
     fun startPlayback(
         targetSeason: Int = selectedSeason,
         targetEpisode: Int = selectedEpisode,
@@ -164,6 +281,12 @@ fun DetailsScreen(
         if (isResolving) return
         isResolving = true
         streamStatus = "Поиск прямого HLS потока..."
+
+        // Stop background preview before entering player
+        detailsPreviewPlayer?.stop()
+        detailsPreviewPlayer?.release()
+        detailsPreviewPlayer = null
+        isDetailsPreviewPlaying = false
 
         coroutineScope.launch {
             // Priority 1: Query Rezka directly on TV (residential IP) and server concurrently
@@ -215,6 +338,27 @@ fun DetailsScreen(
             modifier = Modifier.fillMaxSize()
         )
 
+        // Details Background Video Preview (smooth crossfade)
+        if (isDetailsPreviewPlaying && detailsPreviewPlayer != null) {
+            val previewAlpha by animateFloatAsState(
+                targetValue = if (isDetailsPreviewPlaying) 0.65f else 0f,
+                animationSpec = tween(durationMillis = 800),
+                label = "detailsPreviewFade"
+            )
+            AndroidView(
+                factory = { ctx ->
+                    PlayerView(ctx).apply {
+                        player = detailsPreviewPlayer
+                        useController = false
+                        resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxSize()
+                    .alpha(previewAlpha)
+            )
+        }
+
         // Dark gradient overlay
         Box(
             modifier = Modifier
@@ -254,6 +398,10 @@ fun DetailsScreen(
                 modifier = Modifier
                     .width(260.dp)
                     .fillMaxHeight()
+                    .focusRequester(leftPaneFocusRequester)
+                    .focusProperties {
+                        right = playButtonFocusRequester
+                    }
                     .onFocusChanged { isLeftPaneFocused = it.isFocused }
             ) {
                 Column(
@@ -417,8 +565,9 @@ fun DetailsScreen(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    if (savedHistory != null && savedHistory.positionMs > 10_000L) {
-                        val mins = savedHistory.positionMs / 60000L
+                    val hasResume = savedHistory != null && savedHistory.positionMs > 10_000L
+                    if (hasResume) {
+                        val mins = savedHistory!!.positionMs / 60000L
                         val resumeLabel = if (currentMovie.isSeries) {
                             "Продолжить (S${savedHistory.season} E${savedHistory.episode}, $mins мин)"
                         } else {
@@ -440,10 +589,21 @@ fun DetailsScreen(
                                 contentColor = Color.Black,
                                 focusedContentColor = Color.Black
                             ),
+                            border = ButtonDefaults.border(
+                                border = Border(BorderStroke(1.dp, Color.Transparent)),
+                                focusedBorder = Border(BorderStroke(2.5.dp, TextWhite))
+                            ),
                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.04f),
                             contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
-                            modifier = Modifier.height(36.dp)
+                            modifier = Modifier
+                                .height(36.dp)
+                                .focusRequester(playButtonFocusRequester)
+                                .focusProperties {
+                                    left = leftPaneFocusRequester
+                                    right = fromStartButtonFocusRequester
+                                    down = favoriteButtonFocusRequester
+                                }
                         ) {
                             Text(
                                 text = resumeLabel,
@@ -461,10 +621,21 @@ fun DetailsScreen(
                                 contentColor = TextWhite,
                                 focusedContentColor = Color.Black
                             ),
+                            border = ButtonDefaults.border(
+                                border = Border(BorderStroke(1.dp, Color.White.copy(alpha = 0.15f))),
+                                focusedBorder = Border(BorderStroke(2.5.dp, TextWhite))
+                            ),
                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.04f),
                             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
-                            modifier = Modifier.height(36.dp)
+                            modifier = Modifier
+                                .height(36.dp)
+                                .focusRequester(fromStartButtonFocusRequester)
+                                .focusProperties {
+                                    left = playButtonFocusRequester
+                                    right = trailerButtonFocusRequester
+                                    down = favoriteButtonFocusRequester
+                                }
                         ) {
                             Text(
                                 text = "С начала",
@@ -482,10 +653,21 @@ fun DetailsScreen(
                                 contentColor = Color.Black,
                                 focusedContentColor = Color.Black
                             ),
+                            border = ButtonDefaults.border(
+                                border = Border(BorderStroke(1.dp, Color.Transparent)),
+                                focusedBorder = Border(BorderStroke(2.5.dp, TextWhite))
+                            ),
                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.04f),
                             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp),
-                            modifier = Modifier.height(36.dp)
+                            modifier = Modifier
+                                .height(36.dp)
+                                .focusRequester(playButtonFocusRequester)
+                                .focusProperties {
+                                    left = leftPaneFocusRequester
+                                    right = trailerButtonFocusRequester
+                                    down = favoriteButtonFocusRequester
+                                }
                         ) {
                             Text(
                                 text = if (isResolving) "Поиск потока..." else "Смотреть онлайн",
@@ -523,10 +705,21 @@ fun DetailsScreen(
                             contentColor = TextWhite,
                             focusedContentColor = Color.Black
                         ),
+                        border = ButtonDefaults.border(
+                            border = Border(BorderStroke(1.dp, Color.White.copy(alpha = 0.15f))),
+                            focusedBorder = Border(BorderStroke(2.5.dp, TextWhite))
+                        ),
                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                        scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                        scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.04f),
                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
-                        modifier = Modifier.height(36.dp)
+                        modifier = Modifier
+                            .height(36.dp)
+                            .focusRequester(trailerButtonFocusRequester)
+                            .focusProperties {
+                                left = if (hasResume) fromStartButtonFocusRequester else playButtonFocusRequester
+                                right = externalPlayerFocusRequester
+                                down = favoriteButtonFocusRequester
+                            }
                     ) {
                         Text(
                             text = "Трейлер",
@@ -598,10 +791,20 @@ fun DetailsScreen(
                             contentColor = TextWhite,
                             focusedContentColor = Color.Black
                         ),
+                        border = ButtonDefaults.border(
+                            border = Border(BorderStroke(1.dp, Color.White.copy(alpha = 0.15f))),
+                            focusedBorder = Border(BorderStroke(2.5.dp, TextWhite))
+                        ),
                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                        scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                        scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.04f),
                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
-                        modifier = Modifier.height(36.dp)
+                        modifier = Modifier
+                            .height(36.dp)
+                            .focusRequester(externalPlayerFocusRequester)
+                            .focusProperties {
+                                left = trailerButtonFocusRequester
+                                down = backButtonFocusRequester
+                            }
                     ) {
                         Text(
                             text = "Внешний плеер",
@@ -629,16 +832,24 @@ fun DetailsScreen(
                         ),
                         border = ButtonDefaults.border(
                             border = Border(
-                                border = BorderStroke(1.dp, if (isFavorite) FavoriteGold else Color.Transparent)
+                                border = BorderStroke(1.dp, if (isFavorite) FavoriteGold else Color.White.copy(alpha = 0.15f))
                             ),
                             focusedBorder = Border(
-                                border = BorderStroke(2.dp, TextWhite)
+                                border = BorderStroke(2.5.dp, TextWhite)
                             )
                         ),
                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                        scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                        scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.04f),
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp),
-                        modifier = Modifier.height(34.dp)
+                        modifier = Modifier
+                            .height(34.dp)
+                            .focusRequester(favoriteButtonFocusRequester)
+                            .focusProperties {
+                                left = leftPaneFocusRequester
+                                up = playButtonFocusRequester
+                                right = backButtonFocusRequester
+                                down = tabsFocusRequester
+                            }
                     ) {
                         Text(
                             text = if (isFavorite) "В избранном" else "В избранное",
@@ -658,12 +869,19 @@ fun DetailsScreen(
                         ),
                         border = ButtonDefaults.border(
                             border = Border(border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f))),
-                            focusedBorder = Border(border = BorderStroke(2.dp, TextWhite))
+                            focusedBorder = Border(border = BorderStroke(2.5.dp, TextWhite))
                         ),
                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                        scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                        scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.04f),
                         contentPadding = PaddingValues(horizontal = 14.dp, vertical = 2.dp),
-                        modifier = Modifier.height(34.dp)
+                        modifier = Modifier
+                            .height(34.dp)
+                            .focusRequester(backButtonFocusRequester)
+                            .focusProperties {
+                                left = favoriteButtonFocusRequester
+                                up = externalPlayerFocusRequester
+                                down = tabsFocusRequester
+                            }
                     ) {
                         Text(
                             text = "Назад",
@@ -701,6 +919,21 @@ fun DetailsScreen(
                     )
                     tabs.forEachIndexed { index, tabTitle ->
                         val isSelected = selectedDetailTab == index
+                        val tabMod = if (index == 0) {
+                            Modifier
+                                .height(34.dp)
+                                .focusRequester(tabsFocusRequester)
+                                .focusProperties {
+                                    up = favoriteButtonFocusRequester
+                                    left = leftPaneFocusRequester
+                                }
+                        } else {
+                            Modifier
+                                .height(34.dp)
+                                .focusProperties {
+                                    up = favoriteButtonFocusRequester
+                                }
+                        }
                         Button(
                             onClick = { selectedDetailTab = index },
                             colors = ButtonDefaults.colors(
@@ -709,10 +942,14 @@ fun DetailsScreen(
                                 contentColor = if (isSelected) Color.Black else TextWhite,
                                 focusedContentColor = Color.Black
                             ),
+                            border = ButtonDefaults.border(
+                                border = Border(BorderStroke(1.dp, if (isSelected) accent else Color.Transparent)),
+                                focusedBorder = Border(BorderStroke(2.5.dp, TextWhite))
+                            ),
                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.04f),
                             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp),
-                            modifier = Modifier.height(34.dp)
+                            modifier = tabMod
                         ) {
                             Text(
                                 text = tabTitle,

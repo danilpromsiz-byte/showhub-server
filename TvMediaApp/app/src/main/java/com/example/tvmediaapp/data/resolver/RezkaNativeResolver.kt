@@ -5,16 +5,22 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.BufferedReader
+import java.io.InputStream
 import java.io.InputStreamReader
 import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
+import java.security.MessageDigest
+import java.util.concurrent.ConcurrentHashMap
 import java.util.regex.Pattern
+import java.util.zip.GZIPInputStream
 
 object RezkaNativeResolver {
     private const val BASE_URL = "https://hdrezka-home.tv"
     private const val USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+
+    private val cookieStore = ConcurrentHashMap<String, String>()
 
     suspend fun resolveStreams(
         title: String,
@@ -32,18 +38,30 @@ object RezkaNativeResolver {
             val searchUrl = "$BASE_URL/search/?do=search&subaction=search&q=" + URLEncoder.encode(cleanTitle, "UTF-8")
             val searchHtml = httpGet(searchUrl, "$BASE_URL/") ?: return@withContext emptyList()
 
-            val idMatcher = Pattern.compile("data-id=\"(\\d+)\"").matcher(searchHtml)
-            val linkMatcher = Pattern.compile("class=\"b-content__inline_item-link\"[^>]*><a href=\"([^\"]+)\"").matcher(searchHtml)
+            var dataId: String? = null
+            var pageUrl: String? = null
 
-            if (!idMatcher.find() || !linkMatcher.find()) {
+            // Pattern A: data-id and data-url in the same element
+            val itemMatcher = Pattern.compile("data-id=\"(\\d+)\"\\s+data-url=\"([^\"]+)\"").matcher(searchHtml)
+            if (itemMatcher.find()) {
+                dataId = itemMatcher.group(1)
+                pageUrl = itemMatcher.group(2)
+            } else {
+                // Pattern B: separate data-id and a-href
+                val idMatcher = Pattern.compile("data-id=\"(\\d+)\"").matcher(searchHtml)
+                val linkMatcher = Pattern.compile("<div class=\"b-content__inline_item-cover\">\\s*<a href=\"([^\"]+)\"").matcher(searchHtml)
+                if (idMatcher.find() && linkMatcher.find()) {
+                    dataId = idMatcher.group(1)
+                    val rawLink = linkMatcher.group(1) ?: ""
+                    pageUrl = if (rawLink.startsWith("http")) rawLink else "$BASE_URL$rawLink"
+                }
+            }
+
+            if (dataId.isNullOrEmpty() || pageUrl.isNullOrEmpty()) {
                 return@withContext emptyList()
             }
 
-            val dataId = idMatcher.group(1) ?: return@withContext emptyList()
-            val rawLink = linkMatcher.group(1) ?: return@withContext emptyList()
-            val pageUrl = if (rawLink.startsWith("http")) rawLink else "$BASE_URL$rawLink"
-
-            // 2. Fetch media page to discover translator ID
+            // 2. Fetch media page to discover translator ID (and solve Anubis PoW challenge if triggered)
             val pageHtml = httpGet(pageUrl, "$BASE_URL/") ?: ""
             var transId = "56"
             val trMatcher = Pattern.compile("data-translator_id=\"(\\d+)\"").matcher(pageHtml)
@@ -99,19 +117,41 @@ object RezkaNativeResolver {
         streams
     }
 
-    private fun httpGet(urlStr: String, referer: String? = null): String? {
+    private fun httpGet(urlStr: String, referer: String? = null, retryAfterAnubis: Boolean = true): String? {
         return try {
             val url = URL(urlStr)
             val conn = url.openConnection() as HttpURLConnection
             conn.requestMethod = "GET"
-            conn.connectTimeout = 8000
-            conn.readTimeout = 8000
+            conn.connectTimeout = 10000
+            conn.readTimeout = 10000
             conn.setRequestProperty("User-Agent", USER_AGENT)
+            conn.setRequestProperty("Accept-Encoding", "gzip, deflate")
             if (referer != null) conn.setRequestProperty("Referer", referer)
+
+            // Inject stored cookies
+            val cookieHeader = getCookieHeader()
+            if (cookieHeader.isNotEmpty()) {
+                conn.setRequestProperty("Cookie", cookieHeader)
+            }
+
             conn.connect()
-            if (conn.responseCode == 200) {
-                BufferedReader(InputStreamReader(conn.inputStream, "UTF-8")).use { it.readText() }
-            } else null
+            saveCookies(conn)
+
+            val code = conn.responseCode
+            val isSuccess = code in 200..399
+            val inputStream = if (isSuccess) conn.inputStream else conn.errorStream ?: return null
+            val content = readResponseBody(inputStream, conn.contentEncoding)
+
+            // Check if Techaro Anubis challenge was returned
+            if (retryAfterAnubis && content.contains("anubis_challenge")) {
+                val solved = solveAnubis(content, urlStr)
+                if (solved) {
+                    // Retry with fresh clearance cookies
+                    return httpGet(urlStr, referer, retryAfterAnubis = false)
+                }
+            }
+
+            if (isSuccess) content else null
         } catch (e: Exception) {
             null
         }
@@ -122,22 +162,139 @@ object RezkaNativeResolver {
             val url = URL(urlStr)
             val conn = url.openConnection() as HttpURLConnection
             conn.requestMethod = "POST"
-            conn.connectTimeout = 8000
-            conn.readTimeout = 8000
+            conn.connectTimeout = 10000
+            conn.readTimeout = 10000
             conn.doOutput = true
             conn.setRequestProperty("User-Agent", USER_AGENT)
+            conn.setRequestProperty("Accept-Encoding", "gzip, deflate")
+
+            val cookieHeader = getCookieHeader()
+            if (cookieHeader.isNotEmpty()) {
+                conn.setRequestProperty("Cookie", cookieHeader)
+            }
+
             for ((k, v) in headers) {
                 conn.setRequestProperty(k, v)
             }
+
             OutputStreamWriter(conn.outputStream, "UTF-8").use {
                 it.write(postData)
                 it.flush()
             }
-            if (conn.responseCode == 200) {
-                BufferedReader(InputStreamReader(conn.inputStream, "UTF-8")).use { it.readText() }
+
+            saveCookies(conn)
+
+            if (conn.responseCode in 200..399) {
+                readResponseBody(conn.inputStream, conn.contentEncoding)
             } else null
         } catch (e: Exception) {
             null
         }
+    }
+
+    private fun solveAnubis(html: String, targetUrl: String): Boolean {
+        return try {
+            val chMatcher = Pattern.compile("<script[^>]*id=\"anubis_challenge\"[^>]*>(.*?)</script>", Pattern.DOTALL).matcher(html)
+            val prefixMatcher = Pattern.compile("<script[^>]*id=\"anubis_base_prefix\"[^>]*>(.*?)</script>", Pattern.DOTALL).matcher(html)
+
+            if (!chMatcher.find()) return false
+            val challengeJsonStr = chMatcher.group(1)?.trim() ?: return false
+            val basePrefix = if (prefixMatcher.find()) {
+                prefixMatcher.group(1)?.trim()?.replace("\"", "") ?: ""
+            } else ""
+
+            val chObj = JSONObject(challengeJsonStr)
+            val rules = chObj.getJSONObject("rules")
+            val difficulty = rules.optInt("difficulty", 2)
+            val challenge = chObj.getJSONObject("challenge")
+            val randomData = challenge.getString("randomData")
+            val challengeId = challenge.getString("id")
+
+            val startT = System.currentTimeMillis()
+            val p = difficulty / 2
+            val u = (difficulty % 2) != 0
+            var nonce = 0L
+            var foundHash: String? = null
+
+            val md = MessageDigest.getInstance("SHA-256")
+
+            while (true) {
+                val candidate = "$randomData$nonce".toByteArray(Charsets.UTF_8)
+                val digest = md.digest(candidate)
+
+                var valid = true
+                for (i in 0 until p) {
+                    if (digest[i] != 0.toByte()) {
+                        valid = false
+                        break
+                    }
+                }
+                if (valid && u && ((digest[p].toInt() ushr 4) and 0x0F) != 0) {
+                    valid = false
+                }
+
+                if (valid) {
+                    foundHash = digest.joinToString("") { "%02x".format(it) }
+                    break
+                }
+                nonce++
+            }
+
+            val elapsed = System.currentTimeMillis() - startT
+            val passUrl = "$BASE_URL$basePrefix/.within.website/x/cmd/anubis/api/pass-challenge" +
+                    "?id=" + URLEncoder.encode(challengeId, "UTF-8") +
+                    "&response=" + URLEncoder.encode(foundHash, "UTF-8") +
+                    "&nonce=" + nonce +
+                    "&redir=" + URLEncoder.encode(targetUrl, "UTF-8") +
+                    "&elapsedTime=" + elapsed
+
+            // Send clearance request
+            val pConn = URL(passUrl).openConnection() as HttpURLConnection
+            pConn.requestMethod = "GET"
+            pConn.connectTimeout = 8000
+            pConn.readTimeout = 8000
+            pConn.setRequestProperty("User-Agent", USER_AGENT)
+            pConn.setRequestProperty("Referer", targetUrl)
+            val cookieHeader = getCookieHeader()
+            if (cookieHeader.isNotEmpty()) {
+                pConn.setRequestProperty("Cookie", cookieHeader)
+            }
+            pConn.connect()
+            saveCookies(pConn)
+            pConn.responseCode in 200..399
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
+    private fun readResponseBody(stream: InputStream, encoding: String?): String {
+        val inStream = if (encoding?.contains("gzip", ignoreCase = true) == true) {
+            GZIPInputStream(stream)
+        } else {
+            stream
+        }
+        return BufferedReader(InputStreamReader(inStream, "UTF-8")).use { it.readText() }
+    }
+
+    private fun saveCookies(conn: HttpURLConnection) {
+        val headerFields = conn.headerFields ?: return
+        for ((key, values) in headerFields) {
+            if (key != null && key.equals("Set-Cookie", ignoreCase = true)) {
+                for (cookie in values) {
+                    val part = cookie.split(";")[0].trim()
+                    val eqIdx = part.indexOf('=')
+                    if (eqIdx > 0) {
+                        val name = part.substring(0, eqIdx).trim()
+                        val value = part.substring(eqIdx + 1).trim()
+                        cookieStore[name] = value
+                    }
+                }
+            }
+        }
+    }
+
+    private fun getCookieHeader(): String {
+        return cookieStore.entries.joinToString("; ") { "${it.key}=${it.value}" }
     }
 }

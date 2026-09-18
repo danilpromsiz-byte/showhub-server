@@ -801,8 +801,8 @@ def _fetch_media_streams(
 
     resolved: Dict[str, Any] = {}
     resolved_kp = kp_id
-    if not resolved_kp and source in ["bazon", "videocdn", "delivembd"] and media_id.isdigit():
-        resolved_kp = media_id
+    if not resolved_kp and media_id and str(media_id).isdigit():
+        resolved_kp = str(media_id)
 
     clean_title = title.split(":")[0].strip() if (title and ":" in title) else title
     if clean_title and " - " in clean_title:
@@ -1196,9 +1196,13 @@ def get_media_preview_stream(
         except Exception:
             pass
 
+    target_kp = kp_id
+    if not target_kp and media_id and str(media_id).isdigit():
+        target_kp = str(media_id)
+
     # Source 4: Bazon if real KP ID
-    if not candidate_streams and (kp_id or (source in ["bazon", "videocdn", "delivembd"] and media_id and media_id.isdigit())):
-        target_id = kp_id or media_id
+    if not candidate_streams and (target_kp or (source in ["bazon", "videocdn", "delivembd"] and media_id and media_id.isdigit())):
+        target_id = target_kp or media_id
         try:
             b_res = bazon.get_streams(target_id)
             if b_res.streams:
@@ -1231,16 +1235,37 @@ def get_media_preview_stream(
 
         if chosen:
             # 22nd minute of movie: 22 * 60 = 1320 seconds
+            is_ser_flag = str(is_series) in ["1", "true", "True"]
+            seek_seconds = 720 if is_ser_flag else 1320
             res = {
                 "success": True,
                 "stream_url": chosen.url,
                 "stream_type": chosen.stream_type,
                 "quality": chosen.quality,
-                "start_time": 1320,
+                "start_time": seek_seconds,
                 "title": title
             }
             _preview_cache[cache_key] = res
             return res
+
+    # Source 5: Trailer fallback (direct YouTube embed/stream) so card preview is never empty
+    try:
+        trailer_data = get_media_trailer(title=clean_title, year=year, kp_id=target_kp)
+        if trailer_data and trailer_data.get("success"):
+            t_url = trailer_data.get("embed_url") or trailer_data.get("web_url") or ""
+            if t_url:
+                res = {
+                    "success": True,
+                    "stream_url": t_url,
+                    "stream_type": "trailer",
+                    "quality": "Trailer",
+                    "start_time": 0,
+                    "title": title
+                }
+                _preview_cache[cache_key] = res
+                return res
+    except Exception:
+        pass
 
     res = {"success": False, "message": "No direct preview stream available"}
     _preview_cache[cache_key] = res

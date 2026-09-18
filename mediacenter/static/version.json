@@ -1,10 +1,10 @@
 {
   "success": true,
-  "version_name": "2.6.2",
-  "version_code": 41,
+  "version_name": "2.6.3",
+  "version_code": 42,
   "force_update": true,
-  "min_version_code": 41,
+  "min_version_code": 42,
   "download_url": "https://showhub-server.onrender.com/ShowHub.apk",
   "apk_url": "https://showhub-server.onrender.com/ShowHub.apk",
-  "changelog": "ShowHub TV v2.6.2: Полноценный предпросмотр видеофрагментов (в каталоге и карточке фильма), автономный обход защиты HDRezka (Anubis PoW), мгновенный фокус на кнопке просмотра."
+  "changelog": "ShowHub TV v2.6.3: Исправлен запуск фильмов без ошибки «Поток в обработке» (прямой Voidboost + агрегация балансеров VideoCDN/Bazon по KP ID), полноценный бесшумный предпросмотр с 22/12 мин, отказоустойчивый обход защиты Anubis с мульти-зеркалами."
 }

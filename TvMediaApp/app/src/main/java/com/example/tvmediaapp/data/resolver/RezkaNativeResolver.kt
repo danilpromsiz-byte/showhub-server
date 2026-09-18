@@ -8,7 +8,11 @@ import java.io.BufferedReader
 import java.io.InputStream
 import java.io.InputStreamReader
 import java.io.OutputStreamWriter
+import java.net.CookieHandler
+import java.net.CookieManager
+import java.net.CookiePolicy
 import java.net.HttpURLConnection
+import java.net.URI
 import java.net.URL
 import java.net.URLEncoder
 import java.security.MessageDigest
@@ -17,8 +21,20 @@ import java.util.regex.Pattern
 import java.util.zip.GZIPInputStream
 
 object RezkaNativeResolver {
-    private const val BASE_URL = "https://hdrezka-home.tv"
+    private val MIRRORS = listOf(
+        "https://hdrezka-home.tv",
+        "https://rezka.ag",
+        "https://hdrezka.me",
+        "https://hdrezka-club.com"
+    )
+
     private const val USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+
+    private val cookieManager = CookieManager(null, CookiePolicy.ACCEPT_ALL).also {
+        try {
+            CookieHandler.setDefault(it)
+        } catch (_: Exception) {}
+    }
 
     private val cookieStore = ConcurrentHashMap<String, String>()
 
@@ -29,40 +45,67 @@ object RezkaNativeResolver {
         season: Int = 1,
         episode: Int = 1
     ): List<StreamOption> = withContext(Dispatchers.IO) {
+        val cleanTitle = title.split(":")[0].split(" - ")[0].trim()
+        if (cleanTitle.isEmpty()) return@withContext emptyList()
+
+        // Try primary and fallback mirrors
+        for (baseUrl in MIRRORS) {
+            val result = tryResolveFromMirror(baseUrl, cleanTitle, year, isSeries, season, episode)
+            if (result.isNotEmpty()) {
+                return@withContext result
+            }
+        }
+        emptyList()
+    }
+
+    private fun tryResolveFromMirror(
+        baseUrl: String,
+        cleanTitle: String,
+        year: String?,
+        isSeries: Boolean,
+        season: Int,
+        episode: Int
+    ): List<StreamOption> {
         val streams = mutableListOf<StreamOption>()
         try {
-            val cleanTitle = title.split(":")[0].split(" - ")[0].trim()
-            if (cleanTitle.isEmpty()) return@withContext emptyList()
-
             // 1. Search HDRezka directly from the Android TV's residential IP
-            val searchUrl = "$BASE_URL/search/?do=search&subaction=search&q=" + URLEncoder.encode(cleanTitle, "UTF-8")
-            val searchHtml = httpGet(searchUrl, "$BASE_URL/") ?: return@withContext emptyList()
+            val searchUrl = "$baseUrl/search/?do=search&subaction=search&q=" + URLEncoder.encode(cleanTitle, "UTF-8")
+            val searchHtml = httpGet(searchUrl, "$baseUrl/", baseUrl = baseUrl) ?: return emptyList()
 
             var dataId: String? = null
             var pageUrl: String? = null
 
-            // Pattern A: data-id and data-url in the same element
-            val itemMatcher = Pattern.compile("data-id=\"(\\d+)\"\\s+data-url=\"([^\"]+)\"").matcher(searchHtml)
+            // Pattern A: Match inside search result items container (avoid top-rated/popular sidebar items)
+            val itemMatcher = Pattern.compile("<div class=\"b-content__inline_item\"[^>]*data-id=\"(\\d+)\"[^>]*data-url=\"([^\"]+)\"").matcher(searchHtml)
             if (itemMatcher.find()) {
                 dataId = itemMatcher.group(1)
-                pageUrl = itemMatcher.group(2)
+                val rawLink = itemMatcher.group(2) ?: ""
+                pageUrl = if (rawLink.startsWith("http")) rawLink else "$baseUrl$rawLink"
             } else {
-                // Pattern B: separate data-id and a-href
-                val idMatcher = Pattern.compile("data-id=\"(\\d+)\"").matcher(searchHtml)
-                val linkMatcher = Pattern.compile("<div class=\"b-content__inline_item-cover\">\\s*<a href=\"([^\"]+)\"").matcher(searchHtml)
-                if (idMatcher.find() && linkMatcher.find()) {
-                    dataId = idMatcher.group(1)
-                    val rawLink = linkMatcher.group(1) ?: ""
-                    pageUrl = if (rawLink.startsWith("http")) rawLink else "$BASE_URL$rawLink"
+                // Pattern B: general data-id and data-url
+                val genMatcher = Pattern.compile("data-id=\"(\\d+)\"\\s+data-url=\"([^\"]+)\"").matcher(searchHtml)
+                if (genMatcher.find()) {
+                    dataId = genMatcher.group(1)
+                    val rawLink = genMatcher.group(2) ?: ""
+                    pageUrl = if (rawLink.startsWith("http")) rawLink else "$baseUrl$rawLink"
+                } else {
+                    // Pattern C: separate data-id and a-href
+                    val idMatcher = Pattern.compile("data-id=\"(\\d+)\"").matcher(searchHtml)
+                    val linkMatcher = Pattern.compile("<div class=\"b-content__inline_item-cover\">\\s*<a href=\"([^\"]+)\"").matcher(searchHtml)
+                    if (idMatcher.find() && linkMatcher.find()) {
+                        dataId = idMatcher.group(1)
+                        val rawLink = linkMatcher.group(1) ?: ""
+                        pageUrl = if (rawLink.startsWith("http")) rawLink else "$baseUrl$rawLink"
+                    }
                 }
             }
 
             if (dataId.isNullOrEmpty() || pageUrl.isNullOrEmpty()) {
-                return@withContext emptyList()
+                return emptyList()
             }
 
-            // 2. Fetch media page to discover translator ID (and solve Anubis PoW challenge if triggered)
-            val pageHtml = httpGet(pageUrl, "$BASE_URL/") ?: ""
+            // 2. Fetch media page to establish session cookies & discover translator ID
+            val pageHtml = httpGet(pageUrl, "$baseUrl/", baseUrl = baseUrl) ?: ""
             var transId = "56"
             val trMatcher = Pattern.compile("data-translator_id=\"(\\d+)\"").matcher(pageHtml)
             if (trMatcher.find()) {
@@ -74,15 +117,18 @@ object RezkaNativeResolver {
                 }
             }
 
+            // Determine if the content is a series (by requested flag or page URL)
+            val actualIsSeries = isSeries || pageUrl.contains("/series/") || pageUrl.contains("/animation/")
+
             // 3. Request CDN streams via AJAX
             val tNow = System.currentTimeMillis()
-            val ajaxUrl = "$BASE_URL/ajax/get_cdn_series/?t=$tNow"
+            val ajaxUrl = "$baseUrl/ajax/get_cdn_series/?t=$tNow"
             val postData = StringBuilder()
                 .append("id=").append(dataId)
                 .append("&translator_id=").append(transId)
-                .append("&action=").append(if (isSeries) "get_stream" else "get_movie")
+                .append("&action=").append(if (actualIsSeries) "get_stream" else "get_movie")
 
-            if (isSeries) {
+            if (actualIsSeries) {
                 postData.append("&season=").append(season).append("&episode=").append(episode)
             }
 
@@ -92,7 +138,11 @@ object RezkaNativeResolver {
                 "Content-Type" to "application/x-www-form-urlencoded"
             )
 
-            val ajaxResponse = httpPost(ajaxUrl, postData.toString(), headers) ?: return@withContext emptyList()
+            val ajaxResponse = httpPost(ajaxUrl, postData.toString(), headers, baseUrl = baseUrl) ?: return emptyList()
+            if (!ajaxResponse.trim().startsWith("{")) {
+                return emptyList()
+            }
+
             val json = JSONObject(ajaxResponse)
             val streamStr = json.optString("url").ifEmpty { json.optString("streams", "") }
 
@@ -103,7 +153,10 @@ object RezkaNativeResolver {
                     if (m.find()) {
                         val quality = m.group(1)?.replace(Regex("<[^>]+>"), "")?.trim() ?: "HD"
                         val urls = m.group(2)?.split(" or ")?.map { it.trim().replace("\\/", "/") }?.filter { it.startsWith("http") } ?: emptyList()
-                        val workingUrl = urls.firstOrNull { !it.contains("ukrtelcdn") } ?: urls.firstOrNull()
+                        // Prioritize voidboost streams or non-ukrtelcdn direct CDNs
+                        val workingUrl = urls.firstOrNull { it.contains("voidboost") }
+                            ?: urls.firstOrNull { !it.contains("ukrtelcdn") }
+                            ?: urls.firstOrNull()
                         if (workingUrl != null) {
                             val isHls = workingUrl.contains(".m3u8")
                             streams.add(StreamOption(quality = quality, url = workingUrl, isHls = isHls))
@@ -114,28 +167,28 @@ object RezkaNativeResolver {
         } catch (e: Exception) {
             e.printStackTrace()
         }
-        streams
+        return streams
     }
 
-    private fun httpGet(urlStr: String, referer: String? = null, retryAfterAnubis: Boolean = true): String? {
+    private fun httpGet(urlStr: String, referer: String? = null, baseUrl: String, retryAfterAnubis: Boolean = true): String? {
         return try {
             val url = URL(urlStr)
             val conn = url.openConnection() as HttpURLConnection
             conn.requestMethod = "GET"
-            conn.connectTimeout = 10000
+            conn.connectTimeout = 8000
             conn.readTimeout = 10000
             conn.setRequestProperty("User-Agent", USER_AGENT)
             conn.setRequestProperty("Accept-Encoding", "gzip, deflate")
             if (referer != null) conn.setRequestProperty("Referer", referer)
 
             // Inject stored cookies
-            val cookieHeader = getCookieHeader()
+            val cookieHeader = getCookieHeader(urlStr)
             if (cookieHeader.isNotEmpty()) {
                 conn.setRequestProperty("Cookie", cookieHeader)
             }
 
             conn.connect()
-            saveCookies(conn)
+            saveCookies(conn, urlStr)
 
             val code = conn.responseCode
             val isSuccess = code in 200..399
@@ -144,10 +197,9 @@ object RezkaNativeResolver {
 
             // Check if Techaro Anubis challenge was returned
             if (retryAfterAnubis && content.contains("anubis_challenge")) {
-                val solved = solveAnubis(content, urlStr)
+                val solved = solveAnubis(content, urlStr, baseUrl)
                 if (solved) {
-                    // Retry with fresh clearance cookies
-                    return httpGet(urlStr, referer, retryAfterAnubis = false)
+                    return httpGet(urlStr, referer, baseUrl, retryAfterAnubis = false)
                 }
             }
 
@@ -157,18 +209,24 @@ object RezkaNativeResolver {
         }
     }
 
-    private fun httpPost(urlStr: String, postData: String, headers: Map<String, String>): String? {
+    private fun httpPost(
+        urlStr: String,
+        postData: String,
+        headers: Map<String, String>,
+        baseUrl: String,
+        retryAfterAnubis: Boolean = true
+    ): String? {
         return try {
             val url = URL(urlStr)
             val conn = url.openConnection() as HttpURLConnection
             conn.requestMethod = "POST"
-            conn.connectTimeout = 10000
+            conn.connectTimeout = 8000
             conn.readTimeout = 10000
             conn.doOutput = true
             conn.setRequestProperty("User-Agent", USER_AGENT)
             conn.setRequestProperty("Accept-Encoding", "gzip, deflate")
 
-            val cookieHeader = getCookieHeader()
+            val cookieHeader = getCookieHeader(urlStr)
             if (cookieHeader.isNotEmpty()) {
                 conn.setRequestProperty("Cookie", cookieHeader)
             }
@@ -182,17 +240,28 @@ object RezkaNativeResolver {
                 it.flush()
             }
 
-            saveCookies(conn)
+            saveCookies(conn, urlStr)
 
-            if (conn.responseCode in 200..399) {
-                readResponseBody(conn.inputStream, conn.contentEncoding)
-            } else null
+            val code = conn.responseCode
+            val isSuccess = code in 200..399
+            val inputStream = if (isSuccess) conn.inputStream else conn.errorStream ?: return null
+            val content = readResponseBody(inputStream, conn.contentEncoding)
+
+            // Check if Anubis challenged the POST request
+            if (retryAfterAnubis && content.contains("anubis_challenge")) {
+                val solved = solveAnubis(content, urlStr, baseUrl)
+                if (solved) {
+                    return httpPost(urlStr, postData, headers, baseUrl, retryAfterAnubis = false)
+                }
+            }
+
+            if (isSuccess) content else null
         } catch (e: Exception) {
             null
         }
     }
 
-    private fun solveAnubis(html: String, targetUrl: String): Boolean {
+    private fun solveAnubis(html: String, targetUrl: String, baseUrl: String): Boolean {
         return try {
             val chMatcher = Pattern.compile("<script[^>]*id=\"anubis_challenge\"[^>]*>(.*?)</script>", Pattern.DOTALL).matcher(html)
             val prefixMatcher = Pattern.compile("<script[^>]*id=\"anubis_base_prefix\"[^>]*>(.*?)</script>", Pattern.DOTALL).matcher(html)
@@ -241,26 +310,27 @@ object RezkaNativeResolver {
             }
 
             val elapsed = System.currentTimeMillis() - startT
-            val passUrl = "$BASE_URL$basePrefix/.within.website/x/cmd/anubis/api/pass-challenge" +
+            val passUrl = "$baseUrl$basePrefix/.within.website/x/cmd/anubis/api/pass-challenge" +
                     "?id=" + URLEncoder.encode(challengeId, "UTF-8") +
                     "&response=" + URLEncoder.encode(foundHash, "UTF-8") +
                     "&nonce=" + nonce +
                     "&redir=" + URLEncoder.encode(targetUrl, "UTF-8") +
                     "&elapsedTime=" + elapsed
 
-            // Send clearance request
+            // Send clearance request - disable auto redirect so Set-Cookie is never stripped!
             val pConn = URL(passUrl).openConnection() as HttpURLConnection
+            pConn.instanceFollowRedirects = false
             pConn.requestMethod = "GET"
             pConn.connectTimeout = 8000
             pConn.readTimeout = 8000
             pConn.setRequestProperty("User-Agent", USER_AGENT)
             pConn.setRequestProperty("Referer", targetUrl)
-            val cookieHeader = getCookieHeader()
+            val cookieHeader = getCookieHeader(passUrl)
             if (cookieHeader.isNotEmpty()) {
                 pConn.setRequestProperty("Cookie", cookieHeader)
             }
             pConn.connect()
-            saveCookies(pConn)
+            saveCookies(pConn, passUrl)
             pConn.responseCode in 200..399
         } catch (e: Exception) {
             e.printStackTrace()
@@ -277,8 +347,12 @@ object RezkaNativeResolver {
         return BufferedReader(InputStreamReader(inStream, "UTF-8")).use { it.readText() }
     }
 
-    private fun saveCookies(conn: HttpURLConnection) {
+    private fun saveCookies(conn: HttpURLConnection, requestUrl: String) {
         val headerFields = conn.headerFields ?: return
+        try {
+            cookieManager.put(URI.create(requestUrl), headerFields)
+        } catch (_: Exception) {}
+
         for ((key, values) in headerFields) {
             if (key != null && key.equals("Set-Cookie", ignoreCase = true)) {
                 for (cookie in values) {
@@ -294,7 +368,17 @@ object RezkaNativeResolver {
         }
     }
 
-    private fun getCookieHeader(): String {
-        return cookieStore.entries.joinToString("; ") { "${it.key}=${it.value}" }
+    private fun getCookieHeader(requestUrl: String): String {
+        val manualCookies = cookieStore.entries.joinToString("; ") { "${it.key}=${it.value}" }
+        try {
+            val uri = URI.create(requestUrl)
+            val managerMap = cookieManager.get(uri, emptyMap())
+            val cookieList = managerMap["Cookie"] ?: managerMap["cookie"]
+            if (!cookieList.isNullOrEmpty()) {
+                val mgrStr = cookieList.joinToString("; ")
+                return if (manualCookies.isNotEmpty()) "$manualCookies; $mgrStr" else mgrStr
+            }
+        } catch (_: Exception) {}
+        return manualCookies
     }
 }

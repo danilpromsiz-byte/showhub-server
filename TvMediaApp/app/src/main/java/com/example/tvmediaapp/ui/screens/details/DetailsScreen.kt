@@ -891,16 +891,18 @@ fun DetailsScreen(
                     }
                 }
 
-                // Stream status message with NeonSpinner
+                // Stream status message with NeonSpinner (only while resolving)
                 if (streamStatus != null || isResolving) {
                     Spacer(modifier = Modifier.height(10.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        NeonSpinner(size = 20.dp, strokeWidth = 2.5.dp)
-                        Spacer(modifier = Modifier.width(10.dp))
+                        if (isResolving) {
+                            NeonSpinner(size = 20.dp, strokeWidth = 2.5.dp)
+                            Spacer(modifier = Modifier.width(10.dp))
+                        }
                         Text(
                             text = streamStatus ?: "Поиск наилучшего видеопотока...",
                             fontSize = 13.sp,
-                            color = accent
+                            color = if (isResolving) accent else if (streamStatus?.contains("Найден") == true) accent else Color(0xFFF87171)
                         )
                     }
                 }

@@ -191,16 +191,16 @@ object ShowHubApiClient {
         val embedStreams = mutableListOf<StreamOption>()
         try {
             val q = URLEncoder.encode(movie.title, "UTF-8")
-            val sb = StringBuilder("$SERVER_BASE/api/media/streams?source=hdrezka&media_id=${movie.id}&title=$q")
+            val isSeriesStr = if (movie.isSeries) "1" else "0"
+            val sb = StringBuilder("$SERVER_BASE/api/media/streams?source=videocdn&media_id=${movie.id}&kp_id=${movie.id}&title=$q&year=${movie.releaseYear}&is_series=$isSeriesStr")
             if (season != null) sb.append("&season=$season")
             if (episode != null) sb.append("&episode=$episode")
             if (!audioId.isNullOrEmpty()) sb.append("&audio_id=").append(URLEncoder.encode(audioId, "UTF-8"))
-            sb.append("&year=${movie.releaseYear}")
 
             val conn = URL(sb.toString()).openConnection() as HttpURLConnection
             conn.connectTimeout = 15000
             conn.readTimeout = 25000
-            conn.setRequestProperty("User-Agent", "ShowHubTV-Native/2.6.0")
+            conn.setRequestProperty("User-Agent", "ShowHubTV-Native/2.6.3")
             conn.connect()
             if (conn.responseCode == 200) {
                 val body = BufferedReader(InputStreamReader(conn.inputStream, "UTF-8")).use { it.readText() }
@@ -268,11 +268,11 @@ object ShowHubApiClient {
     suspend fun fetchTrailerUrl(movie: Movie): String? = withContext(Dispatchers.IO) {
         try {
             val q = URLEncoder.encode(movie.title, "UTF-8")
-            val url = URL("$SERVER_BASE/api/media/trailer?title=$q&year=${movie.releaseYear}")
+            val url = URL("$SERVER_BASE/api/media/trailer?title=$q&year=${movie.releaseYear}&kp_id=${movie.id}")
             val conn = url.openConnection() as HttpURLConnection
             conn.connectTimeout = 8000
             conn.readTimeout = 8000
-            conn.setRequestProperty("User-Agent", "ShowHubTV-Native/2.5.0")
+            conn.setRequestProperty("User-Agent", "ShowHubTV-Native/2.6.3")
             conn.connect()
             if (conn.responseCode == 200) {
                 val body = BufferedReader(InputStreamReader(conn.inputStream, "UTF-8")).use { it.readText() }
@@ -290,11 +290,11 @@ object ShowHubApiClient {
         try {
             val q = URLEncoder.encode(movie.title, "UTF-8")
             val isSeries = if (movie.isSeries) "1" else "0"
-            val url = URL("$SERVER_BASE/api/media/preview-stream?title=$q&media_id=${movie.id}&year=${movie.releaseYear}&is_series=$isSeries")
+            val url = URL("$SERVER_BASE/api/media/preview-stream?title=$q&media_id=${movie.id}&kp_id=${movie.id}&year=${movie.releaseYear}&is_series=$isSeries")
             val conn = url.openConnection() as HttpURLConnection
-            conn.connectTimeout = 5000
+            conn.connectTimeout = 6000
             conn.readTimeout = 8000
-            conn.setRequestProperty("User-Agent", "ShowHubTV-Native/2.5.2")
+            conn.setRequestProperty("User-Agent", "ShowHubTV-Native/2.6.3")
             conn.connect()
             if (conn.responseCode == 200) {
                 val body = BufferedReader(InputStreamReader(conn.inputStream, "UTF-8")).use { it.readText() }

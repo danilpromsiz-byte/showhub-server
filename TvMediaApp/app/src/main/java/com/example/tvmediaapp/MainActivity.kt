@@ -94,16 +94,16 @@ class MainActivity : ComponentActivity() {
                 pInfo.versionCode
             }
         } catch (e: Exception) {
-            44
+            45
         }
     }
 
     fun getInstalledVersionName(): String {
         return try {
             val pInfo = packageManager.getPackageInfo(packageName, 0)
-            pInfo.versionName ?: "2.6.5"
+            pInfo.versionName ?: "2.6.6"
         } catch (e: Exception) {
-            "2.6.5"
+            "2.6.6"
         }
     }
 
@@ -171,7 +171,9 @@ fun TvAppNavHost(activity: MainActivity) {
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
-                triggerUpdateCheck()
+                if (!isDownloadingUpdate && updateInfo == null) {
+                    triggerUpdateCheck()
+                }
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -300,7 +302,8 @@ fun TvAppNavHost(activity: MainActivity) {
                     val isFav = homeViewModel.isFavorite(movie.id)
                     DetailsScreen(
                         movie = movie,
-                        onPlayClick = { streamUrl, startPos, season, episode ->
+                        onPlayClick = { detailedMovie, streamUrl, startPos, season, episode ->
+                            selectedMovie = detailedMovie
                             activeVideoUrl = streamUrl
                             startPositionMs = startPos
                             activeSeason = season

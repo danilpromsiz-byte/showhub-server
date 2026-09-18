@@ -1,10 +1,10 @@
 {
   "success": true,
-  "version_name": "2.6.5",
-  "version_code": 44,
+  "version_name": "2.6.6",
+  "version_code": 45,
   "force_update": true,
-  "min_version_code": 44,
+  "min_version_code": 45,
   "download_url": "https://showhub-server.onrender.com/ShowHub.apk",
   "apk_url": "https://showhub-server.onrender.com/ShowHub.apk",
-  "changelog": "ShowHub TV v2.6.5: Предпросмотр видео в карточке фильма, единый компактный стиль кнопок 32dp, профессиональный векторный айкон-пак, навигация и кнопки серий в плеере, надёжный выход по кнопке «Назад» на пульте."
+  "changelog": "ShowHub TV v2.6.6: Защита от повторного скачивания, новый логотип ShowHub TV, VIP-отметка для 1080p Ultra, кнопки 28dp, интерактивный таймлайн с отображением кеширования, мгновенное переключение серий, выбор качества/источника/озвучки, чистый каталог без хардкода, фокус ввода в поиске."
 }

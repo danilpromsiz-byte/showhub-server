@@ -79,49 +79,62 @@ object UpdateManager {
                 return@withContext false
             }
 
-            val contentLength = conn.contentLength.toLong()
             val cacheDir = activity.externalCacheDir ?: activity.cacheDir
             val apkFile = File(cacheDir, "ShowHub-update.apk")
-            if (apkFile.exists()) {
-                try { apkFile.delete() } catch (_: Exception) {}
-            }
 
-            var bytesReadTotal = 0L
-            var lastReportTime = 0L
+            // If a valid APK was already downloaded in the last 20 minutes (> 5 MB), reuse it directly
+            val isCachedValid = apkFile.exists() &&
+                apkFile.length() > 5_000_000L &&
+                (System.currentTimeMillis() - apkFile.lastModified() < 20 * 60 * 1000L)
 
-            conn.inputStream.use { input ->
-                FileOutputStream(apkFile).use { output ->
-                    val buffer = ByteArray(32768)
-                    var bytesRead: Int
-                    while (input.read(buffer).also { bytesRead = it } > 0) {
-                        output.write(buffer, 0, bytesRead)
-                        bytesReadTotal += bytesRead
+            if (isCachedValid) {
+                withContext(Dispatchers.Main) {
+                    val mb = String.format(java.util.Locale.US, "%.1f", apkFile.length() / (1024.0 * 1024.0))
+                    onProgress?.invoke("Файл обновления готов ($mb МБ)", 100)
+                }
+            } else {
+                val contentLength = conn.contentLength.toLong()
+                if (apkFile.exists()) {
+                    try { apkFile.delete() } catch (_: Exception) {}
+                }
 
-                        val now = System.currentTimeMillis()
-                        if (now - lastReportTime > 200 || bytesReadTotal == contentLength) {
-                            lastReportTime = now
-                            val percent = if (contentLength > 0) {
-                                ((bytesReadTotal * 100) / contentLength).toInt().coerceIn(0, 100)
-                            } else {
-                                -1
-                            }
-                            val mbRead = String.format(java.util.Locale.US, "%.1f", bytesReadTotal / (1024.0 * 1024.0))
-                            val mbTotal = if (contentLength > 0) {
-                                String.format(java.util.Locale.US, "%.1f", contentLength / (1024.0 * 1024.0))
-                            } else {
-                                "?"
-                            }
-                            val statusMsg = if (percent >= 0) {
-                                "Загрузка: $percent% ($mbRead / $mbTotal МБ)"
-                            } else {
-                                "Загружено: $mbRead МБ"
-                            }
-                            withContext(Dispatchers.Main) {
-                                onProgress?.invoke(statusMsg, percent)
+                var bytesReadTotal = 0L
+                var lastReportTime = 0L
+
+                conn.inputStream.use { input ->
+                    FileOutputStream(apkFile).use { output ->
+                        val buffer = ByteArray(32768)
+                        var bytesRead: Int
+                        while (input.read(buffer).also { bytesRead = it } > 0) {
+                            output.write(buffer, 0, bytesRead)
+                            bytesReadTotal += bytesRead
+
+                            val now = System.currentTimeMillis()
+                            if (now - lastReportTime > 200 || bytesReadTotal == contentLength) {
+                                lastReportTime = now
+                                val percent = if (contentLength > 0) {
+                                    ((bytesReadTotal * 100) / contentLength).toInt().coerceIn(0, 100)
+                                } else {
+                                    -1
+                                }
+                                val mbRead = String.format(java.util.Locale.US, "%.1f", bytesReadTotal / (1024.0 * 1024.0))
+                                val mbTotal = if (contentLength > 0) {
+                                    String.format(java.util.Locale.US, "%.1f", contentLength / (1024.0 * 1024.0))
+                                } else {
+                                    "?"
+                                }
+                                val statusMsg = if (percent >= 0) {
+                                    "Загрузка: $percent% ($mbRead / $mbTotal МБ)"
+                                } else {
+                                    "Загружено: $mbRead МБ"
+                                }
+                                withContext(Dispatchers.Main) {
+                                    onProgress?.invoke(statusMsg, percent)
+                                }
                             }
                         }
+                        output.flush()
                     }
-                    output.flush()
                 }
             }
 

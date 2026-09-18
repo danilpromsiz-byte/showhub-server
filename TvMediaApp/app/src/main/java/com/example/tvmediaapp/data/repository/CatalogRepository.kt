@@ -303,57 +303,54 @@ class CatalogRepository(context: Context? = null) {
         year: String? = null,
         country: String? = null
     ): Flow<List<MovieCategory>> = flow {
-        val filtered = filterAndSort(sampleMovies, category, genre, sortBy, year, country)
-
-        val initialCategories = if (category == "all" && (genre.isNullOrEmpty() || genre == "\u0412\u0441\u0435 \u0436\u0430\u043d\u0440\u044b")) {
-            listOf(
-                MovieCategory(id = "popular", title = "\u041f\u043e\u043f\u0443\u043b\u044f\u0440\u043d\u044b\u0435 \u043d\u043e\u0432\u0438\u043d\u043a\u0438", movies = filtered),
-                MovieCategory(id = "top_rated", title = "\u0422\u043e\u043f \u0440\u0435\u0439\u0442\u0438\u043d\u0433\u0430", movies = filtered.sortedByDescending { it.rating }),
-                MovieCategory(id = "series", title = "\u0421\u0435\u0440\u0438\u0430\u043b\u044b", movies = filtered.filter { it.isSeries }),
-                MovieCategory(id = "movies", title = "\u0424\u0438\u043b\u044c\u043c\u044b", movies = filtered.filter { !it.isSeries })
-            )
-        } else {
-            val title = when (category) {
-                "movies" -> "\u0424\u0438\u043b\u044c\u043c\u044b"
-                "series" -> "\u0421\u0435\u0440\u0438\u0430\u043b\u044b"
-                "cartoons" -> "\u041c\u0443\u043b\u044c\u0442\u0444\u0438\u043b\u044c\u043c\u044b"
-                "anime" -> "\u0410\u043d\u0438\u043c\u0435"
-                "favorites" -> "\u0418\u0437\u0431\u0440\u0430\u043d\u043d\u043e\u0435"
-                else -> "\u041a\u0430\u0442\u0430\u043b\u043e\u0433"
-            }
-            listOf(MovieCategory(id = category, title = title, movies = filtered))
+        if (category == "favorites") {
+            val base = try { ShowHubApiClient.fetchCatalog() } catch (e: Exception) { emptyList() }
+            val all = if (base.isNotEmpty()) base else sampleMovies
+            val filtered = filterAndSort(all, category, genre, sortBy, year, country)
+            emit(listOf(MovieCategory(id = "favorites", title = "Избранное", movies = filtered)))
+            return@flow
         }
-        emit(initialCategories)
 
-        // Live API fetch
-        if (category != "favorites") {
-            try {
-                val liveMovies = ShowHubApiClient.fetchCatalog(
-                    category = category,
-                    genre = genre,
-                    sortBy = sortBy,
-                    year = year,
-                    country = country
-                )
+        // Live API fetch first without hardcoded movies on start
+        try {
+            val liveMovies = ShowHubApiClient.fetchCatalog(
+                category = category,
+                genre = genre,
+                sortBy = sortBy,
+                year = year,
+                country = country
+            )
 
-                if (liveMovies.isNotEmpty()) {
-                    val combined = (liveMovies + filtered).distinctBy { it.title.lowercase().trim() }
-                    val updatedCategories = if (category == "all" && (genre.isNullOrEmpty() || genre == "Все жанры")) {
-                        listOf(
-                            MovieCategory(id = "popular", title = "Популярные новинки", movies = combined),
-                            MovieCategory(id = "top_rated", title = "Топ рейтинга", movies = combined.sortedByDescending { it.rating }),
-                            MovieCategory(id = "series", title = "Сериалы", movies = combined.filter { it.isSeries }),
-                            MovieCategory(id = "movies", title = "Фильмы", movies = combined.filter { !it.isSeries })
-                        )
-                    } else {
-                        val title = initialCategories.firstOrNull()?.title ?: "\u041a\u0430\u0442\u0430\u043b\u043e\u0433"
-                        listOf(MovieCategory(id = category, title = title, movies = combined))
+            if (liveMovies.isNotEmpty()) {
+                val liveCategories = if (category == "all" && (genre.isNullOrEmpty() || genre == "Все жанры")) {
+                    listOf(
+                        MovieCategory(id = "popular", title = "Популярные новинки", movies = liveMovies),
+                        MovieCategory(id = "top_rated", title = "Топ рейтинга", movies = liveMovies.sortedByDescending { it.rating }),
+                        MovieCategory(id = "series", title = "Сериалы", movies = liveMovies.filter { it.isSeries }),
+                        MovieCategory(id = "movies", title = "Фильмы", movies = liveMovies.filter { !it.isSeries })
+                    )
+                } else {
+                    val title = when (category) {
+                        "movies" -> "Фильмы"
+                        "series" -> "Сериалы"
+                        "cartoons" -> "Мультфильмы"
+                        "anime" -> "Аниме"
+                        else -> "Каталог"
                     }
-                    emit(updatedCategories)
+                    listOf(MovieCategory(id = category, title = title, movies = liveMovies))
                 }
-            } catch (e: Exception) {
-                e.printStackTrace()
+                emit(liveCategories)
+            } else {
+                // Emergency offline fallback only if network returned empty
+                val fallback = filterAndSort(sampleMovies, category, genre, sortBy, year, country)
+                val fallbackCategories = listOf(MovieCategory(id = category, title = "Офлайн-каталог", movies = fallback))
+                emit(fallbackCategories)
             }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            val fallback = filterAndSort(sampleMovies, category, genre, sortBy, year, country)
+            val fallbackCategories = listOf(MovieCategory(id = category, title = "Офлайн-каталог", movies = fallback))
+            emit(fallbackCategories)
         }
     }
 }

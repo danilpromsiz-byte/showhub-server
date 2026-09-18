@@ -94,7 +94,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun DetailsScreen(
     movie: Movie,
-    onPlayClick: (videoUrl: String, startPositionMs: Long, season: Int, episode: Int) -> Unit,
+    onPlayClick: (detailedMovie: Movie, videoUrl: String, startPositionMs: Long, season: Int, episode: Int) -> Unit,
     onBackClick: () -> Unit,
     onToggleFavorite: (Movie) -> Unit,
     isFavorite: Boolean,
@@ -328,7 +328,7 @@ fun DetailsScreen(
                     ?: streams.firstOrNull { isDirectVideoStream(it.url) }
                     ?: streams.first()
                 streamStatus = "Найден поток ${matched.quality}! Запуск..."
-                onPlayClick(matched.url, startPos, targetSeason, targetEpisode)
+                onPlayClick(currentMovie, matched.url, startPos, targetSeason, targetEpisode)
             } else {
                 streamStatus = "Поток в обработке. Попробуйте другой фильм."
             }
@@ -632,9 +632,9 @@ fun DetailsScreen(
                             ),
                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                             scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.04f),
-                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                             modifier = Modifier
-                                .height(32.dp)
+                                .height(28.dp)
                                 .focusRequester(playButtonFocusRequester)
                                 .focusProperties {
                                     left = leftPaneFocusRequester
@@ -644,18 +644,18 @@ fun DetailsScreen(
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                horizontalArrangement = Arrangement.spacedBy(5.dp)
                             ) {
                                 AppIcon(
                                     resId = R.drawable.ic_play_arrow,
                                     tint = Color.Black,
-                                    size = 15.dp
+                                    size = 14.dp
                                 )
                                 Text(
                                     text = resumeLabel,
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 12.sp,
-                                    lineHeight = 14.sp
+                                    fontSize = 11.sp,
+                                    lineHeight = 13.sp
                                 )
                             }
                         }
@@ -674,9 +674,9 @@ fun DetailsScreen(
                             ),
                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                             scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.04f),
-                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                             modifier = Modifier
-                                .height(32.dp)
+                                .height(28.dp)
                                 .focusRequester(fromStartButtonFocusRequester)
                                 .focusProperties {
                                     left = playButtonFocusRequester
@@ -686,18 +686,18 @@ fun DetailsScreen(
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                horizontalArrangement = Arrangement.spacedBy(5.dp)
                             ) {
                                 AppIcon(
                                     resId = R.drawable.ic_replay_10,
                                     tint = TextWhite,
-                                    size = 14.dp
+                                    size = 13.dp
                                 )
                                 Text(
                                     text = "С начала",
                                     fontWeight = FontWeight.Medium,
-                                    fontSize = 12.sp,
-                                    lineHeight = 14.sp
+                                    fontSize = 11.sp,
+                                    lineHeight = 13.sp
                                 )
                             }
                         }
@@ -716,9 +716,9 @@ fun DetailsScreen(
                             ),
                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                             scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.04f),
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
                             modifier = Modifier
-                                .height(32.dp)
+                                .height(28.dp)
                                 .focusRequester(playButtonFocusRequester)
                                 .focusProperties {
                                     left = leftPaneFocusRequester
@@ -728,18 +728,18 @@ fun DetailsScreen(
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                horizontalArrangement = Arrangement.spacedBy(5.dp)
                             ) {
                                 AppIcon(
                                     resId = R.drawable.ic_play_arrow,
                                     tint = Color.Black,
-                                    size = 15.dp
+                                    size = 14.dp
                                 )
                                 Text(
                                     text = if (isResolving) "Поиск потока..." else "Смотреть онлайн",
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 12.sp,
-                                    lineHeight = 14.sp
+                                    fontSize = 11.sp,
+                                    lineHeight = 13.sp
                                 )
                             }
                         }
@@ -778,9 +778,9 @@ fun DetailsScreen(
                         ),
                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                         scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.04f),
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                         modifier = Modifier
-                            .height(32.dp)
+                            .height(28.dp)
                             .focusRequester(trailerButtonFocusRequester)
                             .focusProperties {
                                 left = if (hasResume) fromStartButtonFocusRequester else playButtonFocusRequester
@@ -790,18 +790,18 @@ fun DetailsScreen(
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            horizontalArrangement = Arrangement.spacedBy(5.dp)
                         ) {
                             AppIcon(
                                 resId = R.drawable.ic_movie,
                                 tint = TextWhite,
-                                size = 15.dp
+                                size = 14.dp
                             )
                             Text(
                                 text = "Трейлер",
                                 fontWeight = FontWeight.SemiBold,
-                                fontSize = 12.sp,
-                                lineHeight = 14.sp
+                                fontSize = 11.sp,
+                                lineHeight = 13.sp
                             )
                         }
                     }
@@ -874,9 +874,9 @@ fun DetailsScreen(
                         ),
                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                         scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.04f),
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                         modifier = Modifier
-                            .height(32.dp)
+                            .height(28.dp)
                             .focusRequester(externalPlayerFocusRequester)
                             .focusProperties {
                                 left = trailerButtonFocusRequester
@@ -885,18 +885,18 @@ fun DetailsScreen(
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            horizontalArrangement = Arrangement.spacedBy(5.dp)
                         ) {
                             AppIcon(
                                 resId = R.drawable.ic_open_in_new,
                                 tint = TextWhite,
-                                size = 14.dp
+                                size = 13.dp
                             )
                             Text(
                                 text = "Внешний плеер",
                                 fontWeight = FontWeight.SemiBold,
-                                fontSize = 12.sp,
-                                lineHeight = 14.sp
+                                fontSize = 11.sp,
+                                lineHeight = 13.sp
                             )
                         }
                     }
@@ -906,7 +906,7 @@ fun DetailsScreen(
 
                 // Action Buttons - Row 2 (Library & Navigation Actions)
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Button(
@@ -927,9 +927,9 @@ fun DetailsScreen(
                         ),
                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                         scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.04f),
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                         modifier = Modifier
-                            .height(32.dp)
+                            .height(28.dp)
                             .focusRequester(favoriteButtonFocusRequester)
                             .focusProperties {
                                 left = leftPaneFocusRequester
@@ -940,18 +940,18 @@ fun DetailsScreen(
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            horizontalArrangement = Arrangement.spacedBy(5.dp)
                         ) {
                             AppIcon(
                                 resId = if (isFavorite) R.drawable.ic_star else R.drawable.ic_star_border,
                                 tint = if (isFavorite) FavoriteGold else TextWhite,
-                                size = 14.dp
+                                size = 13.dp
                             )
                             Text(
                                 text = if (isFavorite) "В избранном" else "В избранное",
                                 fontWeight = FontWeight.SemiBold,
-                                fontSize = 12.sp,
-                                lineHeight = 14.sp
+                                fontSize = 11.sp,
+                                lineHeight = 13.sp
                             )
                         }
                     }
@@ -970,9 +970,9 @@ fun DetailsScreen(
                         ),
                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                         scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.04f),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                         modifier = Modifier
-                            .height(32.dp)
+                            .height(28.dp)
                             .focusRequester(backButtonFocusRequester)
                             .focusProperties {
                                 left = favoriteButtonFocusRequester
@@ -982,17 +982,18 @@ fun DetailsScreen(
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            horizontalArrangement = Arrangement.spacedBy(5.dp)
                         ) {
                             AppIcon(
                                 resId = R.drawable.ic_arrow_back,
                                 tint = TextWhite,
-                                size = 14.dp
+                                size = 13.dp
                             )
                             Text(
                                 text = "Назад",
-                                fontSize = 12.sp,
-                                lineHeight = 14.sp
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 11.sp,
+                                lineHeight = 13.sp
                             )
                         }
                     }
@@ -1099,51 +1100,78 @@ fun DetailsScreen(
                                         ),
                                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                                         scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
-                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
-                                        modifier = Modifier.height(32.dp)
+                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                                        modifier = Modifier.height(28.dp)
                                     ) {
-                                        Text(text = track.name, fontSize = 12.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
+                                        Text(text = track.name, fontSize = 11.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
                                     }
                                 }
                             }
-                            Spacer(modifier = Modifier.height(12.dp))
+                            Spacer(modifier = Modifier.height(10.dp))
                         }
 
-                        // Quality Selector Ribbon
+                        // Quality Selector Ribbon with HDrezka Premium Distinction
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Text(text = "Качество:", fontSize = 13.sp, color = TextGray)
+                            Text(text = "Качество:", fontSize = 12.sp, color = TextGray)
+                            val goldColor = Color(0xFFFFD700)
                             listOf("1080p Ultra", "1080p", "720p").forEach { quality ->
                                 val isSelected = quality == selectedQuality
+                                val isPremium = quality.contains("Ultra", ignoreCase = true) || quality.contains("4K", ignoreCase = true)
                                 Button(
                                     onClick = { selectedQuality = quality },
                                     colors = ButtonDefaults.colors(
-                                        containerColor = if (isSelected) accent else ChipBackground,
-                                        focusedContainerColor = accent,
-                                        contentColor = if (isSelected) Color.Black else TextWhite,
+                                        containerColor = when {
+                                            isSelected && isPremium -> goldColor
+                                            isSelected -> accent
+                                            isPremium -> Color(0xFF2B2200)
+                                            else -> ChipBackground
+                                        },
+                                        focusedContainerColor = if (isPremium) goldColor else accent,
+                                        contentColor = when {
+                                            isSelected -> Color.Black
+                                            isPremium -> goldColor
+                                            else -> TextWhite
+                                        },
                                         focusedContentColor = Color.Black
+                                    ),
+                                    border = ButtonDefaults.border(
+                                        border = Border(BorderStroke(1.dp, if (isPremium) goldColor else (if (isSelected) accent else Color.Transparent))),
+                                        focusedBorder = Border(BorderStroke(2.dp, if (isPremium) Color.White else TextWhite))
                                     ),
                                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                                     scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
-                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
-                                    modifier = Modifier.height(32.dp)
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                                    modifier = Modifier.height(28.dp)
                                 ) {
-                                    Text(
-                                        text = quality,
-                                        fontSize = 12.sp,
-                                        lineHeight = 14.sp,
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                                    )
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        if (isPremium) {
+                                            AppIcon(
+                                                resId = R.drawable.ic_star,
+                                                tint = if (isSelected) Color.Black else goldColor,
+                                                size = 11.dp
+                                            )
+                                        }
+                                        Text(
+                                            text = if (isPremium) "$quality ★ VIP" else quality,
+                                            fontSize = 11.sp,
+                                            lineHeight = 13.sp,
+                                            fontWeight = if (isSelected || isPremium) FontWeight.Bold else FontWeight.Normal
+                                        )
+                                    }
                                 }
                             }
                         }
 
                         // SERIES: Seasons & Episodes
                         if (currentMovie.isSeries && currentMovie.seasons.isNotEmpty()) {
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Text(text = "Сезоны:", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextWhite)
+                            Spacer(modifier = Modifier.height(14.dp))
+                            Text(text = "Сезоны:", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextWhite)
                             Spacer(modifier = Modifier.height(6.dp))
 
                             TvLazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1162,20 +1190,20 @@ fun DetailsScreen(
                                         ),
                                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                                         scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
-                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
-                                        modifier = Modifier.height(32.dp)
+                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                                        modifier = Modifier.height(28.dp)
                                     ) {
-                                        Text(text = season.title, fontSize = 12.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
+                                        Text(text = season.title, fontSize = 11.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
                                     }
                                 }
                             }
 
-                            Spacer(modifier = Modifier.height(12.dp))
+                            Spacer(modifier = Modifier.height(10.dp))
 
                             val activeSeason = currentMovie.seasons.firstOrNull { it.seasonNumber == selectedSeason } ?: currentMovie.seasons.first()
                             Text(
                                 text = "Серии (${activeSeason.episodes.size}):",
-                                fontSize = 14.sp,
+                                fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = TextWhite
                             )
@@ -1201,10 +1229,10 @@ fun DetailsScreen(
                                         ),
                                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                                         scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
-                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
-                                        modifier = Modifier.height(34.dp)
+                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                                        modifier = Modifier.height(28.dp)
                                     ) {
-                                        Text(text = ep.title, fontSize = 12.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
+                                        Text(text = ep.title, fontSize = 11.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
                                     }
                                 }
                             }

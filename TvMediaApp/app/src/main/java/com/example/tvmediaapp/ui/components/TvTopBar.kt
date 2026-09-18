@@ -2,6 +2,7 @@ package com.example.tvmediaapp.ui.components
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -9,6 +10,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
@@ -18,10 +20,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.tvmediaapp.R
 import androidx.tv.material3.Border
 import androidx.tv.material3.Button
 import androidx.tv.material3.ButtonDefaults
@@ -57,41 +61,8 @@ fun TvTopBar(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        // ShowHub TV Logo
-        Row(
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "SHOWHUB",
-                fontSize = 22.sp,
-                fontWeight = FontWeight.ExtraBold,
-                color = TextWhite,
-                letterSpacing = 1.5.sp
-            )
-            Spacer(modifier = Modifier.width(6.dp))
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(accent)
-                    .padding(horizontal = 6.dp, vertical = 2.dp)
-            ) {
-                Text(
-                    text = "TV",
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Black,
-                    color = Color.Black
-                )
-            }
-            if (appVersion.isNotEmpty()) {
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "v$appVersion",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = TextGray
-                )
-            }
-        }
+        // Modern Cinematic ShowHub TV Logo
+        ShowHubLogo(accent = accent, appVersion = appVersion)
 
         // Top Navigation items: Search, Favorites, History, Settings, Update
         val downMod = if (focusDownRequester != null) Modifier.focusProperties { down = focusDownRequester } else Modifier
@@ -117,26 +88,26 @@ fun TvTopBar(
                 ),
                 shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                 scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                 modifier = Modifier
-                    .height(32.dp)
+                    .height(28.dp)
                     .then(searchFocusMod)
                     .then(downMod)
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    horizontalArrangement = Arrangement.spacedBy(5.dp)
                 ) {
                     AppIcon(
                         resId = com.example.tvmediaapp.R.drawable.ic_search,
                         tint = if (isSearch) accent else TextWhite,
-                        size = 14.dp
+                        size = 13.dp
                     )
                     Text(
                         text = "Поиск",
                         fontWeight = FontWeight.SemiBold,
-                        fontSize = 12.sp,
-                        lineHeight = 14.sp
+                        fontSize = 11.sp,
+                        lineHeight = 13.sp
                     )
                 }
             }
@@ -157,25 +128,25 @@ fun TvTopBar(
                 ),
                 shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                 scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                 modifier = Modifier
-                    .height(32.dp)
+                    .height(28.dp)
                     .then(downMod)
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    horizontalArrangement = Arrangement.spacedBy(5.dp)
                 ) {
                     AppIcon(
                         resId = com.example.tvmediaapp.R.drawable.ic_star,
                         tint = if (isFav) accent else TextWhite,
-                        size = 14.dp
+                        size = 13.dp
                     )
                     Text(
                         text = "Избранное",
                         fontWeight = FontWeight.SemiBold,
-                        fontSize = 12.sp,
-                        lineHeight = 14.sp
+                        fontSize = 11.sp,
+                        lineHeight = 13.sp
                     )
                 }
             }
@@ -196,25 +167,25 @@ fun TvTopBar(
                 ),
                 shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                 scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                 modifier = Modifier
-                    .height(32.dp)
+                    .height(28.dp)
                     .then(downMod)
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    horizontalArrangement = Arrangement.spacedBy(5.dp)
                 ) {
                     AppIcon(
                         resId = com.example.tvmediaapp.R.drawable.ic_history,
                         tint = if (isHist) accent else TextWhite,
-                        size = 14.dp
+                        size = 13.dp
                     )
                     Text(
                         text = "История",
                         fontWeight = FontWeight.SemiBold,
-                        fontSize = 12.sp,
-                        lineHeight = 14.sp
+                        fontSize = 11.sp,
+                        lineHeight = 13.sp
                     )
                 }
             }
@@ -236,25 +207,25 @@ fun TvTopBar(
                     ),
                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                     scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                     modifier = Modifier
-                        .height(32.dp)
+                        .height(28.dp)
                         .then(downMod)
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        horizontalArrangement = Arrangement.spacedBy(5.dp)
                     ) {
                         AppIcon(
                             resId = com.example.tvmediaapp.R.drawable.ic_settings,
                             tint = if (isSettings) accent else TextWhite,
-                            size = 14.dp
+                            size = 13.dp
                         )
                         Text(
                             text = "Настройки",
                             fontWeight = FontWeight.SemiBold,
-                            fontSize = 12.sp,
-                            lineHeight = 14.sp
+                            fontSize = 11.sp,
+                            lineHeight = 13.sp
                         )
                     }
                 }
@@ -276,29 +247,122 @@ fun TvTopBar(
                     ),
                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                     scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                     modifier = Modifier
-                        .height(32.dp)
+                        .height(28.dp)
                         .then(downMod)
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        horizontalArrangement = Arrangement.spacedBy(5.dp)
                     ) {
                         AppIcon(
                             resId = com.example.tvmediaapp.R.drawable.ic_refresh,
                             tint = if (hasUpdateAvailable) Color.Black else TextWhite,
-                            size = 14.dp
+                            size = 13.dp
                         )
                         Text(
                             text = if (hasUpdateAvailable) "Обновить" else "Обновления",
                             fontWeight = FontWeight.Bold,
-                            fontSize = 12.sp,
-                            lineHeight = 14.sp
+                            fontSize = 11.sp,
+                            lineHeight = 13.sp
                         )
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun ShowHubLogo(
+    accent: Color,
+    appVersion: String = "",
+    modifier: Modifier = Modifier
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = modifier
+    ) {
+        // Neon Emblem: Glowing Cinema Prism / Play Icon
+        Box(
+            modifier = Modifier
+                .size(32.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(
+                    brush = Brush.linearGradient(
+                        colors = listOf(
+                            accent,
+                            Color(0xFF8A2BE2),
+                            Color(0xFF4A00E0)
+                        )
+                    )
+                )
+                .border(
+                    width = 1.dp,
+                    color = Color.White.copy(alpha = 0.4f),
+                    shape = RoundedCornerShape(8.dp)
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            AppIcon(
+                resId = R.drawable.ic_play_arrow,
+                tint = Color.White,
+                size = 16.dp
+            )
+        }
+
+        Spacer(modifier = Modifier.width(10.dp))
+
+        // Styled Typography
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = "SHOW",
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Black,
+                color = TextWhite,
+                letterSpacing = 1.2.sp
+            )
+            Text(
+                text = "HUB",
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Black,
+                color = accent,
+                letterSpacing = 1.2.sp
+            )
+        }
+
+        Spacer(modifier = Modifier.width(6.dp))
+
+        // Neon TV Badge
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(4.dp))
+                .background(Color.White.copy(alpha = 0.12f))
+                .border(
+                    width = 1.dp,
+                    color = accent.copy(alpha = 0.7f),
+                    shape = RoundedCornerShape(4.dp)
+                )
+                .padding(horizontal = 5.dp, vertical = 1.dp)
+        ) {
+            Text(
+                text = "TV",
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Black,
+                color = accent,
+                letterSpacing = 0.5.sp
+            )
+        }
+
+        if (appVersion.isNotEmpty()) {
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "v$appVersion",
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Medium,
+                color = TextGray
+            )
         }
     }
 }

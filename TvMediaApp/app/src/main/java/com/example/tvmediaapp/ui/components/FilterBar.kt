@@ -143,15 +143,17 @@ fun FilterBar(
                     ),
                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                     scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                     modifier = Modifier
-                        .height(34.dp)
+                        .height(28.dp)
                         .then(firstMod)
                         .then(row1DirectionMod)
                 ) {
                     Text(
                         text = typeLabel,
-                        fontSize = 13.sp,
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                        fontSize = 11.sp,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                        lineHeight = 13.sp
                     )
                 }
             }
@@ -177,14 +179,16 @@ fun FilterBar(
                     ),
                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                     scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                     modifier = Modifier
-                        .height(34.dp)
+                        .height(28.dp)
                         .then(row1DirectionMod)
                 ) {
                     Text(
                         text = sortLabel,
-                        fontSize = 13.sp,
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                        fontSize = 11.sp,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                        lineHeight = 13.sp
                     )
                 }
             }
@@ -202,14 +206,16 @@ fun FilterBar(
                     ),
                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                     scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                     modifier = Modifier
-                        .height(34.dp)
+                        .height(28.dp)
                         .then(row1DirectionMod)
                 ) {
                     Text(
                         text = "Сброс",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        lineHeight = 13.sp
                     )
                 }
             }
@@ -243,15 +249,17 @@ fun FilterBar(
                     ),
                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                     scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                     modifier = Modifier
-                        .height(32.dp)
+                        .height(28.dp)
                         .then(firstMod)
                         .then(row2DirectionMod)
                 ) {
                     Text(
                         text = genre,
-                        fontSize = 12.sp,
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                        fontSize = 11.sp,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                        lineHeight = 13.sp
                     )
                 }
             }

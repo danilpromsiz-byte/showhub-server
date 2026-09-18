@@ -88,7 +88,8 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun getAllMovies(): List<Movie> {
-        return repository.sampleMovies
+        val live = _categories.value.flatMap { it.movies }.distinctBy { it.id }
+        return if (live.isNotEmpty()) live else repository.sampleMovies
     }
 
     private fun loadCatalog() {

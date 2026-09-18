@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -32,7 +33,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import kotlinx.coroutines.delay
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
@@ -61,21 +65,6 @@ import com.example.tvmediaapp.ui.theme.TextGray
 import com.example.tvmediaapp.ui.theme.TextWhite
 import kotlinx.coroutines.launch
 import org.json.JSONArray
-
-val POPULAR_QUERIES = listOf(
-    "Пожиратель звёзд",
-    "Слово пацана",
-    "Мастер и Маргарита",
-    "Дюна",
-    "Интерстеллар",
-    "Оппенгеймер",
-    "Джентльмены",
-    "Триггер",
-    "Головоломка 2"
-)
-
-val RU_KEYBOARD_ROW1 = listOf("А", "Б", "В", "Г", "Д", "Е", "Ж", "З", "И", "К", "Л", "М", "Н", "О", "П", "Р")
-val RU_KEYBOARD_ROW2 = listOf("С", "Т", "У", "Ф", "Х", "Ц", "Ч", "Ш", "Щ", "Э", "Ю", "Я", "1", "2", "3", "4", "5", "6", "7", "8", "9", "0")
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
@@ -114,6 +103,14 @@ fun SearchScreen(
     var results by remember { mutableStateOf(initialMovies) }
     var isSearching by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
+    val searchInputFocusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(Unit) {
+        delay(150)
+        try {
+            searchInputFocusRequester.requestFocus()
+        } catch (_: Exception) {}
+    }
 
     fun performSearch(q: String) {
         query = q
@@ -166,18 +163,21 @@ fun SearchScreen(
                 ),
                 shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                 scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
-                modifier = Modifier.height(32.dp)
+                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                modifier = Modifier.height(28.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     com.example.tvmediaapp.ui.components.AppIcon(
                         iconResId = com.example.tvmediaapp.R.drawable.ic_arrow_back,
                         contentDescription = "Назад",
-                        modifier = Modifier.padding(end = 6.dp)
+                        modifier = Modifier.padding(end = 4.dp),
+                        tint = TextWhite,
+                        size = 13.dp
                     )
                     Text(
                         text = "Назад",
-                        fontSize = 13.sp
+                        fontSize = 11.sp,
+                        lineHeight = 13.sp
                     )
                 }
             }
@@ -190,7 +190,7 @@ fun SearchScreen(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(48.dp)
+                .height(44.dp)
                 .clip(RoundedCornerShape(8.dp))
                 .background(Color(0xFF1E293B))
                 .border(
@@ -198,7 +198,7 @@ fun SearchScreen(
                     color = if (isInputFocused) accent else Color.White.copy(alpha = 0.15f),
                     shape = RoundedCornerShape(8.dp)
                 )
-                .padding(horizontal = 16.dp),
+                .padding(horizontal = 14.dp),
             contentAlignment = Alignment.CenterStart
         ) {
             Row(
@@ -216,7 +216,7 @@ fun SearchScreen(
                         singleLine = true,
                         textStyle = TextStyle(
                             color = TextWhite,
-                            fontSize = 16.sp,
+                            fontSize = 15.sp,
                             fontWeight = FontWeight.Medium
                         ),
                         cursorBrush = SolidColor(accent),
@@ -225,13 +225,14 @@ fun SearchScreen(
                                 Text(
                                     text = "Введите название фильма или сериала...",
                                     color = TextGray,
-                                    fontSize = 15.sp
+                                    fontSize = 14.sp
                                 )
                             }
                             innerTextField()
                         },
                         modifier = Modifier
                             .fillMaxWidth()
+                            .focusRequester(searchInputFocusRequester)
                             .onFocusChanged { isInputFocused = it.isFocused }
                     )
                 }
@@ -246,139 +247,85 @@ fun SearchScreen(
                             focusedContentColor = TextWhite
                         ),
                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
-                        modifier = Modifier.height(32.dp)
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                        modifier = Modifier.height(28.dp)
                     ) {
-                        Text(text = "Очистить", fontSize = 12.sp)
+                        Text(text = "Очистить", fontSize = 11.sp, lineHeight = 13.sp)
+                    }
+                }
+            }
+        }
+
+        // Search History Chips
+        if (recentQueries.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = "История:",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = TextGray
+                )
+                TvLazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    items(recentQueries) { histQuery ->
+                        val isSelected = query == histQuery
+                        Button(
+                            onClick = { performSearch(histQuery) },
+                            colors = ButtonDefaults.colors(
+                                containerColor = if (isSelected) accent else ChipBackground,
+                                focusedContainerColor = accent,
+                                contentColor = if (isSelected) Color.Black else TextWhite,
+                                focusedContentColor = Color.Black
+                            ),
+                            shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                            modifier = Modifier.height(28.dp)
+                        ) {
+                            Text(
+                                text = histQuery,
+                                fontSize = 11.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                lineHeight = 13.sp
+                            )
+                        }
+                    }
+                    item {
+                        Button(
+                            onClick = {
+                                searchPrefs.edit().remove("queries").apply()
+                                recentQueries = emptyList()
+                            },
+                            colors = ButtonDefaults.colors(
+                                containerColor = Color.White.copy(alpha = 0.08f),
+                                focusedContainerColor = Color.Red,
+                                contentColor = TextGray,
+                                focusedContentColor = TextWhite
+                            ),
+                            shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                            modifier = Modifier.height(28.dp)
+                        ) {
+                            Text(
+                                text = "Очистить историю",
+                                fontSize = 11.sp,
+                                lineHeight = 13.sp
+                            )
+                        }
                     }
                 }
             }
         }
 
         Spacer(modifier = Modifier.height(10.dp))
-
-        // On-screen TV Remote Keyboard Rows
-        TvLazyRow(
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            items(RU_KEYBOARD_ROW1) { char ->
-                Button(
-                    onClick = { performSearch(query + char) },
-                    colors = ButtonDefaults.colors(
-                        containerColor = ChipBackground,
-                        focusedContainerColor = accent,
-                        contentColor = TextWhite,
-                        focusedContentColor = Color.Black
-                    ),
-                    shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                    modifier = Modifier.height(32.dp)
-                ) {
-                    Text(text = char, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(4.dp))
-
-        TvLazyRow(
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            items(RU_KEYBOARD_ROW2) { char ->
-                Button(
-                    onClick = { performSearch(query + char) },
-                    colors = ButtonDefaults.colors(
-                        containerColor = ChipBackground,
-                        focusedContainerColor = accent,
-                        contentColor = TextWhite,
-                        focusedContentColor = Color.Black
-                    ),
-                    shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                    modifier = Modifier.height(32.dp)
-                ) {
-                    Text(text = char, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                }
-            }
-
-            item {
-                Button(
-                    onClick = { performSearch(query + " ") },
-                    colors = ButtonDefaults.colors(
-                        containerColor = Color.White.copy(alpha = 0.15f),
-                        focusedContainerColor = accent,
-                        contentColor = TextWhite,
-                        focusedContentColor = Color.Black
-                    ),
-                    shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                    modifier = Modifier.height(32.dp)
-                ) {
-                    Text(text = "Пробел", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                }
-            }
-
-            item {
-                Button(
-                    onClick = {
-                        if (query.isNotEmpty()) performSearch(query.dropLast(1))
-                    },
-                    colors = ButtonDefaults.colors(
-                        containerColor = Color.White.copy(alpha = 0.15f),
-                        focusedContainerColor = accent,
-                        contentColor = TextWhite,
-                        focusedContentColor = Color.Black
-                    ),
-                    shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                    modifier = Modifier.height(32.dp)
-                ) {
-                    Text(text = "Стереть", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                }
-            }
-
-            item {
-                Button(
-                    onClick = { performSearch("") },
-                    colors = ButtonDefaults.colors(
-                        containerColor = Color.Red.copy(alpha = 0.3f),
-                        focusedContainerColor = Color.Red,
-                        contentColor = TextWhite,
-                        focusedContentColor = TextWhite
-                    ),
-                    shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                    modifier = Modifier.height(32.dp)
-                ) {
-                    Text(text = "Очистить", fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        // Popular Quick Queries
-        TvLazyRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            items(POPULAR_QUERIES) { itemQuery ->
-                val isSelected = query == itemQuery
-                Button(
-                    onClick = { performSearch(itemQuery) },
-                    colors = ButtonDefaults.colors(
-                        containerColor = if (isSelected) accent else ChipBackground,
-                        focusedContainerColor = accent,
-                        contentColor = if (isSelected) Color.Black else TextWhite,
-                        focusedContentColor = Color.Black
-                    ),
-                    shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                    modifier = Modifier.height(32.dp)
-                ) {
-                    Text(
-                        text = itemQuery,
-                        fontSize = 12.sp,
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                    )
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(14.dp))
 
         if (isSearching) {
             Box(

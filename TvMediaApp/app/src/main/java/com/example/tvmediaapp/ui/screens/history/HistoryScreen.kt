@@ -116,18 +116,21 @@ fun HistoryScreen(
                         ),
                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                         scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
-                        modifier = Modifier.height(32.dp)
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                        modifier = Modifier.height(28.dp)
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             com.example.tvmediaapp.ui.components.AppIcon(
                                 iconResId = com.example.tvmediaapp.R.drawable.ic_delete,
                                 contentDescription = "Очистить историю",
-                                modifier = Modifier.padding(end = 6.dp)
+                                modifier = Modifier.padding(end = 4.dp),
+                                tint = TextGray,
+                                size = 13.dp
                             )
                             Text(
                                 text = "Очистить историю",
-                                fontSize = 13.sp
+                                fontSize = 11.sp,
+                                lineHeight = 13.sp
                             )
                         }
                     }
@@ -143,18 +146,21 @@ fun HistoryScreen(
                     ),
                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                     scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
-                    modifier = Modifier.height(32.dp)
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                    modifier = Modifier.height(28.dp)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         com.example.tvmediaapp.ui.components.AppIcon(
                             iconResId = com.example.tvmediaapp.R.drawable.ic_arrow_back,
                             contentDescription = "Назад",
-                            modifier = Modifier.padding(end = 6.dp)
+                            modifier = Modifier.padding(end = 4.dp),
+                            tint = TextWhite,
+                            size = 13.dp
                         )
                         Text(
                             text = "Назад",
-                            fontSize = 13.sp
+                            fontSize = 11.sp,
+                            lineHeight = 13.sp
                         )
                     }
                 }

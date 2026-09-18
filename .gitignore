@@ -9,6 +9,7 @@
 !/Dockerfile
 !/.gitignore
 !/README.md
+!/version.json
 !/TvMediaApp/
 
 # Ignore build artifacts and caches

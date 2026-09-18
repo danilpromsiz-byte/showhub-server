@@ -9,8 +9,12 @@ import datetime
 import time
 import json
 import re
+import threading
+import logging
 from typing import List, Dict, Any, Optional, Tuple
 from concurrent.futures import ThreadPoolExecutor
+
+logger = logging.getLogger("mediacenter")
 
 from fastapi import FastAPI, Query, HTTPException
 from fastapi.staticfiles import StaticFiles
@@ -358,13 +362,13 @@ def check_updates() -> Dict[str, Any]:
 
     return {
         "success": True,
-        "version_name": "2.6.5",
-        "version_code": 44,
+        "version_name": "2.7.0",
+        "version_code": 49,
         "force_update": True,
-        "min_version_code": 44,
+        "min_version_code": 49,
         "apk_url": "https://showhub-server.onrender.com/ShowHub.apk",
         "download_url": "https://showhub-server.onrender.com/ShowHub.apk",
-        "changelog": "ShowHub TV v2.6.5: Предпросмотр видео в карточке фильма, единый компактный стиль кнопок 32dp, профессиональный векторный айкон-пак, навигация и кнопки серий в плеере, надёжный выход по кнопке «Назад» на пульте."
+        "changelog": "ShowHub TV v2.7.0: Решение проблемы замедления видео при длительном воспроизведении, сохранение выбранной озвучки, отображение только реальных источников, счетчик пользователей в настройках и единый стиль фокуса кнопок."
     }
 
 @app.get("/api/catalog/stats")

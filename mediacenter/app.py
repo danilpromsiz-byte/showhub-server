@@ -187,14 +187,15 @@ def find_best_match(items: list, target_year: Optional[Any] = None, target_is_se
 def search_media(q: str = Query(..., min_length=1)) -> List[Dict[str, Any]]:
     """Searches across all sources in parallel with robust title/year deduplication."""
     all_items = []
-    with ThreadPoolExecutor(max_workers=5) as executor:
+    with ThreadPoolExecutor(max_workers=6) as executor:
         f_bazon = executor.submit(bazon.search, q)
         f_torrents = executor.submit(torrents.search, q)
         f_rezka = executor.submit(hdrezka.search, q)
         f_filmix = executor.submit(filmix.search, q)
         f_videocdn = executor.submit(videocdn.search, q)
+        f_kodik = executor.submit(kodik.search, q)
 
-        for f in [f_bazon, f_torrents, f_rezka, f_filmix, f_videocdn]:
+        for f in [f_bazon, f_torrents, f_rezka, f_filmix, f_videocdn, f_kodik]:
             try:
                 items = f.result(timeout=6)
                 all_items.extend(items)
@@ -1178,12 +1179,12 @@ def get_media_preview_stream(
         if getattr(st, "stream_type", "hls") not in ["hls", "mp4"]:
             return False
         u = str(st.url).lower()
-        if "rhtie.mp4" in u or "rhtie" in u:
+        if any(bad in u for bad in ["rhtie.mp4", "rhtie", "trial", "preview", "teaser", "promo"]):
             return False
         if getattr(st, "is_premium", False):
             return False
         q = str(st.quality).lower()
-        if any(bad in q for bad in ["ultra", "4k", "2160", "1440"]):
+        if any(bad in q for bad in ["ultra", "4k", "2160", "1440", "vip", "premium"]):
             return False
         return True
 
@@ -1409,7 +1410,53 @@ def debug_stream_diag(title: str = "Интерстеллар", year: Optional[st
     except Exception:
         diag["rz_exception"] = traceback.format_exc()
         
-    return diag
+# ---------------------------------------------------------
+# Bug Reporting / Feedback Endpoints
+# ---------------------------------------------------------
+BUG_REPORTS_FILE = os.path.join(CURRENT_DIR, "data", "bug_reports.json")
+
+@app.post("/api/feedback/bug-report")
+def submit_bug_report(payload: Dict[str, Any]):
+    """Accepts bug reports from ShowHub TV app and saves to mediacenter/data/bug_reports.json."""
+    os.makedirs(os.path.dirname(BUG_REPORTS_FILE), exist_ok=True)
+    reports = []
+    if os.path.exists(BUG_REPORTS_FILE):
+        try:
+            with open(BUG_REPORTS_FILE, "r", encoding="utf-8") as f:
+                reports = json.load(f)
+        except Exception:
+            reports = []
+
+    report_entry = {
+        "id": int(time.time() * 1000),
+        "created_at": datetime.datetime.now().isoformat(),
+        "text": payload.get("text", "").strip(),
+        "category": payload.get("category", "general"),
+        "device": payload.get("device", "Android TV"),
+        "app_version": payload.get("app_version", "2.6.8"),
+        "version_code": payload.get("version_code", 47),
+        "current_screen": payload.get("current_screen", ""),
+        "extra": payload.get("extra", {})
+    }
+    reports.insert(0, report_entry)
+    reports = reports[:200]
+
+    with open(BUG_REPORTS_FILE, "w", encoding="utf-8") as f:
+        json.dump(reports, f, ensure_ascii=False, indent=2)
+
+    return {"success": True, "id": report_entry["id"], "message": "Bug report received"}
+
+@app.get("/api/feedback/bugs")
+def get_bug_reports(limit: int = 50):
+    """Returns submitted bug reports."""
+    if os.path.exists(BUG_REPORTS_FILE):
+        try:
+            with open(BUG_REPORTS_FILE, "r", encoding="utf-8") as f:
+                reports = json.load(f)
+                return {"count": len(reports), "reports": reports[:limit]}
+        except Exception:
+            pass
+    return {"count": 0, "reports": []}
 
 if __name__ == "__main__":
     import uvicorn

@@ -141,8 +141,9 @@ fun FilterBar(
                         contentColor = if (isSelected) Color.Black else TextWhite,
                         focusedContentColor = Color.Black
                     ),
+                    border = ButtonDefaults.border(border = Border.None, focusedBorder = Border.None),
                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                     modifier = Modifier
                         .height(28.dp)
@@ -173,12 +174,9 @@ fun FilterBar(
                         contentColor = if (isSelected) accent else TextGray,
                         focusedContentColor = Color.Black
                     ),
-                    border = ButtonDefaults.border(
-                        border = Border(BorderStroke(1.dp, if (isSelected) accent else Color.Transparent)),
-                        focusedBorder = Border(BorderStroke(2.dp, TextWhite))
-                    ),
+                    border = ButtonDefaults.border(border = Border.None, focusedBorder = Border.None),
                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                     modifier = Modifier
                         .height(28.dp)
@@ -204,8 +202,9 @@ fun FilterBar(
                         contentColor = TextGray,
                         focusedContentColor = TextWhite
                     ),
+                    border = ButtonDefaults.border(border = Border.None, focusedBorder = Border.None),
                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                     modifier = Modifier
                         .height(28.dp)
@@ -243,12 +242,9 @@ fun FilterBar(
                         contentColor = if (isSelected) accent else TextWhite,
                         focusedContentColor = Color.Black
                     ),
-                    border = ButtonDefaults.border(
-                        border = Border(BorderStroke(1.dp, if (isSelected) accent else Color.Transparent)),
-                        focusedBorder = Border(BorderStroke(2.dp, TextWhite))
-                    ),
+                    border = ButtonDefaults.border(border = Border.None, focusedBorder = Border.None),
                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                     modifier = Modifier
                         .height(28.dp)

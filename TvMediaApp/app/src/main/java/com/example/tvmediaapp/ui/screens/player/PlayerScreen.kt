@@ -524,6 +524,9 @@ private fun NativeExoPlayerScreen(
         }
     }
 
+    var quickSeekBadgeText by remember { mutableStateOf<String?>(null) }
+    var quickSeekBadgeJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+
     // Request focus for D-Pad events on launch
     LaunchedEffect(Unit) {
         rootFocusRequester.requestFocus()
@@ -550,9 +553,52 @@ private fun NativeExoPlayerScreen(
                 }
                 if (nativeEvent.action == KeyEvent.ACTION_DOWN) {
                     if (!isControlsVisible) {
-                        isControlsVisible = true
-                        try { playPauseFocusRequester.requestFocus() } catch (_: Exception) {}
-                        return@onKeyEvent true
+                        when (nativeEvent.keyCode) {
+                            KeyEvent.KEYCODE_DPAD_LEFT -> {
+                                val cur = exoPlayer.currentPosition
+                                val target = (cur - 10000L).coerceAtLeast(0L)
+                                exoPlayer.seekTo(target)
+                                currentPosition = target
+                                quickSeekBadgeText = "-10с"
+                                quickSeekBadgeJob?.cancel()
+                                quickSeekBadgeJob = coroutineScope.launch {
+                                    delay(1500)
+                                    quickSeekBadgeText = null
+                                }
+                                return@onKeyEvent true
+                            }
+                            KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                                val cur = exoPlayer.currentPosition
+                                val dur = if (exoPlayer.duration > 0) exoPlayer.duration else Long.MAX_VALUE
+                                val target = (cur + 10000L).coerceAtMost(dur)
+                                exoPlayer.seekTo(target)
+                                currentPosition = target
+                                quickSeekBadgeText = "+10с"
+                                quickSeekBadgeJob?.cancel()
+                                quickSeekBadgeJob = coroutineScope.launch {
+                                    delay(1500)
+                                    quickSeekBadgeText = null
+                                }
+                                return@onKeyEvent true
+                            }
+                            KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
+                                if (exoPlayer.isPlaying) exoPlayer.pause() else exoPlayer.play()
+                                return@onKeyEvent true
+                            }
+                            KeyEvent.KEYCODE_MEDIA_PLAY -> {
+                                exoPlayer.play()
+                                return@onKeyEvent true
+                            }
+                            KeyEvent.KEYCODE_MEDIA_PAUSE -> {
+                                exoPlayer.pause()
+                                return@onKeyEvent true
+                            }
+                            else -> {
+                                isControlsVisible = true
+                                try { playPauseFocusRequester.requestFocus() } catch (_: Exception) {}
+                                return@onKeyEvent true
+                            }
+                        }
                     } else if (nativeEvent.keyCode == KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE) {
                         if (exoPlayer.isPlaying) exoPlayer.pause() else exoPlayer.play()
                         return@onKeyEvent true
@@ -575,6 +621,42 @@ private fun NativeExoPlayerScreen(
             },
             modifier = Modifier.fillMaxSize()
         )
+
+        // Quick Seek Delta Badge Overlay (when controls are hidden)
+        if (quickSeekBadgeText != null && !isControlsVisible) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(bottom = 64.dp),
+                contentAlignment = Alignment.BottomCenter
+            ) {
+                Box(
+                    modifier = Modifier
+                        .clip(androidx.compose.foundation.shape.RoundedCornerShape(24.dp))
+                        .background(Color.Black.copy(alpha = 0.82f))
+                        .border(1.dp, LocalAccentColor.current.copy(alpha = 0.6f), androidx.compose.foundation.shape.RoundedCornerShape(24.dp))
+                        .padding(horizontal = 20.dp, vertical = 8.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        AppIcon(
+                            resId = if (quickSeekBadgeText!!.startsWith("-")) com.example.tvmediaapp.R.drawable.ic_replay_10 else com.example.tvmediaapp.R.drawable.ic_forward_10,
+                            tint = LocalAccentColor.current,
+                            size = 18.dp
+                        )
+                        androidx.tv.material3.Text(
+                            text = quickSeekBadgeText!!,
+                            color = Color.White,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+        }
 
         // Loading or Buffering Spinner Overlay
         if (isLoadingStream || isBuffering) {
@@ -687,17 +769,9 @@ private fun NativeExoPlayerScreen(
                                         contentColor = if (isSel) Color.Black else TextWhite,
                                         focusedContentColor = Color.Black
                                     ),
-                                    border = ButtonDefaults.border(
-                                        border = Border(
-                                            BorderStroke(
-                                                1.dp,
-                                                if (isVip) Color(0xFFFFD700) else if (isSel) accent else Color.Transparent
-                                            )
-                                        ),
-                                        focusedBorder = Border(BorderStroke(2.dp, TextWhite))
-                                    ),
+                                    border = ButtonDefaults.border(border = Border.None, focusedBorder = Border.None),
                                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
                                     modifier = Modifier.height(28.dp)
                                 ) {
@@ -751,7 +825,7 @@ private fun NativeExoPlayerScreen(
                                         focusedContentColor = Color.Black
                                     ),
                                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
                                     modifier = Modifier.height(28.dp)
                                 ) {
@@ -795,8 +869,9 @@ private fun NativeExoPlayerScreen(
                                         contentColor = if (isSel) Color.Black else TextWhite,
                                         focusedContentColor = Color.Black
                                     ),
+                                    border = ButtonDefaults.border(border = Border.None, focusedBorder = Border.None),
                                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
                                     modifier = Modifier.height(28.dp)
                                 ) {
@@ -885,8 +960,9 @@ private fun NativeExoPlayerScreen(
                                             contentColor = if (isSel) Color.Black else TextWhite,
                                             focusedContentColor = Color.Black
                                         ),
+                                        border = ButtonDefaults.border(border = Border.None, focusedBorder = Border.None),
                                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                                        scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                                        scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
                                         modifier = Modifier.height(28.dp)
                                     ) {
@@ -940,12 +1016,8 @@ private fun NativeExoPlayerScreen(
                                                 contentColor = if (isCurrentEp) Color.Black else TextWhite,
                                                 focusedContentColor = Color.Black
                                             ),
-                                            border = ButtonDefaults.border(
-                                                border = Border(BorderStroke(1.dp, if (isCurrentEp) accent else Color.Transparent)),
-                                                focusedBorder = Border(BorderStroke(2.dp, TextWhite))
-                                            ),
                                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                                             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                                             modifier = Modifier
                                                 .height(28.dp)
@@ -1149,12 +1221,8 @@ private fun NativeExoPlayerScreen(
                                 contentColor = TextWhite,
                                 focusedContentColor = Color.Black
                             ),
-                            border = ButtonDefaults.border(
-                                border = Border(BorderStroke(1.dp, Color.White.copy(alpha = 0.15f))),
-                                focusedBorder = Border(BorderStroke(2.dp, TextWhite))
-                            ),
                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                             contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
                             modifier = Modifier
                                 .height(28.dp)
@@ -1194,12 +1262,8 @@ private fun NativeExoPlayerScreen(
                                 contentColor = TextWhite,
                                 focusedContentColor = Color.Black
                             ),
-                            border = ButtonDefaults.border(
-                                border = Border(BorderStroke(1.dp, Color.White.copy(alpha = 0.15f))),
-                                focusedBorder = Border(BorderStroke(2.dp, TextWhite))
-                            ),
                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                             modifier = Modifier
                                 .height(28.dp)
@@ -1236,12 +1300,8 @@ private fun NativeExoPlayerScreen(
                                 contentColor = TextWhite,
                                 focusedContentColor = Color.Black
                             ),
-                            border = ButtonDefaults.border(
-                                border = Border(BorderStroke(1.dp, Color.White.copy(alpha = 0.15f))),
-                                focusedBorder = Border(BorderStroke(2.dp, TextWhite))
-                            ),
                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                             modifier = Modifier
                                 .height(28.dp)
@@ -1276,12 +1336,8 @@ private fun NativeExoPlayerScreen(
                                 contentColor = if (activeDrawer == "quality") Color.Black else TextWhite,
                                 focusedContentColor = Color.Black
                             ),
-                            border = ButtonDefaults.border(
-                                border = Border(BorderStroke(1.dp, Color.White.copy(alpha = 0.15f))),
-                                focusedBorder = Border(BorderStroke(2.dp, TextWhite))
-                            ),
                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                             modifier = Modifier
                                 .height(28.dp)
@@ -1320,12 +1376,8 @@ private fun NativeExoPlayerScreen(
                                 contentColor = if (activeDrawer == "source") Color.Black else TextWhite,
                                 focusedContentColor = Color.Black
                             ),
-                            border = ButtonDefaults.border(
-                                border = Border(BorderStroke(1.dp, Color.White.copy(alpha = 0.15f))),
-                                focusedBorder = Border(BorderStroke(2.dp, TextWhite))
-                            ),
                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                             modifier = Modifier
                                 .height(28.dp)
@@ -1366,12 +1418,8 @@ private fun NativeExoPlayerScreen(
                                     contentColor = if (activeDrawer == "audio") Color.Black else TextWhite,
                                     focusedContentColor = Color.Black
                                 ),
-                                border = ButtonDefaults.border(
-                                    border = Border(BorderStroke(1.dp, Color.White.copy(alpha = 0.15f))),
-                                    focusedBorder = Border(BorderStroke(2.dp, TextWhite))
-                                ),
                                 shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                                scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                                scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                                 modifier = Modifier
                                     .height(28.dp)
@@ -1409,25 +1457,21 @@ private fun NativeExoPlayerScreen(
                                         contentColor = TextWhite,
                                         focusedContentColor = Color.Black
                                     ),
-                                    border = ButtonDefaults.border(
-                                        border = Border(BorderStroke(1.dp, Color.White.copy(alpha = 0.15f))),
-                                        focusedBorder = Border(BorderStroke(2.dp, TextWhite))
-                                    ),
                                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                                     modifier = Modifier
                                         .height(28.dp)
                                         .focusRequester(prevEpisodeFocusRequester)
                                         .focusProperties {
                                             left = beforeSeriesFocus
-                                            right = episodesDrawerFocusRequester
+                                             right = episodesDrawerFocusRequester
                                             up = timelineFocusRequester
                                         }
                                 ) {
                                     Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                         verticalAlignment = Alignment.CenterVertically,
+                                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                                     ) {
                                         AppIcon(
                                             resId = R.drawable.ic_skip_previous,
@@ -1449,12 +1493,8 @@ private fun NativeExoPlayerScreen(
                                     contentColor = if (activeDrawer == "episodes") Color.Black else TextWhite,
                                     focusedContentColor = Color.Black
                                 ),
-                                border = ButtonDefaults.border(
-                                    border = Border(BorderStroke(1.dp, Color.White.copy(alpha = 0.15f))),
-                                    focusedBorder = Border(BorderStroke(2.dp, TextWhite))
-                                ),
                                 shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                                scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                                scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                                 modifier = Modifier
                                     .height(28.dp)
@@ -1486,12 +1526,8 @@ private fun NativeExoPlayerScreen(
                                     contentColor = TextWhite,
                                     focusedContentColor = Color.Black
                                 ),
-                                border = ButtonDefaults.border(
-                                    border = Border(BorderStroke(1.dp, Color.White.copy(alpha = 0.15f))),
-                                    focusedBorder = Border(BorderStroke(2.dp, TextWhite))
-                                ),
                                 shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                                scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                                scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                                 modifier = Modifier
                                     .height(28.dp)
@@ -1547,12 +1583,8 @@ private fun NativeExoPlayerScreen(
                                 contentColor = TextWhite,
                                 focusedContentColor = Color.Black
                             ),
-                            border = ButtonDefaults.border(
-                                border = Border(BorderStroke(1.dp, Color.White.copy(alpha = 0.15f))),
-                                focusedBorder = Border(BorderStroke(2.dp, TextWhite))
-                            ),
                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                             modifier = Modifier
                                 .height(28.dp)

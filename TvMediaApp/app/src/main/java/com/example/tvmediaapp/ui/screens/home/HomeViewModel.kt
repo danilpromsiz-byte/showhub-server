@@ -39,36 +39,46 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private val _isLoading = MutableStateFlow(true)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
+    @OptIn(androidx.tv.foundation.ExperimentalTvFoundationApi::class)
+    val gridState = androidx.tv.foundation.lazy.grid.TvLazyGridState()
+    var lastFocusedIndex: Int = 0
+
     init {
         loadCatalog()
     }
 
     fun selectType(type: String) {
+        lastFocusedIndex = 0
         _selectedType.value = type
         loadCatalog()
     }
 
     fun selectSort(sortBy: String) {
+        lastFocusedIndex = 0
         _selectedSort.value = sortBy
         loadCatalog()
     }
 
     fun selectGenre(genre: String) {
+        lastFocusedIndex = 0
         _selectedGenre.value = genre
         loadCatalog()
     }
 
     fun selectYear(year: String) {
+        lastFocusedIndex = 0
         _selectedYear.value = year
         loadCatalog()
     }
 
     fun selectCountry(country: String) {
+        lastFocusedIndex = 0
         _selectedCountry.value = country
         loadCatalog()
     }
 
     fun resetFilters() {
+        lastFocusedIndex = 0
         _selectedType.value = "all"
         _selectedSort.value = "newest"
         _selectedGenre.value = "\u0412\u0441\u0435 \u0436\u0430\u043d\u0440\u044b"

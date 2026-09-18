@@ -82,12 +82,9 @@ fun TvTopBar(
                     contentColor = if (isSearch) accent else TextWhite,
                     focusedContentColor = Color.Black
                 ),
-                border = ButtonDefaults.border(
-                    border = Border(BorderStroke(1.dp, if (isSearch) accent else Color.Transparent)),
-                    focusedBorder = Border(BorderStroke(2.dp, TextWhite))
-                ),
+                border = ButtonDefaults.border(border = Border.None, focusedBorder = Border.None),
                 shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                 modifier = Modifier
                     .height(28.dp)
@@ -122,12 +119,9 @@ fun TvTopBar(
                     contentColor = if (isFav) accent else TextWhite,
                     focusedContentColor = Color.Black
                 ),
-                border = ButtonDefaults.border(
-                    border = Border(BorderStroke(1.dp, if (isFav) accent else Color.Transparent)),
-                    focusedBorder = Border(BorderStroke(2.dp, TextWhite))
-                ),
+                border = ButtonDefaults.border(border = Border.None, focusedBorder = Border.None),
                 shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                 modifier = Modifier
                     .height(28.dp)
@@ -161,12 +155,9 @@ fun TvTopBar(
                     contentColor = if (isHist) accent else TextWhite,
                     focusedContentColor = Color.Black
                 ),
-                border = ButtonDefaults.border(
-                    border = Border(BorderStroke(1.dp, if (isHist) accent else Color.Transparent)),
-                    focusedBorder = Border(BorderStroke(2.dp, TextWhite))
-                ),
+                border = ButtonDefaults.border(border = Border.None, focusedBorder = Border.None),
                 shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                 modifier = Modifier
                     .height(28.dp)
@@ -201,12 +192,9 @@ fun TvTopBar(
                         contentColor = if (isSettings) accent else TextWhite,
                         focusedContentColor = Color.Black
                     ),
-                    border = ButtonDefaults.border(
-                        border = Border(BorderStroke(1.dp, if (isSettings) accent else Color.Transparent)),
-                        focusedBorder = Border(BorderStroke(2.dp, TextWhite))
-                    ),
+                    border = ButtonDefaults.border(border = Border.None, focusedBorder = Border.None),
                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                     modifier = Modifier
                         .height(28.dp)
@@ -241,12 +229,9 @@ fun TvTopBar(
                         contentColor = if (hasUpdateAvailable) Color.Black else TextWhite,
                         focusedContentColor = Color.Black
                     ),
-                    border = ButtonDefaults.border(
-                        border = Border(BorderStroke(1.dp, if (hasUpdateAvailable) accent else Color.Transparent)),
-                        focusedBorder = Border(BorderStroke(2.dp, TextWhite))
-                    ),
+                    border = ButtonDefaults.border(border = Border.None, focusedBorder = Border.None),
                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                     modifier = Modifier
                         .height(28.dp)

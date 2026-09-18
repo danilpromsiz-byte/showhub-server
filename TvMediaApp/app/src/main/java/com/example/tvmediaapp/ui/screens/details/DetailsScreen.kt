@@ -407,9 +407,9 @@ fun DetailsScreen(
                 ),
                 border = CardDefaults.border(
                     border = Border(BorderStroke(1.dp, Color.White.copy(alpha = 0.1f))),
-                    focusedBorder = Border(BorderStroke(2.5.dp, accent))
+                    focusedBorder = Border(BorderStroke(2.dp, accent))
                 ),
-                scale = CardDefaults.scale(scale = 1.0f, focusedScale = 1.02f),
+                scale = CardDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                 shape = CardDefaults.shape(RoundedCornerShape(12.dp)),
                 modifier = Modifier
                     .width(260.dp)
@@ -541,6 +541,19 @@ fun DetailsScreen(
                                 Text(text = currentMovie.director, fontSize = 12.sp, color = TextWhite, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             }
                         }
+                        if (currentMovie.actors.isNotBlank()) {
+                            Column(modifier = Modifier.fillMaxWidth()) {
+                                Text(text = "В ролях:", fontSize = 12.sp, color = TextGray)
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = currentMovie.actors,
+                                    fontSize = 11.sp,
+                                    color = TextWhite,
+                                    maxLines = 4,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
                         if (currentMovie.country.isNotEmpty()) {
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                 Text(text = "Страна:", fontSize = 12.sp, color = TextGray)
@@ -579,8 +592,15 @@ fun DetailsScreen(
                     .fillMaxHeight()
                     .verticalScroll(rememberScrollState())
             ) {
+                val titleWithYear = buildString {
+                    append(currentMovie.title)
+                    val cleanYear = currentMovie.releaseYear.replace("null", "").trim()
+                    if (cleanYear.isNotEmpty() && !currentMovie.title.contains(cleanYear)) {
+                        append(" ($cleanYear)")
+                    }
+                }
                 Text(
-                    text = currentMovie.title,
+                    text = titleWithYear,
                     fontSize = 30.sp,
                     fontWeight = FontWeight.ExtraBold,
                     color = TextWhite,
@@ -624,7 +644,62 @@ fun DetailsScreen(
                     )
                 }
 
-                Spacer(modifier = Modifier.height(14.dp))
+                if (currentMovie.actors.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "В ролях: ${currentMovie.actors}",
+                        fontSize = 12.sp,
+                        lineHeight = 17.sp,
+                        color = TextWhite.copy(alpha = 0.85f),
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Quality Selector Row
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Качество:",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = TextGray
+                    )
+                    val qualities = listOf("1080p", "720p", "480p", "4K Ultra")
+                    qualities.forEach { q ->
+                        val isSelected = selectedQuality.equals(q, ignoreCase = true) ||
+                                (q == "4K Ultra" && (selectedQuality.contains("ultra", ignoreCase = true) || selectedQuality.contains("4k", ignoreCase = true)))
+                        Button(
+                            onClick = {
+                                selectedQuality = q
+                                prefs.edit().putString("pref_quality", q).apply()
+                            },
+                            colors = ButtonDefaults.colors(
+                                containerColor = if (isSelected) accent else ChipBackground,
+                                focusedContainerColor = accent,
+                                contentColor = if (isSelected) Color.Black else TextWhite,
+                                focusedContentColor = Color.Black
+                            ),
+                            border = ButtonDefaults.border(border = Border.None, focusedBorder = Border.None),
+                            shape = ButtonDefaults.shape(RoundedCornerShape(6.dp)),
+                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                            modifier = Modifier.height(24.dp)
+                        ) {
+                            Text(
+                                text = q,
+                                fontSize = 10.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
 
                 // Action Buttons - Row 1 (Playback Actions)
                 Row(
@@ -656,11 +731,11 @@ fun DetailsScreen(
                                 focusedContentColor = Color.Black
                             ),
                             border = ButtonDefaults.border(
-                                border = Border(BorderStroke(1.dp, Color.Transparent)),
-                                focusedBorder = Border(BorderStroke(2.5.dp, TextWhite))
+                                border = Border.None,
+                                focusedBorder = Border.None
                             ),
                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.04f),
+                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                             modifier = Modifier
                                 .height(28.dp)
@@ -698,11 +773,11 @@ fun DetailsScreen(
                                 focusedContentColor = Color.Black
                             ),
                             border = ButtonDefaults.border(
-                                border = Border(BorderStroke(1.dp, Color.White.copy(alpha = 0.15f))),
-                                focusedBorder = Border(BorderStroke(2.5.dp, TextWhite))
+                                border = Border.None,
+                                focusedBorder = Border.None
                             ),
                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.04f),
+                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                             modifier = Modifier
                                 .height(28.dp)
@@ -740,11 +815,11 @@ fun DetailsScreen(
                                 focusedContentColor = Color.Black
                             ),
                             border = ButtonDefaults.border(
-                                border = Border(BorderStroke(1.dp, Color.Transparent)),
-                                focusedBorder = Border(BorderStroke(2.5.dp, TextWhite))
+                                border = Border.None,
+                                focusedBorder = Border.None
                             ),
                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.04f),
+                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                             contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
                             modifier = Modifier
                                 .height(28.dp)
@@ -802,11 +877,11 @@ fun DetailsScreen(
                             focusedContentColor = Color.Black
                         ),
                         border = ButtonDefaults.border(
-                            border = Border(BorderStroke(1.dp, Color.White.copy(alpha = 0.15f))),
-                            focusedBorder = Border(BorderStroke(2.5.dp, TextWhite))
+                            border = Border.None,
+                            focusedBorder = Border.None
                         ),
                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                        scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.04f),
+                        scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                         modifier = Modifier
                             .height(28.dp)
@@ -900,11 +975,11 @@ fun DetailsScreen(
                             focusedContentColor = Color.Black
                         ),
                         border = ButtonDefaults.border(
-                            border = Border(BorderStroke(1.dp, Color.White.copy(alpha = 0.15f))),
-                            focusedBorder = Border(BorderStroke(2.5.dp, TextWhite))
+                            border = Border.None,
+                            focusedBorder = Border.None
                         ),
                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                        scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.04f),
+                        scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                         modifier = Modifier
                             .height(28.dp)
@@ -949,15 +1024,11 @@ fun DetailsScreen(
                             focusedContentColor = Color.Black
                         ),
                         border = ButtonDefaults.border(
-                            border = Border(
-                                border = BorderStroke(1.dp, if (isFavorite) FavoriteGold else Color.White.copy(alpha = 0.15f))
-                            ),
-                            focusedBorder = Border(
-                                border = BorderStroke(2.5.dp, TextWhite)
-                            )
+                            border = Border.None,
+                            focusedBorder = Border.None
                         ),
                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                        scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.04f),
+                        scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                         modifier = Modifier
                             .height(28.dp)
@@ -996,11 +1067,11 @@ fun DetailsScreen(
                             focusedContentColor = Color.Black
                         ),
                         border = ButtonDefaults.border(
-                            border = Border(border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f))),
-                            focusedBorder = Border(border = BorderStroke(2.5.dp, TextWhite))
+                            border = Border.None,
+                            focusedBorder = Border.None
                         ),
                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                        scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.04f),
+                        scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                         modifier = Modifier
                             .height(28.dp)
@@ -1084,11 +1155,11 @@ fun DetailsScreen(
                                 focusedContentColor = Color.Black
                             ),
                             border = ButtonDefaults.border(
-                                border = Border(BorderStroke(1.dp, if (isSelected) accent else Color.Transparent)),
-                                focusedBorder = Border(BorderStroke(2.dp, TextWhite))
+                                border = Border.None,
+                                focusedBorder = Border.None
                             ),
                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.04f),
+                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                             contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
                             modifier = tabMod
                         ) {
@@ -1129,8 +1200,12 @@ fun DetailsScreen(
                                             contentColor = if (isSelected) Color.Black else TextWhite,
                                             focusedContentColor = Color.Black
                                         ),
+                                        border = ButtonDefaults.border(
+                                            border = Border.None,
+                                            focusedBorder = Border.None
+                                        ),
                                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                                        scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                                        scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                                         modifier = Modifier.height(26.dp)
                                     ) {
@@ -1160,8 +1235,12 @@ fun DetailsScreen(
                                             contentColor = if (isSelected) Color.Black else TextWhite,
                                             focusedContentColor = Color.Black
                                         ),
+                                        border = ButtonDefaults.border(
+                                            border = Border.None,
+                                            focusedBorder = Border.None
+                                        ),
                                         shape = ButtonDefaults.shape(RoundedCornerShape(6.dp)),
-                                        scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                                        scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                                         contentPadding = PaddingValues(horizontal = 7.dp, vertical = 0.dp),
                                         modifier = Modifier.height(24.dp)
                                     ) {
@@ -1196,11 +1275,11 @@ fun DetailsScreen(
                                             focusedContentColor = Color.Black
                                         ),
                                         border = ButtonDefaults.border(
-                                            border = Border(border = BorderStroke(1.dp, if (isSelected) accent else Color.Transparent)),
-                                            focusedBorder = Border(border = BorderStroke(2.dp, TextWhite))
+                                            border = Border.None,
+                                            focusedBorder = Border.None
                                         ),
                                         shape = ButtonDefaults.shape(RoundedCornerShape(6.dp)),
-                                        scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                                        scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                                         contentPadding = PaddingValues(horizontal = 7.dp, vertical = 0.dp),
                                         modifier = Modifier.height(24.dp)
                                     ) {
@@ -1245,6 +1324,9 @@ fun DetailsScreen(
                                 color = TextWhite
                             )
                             Spacer(modifier = Modifier.height(6.dp))
+                            if (currentMovie.actors.isNotBlank()) {
+                                Text(text = "В главных ролях: ${currentMovie.actors}", fontSize = 13.sp, color = TextWhite.copy(alpha = 0.9f))
+                            }
                             if (currentMovie.director.isNotEmpty()) {
                                 Text(text = "Режиссёр: ${currentMovie.director}", fontSize = 13.sp, color = TextGray)
                             }

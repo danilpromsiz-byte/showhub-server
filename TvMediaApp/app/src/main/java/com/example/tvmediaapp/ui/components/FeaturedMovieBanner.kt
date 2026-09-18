@@ -226,12 +226,13 @@ fun FeaturedMovieBanner(
                         contentColor = Color.Black,
                         focusedContentColor = Color.Black
                     ),
+                    border = ButtonDefaults.border(border = Border.None, focusedBorder = Border.None),
                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                     modifier = Modifier.height(38.dp)
                 ) {
                     Text(
-                        text = "\u25b6  \u0421\u043c\u043e\u0442\u0440\u0435\u0442\u044c",
+                        text = "▶  Смотреть",
                         fontWeight = FontWeight.Bold,
                         fontSize = 14.sp,
                         modifier = Modifier.padding(horizontal = 10.dp)
@@ -246,12 +247,13 @@ fun FeaturedMovieBanner(
                         contentColor = TextWhite,
                         focusedContentColor = Color.Black
                     ),
+                    border = ButtonDefaults.border(border = Border.None, focusedBorder = Border.None),
                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                     modifier = Modifier.height(38.dp)
                 ) {
                     Text(
-                        text = "\u2139\ufe0f  \u041e \u0444\u0438\u043b\u044c\u043c\u0435",
+                        text = "ℹ️  О фильме",
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 14.sp,
                         modifier = Modifier.padding(horizontal = 8.dp)
@@ -266,20 +268,13 @@ fun FeaturedMovieBanner(
                         contentColor = if (isFavorite) FavoriteGold else TextWhite,
                         focusedContentColor = Color.Black
                     ),
-                    border = ButtonDefaults.border(
-                        border = Border(
-                            border = BorderStroke(1.dp, if (isFavorite) FavoriteGold else Color.Transparent)
-                        ),
-                        focusedBorder = Border(
-                            border = BorderStroke(2.dp, TextWhite)
-                        )
-                    ),
+                    border = ButtonDefaults.border(border = Border.None, focusedBorder = Border.None),
                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                     modifier = Modifier.height(38.dp)
                 ) {
                     Text(
-                        text = if (isFavorite) "\u2605 \u0412 \u0438\u0437\u0431\u0440\u0430\u043d\u043d\u043e\u043c" else "\u2606 \u0412 \u0438\u0437\u0431\u0440\u0430\u043d\u043d\u043e\u0435",
+                        text = if (isFavorite) "★ В избранном" else "☆ В избранное",
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 14.sp,
                         modifier = Modifier.padding(horizontal = 6.dp)

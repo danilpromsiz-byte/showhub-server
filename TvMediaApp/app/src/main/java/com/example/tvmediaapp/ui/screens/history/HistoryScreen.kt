@@ -114,8 +114,9 @@ fun HistoryScreen(
                             contentColor = TextGray,
                             focusedContentColor = TextWhite
                         ),
+                        border = ButtonDefaults.border(border = Border.None, focusedBorder = Border.None),
                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                        scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                        scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
                         modifier = Modifier.height(28.dp)
                     ) {
@@ -144,8 +145,9 @@ fun HistoryScreen(
                         contentColor = TextWhite,
                         focusedContentColor = Color.Black
                     ),
+                    border = ButtonDefaults.border(border = Border.None, focusedBorder = Border.None),
                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
                     modifier = Modifier.height(28.dp)
                 ) {
@@ -221,7 +223,7 @@ fun HistoryScreen(
                                 border = CardDefaults.border(
                                     focusedBorder = Border(BorderStroke(3.dp, accent))
                                 ),
-                                scale = CardDefaults.scale(scale = 1.0f, focusedScale = 1.04f),
+                                scale = CardDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                                 modifier = Modifier
                                     .width(170.dp)
                                     .aspectRatio(2f / 3f)

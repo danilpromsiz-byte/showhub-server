@@ -11,6 +11,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -111,7 +112,11 @@ fun MovieCard(
                     )
                     val nonPremium = nativeStreams.filter {
                         val q = it.quality.lowercase()
-                        !q.contains("ultra") && !q.contains("4k") && !q.contains("vip") && isDirectVideoStream(it.url)
+                        val u = it.url.lowercase()
+                        !q.contains("ultra") && !q.contains("4k") && !q.contains("vip") && !q.contains("premium") &&
+                        !u.contains("rhtie") && !u.contains("trial") && !u.contains("preview") &&
+                        !u.contains("teaser") && !u.contains("promo") && !u.contains("vip") && !u.contains("ultra") &&
+                        isDirectVideoStream(it.url)
                     }
                     streamUrl = nonPremium.firstOrNull { it.quality.contains("720") }?.url
                         ?: nonPremium.firstOrNull { it.quality.contains("1080") }?.url
@@ -217,12 +222,12 @@ fun MovieCard(
                 interactionSource = interactionSource,
                 border = CardDefaults.border(
                     focusedBorder = Border(
-                        border = BorderStroke(2.5.dp, accent)
+                        border = BorderStroke(2.dp, accent)
                     )
                 ),
                 scale = CardDefaults.scale(
                     scale = 1.0f,
-                    focusedScale = 1.04f
+                    focusedScale = 1.0f
                 ),
                 shape = CardDefaults.shape(RoundedCornerShape(8.dp)),
                 modifier = Modifier
@@ -242,13 +247,13 @@ fun MovieCard(
                         modifier = Modifier
                             .fillMaxSize()
                             .background(
-                                Brush.verticalGradient(
-                                    colors = listOf(
-                                        Color(0xFF1E293B),
-                                        Color(0xFF0F172A)
-                                    )
+                            Brush.verticalGradient(
+                                colors = listOf(
+                                    Color(0xFF1E293B),
+                                    Color(0xFF0F172A)
                                 )
-                            ),
+                            )
+                        ),
                         contentAlignment = Alignment.Center
                     ) {
                         Column(
@@ -301,22 +306,76 @@ fun MovieCard(
                         )
                     }
 
-                    // Rating Pill Badge (top right)
-                    if (movie.rating > 0) {
+                    // Series episodes info badge (top left)
+                    if (movie.isSeries) {
+                        val epText = if (movie.episodesInfo.isNotBlank()) movie.episodesInfo else "Сериал"
                         Box(
                             modifier = Modifier
-                                .align(Alignment.TopEnd)
+                                .align(Alignment.TopStart)
                                 .padding(6.dp)
                                 .clip(RoundedCornerShape(4.dp))
-                                .background(Color.Black.copy(alpha = 0.75f))
-                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                                .background(Color.Black.copy(alpha = 0.85f))
+                                .padding(horizontal = 5.dp, vertical = 2.dp)
                         ) {
                             Text(
-                                text = String.format("%.1f", movie.rating),
-                                fontSize = 10.sp,
+                                text = epText,
+                                fontSize = 9.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = accent
+                                color = Color.White
                             )
+                        }
+                    }
+
+                    // Rating Badges: KP & IMDb (top right)
+                    Row(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        if (movie.ratingKp > 0) {
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(Color(0xFFFF6600).copy(alpha = 0.90f))
+                                    .padding(horizontal = 4.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    text = "КП ${String.format(java.util.Locale.US, "%.1f", movie.ratingKp)}",
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                            }
+                        }
+                        if (movie.ratingImdb > 0) {
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(Color(0xFFE5A00D).copy(alpha = 0.90f))
+                                    .padding(horizontal = 4.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    text = "IMDb ${String.format(java.util.Locale.US, "%.1f", movie.ratingImdb)}",
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.Black
+                                )
+                            }
+                        } else if (movie.ratingKp <= 0 && movie.rating > 0) {
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(Color.Black.copy(alpha = 0.80f))
+                                    .padding(horizontal = 5.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    text = String.format(java.util.Locale.US, "%.1f", movie.rating),
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = accent
+                                )
+                            }
                         }
                     }
 
@@ -374,7 +433,9 @@ fun MovieCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 val cleanYear = movie.releaseYear.replace("null", "").trim()
-                val typeStr = if (movie.isSeries) "Сериал" else "Фильм"
+                val typeStr = if (movie.isSeries) {
+                    if (movie.episodesInfo.isNotBlank()) movie.episodesInfo else "Сериал"
+                } else "Фильм"
                 val subText = if (cleanYear.isNotEmpty()) "$cleanYear • $typeStr" else typeStr
                 Text(
                     text = subText,

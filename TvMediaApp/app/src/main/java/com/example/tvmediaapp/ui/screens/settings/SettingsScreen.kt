@@ -19,6 +19,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -65,8 +69,9 @@ import java.net.URL
 enum class SettingsTab(val title: String) {
     PLAYER("Плеер и темы"),
     FILMIX("Filmix PRO"),
-    SERVER("Сервер и связь"),
+    SERVER("Сервер и TorrServe"),
     HISTORY("История и кэш"),
+    BUG_REPORT("Сообщить о баге"),
     ABOUT("О программе")
 }
 
@@ -152,6 +157,12 @@ fun SettingsScreen(
     // Update Status
     var updateCheckResult by remember { mutableStateOf<String?>(null) }
 
+    // Bug Report States
+    var bugReportText by remember { mutableStateOf("") }
+    var bugReportCategory by remember { mutableStateOf("Воспроизведение") }
+    var isSendingBugReport by remember { mutableStateOf(false) }
+    var bugReportStatus by remember { mutableStateOf<String?>(null) }
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -185,7 +196,7 @@ fun SettingsScreen(
                         focusedContentColor = Color.Black
                     ),
                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
                     modifier = Modifier.height(28.dp)
                 ) {
@@ -209,11 +220,11 @@ fun SettingsScreen(
                         focusedContentColor = Color.Black
                     ),
                     border = ButtonDefaults.border(
-                        border = Border(BorderStroke(1.dp, Color.White.copy(alpha = 0.15f))),
-                        focusedBorder = Border(BorderStroke(2.dp, TextWhite))
+                        border = Border.None,
+                        focusedBorder = Border.None
                     ),
                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
                     modifier = Modifier.height(28.dp)
                 ) {
@@ -287,11 +298,11 @@ fun SettingsScreen(
                                             focusedContentColor = Color.Black
                                         ),
                                         border = ButtonDefaults.border(
-                                            border = Border(BorderStroke(1.dp, if (isCur) accent else Color.Transparent)),
-                                            focusedBorder = Border(BorderStroke(2.dp, TextWhite))
+                                            border = Border.None,
+                                            focusedBorder = Border.None
                                         ),
                                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                                        scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                                        scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
                                         modifier = Modifier.height(28.dp)
                                     ) {
@@ -332,7 +343,7 @@ fun SettingsScreen(
                                             focusedContentColor = Color.Black
                                         ),
                                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                                        scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                                        scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
                                         modifier = Modifier.height(28.dp)
                                     ) {
@@ -373,7 +384,7 @@ fun SettingsScreen(
                                             focusedContentColor = Color.Black
                                         ),
                                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                                        scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                                        scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
                                         modifier = Modifier.height(28.dp)
                                     ) {
@@ -409,7 +420,7 @@ fun SettingsScreen(
                                             focusedContentColor = Color.Black
                                         ),
                                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                                        scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                                        scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
                                         modifier = Modifier.height(28.dp)
                                     ) {
@@ -471,8 +482,9 @@ fun SettingsScreen(
                                                 prefs.edit().putBoolean("filmix_is_pro", false).remove("filmix_login").remove("filmix_token").apply()
                                             },
                                             colors = ButtonDefaults.colors(containerColor = Color.Red.copy(alpha = 0.8f)),
+                                            border = ButtonDefaults.border(border = Border.None, focusedBorder = Border.None),
                                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f)
+                                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f)
                                         ) {
                                             Text("Выйти", fontSize = 13.sp)
                                         }
@@ -510,8 +522,9 @@ fun SettingsScreen(
                                         focusedContainerColor = Color.White,
                                         contentColor = Color.Black
                                     ),
+                                    border = ButtonDefaults.border(border = Border.None, focusedBorder = Border.None),
                                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
                                     modifier = Modifier.height(28.dp)
                                 ) {
@@ -584,8 +597,9 @@ fun SettingsScreen(
                                         focusedContainerColor = Color.White,
                                         contentColor = Color.Black
                                     ),
+                                    border = ButtonDefaults.border(border = Border.None, focusedBorder = Border.None),
                                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
                                     modifier = Modifier.height(28.dp)
                                 ) {
@@ -633,8 +647,9 @@ fun SettingsScreen(
                                             contentColor = if (isCur) Color.Black else TextWhite,
                                             focusedContentColor = Color.Black
                                         ),
+                                        border = ButtonDefaults.border(border = Border.None, focusedBorder = Border.None),
                                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                                        scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                                        scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
                                         modifier = Modifier.height(28.dp)
                                     ) {
@@ -677,8 +692,9 @@ fun SettingsScreen(
                                         focusedContainerColor = Color.White,
                                         contentColor = Color.Black
                                     ),
+                                    border = ButtonDefaults.border(border = Border.None, focusedBorder = Border.None),
                                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
                                     modifier = Modifier.height(28.dp)
                                 ) {
@@ -692,6 +708,21 @@ fun SettingsScreen(
                                         color = if (torrPingResult?.contains("готов") == true) accent else Color.Red
                                     )
                                 }
+                            }
+
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(Color.White.copy(alpha = 0.05f))
+                                    .padding(12.dp)
+                            ) {
+                                Text(
+                                    text = "💡 Как работают торренты: ShowHub находит раздачи на открытых трекерах (Rutor и др.) и передает магнет-ссылку в TorrServe. TorrServe кэширует поток в оперативную память (ОЗУ) ТВ и передает прямой HLS/MP4 поток плееру без скачивания на диск. Поиск по торрентам работает автоматически в общем каталоге и поиске (потоки помечены как P2P 1080p / P2P 4K).",
+                                    fontSize = 12.sp,
+                                    color = TextWhite.copy(alpha = 0.85f),
+                                    lineHeight = 17.sp
+                                )
                             }
 
                             Spacer(modifier = Modifier.height(8.dp))
@@ -730,8 +761,9 @@ fun SettingsScreen(
                                         Toast.makeText(context, "История просмотров очищена", Toast.LENGTH_SHORT).show()
                                     },
                                     colors = ButtonDefaults.colors(containerColor = Color.Red.copy(alpha = 0.8f)),
+                                    border = ButtonDefaults.border(border = Border.None, focusedBorder = Border.None),
                                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
                                     modifier = Modifier.height(28.dp)
                                 ) {
@@ -765,12 +797,162 @@ fun SettingsScreen(
                                         Toast.makeText(context, "Кэш постеров очищен", Toast.LENGTH_SHORT).show()
                                     },
                                     colors = ButtonDefaults.colors(containerColor = Color.White.copy(alpha = 0.12f)),
+                                    border = ButtonDefaults.border(border = Border.None, focusedBorder = Border.None),
                                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
                                     modifier = Modifier.height(28.dp)
                                 ) {
                                     Text("Очистить кэш картинок", fontSize = 11.sp, lineHeight = 13.sp)
+                                }
+                            }
+                        }
+                    }
+
+                    // TAB 5: BUG REPORT
+                    SettingsTab.BUG_REPORT -> {
+                        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                            Text(
+                                text = "Сообщить об ошибке или проблеме",
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextWhite
+                            )
+                            Text(
+                                text = "Опишите проблему, с которой вы столкнулись. Отчет автоматически поступит разработчикам ShowHub.",
+                                fontSize = 13.sp,
+                                color = TextGray
+                            )
+
+                            // Categories
+                            val categories = listOf("Воспроизведение", "Поиск", "Торренты", "Качество", "Интерфейс", "Общее")
+                            TvLazyRow(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                items(categories) { cat ->
+                                    val isCur = cat == bugReportCategory
+                                    Button(
+                                        onClick = { bugReportCategory = cat },
+                                        colors = ButtonDefaults.colors(
+                                            containerColor = if (isCur) accent else ChipBackground,
+                                            focusedContainerColor = accent,
+                                            contentColor = if (isCur) Color.Black else TextWhite,
+                                            focusedContentColor = Color.Black
+                                        ),
+                                        border = ButtonDefaults.border(
+                                            border = Border.None,
+                                            focusedBorder = Border.None
+                                        ),
+                                        shape = ButtonDefaults.shape(RoundedCornerShape(6.dp)),
+                                        scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
+                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                                        modifier = Modifier.height(26.dp)
+                                    ) {
+                                        Text(text = cat, fontSize = 11.sp, fontWeight = if (isCur) FontWeight.Bold else FontWeight.Normal)
+                                    }
+                                }
+                            }
+
+                            // Text Field Box for TV D-pad focus & keyboard input
+                            var isInputFocused by remember { mutableStateOf(false) }
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(100.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(Color.White.copy(alpha = if (isInputFocused) 0.10f else 0.05f))
+                                    .border(
+                                        width = if (isInputFocused) 2.dp else 1.dp,
+                                        color = if (isInputFocused) accent else Color.White.copy(alpha = 0.15f),
+                                        shape = RoundedCornerShape(8.dp)
+                                    )
+                                    .padding(12.dp)
+                            ) {
+                                if (bugReportText.isEmpty()) {
+                                    Text(
+                                        text = "Опишите ошибку (например: фильм «...» не запускается, звук отстает, не находит серию...)",
+                                        color = TextGray.copy(alpha = 0.7f),
+                                        fontSize = 13.sp
+                                    )
+                                }
+                                BasicTextField(
+                                    value = bugReportText,
+                                    onValueChange = { bugReportText = it },
+                                    textStyle = TextStyle(
+                                        color = TextWhite,
+                                        fontSize = 14.sp
+                                    ),
+                                    cursorBrush = SolidColor(accent),
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .onFocusChanged { isInputFocused = it.isFocused }
+                                )
+                            }
+
+                            // Device info summary
+                            Text(
+                                text = "Устройство: ${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL} • Android ${android.os.Build.VERSION.RELEASE} • v$appVersion (Сборка $versionCode)",
+                                fontSize = 11.sp,
+                                color = TextGray
+                            )
+
+                            // Submit Button
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Button(
+                                    onClick = {
+                                        if (bugReportText.isBlank()) {
+                                            bugReportStatus = "Пожалуйста, введите описание ошибки"
+                                            return@Button
+                                        }
+                                        coroutineScope.launch {
+                                            isSendingBugReport = true
+                                            bugReportStatus = "Отправка отчета на сервер ShowHub..."
+                                            val ok = ShowHubApiClient.sendBugReport(
+                                                reportText = bugReportText.trim(),
+                                                category = bugReportCategory,
+                                                currentScreen = "settings"
+                                            )
+                                            isSendingBugReport = false
+                                            if (ok) {
+                                                bugReportStatus = "Отчет успешно отправлен на сервер! Спасибо за помощь."
+                                                bugReportText = ""
+                                            } else {
+                                                bugReportStatus = "Ошибка отправки отчета. Проверьте связь с сервером."
+                                            }
+                                        }
+                                    },
+                                    colors = ButtonDefaults.colors(
+                                        containerColor = accent,
+                                        focusedContainerColor = Color.White,
+                                        contentColor = Color.Black,
+                                        focusedContentColor = Color.Black
+                                    ),
+                                    border = ButtonDefaults.border(
+                                        border = Border.None,
+                                        focusedBorder = Border.None
+                                    ),
+                                    shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
+                                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
+                                    modifier = Modifier.height(30.dp)
+                                ) {
+                                    Text(
+                                        text = if (isSendingBugReport) "Отправка..." else "Отправить отчет",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 11.sp,
+                                        lineHeight = 13.sp
+                                    )
+                                }
+
+                                if (bugReportStatus != null) {
+                                    Text(
+                                        text = bugReportStatus ?: "",
+                                        fontSize = 12.sp,
+                                        color = if (bugReportStatus?.contains("успешно") == true) accent else Color(0xFFF87171)
+                                    )
                                 }
                             }
                         }
@@ -832,8 +1014,9 @@ fun SettingsScreen(
                                         focusedContainerColor = Color.White,
                                         contentColor = Color.Black
                                     ),
+                                    border = ButtonDefaults.border(border = Border.None, focusedBorder = Border.None),
                                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
                                     modifier = Modifier.height(28.dp)
                                 ) {

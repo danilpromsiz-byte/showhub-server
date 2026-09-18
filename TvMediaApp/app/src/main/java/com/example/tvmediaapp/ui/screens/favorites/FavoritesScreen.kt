@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.foundation.lazy.grid.TvGridCells
 import androidx.tv.foundation.lazy.grid.TvLazyVerticalGrid
 import androidx.tv.foundation.lazy.grid.items
+import androidx.tv.material3.Border
 import androidx.tv.material3.Button
 import androidx.tv.material3.ButtonDefaults
 import androidx.tv.material3.ExperimentalTvMaterial3Api
@@ -102,8 +103,9 @@ fun FavoritesScreen(
                     contentColor = TextWhite,
                     focusedContentColor = Color.Black
                 ),
+                border = ButtonDefaults.border(border = Border.None, focusedBorder = Border.None),
                 shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
                 modifier = Modifier.height(28.dp)
             ) {

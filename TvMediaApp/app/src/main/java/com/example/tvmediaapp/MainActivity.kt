@@ -427,16 +427,19 @@ fun TvAppNavHost(activity: MainActivity) {
                                 if (!isDownloadingUpdate) {
                                     isDownloadingUpdate = true
                                     coroutineScope.launch {
-                                        UpdateManager.downloadAndInstall(activity, update.downloadUrl) { status, percent ->
+                                        val success = UpdateManager.downloadAndInstall(activity, update.downloadUrl) { status, percent ->
                                             updateStatus = status
                                             updatePercent = percent
                                         }
                                         isDownloadingUpdate = false
+                                        if (success) {
+                                            updateInfo = null
+                                        }
                                     }
                                 }
                             },
                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                             contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
                             colors = ButtonDefaults.colors(
                                 containerColor = accent,
@@ -475,7 +478,7 @@ fun TvAppNavHost(activity: MainActivity) {
                                 UpdateManager.openDownloadUrlInBrowser(activity, update.downloadUrl)
                             },
                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                             contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
                             colors = ButtonDefaults.colors(
                                 containerColor = Color.White.copy(alpha = 0.12f),
@@ -506,7 +509,7 @@ fun TvAppNavHost(activity: MainActivity) {
                         Button(
                             onClick = { updateInfo = null },
                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                             contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
                             colors = ButtonDefaults.colors(
                                 containerColor = Color.White.copy(alpha = 0.08f),

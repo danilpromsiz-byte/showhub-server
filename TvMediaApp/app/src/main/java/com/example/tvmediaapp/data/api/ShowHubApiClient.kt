@@ -12,6 +12,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.BufferedReader
 import java.io.InputStreamReader
+import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
@@ -160,6 +161,8 @@ object ShowHubApiClient {
                 val director = if (rawDirector.isBlank() || rawDirector.equals("null", ignoreCase = true)) movie.director else rawDirector
                 val rawCountry = obj.optString("country", movie.country)
                 val country = if (rawCountry.isBlank() || rawCountry.equals("null", ignoreCase = true)) movie.country else rawCountry
+                val rawActors = obj.optString("actors", movie.actors)
+                val actors = if (rawActors.isBlank() || rawActors.equals("null", ignoreCase = true)) movie.actors else rawActors
                 val rawDesc = obj.optString("description", movie.description).ifEmpty { movie.description }
                 val desc = if (rawDesc.isBlank() || rawDesc.equals("null", ignoreCase = true)) movie.description else rawDesc
 
@@ -170,6 +173,7 @@ object ShowHubApiClient {
                     ratingImdb = if (imdbRating > 0) imdbRating else movie.ratingImdb,
                     director = director,
                     country = country,
+                    actors = actors,
                     description = desc,
                     seasons = if (seasonsList.isNotEmpty()) seasonsList else movie.seasons,
                     audioTracks = if (audioList.isNotEmpty()) audioList else movie.audioTracks
@@ -388,12 +392,16 @@ object ShowHubApiClient {
             val rawYear = it.optString("year", "2024").replace("null", "").trim()
             val year = if (rawYear.isNotEmpty()) rawYear else "2024"
             val isSeries = it.optBoolean("is_series", false)
+            val extraObj = it.optJSONObject("extra") ?: it.optJSONObject("material_data")
 
-            val extraObj = it.optJSONObject("extra_data")
             val rawCountry = extraObj?.optString("country", "") ?: it.optString("country", "")
             val country = if (rawCountry.isBlank() || rawCountry.equals("null", ignoreCase = true)) "" else rawCountry
             val rawDirector = extraObj?.optString("director", "") ?: it.optString("director", "")
             val director = if (rawDirector.isBlank() || rawDirector.equals("null", ignoreCase = true)) "" else rawDirector
+            val rawActors = extraObj?.optString("actors", "") ?: it.optString("actors", "")
+            val actors = if (rawActors.isBlank() || rawActors.equals("null", ignoreCase = true)) "" else rawActors
+            val rawEpisodesInfo = extraObj?.optString("episodes_info", "") ?: it.optString("episodes_info", "")
+            val episodesInfo = if (rawEpisodesInfo.isBlank() || rawEpisodesInfo.equals("null", ignoreCase = true)) "" else rawEpisodesInfo
 
             val genresList = mutableListOf<String>()
             val gArr = it.optJSONArray("genres")
@@ -419,11 +427,50 @@ object ShowHubApiClient {
                     duration = if (isSeries) "\u0421\u0435\u0440\u0438\u0430\u043b" else "\u0424\u0438\u043b\u044c\u043c",
                     country = country,
                     director = director,
+                    actors = actors,
+                    episodesInfo = episodesInfo,
                     genres = if (genresList.isNotEmpty()) genresList else listOf("\u041a\u0438\u043d\u043e"),
                     videoUrl = "",
                     isSeries = isSeries
                 )
             )
+        }
+    }
+
+    suspend fun sendBugReport(
+        reportText: String,
+        category: String = "general",
+        currentScreen: String = "settings"
+    ): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val url = URL("$SERVER_BASE/api/feedback/bug-report")
+            val conn = url.openConnection() as HttpURLConnection
+            conn.requestMethod = "POST"
+            conn.connectTimeout = 8000
+            conn.readTimeout = 10000
+            conn.doOutput = true
+            conn.setRequestProperty("Content-Type", "application/json; charset=UTF-8")
+            conn.setRequestProperty("User-Agent", "ShowHubTV-Native/2.6.8")
+
+            val payload = JSONObject().apply {
+                put("text", reportText.trim())
+                put("category", category)
+                put("device", "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL} (Android ${android.os.Build.VERSION.RELEASE})")
+                put("app_version", "2.6.8")
+                put("version_code", 47)
+                put("current_screen", currentScreen)
+            }
+
+            OutputStreamWriter(conn.outputStream, "UTF-8").use {
+                it.write(payload.toString())
+                it.flush()
+            }
+
+            val code = conn.responseCode
+            code in 200..299
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
         }
     }
 }

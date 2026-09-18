@@ -163,7 +163,9 @@ object RezkaNativeResolver {
                     val m = Pattern.compile("\\[([^\\]]+)\\](.*)").matcher(part)
                     if (m.find()) {
                         val quality = m.group(1)?.replace(Regex("<[^>]+>"), "")?.trim() ?: "HD"
-                        val urls = m.group(2)?.split(" or ")?.map { it.trim().replace("\\/", "/") }?.filter { it.startsWith("http") } ?: emptyList()
+                        val urls = m.group(2)?.split(" or ")?.map { it.trim().replace("\\/", "/") }?.filter { 
+                            it.startsWith("http") && !it.contains("rhtie") && !it.contains("trial") && !it.contains("promo")
+                        } ?: emptyList()
                         // Prioritize voidboost streams or non-ukrtelcdn direct CDNs
                         val workingUrl = urls.firstOrNull { it.contains("voidboost") }
                             ?: urls.firstOrNull { !it.contains("ukrtelcdn") }

@@ -3,6 +3,7 @@ package com.example.tvmediaapp.data.updater
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
@@ -172,25 +173,7 @@ object UpdateManager {
 
             withContext(Dispatchers.Main) {
                 onProgress?.invoke("Запуск установщика пакетов Android...", 100)
-                try {
-                    val apkUri = FileProvider.getUriForFile(
-                        activity,
-                        activity.packageName + ".provider",
-                        apkFile
-                    )
-                    val intent = Intent(Intent.ACTION_VIEW).apply {
-                        setDataAndType(apkUri, "application/vnd.android.package-archive")
-                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                        addFlags(Intent.FLAG_GRANT_PREFIX_URI_PERMISSION)
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    }
-                    activity.startActivity(intent)
-                    onProgress?.invoke("Установщик запущен! Нажмите «Установить» на экране TV.", 100)
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                    onProgress?.invoke("Сбой установщика: ${e.message}. Открываем в браузере...", -1)
-                    openDownloadUrlInBrowser(activity, apkUrl)
-                }
+                launchInstallerIntent(activity, apkFile, apkUrl, onProgress)
             }
             true
         } catch (e: Exception) {
@@ -198,6 +181,43 @@ object UpdateManager {
             withContext(Dispatchers.Main) {
                 onProgress?.invoke("Сбой загрузки: ${e.message ?: "таймаут сети"}", -1)
             }
+            false
+        }
+    }
+
+    fun launchInstallerIntent(
+        activity: Activity,
+        apkFile: File,
+        apkUrl: String,
+        onProgress: ((String, Int) -> Unit)? = null
+    ): Boolean {
+        return try {
+            val apkUri = FileProvider.getUriForFile(
+                activity,
+                activity.packageName + ".provider",
+                apkFile
+            )
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(apkUri, "application/vnd.android.package-archive")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_GRANT_PREFIX_URI_PERMISSION)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            }
+
+            val resList = activity.packageManager.queryIntentActivities(intent, PackageManager.MATCH_DEFAULT_ONLY)
+            for (resolveInfo in resList) {
+                val pkgName = resolveInfo.activityInfo.packageName
+                activity.grantUriPermission(pkgName, apkUri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+
+            activity.startActivity(intent)
+            onProgress?.invoke("Установщик запущен! Нажмите «Установить» на экране TV.", 100)
+            true
+        } catch (e: Exception) {
+            e.printStackTrace()
+            onProgress?.invoke("Сбой установщика: ${e.message}. Открываем в браузере...", -1)
+            openDownloadUrlInBrowser(activity, apkUrl)
             false
         }
     }

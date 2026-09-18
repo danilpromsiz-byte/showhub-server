@@ -77,16 +77,20 @@ fun HomeScreen(
     val topBarSearchFocusRequester = remember { FocusRequester() }
     val filterRow1FocusRequester = remember { FocusRequester() }
     val filterRow2FocusRequester = remember { FocusRequester() }
-    val firstCardFocusRequester = remember { FocusRequester() }
+    val targetCardFocusRequester = remember { FocusRequester() }
 
-    // Automatically focus the first movie card on launch once catalog loads
-    var hasRequestedInitialFocus by remember { mutableStateOf(false) }
+    // Automatically restore focus to the last selected/focused card on launch or return
     LaunchedEffect(displayMovies) {
-        if (displayMovies.isNotEmpty() && !hasRequestedInitialFocus) {
-            hasRequestedInitialFocus = true
-            delay(250)
+        if (displayMovies.isNotEmpty()) {
+            val targetIdx = viewModel.lastFocusedIndex.coerceIn(0, displayMovies.size - 1)
+            if (targetIdx > 0) {
+                try {
+                    viewModel.gridState.scrollToItem(targetIdx)
+                } catch (_: Exception) {}
+            }
+            delay(200)
             try {
-                firstCardFocusRequester.requestFocus()
+                targetCardFocusRequester.requestFocus()
             } catch (_: Exception) {}
         }
     }
@@ -126,7 +130,7 @@ fun HomeScreen(
             row1FocusRequester = filterRow1FocusRequester,
             row2FocusRequester = filterRow2FocusRequester,
             focusUpRequester = topBarSearchFocusRequester,
-            focusDownRequester = firstCardFocusRequester
+            focusDownRequester = targetCardFocusRequester
         )
 
         // 6-COLUMN VERTICAL GRID (2 rows of 6 cards on screen at a time, scrolling down)
@@ -163,6 +167,7 @@ fun HomeScreen(
             }
         } else {
             TvLazyVerticalGrid(
+                state = viewModel.gridState,
                 columns = TvGridCells.Fixed(6),
                 contentPadding = PaddingValues(horizontal = 32.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -170,19 +175,20 @@ fun HomeScreen(
                 modifier = Modifier.fillMaxSize()
             ) {
                 itemsIndexed(displayMovies) { index, movie ->
-                    val cardFocusMod = if (index == 0) {
-                        Modifier
-                            .focusRequester(firstCardFocusRequester)
-                            .focusProperties { up = filterRow2FocusRequester }
-                    } else if (index < 6) {
-                        Modifier.focusProperties { up = filterRow2FocusRequester }
-                    } else {
-                        Modifier
-                    }
+                    val isTarget = index == viewModel.lastFocusedIndex.coerceIn(0, (displayMovies.size - 1).coerceAtLeast(0))
+                    val cardFocusMod = Modifier
+                        .then(if (isTarget) Modifier.focusRequester(targetCardFocusRequester) else Modifier)
+                        .then(if (index < 6) Modifier.focusProperties { up = filterRow2FocusRequester } else Modifier)
+
                     MovieCard(
                         movie = movie,
-                        onClick = { onMovieSelect(movie) },
-                        onFocus = { /* card focused */ },
+                        onClick = {
+                            viewModel.lastFocusedIndex = index
+                            onMovieSelect(movie)
+                        },
+                        onFocus = {
+                            viewModel.lastFocusedIndex = index
+                        },
                         cardModifier = cardFocusMod
                     )
                 }

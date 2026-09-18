@@ -47,6 +47,7 @@ import androidx.compose.ui.unit.sp
 import android.view.KeyEvent
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.tv.foundation.lazy.grid.TvGridCells
 import androidx.tv.foundation.lazy.grid.TvLazyVerticalGrid
 import androidx.tv.foundation.lazy.grid.items
@@ -164,12 +165,8 @@ fun SearchScreen(
                     contentColor = TextWhite,
                     focusedContentColor = Color.Black
                 ),
-                border = ButtonDefaults.border(
-                    border = Border(border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f))),
-                    focusedBorder = Border(border = BorderStroke(2.dp, TextWhite))
-                ),
                 shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
                 modifier = Modifier.height(28.dp)
             ) {
@@ -240,8 +237,11 @@ fun SearchScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .focusRequester(searchInputFocusRequester)
+                            .focusProperties {
+                                down = if (recentQueries.isNotEmpty()) historyFocusRequester else resultsFocusRequester
+                            }
                             .onFocusChanged { isInputFocused = it.isFocused }
-                            .onKeyEvent { keyEvent ->
+                            .onPreviewKeyEvent { keyEvent ->
                                 if (keyEvent.nativeKeyEvent.action == KeyEvent.ACTION_DOWN) {
                                     when (keyEvent.nativeKeyEvent.keyCode) {
                                         KeyEvent.KEYCODE_DPAD_DOWN -> {
@@ -328,7 +328,7 @@ fun SearchScreen(
                                 focusedContentColor = Color.Black
                             ),
                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                             modifier = chipMod
                         ) {
@@ -353,7 +353,7 @@ fun SearchScreen(
                                 focusedContentColor = TextWhite
                             ),
                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                             modifier = Modifier.height(28.dp)
                         ) {

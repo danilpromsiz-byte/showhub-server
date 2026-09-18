@@ -38,6 +38,8 @@ data class Movie(
     val duration: String,
     val country: String = "",
     val director: String = "",
+    val actors: String = "",
+    val episodesInfo: String = "",
     val genres: List<String> = emptyList(),
     val videoUrl: String = "",
     val streams: List<StreamOption> = emptyList(),

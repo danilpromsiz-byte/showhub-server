@@ -172,6 +172,7 @@ fun SettingsScreen(
                         focusedContentColor = Color.Black
                     ),
                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
                     modifier = Modifier.height(38.dp)
                 ) {
                     Text(
@@ -187,6 +188,7 @@ fun SettingsScreen(
                 OutlinedButton(
                     onClick = onBackClick,
                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
                     modifier = Modifier.height(38.dp)
                 ) {
                     Text(text = "Назад к каталогу", fontSize = 14.sp)
@@ -248,6 +250,7 @@ fun SettingsScreen(
                                             focusedBorder = Border(BorderStroke(2.dp, TextWhite))
                                         ),
                                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                                        scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
                                         modifier = Modifier.height(36.dp)
                                     ) {
                                         Text(text = themeTitle, fontSize = 13.sp, fontWeight = if (isCur) FontWeight.Bold else FontWeight.Normal)
@@ -287,6 +290,7 @@ fun SettingsScreen(
                                             focusedContentColor = Color.Black
                                         ),
                                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                                        scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
                                         modifier = Modifier.height(36.dp)
                                     ) {
                                         Text(text = playerTitle, fontSize = 13.sp, fontWeight = if (isCur) FontWeight.Bold else FontWeight.Normal)
@@ -326,6 +330,7 @@ fun SettingsScreen(
                                             focusedContentColor = Color.Black
                                         ),
                                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                                        scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
                                         modifier = Modifier.height(36.dp)
                                     ) {
                                         Text(text = qTitle, fontSize = 13.sp, fontWeight = if (isCur) FontWeight.Bold else FontWeight.Normal)
@@ -360,6 +365,7 @@ fun SettingsScreen(
                                             focusedContentColor = Color.Black
                                         ),
                                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                                        scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
                                         modifier = Modifier.height(36.dp)
                                     ) {
                                         Text(text = voice, fontSize = 13.sp, fontWeight = if (isCur) FontWeight.Bold else FontWeight.Normal)
@@ -420,7 +426,8 @@ fun SettingsScreen(
                                                 prefs.edit().putBoolean("filmix_is_pro", false).remove("filmix_login").remove("filmix_token").apply()
                                             },
                                             colors = ButtonDefaults.colors(containerColor = Color.Red.copy(alpha = 0.8f)),
-                                            shape = ButtonDefaults.shape(RoundedCornerShape(8.dp))
+                                            shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f)
                                         ) {
                                             Text("Выйти", fontSize = 13.sp)
                                         }
@@ -459,6 +466,7 @@ fun SettingsScreen(
                                         contentColor = Color.Black
                                     ),
                                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
                                     modifier = Modifier.height(42.dp)
                                 ) {
                                     Text("Активировать Filmix PRO", fontWeight = FontWeight.Bold, fontSize = 14.sp)
@@ -531,6 +539,7 @@ fun SettingsScreen(
                                         contentColor = Color.Black
                                     ),
                                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
                                     modifier = Modifier.height(42.dp)
                                 ) {
                                     Text(text = if (isPinging) "Проверка..." else "Проверить связь (Ping)", fontWeight = FontWeight.Bold)
@@ -581,7 +590,8 @@ fun SettingsScreen(
                                         Toast.makeText(context, "История просмотров очищена", Toast.LENGTH_SHORT).show()
                                     },
                                     colors = ButtonDefaults.colors(containerColor = Color.Red.copy(alpha = 0.8f)),
-                                    shape = ButtonDefaults.shape(RoundedCornerShape(8.dp))
+                                    shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f)
                                 ) {
                                     Text("Очистить историю", fontSize = 13.sp)
                                 }
@@ -613,7 +623,8 @@ fun SettingsScreen(
                                         Toast.makeText(context, "Кэш постеров очищен", Toast.LENGTH_SHORT).show()
                                     },
                                     colors = ButtonDefaults.colors(containerColor = Color.White.copy(alpha = 0.12f)),
-                                    shape = ButtonDefaults.shape(RoundedCornerShape(8.dp))
+                                    shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f)
                                 ) {
                                     Text("Очистить кэш картинок", fontSize = 13.sp)
                                 }
@@ -678,6 +689,7 @@ fun SettingsScreen(
                                         contentColor = Color.Black
                                     ),
                                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
                                     modifier = Modifier.height(42.dp)
                                 ) {
                                     Text("Проверить обновления", fontWeight = FontWeight.Bold)

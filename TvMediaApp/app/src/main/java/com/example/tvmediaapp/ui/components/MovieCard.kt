@@ -47,7 +47,9 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import androidx.tv.material3.Border
@@ -109,31 +111,46 @@ fun MovieCard(
 
                 if (isFocused && !streamUrl.isNullOrEmpty()) {
                     try {
-                        val player = ExoPlayer.Builder(context).build().apply {
-                            setMediaItem(MediaItem.fromUri(streamUrl))
-                            volume = 0f // strictly silent
-                            repeatMode = Player.REPEAT_MODE_ALL
-                            addListener(object : Player.Listener {
-                                override fun onPlaybackStateChanged(state: Int) {
-                                    if (state == Player.STATE_READY) {
-                                        isPreviewBuffering = false
-                                        isPreviewPlaying = true
-                                    } else if (state == Player.STATE_BUFFERING) {
-                                        isPreviewBuffering = true
-                                    } else if (state == Player.STATE_ENDED) {
-                                        seekTo(0L)
-                                        play()
-                                    }
-                                }
+                        val httpDataSourceFactory = DefaultHttpDataSource.Factory()
+                            .setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
+                            .setDefaultRequestProperties(mapOf("Referer" to "https://hdrezka.ag/"))
+                            .setConnectTimeoutMs(8000)
+                            .setReadTimeoutMs(15000)
+                            .setAllowCrossProtocolRedirects(true)
+                        val mediaSourceFactory = DefaultMediaSourceFactory(httpDataSourceFactory)
 
-                                override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
-                                    isPreviewBuffering = false
-                                    isPreviewPlaying = false
-                                }
-                            })
-                            prepare()
-                            playWhenReady = true
-                        }
+                        val player = ExoPlayer.Builder(context)
+                            .setMediaSourceFactory(mediaSourceFactory)
+                            .build().apply {
+                                val targetSeekMs = if (movie.isSeries) 12 * 60 * 1000L else 22 * 60 * 1000L
+                                setMediaItem(MediaItem.fromUri(streamUrl))
+                                seekTo(targetSeekMs)
+                                volume = 0f // strictly silent
+                                repeatMode = Player.REPEAT_MODE_ALL
+                                addListener(object : Player.Listener {
+                                    override fun onPlaybackStateChanged(state: Int) {
+                                        if (state == Player.STATE_READY) {
+                                            if (duration > 0 && currentPosition >= duration) {
+                                                seekTo((duration * 0.2).toLong())
+                                            }
+                                            isPreviewBuffering = false
+                                            isPreviewPlaying = true
+                                        } else if (state == Player.STATE_BUFFERING) {
+                                            isPreviewBuffering = true
+                                        } else if (state == Player.STATE_ENDED) {
+                                            seekTo(0L)
+                                            play()
+                                        }
+                                    }
+
+                                    override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                                        isPreviewBuffering = false
+                                        isPreviewPlaying = false
+                                    }
+                                })
+                                prepare()
+                                playWhenReady = true
+                            }
                         previewPlayer = player
                     } catch (e: Exception) {
                         e.printStackTrace()
@@ -181,7 +198,7 @@ fun MovieCard(
                 ),
                 scale = CardDefaults.scale(
                     scale = 1.0f,
-                    focusedScale = 1.05f
+                    focusedScale = 1.04f
                 ),
                 shape = CardDefaults.shape(RoundedCornerShape(8.dp)),
                 modifier = Modifier
@@ -222,13 +239,16 @@ fun MovieCard(
                                 maxLines = 3,
                                 overflow = TextOverflow.Ellipsis
                             )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = movie.releaseYear,
-                                color = accent,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold
-                            )
+                            val cleanYear = movie.releaseYear.replace("null", "").trim()
+                            if (cleanYear.isNotEmpty()) {
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = cleanYear,
+                                    color = accent,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
                         }
                     }
 
@@ -240,19 +260,7 @@ fun MovieCard(
                         modifier = Modifier.fillMaxSize()
                     )
 
-                    // Card Video Preview Buffering Spinner
-                    if (isPreviewBuffering) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(Color.Black.copy(alpha = 0.55f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            NeonSpinner(size = 32.dp, strokeWidth = 3.dp)
-                        }
-                    }
-
-                    // Card Video Preview (ExoPlayer surface)
+                    // Card Video Preview (ExoPlayer surface - smoothly appears once ready)
                     if (isPreviewPlaying && previewPlayer != null) {
                         AndroidView(
                             factory = { ctx ->
@@ -340,8 +348,11 @@ fun MovieCard(
                     .padding(top = 2.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                val cleanYear = movie.releaseYear.replace("null", "").trim()
+                val typeStr = if (movie.isSeries) "Сериал" else "Фильм"
+                val subText = if (cleanYear.isNotEmpty()) "$cleanYear • $typeStr" else typeStr
                 Text(
-                    text = "${movie.releaseYear} • ${if (movie.isSeries) "Сериал" else "Фильм"}",
+                    text = subText,
                     style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
                     color = if (isFocused) accent else TextGray,
                     maxLines = 1,

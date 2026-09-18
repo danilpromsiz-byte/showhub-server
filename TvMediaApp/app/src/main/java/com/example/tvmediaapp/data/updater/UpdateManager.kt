@@ -54,41 +54,72 @@ object UpdateManager {
         UpdateInfo(false, "", 0, "", "")
     }
 
-    suspend fun downloadAndInstall(activity: Activity, apkUrl: String): Boolean = withContext(Dispatchers.IO) {
+    suspend fun downloadAndInstall(
+        activity: Activity,
+        apkUrl: String,
+        onProgress: ((status: String, percent: Int) -> Unit)? = null
+    ): Boolean = withContext(Dispatchers.IO) {
         try {
-            // Check unknown sources permission on Android 8.0+
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                if (!activity.packageManager.canRequestPackageInstalls()) {
-                    withContext(Dispatchers.Main) {
-                        val manageIntent = Intent(
-                            Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
-                            Uri.parse("package:" + activity.packageName)
-                        )
-                        activity.startActivity(manageIntent)
-                    }
-                    return@withContext false
-                }
+            withContext(Dispatchers.Main) {
+                onProgress?.invoke("Подключение к серверу...", 0)
             }
 
             val url = URL(apkUrl)
             val conn = url.openConnection() as HttpURLConnection
             conn.connectTimeout = 20000
             conn.readTimeout = 60000
-            conn.setRequestProperty("User-Agent", "ShowHubTV-Native/2.3.0")
+            conn.setRequestProperty("User-Agent", "ShowHubTV-Native/2.6.0")
             conn.connect()
 
+            val responseCode = conn.responseCode
+            if (responseCode !in 200..299) {
+                withContext(Dispatchers.Main) {
+                    onProgress?.invoke("Ошибка сервера ($responseCode)", -1)
+                }
+                return@withContext false
+            }
+
+            val contentLength = conn.contentLength.toLong()
             val cacheDir = activity.externalCacheDir ?: activity.cacheDir
             val apkFile = File(cacheDir, "ShowHub-update.apk")
             if (apkFile.exists()) {
                 try { apkFile.delete() } catch (_: Exception) {}
             }
 
+            var bytesReadTotal = 0L
+            var lastReportTime = 0L
+
             conn.inputStream.use { input ->
                 FileOutputStream(apkFile).use { output ->
-                    val buffer = ByteArray(16384)
+                    val buffer = ByteArray(32768)
                     var bytesRead: Int
                     while (input.read(buffer).also { bytesRead = it } > 0) {
                         output.write(buffer, 0, bytesRead)
+                        bytesReadTotal += bytesRead
+
+                        val now = System.currentTimeMillis()
+                        if (now - lastReportTime > 200 || bytesReadTotal == contentLength) {
+                            lastReportTime = now
+                            val percent = if (contentLength > 0) {
+                                ((bytesReadTotal * 100) / contentLength).toInt().coerceIn(0, 100)
+                            } else {
+                                -1
+                            }
+                            val mbRead = String.format(java.util.Locale.US, "%.1f", bytesReadTotal / (1024.0 * 1024.0))
+                            val mbTotal = if (contentLength > 0) {
+                                String.format(java.util.Locale.US, "%.1f", contentLength / (1024.0 * 1024.0))
+                            } else {
+                                "?"
+                            }
+                            val statusMsg = if (percent >= 0) {
+                                "Загрузка: $percent% ($mbRead / $mbTotal МБ)"
+                            } else {
+                                "Загружено: $mbRead МБ"
+                            }
+                            withContext(Dispatchers.Main) {
+                                onProgress?.invoke(statusMsg, percent)
+                            }
+                        }
                     }
                     output.flush()
                 }
@@ -97,21 +128,30 @@ object UpdateManager {
             apkFile.setReadable(true, false)
 
             withContext(Dispatchers.Main) {
-                val intent = Intent(Intent.ACTION_VIEW).apply {
+                onProgress?.invoke("Запуск установщика пакетов...", 100)
+                try {
                     val apkUri = FileProvider.getUriForFile(
                         activity,
                         activity.packageName + ".provider",
                         apkFile
                     )
-                    setDataAndType(apkUri, "application/vnd.android.package-archive")
-                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    val intent = Intent(Intent.ACTION_VIEW).apply {
+                        setDataAndType(apkUri, "application/vnd.android.package-archive")
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    activity.startActivity(intent)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    onProgress?.invoke("Ошибка запуска установщика: ${e.message}", -1)
                 }
-                activity.startActivity(intent)
             }
             true
         } catch (e: Exception) {
             e.printStackTrace()
+            withContext(Dispatchers.Main) {
+                onProgress?.invoke("Сбой загрузки: ${e.message ?: "таймаут сети"}", -1)
+            }
             false
         }
     }

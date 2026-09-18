@@ -39,6 +39,7 @@ import com.example.tvmediaapp.ui.theme.CyanNeon
 import com.example.tvmediaapp.ui.theme.FavoriteGold
 import com.example.tvmediaapp.ui.theme.ImdbGold
 import com.example.tvmediaapp.ui.theme.KpOrange
+import com.example.tvmediaapp.ui.theme.LocalAccentColor
 import com.example.tvmediaapp.ui.theme.TextGray
 import com.example.tvmediaapp.ui.theme.TextWhite
 
@@ -53,6 +54,8 @@ fun FeaturedMovieBanner(
     modifier: Modifier = Modifier
 ) {
     if (movie == null) return
+
+    val accent = LocalAccentColor.current
 
     Box(
         modifier = modifier
@@ -90,13 +93,12 @@ fun FeaturedMovieBanner(
                 .background(
                     Brush.verticalGradient(
                         colors = listOf(
-                            BackgroundDark.copy(alpha = 0.75f),
                             Color.Transparent,
-                            BackgroundDark.copy(alpha = 0.70f),
+                            BackgroundDark.copy(alpha = 0.85f),
                             BackgroundDark
                         ),
-                        startY = 0f,
-                        endY = 370f
+                        startY = 180f,
+                        endY = 550f
                     )
                 )
         )
@@ -118,9 +120,10 @@ fun FeaturedMovieBanner(
                 overflow = TextOverflow.Ellipsis
             )
 
-            if (movie.originalTitle.isNotEmpty() && movie.originalTitle != movie.title) {
+            val origTitle = movie.originalTitle.trim()
+            if (origTitle.isNotBlank() && !origTitle.equals("null", ignoreCase = true) && origTitle != movie.title.trim()) {
                 Text(
-                    text = movie.originalTitle,
+                    text = origTitle,
                     fontSize = 15.sp,
                     color = TextGray,
                     maxLines = 1,
@@ -190,7 +193,7 @@ fun FeaturedMovieBanner(
                     Text(
                         text = movie.genres.take(3).joinToString(" \u2022 "),
                         fontSize = 13.sp,
-                        color = CyanNeon,
+                        color = accent,
                         maxLines = 1
                     )
                 }
@@ -218,13 +221,14 @@ fun FeaturedMovieBanner(
                 Button(
                     onClick = { onWatchClick(movie) },
                     colors = ButtonDefaults.colors(
-                        containerColor = CyanNeon,
+                        containerColor = accent,
                         focusedContainerColor = Color.White,
                         contentColor = Color.Black,
                         focusedContentColor = Color.Black
                     ),
                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                    modifier = Modifier.height(42.dp)
+                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                    modifier = Modifier.height(38.dp)
                 ) {
                     Text(
                         text = "\u25b6  \u0421\u043c\u043e\u0442\u0440\u0435\u0442\u044c",
@@ -238,12 +242,13 @@ fun FeaturedMovieBanner(
                     onClick = { onDetailsClick(movie) },
                     colors = ButtonDefaults.colors(
                         containerColor = Color.White.copy(alpha = 0.15f),
-                        focusedContainerColor = CyanNeon,
+                        focusedContainerColor = accent,
                         contentColor = TextWhite,
                         focusedContentColor = Color.Black
                     ),
                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                    modifier = Modifier.height(42.dp)
+                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                    modifier = Modifier.height(38.dp)
                 ) {
                     Text(
                         text = "\u2139\ufe0f  \u041e \u0444\u0438\u043b\u044c\u043c\u0435",
@@ -270,7 +275,8 @@ fun FeaturedMovieBanner(
                         )
                     ),
                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                    modifier = Modifier.height(42.dp)
+                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                    modifier = Modifier.height(38.dp)
                 ) {
                     Text(
                         text = if (isFavorite) "\u2605 \u0412 \u0438\u0437\u0431\u0440\u0430\u043d\u043d\u043e\u043c" else "\u2606 \u0412 \u0438\u0437\u0431\u0440\u0430\u043d\u043d\u043e\u0435",

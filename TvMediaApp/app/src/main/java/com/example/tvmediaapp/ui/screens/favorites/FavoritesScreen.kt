@@ -25,6 +25,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -32,6 +33,7 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.foundation.lazy.grid.TvGridCells
 import androidx.tv.foundation.lazy.grid.TvLazyVerticalGrid
 import androidx.tv.foundation.lazy.grid.items
+import androidx.tv.material3.Button
 import androidx.tv.material3.ButtonDefaults
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.OutlinedButton
@@ -92,9 +94,16 @@ fun FavoritesScreen(
                 }
             }
 
-            OutlinedButton(
+            Button(
                 onClick = onBackClick,
+                colors = ButtonDefaults.colors(
+                    containerColor = Color.White.copy(alpha = 0.12f),
+                    focusedContainerColor = accent,
+                    contentColor = TextWhite,
+                    focusedContentColor = Color.Black
+                ),
                 shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
                 modifier = Modifier.height(38.dp)
             ) {
                 Text(

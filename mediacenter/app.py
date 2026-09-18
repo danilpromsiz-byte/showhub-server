@@ -271,7 +271,23 @@ def resolve_real_poster(title: str, year: Optional[Any] = None, kp_id: Optional[
     if " - " in clean_t:
         clean_t = clean_t.split(" - ")[0].strip()
 
-    # 1. Quick search via HDRezka
+    # 1. Top priority: Kinopoisk Unofficial if kp_id is available (crisp 1000x1500)
+    if kp_id and str(kp_id).isdigit():
+        kp_poster = f"https://kinopoiskapiunofficial.tech/images/posters/kp/{kp_id}.jpg"
+        _poster_cache[cache_key] = kp_poster
+        return kp_poster
+
+    # 2. Bazon search (returns 1000x1500 high-res posters from i.kbd.so)
+    try:
+        b_matches = bazon.search(clean_t)
+        b_match = find_best_match(b_matches, year_int, None)
+        if b_match and b_match.poster and b_match.poster.startswith("http") and "no_image" not in b_match.poster:
+            _poster_cache[cache_key] = b_match.poster
+            return b_match.poster
+    except Exception:
+        pass
+
+    # 3. Quick search via HDRezka
     try:
         rz_matches = hdrezka.search(clean_t)
         for it in rz_matches:
@@ -283,7 +299,7 @@ def resolve_real_poster(title: str, year: Optional[Any] = None, kp_id: Optional[
     except Exception:
         pass
 
-    # 2. Quick search via Filmix
+    # 4. Quick search via Filmix
     try:
         fx_matches = filmix.search(clean_t)
         for it in fx_matches:
@@ -295,7 +311,7 @@ def resolve_real_poster(title: str, year: Optional[Any] = None, kp_id: Optional[
     except Exception:
         pass
 
-    # 3. Check initial_catalog.json for verified high-res Kinopoisk avatars
+    # 5. Check initial_catalog.json for verified high-res Kinopoisk avatars
     try:
         init_cat_path = os.path.join(CURRENT_DIR, "static", "initial_catalog.json")
         if os.path.exists(init_cat_path):
@@ -309,12 +325,6 @@ def resolve_real_poster(title: str, year: Optional[Any] = None, kp_id: Optional[
     except Exception:
         pass
 
-    # 4. Fallback to Kinopoisk Unofficial / Yandex search proxy
-    if kp_id and str(kp_id).isdigit():
-        kp_poster = f"https://kinopoiskapiunofficial.tech/images/posters/kp/{kp_id}.jpg"
-        _poster_cache[cache_key] = kp_poster
-        return kp_poster
-
     return None
 
 @app.get("/api/media/poster")
@@ -322,18 +332,19 @@ def get_media_poster(title: str = Query(...), year: Optional[str] = None, kp_id:
     poster = resolve_real_poster(title, year, kp_id)
     return {"success": bool(poster), "poster": poster or "/noposter.png"}
 
+
 @app.api_route("/api/updates/check", methods=["GET", "HEAD"])
 @app.api_route("/version.json", methods=["GET", "HEAD"])
 def check_updates() -> Dict[str, Any]:
     return {
         "success": True,
-        "version_name": "2.5.2",
-        "version_code": 38,
+        "version_name": "2.6.0",
+        "version_code": 39,
         "force_update": True,
-        "min_version_code": 38,
+        "min_version_code": 39,
         "apk_url": "https://showhub-server.onrender.com/ShowHub.apk",
         "download_url": "https://showhub-server.onrender.com/ShowHub.apk",
-        "changelog": "ShowHub TV v2.5.2: Исправление установки обновления («Приложение не установлено») с оригинальной цифровой подписью debug.keystore, предпросмотр видео, детальная информация и отзывы."
+        "changelog": "ShowHub TV v2.6.0: Быстрый параллельный поиск потоков, предпросмотр видео без спиннера с 12/22 мин, высокое качество постеров, улучшенный плеер OSD и обновленный интерфейс кнопок."
     }
 
 @app.get("/api/catalog/stats")
@@ -691,7 +702,7 @@ def _fetch_media_details(
         if rz_id:
             rz_det = hdrezka.get_media_details(rz_id)
             if rz_det:
-                if rz_det.get("poster"):
+                if rz_det.get("poster") and (not details.get("poster") or not str(details["poster"]).startswith("http")):
                     details["poster"] = rz_det["poster"]
                 if rz_det.get("translators"):
                     details["translators"] = rz_det["translators"]
@@ -812,109 +823,131 @@ def _fetch_media_streams(
             except Exception:
                 pass
 
-    # 1. Filmix streams
-    try:
-        candidate_fx_ids = []
-        if source == "filmix" and media_id.isdigit():
-            candidate_fx_ids.append(media_id)
-        if titles_to_try:
-            for t_query in titles_to_try:
-                fx_items = filmix.search(t_query)
-                for it in rank_matches(fx_items, year_int, is_ser_bool):
-                    if it.id not in candidate_fx_ids:
-                        candidate_fx_ids.append(it.id)
-        for fx_id in candidate_fx_ids[:3]:
-            fx_streams = filmix.get_streams(fx_id, season=season, episode=episode, audio_id=audio_id)
-            if fx_streams.streams:
-                resolved["filmix"] = fx_streams.model_dump()
-                break
-    except Exception:
-        pass
-
-    # 2. HDRezka streams
-    try:
-        candidate_rz_ids = []
-        if source == "hdrezka" and media_id.startswith("http"):
-            candidate_rz_ids.append(media_id)
-        if titles_to_try:
-            for t_query in titles_to_try:
-                rz_items = hdrezka.search(t_query)
-                for it in rank_matches(rz_items, year_int, is_ser_bool):
-                    if it.id not in candidate_rz_ids:
-                        candidate_rz_ids.append(it.id)
-        for rz_id in candidate_rz_ids[:3]:
-            rz_streams = hdrezka.get_streams(rz_id, season=season, episode=episode, audio_id=audio_id)
-            if rz_streams.streams:
-                resolved["hdrezka"] = rz_streams.model_dump()
-                break
-    except Exception:
-        pass
-
-    # 3. VideoCDN streams (Full HD Embed)
-    try:
-        vc_id = resolved_kp
-        if not vc_id and titles_to_try:
-            for t_query in titles_to_try:
-                vc_items = videocdn.search(t_query)
-                vc_match = find_best_match(vc_items, year_int, is_ser_bool)
-                if vc_match and vc_match.kinopoisk_id:
-                    vc_id = vc_match.kinopoisk_id
-                    break
-        if vc_id:
-            vc_streams = videocdn.get_streams(vc_id)
-            if vc_streams.streams or vc_streams.embed_url:
-                resolved["videocdn"] = vc_streams.model_dump()
-    except Exception:
-        pass
-
-    # 4. Delivembd streams (if KP ID available)
-    if resolved_kp:
+    def _resolve_filmix():
         try:
-            d_streams = delivembd.get_streams(resolved_kp)
-            if d_streams.streams or d_streams.embed_url:
-                resolved["delivembd"] = d_streams.model_dump()
+            candidate_fx_ids = []
+            if source == "filmix" and media_id.isdigit():
+                candidate_fx_ids.append(media_id)
+            if titles_to_try:
+                for t_query in titles_to_try:
+                    fx_items = filmix.search(t_query)
+                    for it in rank_matches(fx_items, year_int, is_ser_bool):
+                        if it.id not in candidate_fx_ids:
+                            candidate_fx_ids.append(it.id)
+            for fx_id in candidate_fx_ids[:3]:
+                fx_streams = filmix.get_streams(fx_id, season=season, episode=episode, audio_id=audio_id)
+                if fx_streams.streams:
+                    return ("filmix", fx_streams.model_dump())
         except Exception:
             pass
+        return None
 
-    # 5. Bazon streams
-    try:
-        b_id = resolved_kp
-        if not b_id and clean_title:
-            b_items = bazon.search(clean_title)
-            b_match = find_best_match(b_items, year_int, is_ser_bool)
-            if b_match and b_match.kinopoisk_id:
-                b_id = b_match.kinopoisk_id
-        if b_id:
-            b_streams = bazon.get_streams(b_id)
-            if b_streams.streams or b_streams.embed_url:
-                resolved["bazon"] = b_streams.model_dump()
-    except Exception:
-        pass
-
-    # 6. Torrents streams
-    if clean_title:
+    def _resolve_hdrezka():
         try:
-            torr_items = torrents.search(clean_title)
-            if torr_items:
-                torr_streams = [
-                    {
-                        "quality": f"{t.extra_data.get('size', '')} (Seeds: {t.extra_data.get('seeds', '0')})",
-                        "url": t.extra_data.get("stream_url", ""),
-                        "stream_type": "torrent",
-                        "headers": {}
-                    }
-                    for t in torr_items[:5]
-                ]
-                resolved["torrents"] = {
-                    "source_name": "Rutor / TorrServe",
-                    "media_id": media_id,
-                    "title": title,
-                    "streams": torr_streams,
-                    "embed_url": None,
-                    "error": None
-                }
+            candidate_rz_ids = []
+            if source == "hdrezka" and media_id.startswith("http"):
+                candidate_rz_ids.append(media_id)
+            if titles_to_try:
+                for t_query in titles_to_try:
+                    rz_items = hdrezka.search(t_query)
+                    for it in rank_matches(rz_items, year_int, is_ser_bool):
+                        if it.id not in candidate_rz_ids:
+                            candidate_rz_ids.append(it.id)
+            for rz_id in candidate_rz_ids[:3]:
+                rz_streams = hdrezka.get_streams(rz_id, season=season, episode=episode, audio_id=audio_id)
+                if rz_streams.streams:
+                    return ("hdrezka", rz_streams.model_dump())
         except Exception:
             pass
+        return None
+
+    def _resolve_videocdn():
+        try:
+            vc_id = resolved_kp
+            if not vc_id and titles_to_try:
+                for t_query in titles_to_try:
+                    vc_items = videocdn.search(t_query)
+                    vc_match = find_best_match(vc_items, year_int, is_ser_bool)
+                    if vc_match and vc_match.kinopoisk_id:
+                        vc_id = vc_match.kinopoisk_id
+                        break
+            if vc_id:
+                vc_streams = videocdn.get_streams(vc_id)
+                if vc_streams.streams or vc_streams.embed_url:
+                    return ("videocdn", vc_streams.model_dump())
+        except Exception:
+            pass
+        return None
+
+    def _resolve_delivembd():
+        if resolved_kp:
+            try:
+                d_streams = delivembd.get_streams(resolved_kp)
+                if d_streams.streams or d_streams.embed_url:
+                    return ("delivembd", d_streams.model_dump())
+            except Exception:
+                pass
+        return None
+
+    def _resolve_bazon():
+        try:
+            b_id = resolved_kp
+            if not b_id and clean_title:
+                b_items = bazon.search(clean_title)
+                b_match = find_best_match(b_items, year_int, is_ser_bool)
+                if b_match and b_match.kinopoisk_id:
+                    b_id = b_match.kinopoisk_id
+            if b_id:
+                b_streams = bazon.get_streams(b_id)
+                if b_streams.streams or b_streams.embed_url:
+                    return ("bazon", b_streams.model_dump())
+        except Exception:
+            pass
+        return None
+
+    def _resolve_torrents():
+        if clean_title:
+            try:
+                torr_items = torrents.search(clean_title)
+                if torr_items:
+                    torr_streams = [
+                        {
+                            "quality": f"{t.extra_data.get('size', '')} (Seeds: {t.extra_data.get('seeds', '0')})",
+                            "url": t.extra_data.get("stream_url", ""),
+                            "stream_type": "torrent",
+                            "headers": {}
+                        }
+                        for t in torr_items[:5]
+                    ]
+                    return ("torrents", {
+                        "source_name": "Rutor / TorrServe",
+                        "media_id": media_id,
+                        "title": title,
+                        "streams": torr_streams,
+                        "embed_url": None,
+                        "error": None
+                    })
+            except Exception:
+                pass
+        return None
+
+    with ThreadPoolExecutor(max_workers=6) as executor:
+        futures = [
+            executor.submit(_resolve_filmix),
+            executor.submit(_resolve_hdrezka),
+            executor.submit(_resolve_videocdn),
+            executor.submit(_resolve_delivembd),
+            executor.submit(_resolve_bazon),
+            executor.submit(_resolve_torrents)
+        ]
+        for f in futures:
+            try:
+                res = f.result(timeout=6.0)
+                if res:
+                    src_name, src_payload = res
+                    resolved[src_name] = src_payload
+            except Exception:
+                pass
 
     # Tag streams requiring Premium (4K, Ultra, 2160p, 1440p, rhtie.mp4 teaser, Filmix 1080p without PRO)
     for src_name, src_data in resolved.items():

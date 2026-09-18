@@ -89,16 +89,16 @@ class MainActivity : ComponentActivity() {
                 pInfo.versionCode
             }
         } catch (e: Exception) {
-            38
+            39
         }
     }
 
     fun getInstalledVersionName(): String {
         return try {
             val pInfo = packageManager.getPackageInfo(packageName, 0)
-            pInfo.versionName ?: "2.5.2"
+            pInfo.versionName ?: "2.6.0"
         } catch (e: Exception) {
-            "2.5.2"
+            "2.6.0"
         }
     }
 
@@ -325,6 +325,8 @@ fun TvAppNavHost(activity: MainActivity) {
             val update = updateInfo!!
             val updateFocusRequester = remember { FocusRequester() }
             val remindLaterFocusRequester = remember { FocusRequester() }
+            var updateStatus by remember { mutableStateOf<String?>(null) }
+            var updatePercent by remember { mutableIntStateOf(0) }
 
             LaunchedEffect(update) {
                 for (i in 1..5) {
@@ -370,12 +372,16 @@ fun TvAppNavHost(activity: MainActivity) {
                                 if (!isDownloadingUpdate) {
                                     isDownloadingUpdate = true
                                     coroutineScope.launch {
-                                        UpdateManager.downloadAndInstall(activity, update.downloadUrl)
+                                        UpdateManager.downloadAndInstall(activity, update.downloadUrl) { status, percent ->
+                                            updateStatus = status
+                                            updatePercent = percent
+                                        }
                                         isDownloadingUpdate = false
                                     }
                                 }
                             },
                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
                             colors = ButtonDefaults.colors(
                                 containerColor = accent,
                                 focusedContainerColor = Color.White,
@@ -392,7 +398,11 @@ fun TvAppNavHost(activity: MainActivity) {
                                 }
                         ) {
                             Text(
-                                text = if (isDownloadingUpdate) "Загрузка APK..." else "Обновить сейчас",
+                                text = if (isDownloadingUpdate) {
+                                    if (updatePercent > 0) "Загрузка: $updatePercent%" else "Загрузка..."
+                                } else {
+                                    "Обновить сейчас"
+                                },
                                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
                                 fontWeight = FontWeight.Bold
                             )
@@ -401,6 +411,7 @@ fun TvAppNavHost(activity: MainActivity) {
                         Button(
                             onClick = { updateInfo = null },
                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
                             modifier = Modifier
                                 .focusRequester(remindLaterFocusRequester)
                                 .focusProperties {
@@ -415,6 +426,16 @@ fun TvAppNavHost(activity: MainActivity) {
                                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
                             )
                         }
+                    }
+
+                    if (updateStatus != null) {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = updateStatus!!,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = accent,
+                            fontWeight = FontWeight.Medium
+                        )
                     }
                 }
             }

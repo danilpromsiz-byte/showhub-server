@@ -1,10 +1,10 @@
 {
   "success": true,
-  "version_name": "2.5.2",
-  "version_code": 38,
+  "version_name": "2.6.0",
+  "version_code": 39,
   "force_update": true,
-  "min_version_code": 38,
+  "min_version_code": 39,
   "download_url": "https://showhub-server.onrender.com/ShowHub.apk",
   "apk_url": "https://showhub-server.onrender.com/ShowHub.apk",
-  "changelog": "ShowHub TV v2.5.2: Исправление установки обновления («Приложение не установлено») с оригинальной цифровой подписью debug.keystore, предпросмотр видео, детальная информация и отзывы."
+  "changelog": "ShowHub TV v2.6.0: Быстрый параллельный поиск потоков, предпросмотр видео без спиннера с 12/22 мин, высокое качество постеров, улучшенный плеер OSD и обновленный интерфейс кнопок."
 }

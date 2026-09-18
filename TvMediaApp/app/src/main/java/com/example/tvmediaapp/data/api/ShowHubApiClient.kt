@@ -151,13 +151,21 @@ object ShowHubApiClient {
                     }
                 }
 
+                val rawPoster = obj.optString("poster", "")
+                val updatedPoster = if (rawPoster.startsWith("http") && !rawPoster.contains("no_image") && !rawPoster.contains("noposter")) rawPoster else movie.posterUrl
+
                 val kpRating = obj.optDouble("rating_kp", movie.ratingKp)
                 val imdbRating = obj.optDouble("rating_imdb", movie.ratingImdb)
-                val director = obj.optString("director", movie.director)
-                val country = obj.optString("country", movie.country)
-                val desc = obj.optString("description", movie.description).ifEmpty { movie.description }
+                val rawDirector = obj.optString("director", movie.director)
+                val director = if (rawDirector.isBlank() || rawDirector.equals("null", ignoreCase = true)) movie.director else rawDirector
+                val rawCountry = obj.optString("country", movie.country)
+                val country = if (rawCountry.isBlank() || rawCountry.equals("null", ignoreCase = true)) movie.country else rawCountry
+                val rawDesc = obj.optString("description", movie.description).ifEmpty { movie.description }
+                val desc = if (rawDesc.isBlank() || rawDesc.equals("null", ignoreCase = true)) movie.description else rawDesc
 
                 return@withContext movie.copy(
+                    posterUrl = updatedPoster,
+                    backdropUrl = updatedPoster,
                     ratingKp = if (kpRating > 0) kpRating else movie.ratingKp,
                     ratingImdb = if (imdbRating > 0) imdbRating else movie.ratingImdb,
                     director = director,
@@ -190,9 +198,9 @@ object ShowHubApiClient {
             sb.append("&year=${movie.releaseYear}")
 
             val conn = URL(sb.toString()).openConnection() as HttpURLConnection
-            conn.connectTimeout = 12000
-            conn.readTimeout = 18000
-            conn.setRequestProperty("User-Agent", "ShowHubTV-Native/2.4.0")
+            conn.connectTimeout = 15000
+            conn.readTimeout = 25000
+            conn.setRequestProperty("User-Agent", "ShowHubTV-Native/2.6.0")
             conn.connect()
             if (conn.responseCode == 200) {
                 val body = BufferedReader(InputStreamReader(conn.inputStream, "UTF-8")).use { it.readText() }
@@ -345,8 +353,10 @@ object ShowHubApiClient {
         for (i in 0 until arr.length()) {
             val it = arr.getJSONObject(i)
             val id = it.optString("id", i.toString())
-            var title = it.optString("title", "").ifEmpty { it.optString("original_title", "") }
-            val orig = it.optString("original_title", "")
+            val rawTitle = it.optString("title", "").ifEmpty { it.optString("original_title", "") }
+            var title = if (rawTitle.isBlank() || rawTitle.equals("null", ignoreCase = true)) "" else rawTitle
+            val rawOrig = it.optString("original_title", "")
+            val orig = if (rawOrig.isBlank() || rawOrig.equals("null", ignoreCase = true)) "" else rawOrig
             if (title.contains("\ufffd") || title.trim().isEmpty() || title.contains("???")) {
                 if (orig.isNotEmpty() && !orig.contains("\ufffd") && !orig.contains("???")) {
                     title = orig
@@ -355,18 +365,22 @@ object ShowHubApiClient {
                 }
             }
 
-            val desc = it.optString("description", "")
+            val rawDesc = it.optString("description", "")
+            val desc = if (rawDesc.isBlank() || rawDesc.equals("null", ignoreCase = true)) "" else rawDesc
             val poster = it.optString("poster", "")
             val posterUrl = if (poster.startsWith("http")) poster else if (poster.isNotEmpty()) "$SERVER_BASE$poster" else "https://avatars.mds.yandex.net/get-kinopoisk-image/10592371/4c676451-f7ea-4d89-9d5a-bf98b1eb7980/600x900"
             val kpRating = if (it.has("rating_kp") && !it.isNull("rating_kp")) it.optDouble("rating_kp", 7.5) else 0.0
             val imdbRating = if (it.has("rating_imdb") && !it.isNull("rating_imdb")) it.optDouble("rating_imdb", 7.2) else 0.0
             val rating = if (kpRating > 0) kpRating else if (imdbRating > 0) imdbRating else it.optDouble("rating", 7.5)
-            val year = it.optString("year", "2024").replace("null", "2024").ifEmpty { "2024" }
+            val rawYear = it.optString("year", "2024").replace("null", "").trim()
+            val year = if (rawYear.isNotEmpty()) rawYear else "2024"
             val isSeries = it.optBoolean("is_series", false)
 
             val extraObj = it.optJSONObject("extra_data")
-            val country = extraObj?.optString("country", "") ?: it.optString("country", "")
-            val director = extraObj?.optString("director", "") ?: it.optString("director", "")
+            val rawCountry = extraObj?.optString("country", "") ?: it.optString("country", "")
+            val country = if (rawCountry.isBlank() || rawCountry.equals("null", ignoreCase = true)) "" else rawCountry
+            val rawDirector = extraObj?.optString("director", "") ?: it.optString("director", "")
+            val director = if (rawDirector.isBlank() || rawDirector.equals("null", ignoreCase = true)) "" else rawDirector
 
             val genresList = mutableListOf<String>()
             val gArr = it.optJSONArray("genres")

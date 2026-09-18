@@ -128,6 +128,7 @@ fun FilterBar(
                         focusedContentColor = Color.Black
                     ),
                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
                     modifier = Modifier.height(34.dp)
                 ) {
                     Text(
@@ -158,6 +159,7 @@ fun FilterBar(
                         focusedBorder = Border(BorderStroke(2.dp, TextWhite))
                     ),
                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
                     modifier = Modifier.height(34.dp)
                 ) {
                     Text(
@@ -180,6 +182,7 @@ fun FilterBar(
                         focusedContentColor = TextWhite
                     ),
                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
                     modifier = Modifier.height(34.dp)
                 ) {
                     Text(
@@ -212,6 +215,7 @@ fun FilterBar(
                         focusedBorder = Border(BorderStroke(2.dp, TextWhite))
                     ),
                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
                     modifier = Modifier.height(32.dp)
                 ) {
                     Text(

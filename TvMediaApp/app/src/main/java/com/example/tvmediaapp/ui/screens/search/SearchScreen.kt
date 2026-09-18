@@ -165,6 +165,7 @@ fun SearchScreen(
                     focusedBorder = Border(border = BorderStroke(2.dp, TextWhite))
                 ),
                 shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
                 modifier = Modifier.height(38.dp)
             ) {
                 Text(

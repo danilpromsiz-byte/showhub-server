@@ -10,6 +10,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -372,9 +373,10 @@ fun DetailsScreen(
                     lineHeight = 36.sp
                 )
 
-                if (currentMovie.originalTitle.isNotEmpty() && currentMovie.originalTitle != currentMovie.title) {
+                val origTitle = currentMovie.originalTitle.trim()
+                if (origTitle.isNotBlank() && !origTitle.equals("null", ignoreCase = true) && origTitle != currentMovie.title.trim()) {
                     Text(
-                        text = currentMovie.originalTitle,
+                        text = origTitle,
                         fontSize = 15.sp,
                         color = TextGray,
                         modifier = Modifier.padding(top = 2.dp)
@@ -439,13 +441,15 @@ fun DetailsScreen(
                                 focusedContentColor = Color.Black
                             ),
                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                            modifier = Modifier.height(42.dp)
+                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                            modifier = Modifier.height(36.dp)
                         ) {
                             Text(
                                 text = resumeLabel,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 13.sp,
-                                modifier = Modifier.padding(horizontal = 10.dp)
+                                modifier = Modifier.padding(horizontal = 4.dp)
                             )
                         }
 
@@ -458,13 +462,15 @@ fun DetailsScreen(
                                 focusedContentColor = Color.Black
                             ),
                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                            modifier = Modifier.height(42.dp)
+                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                            modifier = Modifier.height(36.dp)
                         ) {
                             Text(
                                 text = "С начала",
                                 fontWeight = FontWeight.Medium,
                                 fontSize = 13.sp,
-                                modifier = Modifier.padding(horizontal = 8.dp)
+                                modifier = Modifier.padding(horizontal = 4.dp)
                             )
                         }
                     } else {
@@ -477,13 +483,15 @@ fun DetailsScreen(
                                 focusedContentColor = Color.Black
                             ),
                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                            modifier = Modifier.height(42.dp)
+                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp),
+                            modifier = Modifier.height(36.dp)
                         ) {
                             Text(
                                 text = if (isResolving) "Поиск потока..." else "Смотреть онлайн",
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp,
-                                modifier = Modifier.padding(horizontal = 12.dp)
+                                fontSize = 13.sp,
+                                modifier = Modifier.padding(horizontal = 6.dp)
                             )
                         }
                     }
@@ -516,13 +524,15 @@ fun DetailsScreen(
                             focusedContentColor = Color.Black
                         ),
                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                        modifier = Modifier.height(42.dp)
+                        scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                        modifier = Modifier.height(36.dp)
                     ) {
                         Text(
                             text = "Трейлер",
                             fontWeight = FontWeight.SemiBold,
                             fontSize = 13.sp,
-                            modifier = Modifier.padding(horizontal = 8.dp)
+                            modifier = Modifier.padding(horizontal = 4.dp)
                         )
                     }
 
@@ -589,13 +599,15 @@ fun DetailsScreen(
                             focusedContentColor = Color.Black
                         ),
                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                        modifier = Modifier.height(42.dp)
+                        scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                        modifier = Modifier.height(36.dp)
                     ) {
                         Text(
                             text = "Внешний плеер",
                             fontWeight = FontWeight.SemiBold,
                             fontSize = 13.sp,
-                            modifier = Modifier.padding(horizontal = 8.dp)
+                            modifier = Modifier.padding(horizontal = 4.dp)
                         )
                     }
                 }
@@ -624,13 +636,15 @@ fun DetailsScreen(
                             )
                         ),
                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                        modifier = Modifier.height(38.dp)
+                        scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp),
+                        modifier = Modifier.height(34.dp)
                     ) {
                         Text(
                             text = if (isFavorite) "В избранном" else "В избранное",
                             fontWeight = FontWeight.SemiBold,
                             fontSize = 13.sp,
-                            modifier = Modifier.padding(horizontal = 12.dp)
+                            modifier = Modifier.padding(horizontal = 6.dp)
                         )
                     }
 
@@ -647,12 +661,14 @@ fun DetailsScreen(
                             focusedBorder = Border(border = BorderStroke(2.dp, TextWhite))
                         ),
                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                        modifier = Modifier.height(38.dp)
+                        scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 2.dp),
+                        modifier = Modifier.height(34.dp)
                     ) {
                         Text(
                             text = "Назад",
                             fontSize = 13.sp,
-                            modifier = Modifier.padding(horizontal = 14.dp)
+                            modifier = Modifier.padding(horizontal = 6.dp)
                         )
                     }
                 }
@@ -694,7 +710,9 @@ fun DetailsScreen(
                                 focusedContentColor = Color.Black
                             ),
                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                            modifier = Modifier.height(36.dp)
+                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp),
+                            modifier = Modifier.height(34.dp)
                         ) {
                             Text(
                                 text = tabTitle,
@@ -734,6 +752,8 @@ fun DetailsScreen(
                                             focusedContentColor = Color.Black
                                         ),
                                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                                        scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
                                         modifier = Modifier.height(32.dp)
                                     ) {
                                         Text(text = track.name, fontSize = 12.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
@@ -760,7 +780,9 @@ fun DetailsScreen(
                                         focusedContentColor = Color.Black
                                     ),
                                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                                    modifier = Modifier.height(30.dp)
+                                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                                    modifier = Modifier.height(34.dp)
                                 ) {
                                     Text(text = quality, fontSize = 12.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
                                 }
@@ -788,6 +810,8 @@ fun DetailsScreen(
                                             focusedContentColor = Color.Black
                                         ),
                                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                                        scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
                                         modifier = Modifier.height(32.dp)
                                     ) {
                                         Text(text = season.title, fontSize = 12.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
@@ -825,7 +849,9 @@ fun DetailsScreen(
                                             focusedBorder = Border(border = BorderStroke(2.dp, TextWhite))
                                         ),
                                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                                        modifier = Modifier.height(36.dp)
+                                        scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                                        modifier = Modifier.height(34.dp)
                                     ) {
                                         Text(text = ep.title, fontSize = 12.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
                                     }

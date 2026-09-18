@@ -115,6 +115,7 @@ fun HistoryScreen(
                             focusedContentColor = TextWhite
                         ),
                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                        scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
                         modifier = Modifier.height(38.dp)
                     ) {
                         Text(
@@ -124,9 +125,16 @@ fun HistoryScreen(
                     }
                 }
 
-                OutlinedButton(
+                Button(
                     onClick = onBackClick,
+                    colors = ButtonDefaults.colors(
+                        containerColor = Color.White.copy(alpha = 0.12f),
+                        focusedContainerColor = accent,
+                        contentColor = TextWhite,
+                        focusedContentColor = Color.Black
+                    ),
                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
                     modifier = Modifier.height(38.dp)
                 ) {
                     Text(
@@ -192,7 +200,7 @@ fun HistoryScreen(
                                 border = CardDefaults.border(
                                     focusedBorder = Border(BorderStroke(3.dp, accent))
                                 ),
-                                scale = CardDefaults.scale(scale = 1.0f, focusedScale = 1.08f),
+                                scale = CardDefaults.scale(scale = 1.0f, focusedScale = 1.04f),
                                 modifier = Modifier
                                     .width(170.dp)
                                     .aspectRatio(2f / 3f)

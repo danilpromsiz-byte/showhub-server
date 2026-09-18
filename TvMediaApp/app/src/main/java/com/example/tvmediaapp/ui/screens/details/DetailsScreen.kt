@@ -97,7 +97,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun DetailsScreen(
     movie: Movie,
-    onPlayClick: (detailedMovie: Movie, videoUrl: String, startPositionMs: Long, season: Int, episode: Int) -> Unit,
+    onPlayClick: (detailedMovie: Movie, videoUrl: String, startPositionMs: Long, season: Int, episode: Int, audioId: String) -> Unit,
     onBackClick: () -> Unit,
     onToggleFavorite: (Movie) -> Unit,
     isFavorite: Boolean,
@@ -344,7 +344,12 @@ fun DetailsScreen(
 
             val nativeStreams = nativeDeferred.await()
             val serverStreams = serverDeferred.await()
-            val combined = (nativeStreams + serverStreams).distinctBy { it.url }
+            val isNativeFallback = nativeStreams.isNotEmpty() && nativeStreams.all { it.source.contains("fallback", ignoreCase = true) }
+            val combined = if (isNativeFallback && serverStreams.isNotEmpty()) {
+                (serverStreams + nativeStreams).distinctBy { it.url }
+            } else {
+                (nativeStreams + serverStreams).distinctBy { it.url }
+            }
             // Sort direct streams (HLS/MP4) first, balancers last
             val streams = combined.sortedByDescending { isDirectVideoStream(it.url) }
 
@@ -357,7 +362,7 @@ fun DetailsScreen(
                     ?: streams.firstOrNull { isDirectVideoStream(it.url) }
                     ?: streams.first()
                 streamStatus = "Найден поток ${matched.quality}! Запуск..."
-                onPlayClick(currentMovie, matched.url, startPos, targetSeason, targetEpisode)
+                onPlayClick(currentMovie, matched.url, startPos, targetSeason, targetEpisode, targetAudioId)
             } else {
                 streamStatus = "Поток в обработке. Попробуйте другой фильм."
             }
@@ -679,12 +684,15 @@ fun DetailsScreen(
                                 prefs.edit().putString("pref_quality", q).apply()
                             },
                             colors = ButtonDefaults.colors(
-                                containerColor = if (isSelected) accent else ChipBackground,
-                                focusedContainerColor = accent,
-                                contentColor = if (isSelected) Color.Black else TextWhite,
+                                containerColor = if (isSelected) accent.copy(alpha = 0.22f) else ChipBackground,
+                                focusedContainerColor = Color.White,
+                                contentColor = if (isSelected) accent else TextWhite,
                                 focusedContentColor = Color.Black
                             ),
-                            border = ButtonDefaults.border(border = Border.None, focusedBorder = Border.None),
+                            border = ButtonDefaults.border(
+                                border = if (isSelected) Border(BorderStroke(1.5.dp, accent)) else Border.None,
+                                focusedBorder = Border.None
+                            ),
                             shape = ButtonDefaults.shape(RoundedCornerShape(6.dp)),
                             scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
@@ -768,7 +776,7 @@ fun DetailsScreen(
                             onClick = { startPlayback(startPos = 0L) },
                             colors = ButtonDefaults.colors(
                                 containerColor = Color.White.copy(alpha = 0.12f),
-                                focusedContainerColor = accent,
+                                focusedContainerColor = Color.White,
                                 contentColor = TextWhite,
                                 focusedContentColor = Color.Black
                             ),
@@ -872,7 +880,7 @@ fun DetailsScreen(
                         },
                         colors = ButtonDefaults.colors(
                             containerColor = Color.White.copy(alpha = 0.12f),
-                            focusedContainerColor = accent,
+                            focusedContainerColor = Color.White,
                             contentColor = TextWhite,
                             focusedContentColor = Color.Black
                         ),
@@ -970,7 +978,7 @@ fun DetailsScreen(
                         },
                         colors = ButtonDefaults.colors(
                             containerColor = Color.White.copy(alpha = 0.12f),
-                            focusedContainerColor = accent,
+                            focusedContainerColor = Color.White,
                             contentColor = TextWhite,
                             focusedContentColor = Color.Black
                         ),
@@ -1019,12 +1027,12 @@ fun DetailsScreen(
                         onClick = { onToggleFavorite(currentMovie) },
                         colors = ButtonDefaults.colors(
                             containerColor = if (isFavorite) FavoriteGold.copy(alpha = 0.25f) else Color.White.copy(alpha = 0.12f),
-                            focusedContainerColor = FavoriteGold,
+                            focusedContainerColor = Color.White,
                             contentColor = if (isFavorite) FavoriteGold else TextWhite,
                             focusedContentColor = Color.Black
                         ),
                         border = ButtonDefaults.border(
-                            border = Border.None,
+                            border = if (isFavorite) Border(BorderStroke(1.5.dp, FavoriteGold)) else Border.None,
                             focusedBorder = Border.None
                         ),
                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
@@ -1062,7 +1070,7 @@ fun DetailsScreen(
                         onClick = onBackClick,
                         colors = ButtonDefaults.colors(
                             containerColor = Color.White.copy(alpha = 0.12f),
-                            focusedContainerColor = accent,
+                            focusedContainerColor = Color.White,
                             contentColor = TextWhite,
                             focusedContentColor = Color.Black
                         ),
@@ -1149,13 +1157,13 @@ fun DetailsScreen(
                         Button(
                             onClick = { selectedDetailTab = index },
                             colors = ButtonDefaults.colors(
-                                containerColor = if (isSelected) accent else ChipBackground,
-                                focusedContainerColor = accent,
-                                contentColor = if (isSelected) Color.Black else TextWhite,
+                                containerColor = if (isSelected) accent.copy(alpha = 0.25f) else ChipBackground,
+                                focusedContainerColor = Color.White,
+                                contentColor = if (isSelected) accent else TextWhite,
                                 focusedContentColor = Color.Black
                             ),
                             border = ButtonDefaults.border(
-                                border = Border.None,
+                                border = if (isSelected) Border(BorderStroke(1.5.dp, accent)) else Border.None,
                                 focusedBorder = Border.None
                             ),
                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
@@ -1195,13 +1203,13 @@ fun DetailsScreen(
                                             startPlayback(targetSeason = selectedSeason, targetEpisode = selectedEpisode, targetAudioId = track.id)
                                         },
                                         colors = ButtonDefaults.colors(
-                                            containerColor = if (isSelected) accent else ChipBackground,
-                                            focusedContainerColor = accent,
-                                            contentColor = if (isSelected) Color.Black else TextWhite,
+                                            containerColor = if (isSelected) accent.copy(alpha = 0.22f) else ChipBackground,
+                                            focusedContainerColor = Color.White,
+                                            contentColor = if (isSelected) accent else TextWhite,
                                             focusedContentColor = Color.Black
                                         ),
                                         border = ButtonDefaults.border(
-                                            border = Border.None,
+                                            border = if (isSelected) Border(BorderStroke(1.5.dp, accent)) else Border.None,
                                             focusedBorder = Border.None
                                         ),
                                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
@@ -1230,13 +1238,13 @@ fun DetailsScreen(
                                             selectedEpisode = 1
                                         },
                                         colors = ButtonDefaults.colors(
-                                            containerColor = if (isSelected) accent else ChipBackground,
-                                            focusedContainerColor = accent,
-                                            contentColor = if (isSelected) Color.Black else TextWhite,
+                                            containerColor = if (isSelected) accent.copy(alpha = 0.22f) else ChipBackground,
+                                            focusedContainerColor = Color.White,
+                                            contentColor = if (isSelected) accent else TextWhite,
                                             focusedContentColor = Color.Black
                                         ),
                                         border = ButtonDefaults.border(
-                                            border = Border.None,
+                                            border = if (isSelected) Border(BorderStroke(1.5.dp, accent)) else Border.None,
                                             focusedBorder = Border.None
                                         ),
                                         shape = ButtonDefaults.shape(RoundedCornerShape(6.dp)),
@@ -1269,13 +1277,13 @@ fun DetailsScreen(
                                             startPlayback(targetSeason = selectedSeason, targetEpisode = ep.episodeNumber, startPos = 0L)
                                         },
                                         colors = ButtonDefaults.colors(
-                                            containerColor = if (isSelected) accent.copy(alpha = 0.3f) else ChipBackground,
-                                            focusedContainerColor = accent,
+                                            containerColor = if (isSelected) accent.copy(alpha = 0.22f) else ChipBackground,
+                                            focusedContainerColor = Color.White,
                                             contentColor = if (isSelected) accent else TextWhite,
                                             focusedContentColor = Color.Black
                                         ),
                                         border = ButtonDefaults.border(
-                                            border = Border.None,
+                                            border = if (isSelected) Border(BorderStroke(1.5.dp, accent)) else Border.None,
                                             focusedBorder = Border.None
                                         ),
                                         shape = ButtonDefaults.shape(RoundedCornerShape(6.dp)),

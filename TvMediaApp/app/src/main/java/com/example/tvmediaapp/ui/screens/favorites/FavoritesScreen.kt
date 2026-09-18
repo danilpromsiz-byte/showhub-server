@@ -49,6 +49,13 @@ import com.example.tvmediaapp.ui.theme.LocalAccentColor
 import com.example.tvmediaapp.ui.theme.TextGray
 import com.example.tvmediaapp.ui.theme.TextWhite
 
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.runtime.LaunchedEffect
+import androidx.tv.foundation.lazy.grid.itemsIndexed
+import kotlinx.coroutines.delay
+
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 fun FavoritesScreen(
@@ -64,6 +71,17 @@ fun FavoritesScreen(
     }
 
     val accent = LocalAccentColor.current
+    val firstCardFocusRequester = remember { FocusRequester() }
+    val backButtonFocusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(favoriteMovies) {
+        if (favoriteMovies.isNotEmpty()) {
+            delay(150)
+            try {
+                firstCardFocusRequester.requestFocus()
+            } catch (_: Exception) {}
+        }
+    }
 
     Column(
         modifier = modifier
@@ -99,7 +117,7 @@ fun FavoritesScreen(
                 onClick = onBackClick,
                 colors = ButtonDefaults.colors(
                     containerColor = Color.White.copy(alpha = 0.12f),
-                    focusedContainerColor = accent,
+                    focusedContainerColor = Color.White,
                     contentColor = TextWhite,
                     focusedContentColor = Color.Black
                 ),
@@ -107,14 +125,17 @@ fun FavoritesScreen(
                 shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                 scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
-                modifier = Modifier.height(28.dp)
+                modifier = Modifier
+                    .height(28.dp)
+                    .focusRequester(backButtonFocusRequester)
+                    .focusProperties { down = firstCardFocusRequester }
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     com.example.tvmediaapp.ui.components.AppIcon(
                         iconResId = com.example.tvmediaapp.R.drawable.ic_arrow_back,
                         contentDescription = "Назад",
                         modifier = Modifier.padding(end = 4.dp),
-                        tint = TextWhite,
+                        tint = Color.Unspecified,
                         size = 13.dp
                     )
                     Text(
@@ -157,11 +178,16 @@ fun FavoritesScreen(
                 verticalArrangement = Arrangement.spacedBy(10.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
-                items(favoriteMovies) { movie ->
+                itemsIndexed(favoriteMovies) { index, movie ->
+                    val cardFocusMod = Modifier
+                        .then(if (index == 0) Modifier.focusRequester(firstCardFocusRequester) else Modifier)
+                        .then(if (index < 6) Modifier.focusProperties { up = backButtonFocusRequester } else Modifier)
+
                     MovieCard(
                         movie = movie,
                         onClick = { onMovieSelect(movie) },
-                        onFocus = {}
+                        onFocus = {},
+                        cardModifier = cardFocusMod
                     )
                 }
             }

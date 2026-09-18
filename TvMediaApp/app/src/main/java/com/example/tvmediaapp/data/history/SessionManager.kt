@@ -6,12 +6,31 @@ import com.example.tvmediaapp.data.models.Movie
 import org.json.JSONArray
 import org.json.JSONObject
 
+data class PlaybackSession(
+    val movie: Movie,
+    val videoUrl: String,
+    val positionMs: Long,
+    val season: Int,
+    val episode: Int,
+    val audioId: String,
+    val screen: Screen
+)
+
 object SessionManager {
     private const val PREFS_NAME = "showhub_session"
     private const val KEY_LAST_MOVIE = "last_movie"
     private const val KEY_LAST_SCREEN = "last_screen"
 
-    fun saveSession(context: Context, movie: Movie?, screen: Screen) {
+    fun saveSession(
+        context: Context,
+        movie: Movie?,
+        screen: Screen,
+        videoUrl: String = "",
+        positionMs: Long = 0L,
+        season: Int = 1,
+        episode: Int = 1,
+        audioId: String = ""
+    ) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         if (movie == null || screen == Screen.HOME) {
             prefs.edit().remove(KEY_LAST_MOVIE).remove(KEY_LAST_SCREEN).apply()
@@ -19,6 +38,7 @@ object SessionManager {
         }
 
         try {
+            val vUrl = if (videoUrl.isNotEmpty()) videoUrl else movie.videoUrl
             val obj = JSONObject().apply {
                 put("id", movie.id)
                 put("title", movie.title)
@@ -36,9 +56,14 @@ object SessionManager {
                 put("actors", movie.actors)
                 put("episodesInfo", movie.episodesInfo)
                 put("genres", JSONArray(movie.genres))
-                put("videoUrl", movie.videoUrl)
+                put("videoUrl", vUrl)
                 put("isSeries", movie.isSeries)
                 put("screen", screen.name)
+                put("positionMs", positionMs)
+                put("season", season)
+                put("episode", episode)
+                put("audioId", audioId)
+                put("timestamp", System.currentTimeMillis())
             }
             prefs.edit()
                 .putString(KEY_LAST_MOVIE, obj.toString())
@@ -49,7 +74,7 @@ object SessionManager {
         }
     }
 
-    fun restoreLastMovie(context: Context): Movie? {
+    fun restoreSession(context: Context): PlaybackSession? {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val raw = prefs.getString(KEY_LAST_MOVIE, null) ?: return null
         return try {
@@ -62,7 +87,8 @@ object SessionManager {
                 }
             }
 
-            Movie(
+            val vUrl = obj.optString("videoUrl", "")
+            val movie = Movie(
                 id = obj.optString("id", ""),
                 title = obj.optString("title", ""),
                 originalTitle = obj.optString("originalTitle", ""),
@@ -79,13 +105,30 @@ object SessionManager {
                 actors = obj.optString("actors", ""),
                 episodesInfo = obj.optString("episodesInfo", ""),
                 genres = genresList,
-                videoUrl = obj.optString("videoUrl", ""),
+                videoUrl = vUrl,
                 isSeries = obj.optBoolean("isSeries", false)
+            )
+
+            val screenName = obj.optString("screen", Screen.DETAILS.name)
+            val screen = try { Screen.valueOf(screenName) } catch (_: Exception) { Screen.DETAILS }
+
+            PlaybackSession(
+                movie = movie,
+                videoUrl = vUrl,
+                positionMs = obj.optLong("positionMs", 0L),
+                season = obj.optInt("season", 1),
+                episode = obj.optInt("episode", 1),
+                audioId = obj.optString("audioId", ""),
+                screen = screen
             )
         } catch (e: Exception) {
             e.printStackTrace()
             null
         }
+    }
+
+    fun restoreLastMovie(context: Context): Movie? {
+        return restoreSession(context)?.movie
     }
 
     fun clearSession(context: Context) {

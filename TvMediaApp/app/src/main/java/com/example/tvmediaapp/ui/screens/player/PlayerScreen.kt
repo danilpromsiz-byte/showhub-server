@@ -17,6 +17,15 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import com.example.tvmediaapp.Screen
+import com.example.tvmediaapp.data.history.SessionManager
 import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -84,7 +93,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.focus.focusProperties
 import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.exoplayer.DefaultLoadControl
+import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.common.C
 import androidx.tv.foundation.lazy.list.TvLazyRow
 import androidx.tv.foundation.lazy.list.items
 import androidx.tv.material3.Border
@@ -94,6 +106,7 @@ import com.example.tvmediaapp.R
 import com.example.tvmediaapp.data.api.ShowHubApiClient
 import com.example.tvmediaapp.ui.components.AppIcon
 import com.example.tvmediaapp.ui.theme.ChipBackground
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -114,6 +127,7 @@ fun PlayerScreen(
     startPositionMs: Long = 0L,
     season: Int = 1,
     episode: Int = 1,
+    audioId: String = "",
     onBackPress: () -> Unit
 ) {
     if (isDirectVideoStream(movie.videoUrl)) {
@@ -122,6 +136,7 @@ fun PlayerScreen(
             startPositionMs = startPositionMs,
             season = season,
             episode = episode,
+            audioId = audioId,
             onBackPress = onBackPress
         )
     } else {
@@ -240,6 +255,7 @@ private fun NativeExoPlayerScreen(
     startPositionMs: Long = 0L,
     season: Int = 1,
     episode: Int = 1,
+    audioId: String = "",
     onBackPress: () -> Unit
 ) {
     val accent = LocalAccentColor.current
@@ -247,11 +263,12 @@ private fun NativeExoPlayerScreen(
     val coroutineScope = rememberCoroutineScope()
     val historyManager = remember { WatchHistoryManager(context) }
     val prefs = remember { context.getSharedPreferences("showhub_prefs", Context.MODE_PRIVATE) }
+    val lifecycleOwner = LocalLifecycleOwner.current
 
     var currentSeason by remember { mutableIntStateOf(season) }
     var currentEpisode by remember { mutableIntStateOf(episode) }
     var currentStreamUrl by remember { mutableStateOf(movie.videoUrl) }
-    var currentAudioId by remember { mutableStateOf(movie.audioTracks.firstOrNull()?.id ?: "") }
+    var currentAudioId by remember { mutableStateOf(audioId.ifEmpty { movie.audioTracks.firstOrNull()?.id ?: "" }) }
     var selectedQuality by remember { mutableStateOf(prefs.getString("pref_quality", "1080p") ?: "1080p") }
     var selectedSource by remember { mutableStateOf("HDrezka") }
     var currentMovieState by remember { mutableStateOf(movie) }
@@ -276,6 +293,22 @@ private fun NativeExoPlayerScreen(
         if (seekDeltaBadge != null) {
             delay(1200)
             seekDeltaBadge = null
+        }
+    }
+
+    var playbackActionBadge by remember { mutableStateOf<String?>(null) } // "play" or "pause"
+    LaunchedEffect(playbackActionBadge) {
+        if (playbackActionBadge != null) {
+            delay(900)
+            playbackActionBadge = null
+        }
+    }
+
+    var translatorNoticeBadge by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(translatorNoticeBadge) {
+        if (translatorNoticeBadge != null) {
+            delay(4000)
+            translatorNoticeBadge = null
         }
     }
 
@@ -311,7 +344,7 @@ private fun NativeExoPlayerScreen(
         }
     }
 
-    // Initialize Media3 ExoPlayer with headers and resume support
+    // Initialize Media3 ExoPlayer with headers, memory management, and resume support
     val exoPlayer = remember {
         val httpDataSourceFactory = DefaultHttpDataSource.Factory()
             .setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
@@ -321,9 +354,28 @@ private fun NativeExoPlayerScreen(
             .setAllowCrossProtocolRedirects(true)
         val mediaSourceFactory = DefaultMediaSourceFactory(httpDataSourceFactory)
 
+        val loadControl = DefaultLoadControl.Builder()
+            .setBufferDurationsMs(
+                15000, // minBufferMs (15s)
+                30000, // maxBufferMs (30s)
+                1500,  // bufferForPlaybackMs (1.5s)
+                2500   // bufferForPlaybackAfterRebufferMs (2.5s)
+            )
+            .setBackBuffer(10000, true) // Release back buffer after 10s to prevent RAM heap bloat & GC stutter
+            .build()
+
+        val renderersFactory = DefaultRenderersFactory(context).apply {
+            setEnableDecoderFallback(true)
+            setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
+        }
+
         ExoPlayer.Builder(context)
             .setMediaSourceFactory(mediaSourceFactory)
+            .setLoadControl(loadControl)
+            .setRenderersFactory(renderersFactory)
             .build().apply {
+                setWakeMode(C.WAKE_MODE_NETWORK)
+                videoScalingMode = C.VIDEO_SCALING_MODE_SCALE_TO_FIT
                 if (currentStreamUrl.isNotBlank() && isDirectVideoStream(currentStreamUrl)) {
                     setMediaItem(MediaItem.fromUri(currentStreamUrl))
                     if (startPositionMs > 1000L) {
@@ -338,6 +390,18 @@ private fun NativeExoPlayerScreen(
                     }
                 })
             }
+    }
+
+    fun togglePlayPause() {
+        if (exoPlayer.isPlaying) {
+            exoPlayer.pause()
+            playbackActionBadge = "pause"
+            isControlsVisible = true
+            try { playPauseFocusRequester.requestFocus() } catch (_: Exception) {}
+        } else {
+            exoPlayer.play()
+            playbackActionBadge = "play"
+        }
     }
 
     fun matchQuality(streamQuality: String, targetQuality: String): Boolean {
@@ -357,6 +421,63 @@ private fun NativeExoPlayerScreen(
             else ->
                 s.contains(t)
         }
+    }
+
+    fun extractSources(streams: List<com.example.tvmediaapp.data.models.StreamOption>): List<String> {
+        val srcSet = linkedSetOf<String>()
+        for (st in streams) {
+            val s = st.source.trim()
+            val cleanName = when {
+                s.startsWith("HDrezka", ignoreCase = true) -> "HDrezka"
+                s.contains("Torr", ignoreCase = true) -> "Торренты (TorrServe)"
+                s.contains("Filmix", ignoreCase = true) -> "Filmix"
+                s.contains("Kodik", ignoreCase = true) -> "Kodik"
+                s.contains("VideoCDN", ignoreCase = true) -> "VideoCDN"
+                s.contains("Collaps", ignoreCase = true) -> "Collaps"
+                s.contains("Bazon", ignoreCase = true) -> "Bazon"
+                s.isNotEmpty() -> s.replaceFirstChar { it.uppercase() }
+                else -> "HDrezka"
+            }
+            srcSet.add(cleanName)
+        }
+        if (srcSet.isEmpty()) {
+            srcSet.add("HDrezka")
+        }
+        return srcSet.toList()
+    }
+
+    var availableSources by remember { mutableStateOf<List<String>>(listOf("HDrezka")) }
+
+    // Proactively discover all actual sources available for this media/episode
+    LaunchedEffect(movie.id, currentSeason, currentEpisode) {
+        try {
+            val serverDeferred = async(Dispatchers.IO) {
+                ShowHubApiClient.fetchStreams(
+                    movie = currentMovieState,
+                    season = if (currentMovieState.isSeries) currentSeason else null,
+                    episode = if (currentMovieState.isSeries) currentEpisode else null,
+                    audioId = currentAudioId.ifEmpty { null },
+                    source = null
+                )
+            }
+            val rezkaDeferred = async(Dispatchers.IO) {
+                RezkaNativeResolver.resolveStreams(
+                    title = currentMovieState.title,
+                    year = currentMovieState.releaseYear,
+                    isSeries = currentMovieState.isSeries,
+                    season = currentSeason,
+                    episode = currentEpisode,
+                    translatorId = currentAudioId.ifEmpty { null }
+                )
+            }
+            val serverStreams = serverDeferred.await()
+            val rezkaStreams = rezkaDeferred.await()
+            val combined = (serverStreams + rezkaStreams)
+            val extracted = extractSources(combined)
+            if (extracted.isNotEmpty()) {
+                availableSources = extracted
+            }
+        } catch (_: Exception) {}
     }
 
     fun switchStream(
@@ -399,7 +520,25 @@ private fun NativeExoPlayerScreen(
                         source = if (newSource.equals("HDrezka", ignoreCase = true)) null else newSource
                     )
                 }
-                val allResolved = (nativeDeferred.await() + serverDeferred.await()).distinctBy { it.url }
+                val nativeStreams = nativeDeferred.await()
+                val serverStreams = serverDeferred.await()
+
+                val isNativeFallback = nativeStreams.isNotEmpty() && nativeStreams.all { it.source.contains("fallback", ignoreCase = true) }
+                val allResolved = if (isNativeFallback && serverStreams.isNotEmpty()) {
+                    (serverStreams + nativeStreams).distinctBy { it.url }
+                } else {
+                    (nativeStreams + serverStreams).distinctBy { it.url }
+                }
+
+                val discovered = extractSources(allResolved)
+                if (discovered.isNotEmpty()) {
+                    availableSources = discovered
+                }
+
+                if (newAudioId.isNotBlank() && allResolved.all { it.source.contains("fallback", ignoreCase = true) }) {
+                    val trackName = currentMovieState.audioTracks.firstOrNull { it.id == newAudioId }?.name ?: "выбранная озвучка"
+                    translatorNoticeBadge = "Озвучка «$trackName» недоступна для этого сезона (включен дубляж)"
+                }
 
                 // Filter by source if specific source chosen
                 val sourceStreams = if (newSource.isNotBlank() && !newSource.equals("Все", ignoreCase = true)) {
@@ -451,8 +590,8 @@ private fun NativeExoPlayerScreen(
         }
     }
 
-    // Monitor playback progress & periodically save to WatchHistoryManager
-    LaunchedEffect(exoPlayer) {
+    // Monitor playback progress & periodically save to WatchHistoryManager (throttled when controls hidden)
+    LaunchedEffect(exoPlayer, isControlsVisible) {
         while (true) {
             currentPosition = exoPlayer.currentPosition
             duration = if (exoPlayer.duration > 0) exoPlayer.duration else 0L
@@ -469,7 +608,7 @@ private fun NativeExoPlayerScreen(
                     audioId = currentAudioId
                 )
             }
-            delay(1000)
+            delay(if (isControlsVisible) 1000L else 3500L)
         }
     }
 
@@ -491,18 +630,50 @@ private fun NativeExoPlayerScreen(
         }
     }
 
-    // Handle Hardware Back button - always exits cleanly or dismisses drawer
+    // Handle Hardware Back button - two-step: first close drawer/controls, second exit movie
     BackHandler {
         if (activeDrawer != null) {
             activeDrawer = null
+        } else if (isControlsVisible) {
+            isControlsVisible = false
         } else {
             onBackPress()
         }
     }
 
-    // Cleanup player on screen exit & save final position
-    DisposableEffect(Unit) {
+    // Lifecycle-aware cleanup: halt audio immediately when App goes to background (Home button)
+    DisposableEffect(lifecycleOwner, exoPlayer) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_PAUSE, Lifecycle.Event.ON_STOP -> {
+                    try {
+                        val pos = exoPlayer.currentPosition
+                        val dur = exoPlayer.duration
+                        if (pos > 3000L && dur > 0L) {
+                            historyManager.saveProgress(
+                                movie = movie,
+                                positionMs = pos,
+                                durationMs = dur,
+                                season = currentSeason,
+                                episode = currentEpisode,
+                                audioId = currentAudioId
+                            )
+                        }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                    exoPlayer.pause()
+                }
+                Lifecycle.Event.ON_DESTROY -> {
+                    exoPlayer.stop()
+                    exoPlayer.release()
+                }
+                else -> {}
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
             try {
                 val pos = exoPlayer.currentPosition
                 val dur = exoPlayer.duration
@@ -546,6 +717,10 @@ private fun NativeExoPlayerScreen(
                     if (nativeEvent.action == KeyEvent.ACTION_DOWN) {
                         if (activeDrawer != null) {
                             activeDrawer = null
+                            return@onKeyEvent true
+                        }
+                        if (isControlsVisible) {
+                            isControlsVisible = false
                             return@onKeyEvent true
                         }
                         onBackPress()
@@ -595,25 +770,21 @@ private fun NativeExoPlayerScreen(
                                 return@onKeyEvent true
                             }
                             KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
-                                if (exoPlayer.isPlaying) {
-                                    exoPlayer.pause()
-                                    isControlsVisible = true
-                                    try { playPauseFocusRequester.requestFocus() } catch (_: Exception) {}
-                                } else {
-                                    exoPlayer.play()
-                                }
+                                togglePlayPause()
                                 return@onKeyEvent true
                             }
                             KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
-                                if (exoPlayer.isPlaying) exoPlayer.pause() else exoPlayer.play()
+                                togglePlayPause()
                                 return@onKeyEvent true
                             }
                             KeyEvent.KEYCODE_MEDIA_PLAY -> {
                                 exoPlayer.play()
+                                playbackActionBadge = "play"
                                 return@onKeyEvent true
                             }
                             KeyEvent.KEYCODE_MEDIA_PAUSE -> {
                                 exoPlayer.pause()
+                                playbackActionBadge = "pause"
                                 return@onKeyEvent true
                             }
                             else -> {
@@ -623,7 +794,7 @@ private fun NativeExoPlayerScreen(
                             }
                         }
                     } else if (nativeEvent.keyCode == KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE) {
-                        if (exoPlayer.isPlaying) exoPlayer.pause() else exoPlayer.play()
+                        togglePlayPause()
                         return@onKeyEvent true
                     }
                 }
@@ -694,6 +865,64 @@ private fun NativeExoPlayerScreen(
                     strokeWidth = 3.5.dp,
                     message = if (isLoadingStream) "Загрузка потока серии..." else "Буферизация..."
                 )
+            }
+        }
+
+        // Center Play / Pause Indicator Badge
+        AnimatedVisibility(
+            visible = playbackActionBadge != null,
+            enter = fadeIn() + scaleIn(initialScale = 0.75f),
+            exit = fadeOut() + scaleOut(targetScale = 1.15f),
+            modifier = Modifier.align(Alignment.Center)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(80.dp)
+                    .clip(CircleShape)
+                    .background(Color.Black.copy(alpha = 0.78f))
+                    .border(2.dp, Color.White.copy(alpha = 0.85f), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                AppIcon(
+                    resId = if (playbackActionBadge == "play") R.drawable.ic_play_arrow else R.drawable.ic_pause,
+                    tint = Color.White,
+                    size = 46.dp
+                )
+            }
+        }
+
+        // Top Translator / Voiceover Notice Toast
+        AnimatedVisibility(
+            visible = translatorNoticeBadge != null,
+            enter = fadeIn() + slideInVertically { -it },
+            exit = fadeOut() + slideOutVertically { -it },
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 36.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(Color(0xFF1C1C1E).copy(alpha = 0.95f))
+                    .border(1.5.dp, Color(0xFFFFB300), RoundedCornerShape(20.dp))
+                    .padding(horizontal = 20.dp, vertical = 10.dp)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    AppIcon(
+                        resId = R.drawable.ic_volume_up,
+                        tint = Color(0xFFFFB300),
+                        size = 20.dp
+                    )
+                    Text(
+                        text = translatorNoticeBadge ?: "",
+                        color = Color.White,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
             }
         }
 
@@ -787,12 +1016,15 @@ private fun NativeExoPlayerScreen(
                                         switchStream(currentSeason, currentEpisode, currentAudioId, qual, selectedSource)
                                     },
                                     colors = ButtonDefaults.colors(
-                                        containerColor = if (isSel) accent.copy(alpha = 0.22f) else ChipBackground,
-                                        focusedContainerColor = if (isVip) Color(0xFFFFD700) else accent,
+                                        containerColor = if (isSel) accent.copy(alpha = 0.25f) else ChipBackground,
+                                        focusedContainerColor = if (isVip) Color(0xFFFFD700) else Color.White,
                                         contentColor = if (isSel) accent else TextWhite,
                                         focusedContentColor = Color.Black
                                     ),
-                                    border = ButtonDefaults.border(border = Border.None, focusedBorder = Border.None),
+                                    border = ButtonDefaults.border(
+                                        border = if (isSel) Border(BorderStroke(1.5.dp, accent)) else Border.None,
+                                        focusedBorder = Border.None
+                                    ),
                                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                                     scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
@@ -817,7 +1049,7 @@ private fun NativeExoPlayerScreen(
                         }
                     }
                 } else if (activeDrawer == "source") {
-                    val sources = listOf("HDrezka", "Filmix", "Kodik", "VideoCDN", "Collaps", "Bazon", "Торренты (TorrServe)")
+                    val sourcesToShow = if (availableSources.isNotEmpty()) availableSources else listOf(selectedSource)
                     Column(
                         modifier = Modifier
                             .align(Alignment.Center)
@@ -833,7 +1065,7 @@ private fun NativeExoPlayerScreen(
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         TvLazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            items(sources) { src ->
+                            items(sourcesToShow) { src ->
                                 val isSel = src.equals(selectedSource, ignoreCase = true)
                                 Button(
                                     onClick = {
@@ -842,10 +1074,14 @@ private fun NativeExoPlayerScreen(
                                         switchStream(currentSeason, currentEpisode, currentAudioId, selectedQuality, src)
                                     },
                                     colors = ButtonDefaults.colors(
-                                        containerColor = if (isSel) accent.copy(alpha = 0.22f) else ChipBackground,
-                                        focusedContainerColor = accent,
+                                        containerColor = if (isSel) accent.copy(alpha = 0.25f) else ChipBackground,
+                                        focusedContainerColor = Color.White,
                                         contentColor = if (isSel) accent else TextWhite,
                                         focusedContentColor = Color.Black
+                                    ),
+                                    border = ButtonDefaults.border(
+                                        border = if (isSel) Border(BorderStroke(1.5.dp, accent)) else Border.None,
+                                        focusedBorder = Border.None
                                     ),
                                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                                     scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
@@ -887,12 +1123,15 @@ private fun NativeExoPlayerScreen(
                                         switchStream(currentSeason, currentEpisode, track.id, selectedQuality, selectedSource)
                                     },
                                     colors = ButtonDefaults.colors(
-                                        containerColor = if (isSel) accent.copy(alpha = 0.22f) else ChipBackground,
-                                        focusedContainerColor = accent,
+                                        containerColor = if (isSel) accent.copy(alpha = 0.25f) else ChipBackground,
+                                        focusedContainerColor = Color.White,
                                         contentColor = if (isSel) accent else TextWhite,
                                         focusedContentColor = Color.Black
                                     ),
-                                    border = ButtonDefaults.border(border = Border.None, focusedBorder = Border.None),
+                                    border = ButtonDefaults.border(
+                                        border = if (isSel) Border(BorderStroke(1.5.dp, accent)) else Border.None,
+                                        focusedBorder = Border.None
+                                    ),
                                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                                     scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
@@ -943,10 +1182,14 @@ private fun NativeExoPlayerScreen(
                                         Button(
                                             onClick = { currentSeason = s.seasonNumber },
                                             colors = ButtonDefaults.colors(
-                                                containerColor = if (isCurrentS) accent.copy(alpha = 0.22f) else ChipBackground,
-                                                focusedContainerColor = accent,
+                                                containerColor = if (isCurrentS) accent.copy(alpha = 0.25f) else ChipBackground,
+                                                focusedContainerColor = Color.White,
                                                 contentColor = if (isCurrentS) accent else TextWhite,
                                                 focusedContentColor = Color.Black
+                                            ),
+                                            border = ButtonDefaults.border(
+                                                border = if (isCurrentS) Border(BorderStroke(1.5.dp, accent)) else Border.None,
+                                                focusedBorder = Border.None
                                             ),
                                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                                             contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
@@ -987,12 +1230,15 @@ private fun NativeExoPlayerScreen(
                                             switchStream(currentSeason, ep.episodeNumber, currentAudioId, selectedQuality, selectedSource)
                                         },
                                         colors = ButtonDefaults.colors(
-                                            containerColor = if (isSel) accent.copy(alpha = 0.22f) else ChipBackground,
-                                            focusedContainerColor = accent,
+                                            containerColor = if (isSel) accent.copy(alpha = 0.25f) else ChipBackground,
+                                            focusedContainerColor = Color.White,
                                             contentColor = if (isSel) accent else TextWhite,
                                             focusedContentColor = Color.Black
                                         ),
-                                        border = ButtonDefaults.border(border = Border.None, focusedBorder = Border.None),
+                                        border = ButtonDefaults.border(
+                                            border = if (isSel) Border(BorderStroke(1.5.dp, accent)) else Border.None,
+                                            focusedBorder = Border.None
+                                        ),
                                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                                         scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
@@ -1055,10 +1301,14 @@ private fun NativeExoPlayerScreen(
                                                 switchStream(currentSeason, ep.episodeNumber, currentAudioId, selectedQuality, selectedSource)
                                             },
                                             colors = ButtonDefaults.colors(
-                                                containerColor = if (isCurrentEp) accent.copy(alpha = 0.22f) else Color.White.copy(alpha = 0.08f),
-                                                focusedContainerColor = accent,
+                                                containerColor = if (isCurrentEp) accent.copy(alpha = 0.25f) else Color.White.copy(alpha = 0.08f),
+                                                focusedContainerColor = Color.White,
                                                 contentColor = if (isCurrentEp) accent else TextWhite,
                                                 focusedContentColor = Color.Black
+                                            ),
+                                            border = ButtonDefaults.border(
+                                                border = if (isCurrentEp) Border(BorderStroke(1.5.dp, accent)) else Border.None,
+                                                focusedBorder = Border.None
                                             ),
                                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                                             scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
@@ -1077,7 +1327,6 @@ private fun NativeExoPlayerScreen(
                                                 if (isCurrentEp) {
                                                     AppIcon(
                                                         resId = R.drawable.ic_play_arrow,
-                                                        tint = Color.Black,
                                                         size = 12.dp
                                                     )
                                                 }
@@ -1257,14 +1506,15 @@ private fun NativeExoPlayerScreen(
                         // 1. Play / Pause Button
                         Button(
                             onClick = {
-                                if (exoPlayer.isPlaying) exoPlayer.pause() else exoPlayer.play()
+                                togglePlayPause()
                             },
                             colors = ButtonDefaults.colors(
                                 containerColor = Color.White.copy(alpha = 0.12f),
-                                focusedContainerColor = accent,
+                                focusedContainerColor = Color.White,
                                 contentColor = TextWhite,
                                 focusedContentColor = Color.Black
                             ),
+                            border = ButtonDefaults.border(border = Border.None, focusedBorder = Border.None),
                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                             scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                             contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
@@ -1282,7 +1532,6 @@ private fun NativeExoPlayerScreen(
                             ) {
                                 AppIcon(
                                     resId = if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play_arrow,
-                                    tint = TextWhite,
                                     size = 13.dp
                                 )
                                 Text(
@@ -1302,10 +1551,11 @@ private fun NativeExoPlayerScreen(
                             },
                             colors = ButtonDefaults.colors(
                                 containerColor = Color.White.copy(alpha = 0.12f),
-                                focusedContainerColor = accent,
+                                focusedContainerColor = Color.White,
                                 contentColor = TextWhite,
                                 focusedContentColor = Color.Black
                             ),
+                            border = ButtonDefaults.border(border = Border.None, focusedBorder = Border.None),
                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                             scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
@@ -1324,7 +1574,6 @@ private fun NativeExoPlayerScreen(
                             ) {
                                 AppIcon(
                                     resId = R.drawable.ic_replay_10,
-                                    tint = TextWhite,
                                     size = 13.dp
                                 )
                                 Text("10с", fontSize = 11.sp, lineHeight = 13.sp)
@@ -1340,10 +1589,11 @@ private fun NativeExoPlayerScreen(
                             },
                             colors = ButtonDefaults.colors(
                                 containerColor = Color.White.copy(alpha = 0.12f),
-                                focusedContainerColor = accent,
+                                focusedContainerColor = Color.White,
                                 contentColor = TextWhite,
                                 focusedContentColor = Color.Black
                             ),
+                            border = ButtonDefaults.border(border = Border.None, focusedBorder = Border.None),
                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                             scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
@@ -1362,7 +1612,6 @@ private fun NativeExoPlayerScreen(
                             ) {
                                 AppIcon(
                                     resId = R.drawable.ic_forward_10,
-                                    tint = TextWhite,
                                     size = 13.dp
                                 )
                                 Text("10с", fontSize = 11.sp, lineHeight = 13.sp)
@@ -1370,15 +1619,20 @@ private fun NativeExoPlayerScreen(
                         }
 
                         // 4. Quality Selector Button
+                        val isQualityActive = activeDrawer == "quality"
                         Button(
                             onClick = {
                                 activeDrawer = if (activeDrawer == "quality") null else "quality"
                             },
                             colors = ButtonDefaults.colors(
-                                containerColor = if (activeDrawer == "quality") accent else Color.White.copy(alpha = 0.12f),
-                                focusedContainerColor = accent,
-                                contentColor = if (activeDrawer == "quality") Color.Black else TextWhite,
+                                containerColor = if (isQualityActive) accent.copy(alpha = 0.25f) else Color.White.copy(alpha = 0.12f),
+                                focusedContainerColor = Color.White,
+                                contentColor = if (isQualityActive) accent else TextWhite,
                                 focusedContentColor = Color.Black
+                            ),
+                            border = ButtonDefaults.border(
+                                border = if (isQualityActive) Border(BorderStroke(1.5.dp, accent)) else Border.None,
+                                focusedBorder = Border.None
                             ),
                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                             scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
@@ -1398,7 +1652,6 @@ private fun NativeExoPlayerScreen(
                             ) {
                                 AppIcon(
                                     resId = R.drawable.ic_high_quality,
-                                    tint = TextWhite,
                                     size = 13.dp
                                 )
                                 Text(selectedQuality, fontSize = 11.sp, lineHeight = 13.sp)
@@ -1410,15 +1663,20 @@ private fun NativeExoPlayerScreen(
                             else if (currentMovieState.isSeries) (if (currentEpisode > 1) prevEpisodeFocusRequester else episodesDrawerFocusRequester)
                             else extPlayerFocusRequester
 
+                        val isSourceActive = activeDrawer == "source"
                         Button(
                             onClick = {
                                 activeDrawer = if (activeDrawer == "source") null else "source"
                             },
                             colors = ButtonDefaults.colors(
-                                containerColor = if (activeDrawer == "source") accent else Color.White.copy(alpha = 0.12f),
-                                focusedContainerColor = accent,
-                                contentColor = if (activeDrawer == "source") Color.Black else TextWhite,
+                                containerColor = if (isSourceActive) accent.copy(alpha = 0.25f) else Color.White.copy(alpha = 0.12f),
+                                focusedContainerColor = Color.White,
+                                contentColor = if (isSourceActive) accent else TextWhite,
                                 focusedContentColor = Color.Black
+                            ),
+                            border = ButtonDefaults.border(
+                                border = if (isSourceActive) Border(BorderStroke(1.5.dp, accent)) else Border.None,
+                                focusedBorder = Border.None
                             ),
                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                             scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
@@ -1438,7 +1696,6 @@ private fun NativeExoPlayerScreen(
                             ) {
                                 AppIcon(
                                     resId = R.drawable.ic_cloud_download,
-                                    tint = TextWhite,
                                     size = 13.dp
                                 )
                                 Text(selectedSource, fontSize = 11.sp, lineHeight = 13.sp)
@@ -1452,15 +1709,20 @@ private fun NativeExoPlayerScreen(
                                 if (currentEpisode > 1) prevEpisodeFocusRequester else episodesDrawerFocusRequester
                             } else extPlayerFocusRequester
 
+                            val isAudioActive = activeDrawer == "audio"
                             Button(
                                 onClick = {
                                     activeDrawer = if (activeDrawer == "audio") null else "audio"
                                 },
                                 colors = ButtonDefaults.colors(
-                                    containerColor = if (activeDrawer == "audio") accent else Color.White.copy(alpha = 0.12f),
-                                    focusedContainerColor = accent,
-                                    contentColor = if (activeDrawer == "audio") Color.Black else TextWhite,
+                                    containerColor = if (isAudioActive) accent.copy(alpha = 0.25f) else Color.White.copy(alpha = 0.12f),
+                                    focusedContainerColor = Color.White,
+                                    contentColor = if (isAudioActive) accent else TextWhite,
                                     focusedContentColor = Color.Black
+                                ),
+                                border = ButtonDefaults.border(
+                                    border = if (isAudioActive) Border(BorderStroke(1.5.dp, accent)) else Border.None,
+                                    focusedBorder = Border.None
                                 ),
                                 shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                                 scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
@@ -1480,7 +1742,6 @@ private fun NativeExoPlayerScreen(
                                 ) {
                                     AppIcon(
                                         resId = R.drawable.ic_volume_up,
-                                        tint = TextWhite,
                                         size = 13.dp
                                     )
                                     Text(curName, fontSize = 11.sp, maxLines = 1, lineHeight = 13.sp)
@@ -1497,10 +1758,11 @@ private fun NativeExoPlayerScreen(
                                     onClick = { switchStream(currentSeason, currentEpisode - 1, currentAudioId, selectedQuality, selectedSource) },
                                     colors = ButtonDefaults.colors(
                                         containerColor = Color.White.copy(alpha = 0.12f),
-                                        focusedContainerColor = accent,
+                                        focusedContainerColor = Color.White,
                                         contentColor = TextWhite,
                                         focusedContentColor = Color.Black
                                     ),
+                                    border = ButtonDefaults.border(border = Border.None, focusedBorder = Border.None),
                                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                                     scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
@@ -1509,7 +1771,7 @@ private fun NativeExoPlayerScreen(
                                         .focusRequester(prevEpisodeFocusRequester)
                                         .focusProperties {
                                             left = beforeSeriesFocus
-                                             right = episodesDrawerFocusRequester
+                                            right = episodesDrawerFocusRequester
                                             up = timelineFocusRequester
                                         }
                                 ) {
@@ -1519,7 +1781,6 @@ private fun NativeExoPlayerScreen(
                                     ) {
                                         AppIcon(
                                             resId = R.drawable.ic_skip_previous,
-                                            tint = TextWhite,
                                             size = 13.dp
                                         )
                                         Text("Пред.", fontSize = 11.sp, lineHeight = 13.sp)
@@ -1527,15 +1788,20 @@ private fun NativeExoPlayerScreen(
                                 }
                             }
 
+                            val isEpisodesActive = activeDrawer == "episodes"
                             Button(
                                 onClick = {
                                     activeDrawer = if (activeDrawer == "episodes") null else "episodes"
                                 },
                                 colors = ButtonDefaults.colors(
-                                    containerColor = if (activeDrawer == "episodes") accent else Color.White.copy(alpha = 0.12f),
-                                    focusedContainerColor = accent,
-                                    contentColor = if (activeDrawer == "episodes") Color.Black else TextWhite,
+                                    containerColor = if (isEpisodesActive) accent.copy(alpha = 0.25f) else Color.White.copy(alpha = 0.12f),
+                                    focusedContainerColor = Color.White,
+                                    contentColor = if (isEpisodesActive) accent else TextWhite,
                                     focusedContentColor = Color.Black
+                                ),
+                                border = ButtonDefaults.border(
+                                    border = if (isEpisodesActive) Border(BorderStroke(1.5.dp, accent)) else Border.None,
+                                    focusedBorder = Border.None
                                 ),
                                 shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                                 scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
@@ -1555,7 +1821,6 @@ private fun NativeExoPlayerScreen(
                                 ) {
                                     AppIcon(
                                         resId = R.drawable.ic_video_library,
-                                        tint = TextWhite,
                                         size = 13.dp
                                     )
                                     Text("Все серии", fontSize = 11.sp, lineHeight = 13.sp)
@@ -1566,10 +1831,11 @@ private fun NativeExoPlayerScreen(
                                 onClick = { switchStream(currentSeason, currentEpisode + 1, currentAudioId, selectedQuality, selectedSource) },
                                 colors = ButtonDefaults.colors(
                                     containerColor = Color.White.copy(alpha = 0.12f),
-                                    focusedContainerColor = accent,
+                                    focusedContainerColor = Color.White,
                                     contentColor = TextWhite,
                                     focusedContentColor = Color.Black
                                 ),
+                                border = ButtonDefaults.border(border = Border.None, focusedBorder = Border.None),
                                 shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                                 scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
@@ -1589,7 +1855,6 @@ private fun NativeExoPlayerScreen(
                                     Text("След.", fontSize = 11.sp, lineHeight = 13.sp)
                                     AppIcon(
                                         resId = R.drawable.ic_skip_next,
-                                        tint = TextWhite,
                                         size = 13.dp
                                     )
                                 }
@@ -1623,10 +1888,11 @@ private fun NativeExoPlayerScreen(
                             },
                             colors = ButtonDefaults.colors(
                                 containerColor = Color.White.copy(alpha = 0.12f),
-                                focusedContainerColor = accent,
+                                focusedContainerColor = Color.White,
                                 contentColor = TextWhite,
                                 focusedContentColor = Color.Black
                             ),
+                            border = ButtonDefaults.border(border = Border.None, focusedBorder = Border.None),
                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                             scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
@@ -1644,7 +1910,6 @@ private fun NativeExoPlayerScreen(
                             ) {
                                 AppIcon(
                                     resId = R.drawable.ic_open_in_new,
-                                    tint = TextWhite,
                                     size = 13.dp
                                 )
                                 Text("Внешний", fontSize = 11.sp, lineHeight = 13.sp)

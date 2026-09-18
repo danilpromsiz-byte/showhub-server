@@ -77,12 +77,15 @@ fun TvTopBar(
             Button(
                 onClick = onSearchClick,
                 colors = ButtonDefaults.colors(
-                    containerColor = if (isSearch) accent.copy(alpha = 0.3f) else Color.White.copy(alpha = 0.08f),
-                    focusedContainerColor = accent,
+                    containerColor = if (isSearch) accent.copy(alpha = 0.25f) else Color.White.copy(alpha = 0.08f),
+                    focusedContainerColor = Color.White,
                     contentColor = if (isSearch) accent else TextWhite,
                     focusedContentColor = Color.Black
                 ),
-                border = ButtonDefaults.border(border = Border.None, focusedBorder = Border.None),
+                border = ButtonDefaults.border(
+                    border = if (isSearch) Border(BorderStroke(1.5.dp, accent)) else Border.None,
+                    focusedBorder = Border.None
+                ),
                 shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                 scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 0.dp),
@@ -114,12 +117,15 @@ fun TvTopBar(
             Button(
                 onClick = onFavoritesClick,
                 colors = ButtonDefaults.colors(
-                    containerColor = if (isFav) accent.copy(alpha = 0.3f) else Color.White.copy(alpha = 0.08f),
-                    focusedContainerColor = accent,
+                    containerColor = if (isFav) accent.copy(alpha = 0.25f) else Color.White.copy(alpha = 0.08f),
+                    focusedContainerColor = Color.White,
                     contentColor = if (isFav) accent else TextWhite,
                     focusedContentColor = Color.Black
                 ),
-                border = ButtonDefaults.border(border = Border.None, focusedBorder = Border.None),
+                border = ButtonDefaults.border(
+                    border = if (isFav) Border(BorderStroke(1.5.dp, accent)) else Border.None,
+                    focusedBorder = Border.None
+                ),
                 shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                 scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 0.dp),
@@ -150,12 +156,15 @@ fun TvTopBar(
             Button(
                 onClick = onHistoryClick,
                 colors = ButtonDefaults.colors(
-                    containerColor = if (isHist) accent.copy(alpha = 0.3f) else Color.White.copy(alpha = 0.08f),
-                    focusedContainerColor = accent,
+                    containerColor = if (isHist) accent.copy(alpha = 0.25f) else Color.White.copy(alpha = 0.08f),
+                    focusedContainerColor = Color.White,
                     contentColor = if (isHist) accent else TextWhite,
                     focusedContentColor = Color.Black
                 ),
-                border = ButtonDefaults.border(border = Border.None, focusedBorder = Border.None),
+                border = ButtonDefaults.border(
+                    border = if (isHist) Border(BorderStroke(1.5.dp, accent)) else Border.None,
+                    focusedBorder = Border.None
+                ),
                 shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                 scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 0.dp),
@@ -187,12 +196,15 @@ fun TvTopBar(
                 Button(
                     onClick = onSettingsClick,
                     colors = ButtonDefaults.colors(
-                        containerColor = if (isSettings) accent.copy(alpha = 0.3f) else Color.White.copy(alpha = 0.08f),
-                        focusedContainerColor = accent,
+                        containerColor = if (isSettings) accent.copy(alpha = 0.25f) else Color.White.copy(alpha = 0.08f),
+                        focusedContainerColor = Color.White,
                         contentColor = if (isSettings) accent else TextWhite,
                         focusedContentColor = Color.Black
                     ),
-                    border = ButtonDefaults.border(border = Border.None, focusedBorder = Border.None),
+                    border = ButtonDefaults.border(
+                        border = if (isSettings) Border(BorderStroke(1.5.dp, accent)) else Border.None,
+                        focusedBorder = Border.None
+                    ),
                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                     scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 0.dp),
@@ -224,12 +236,15 @@ fun TvTopBar(
                 Button(
                     onClick = onCheckUpdateClick,
                     colors = ButtonDefaults.colors(
-                        containerColor = if (hasUpdateAvailable) accent else Color.White.copy(alpha = 0.08f),
-                        focusedContainerColor = accent,
-                        contentColor = if (hasUpdateAvailable) Color.Black else TextWhite,
+                        containerColor = if (hasUpdateAvailable) accent.copy(alpha = 0.25f) else Color.White.copy(alpha = 0.08f),
+                        focusedContainerColor = Color.White,
+                        contentColor = if (hasUpdateAvailable) accent else TextWhite,
                         focusedContentColor = Color.Black
                     ),
-                    border = ButtonDefaults.border(border = Border.None, focusedBorder = Border.None),
+                    border = ButtonDefaults.border(
+                        border = if (hasUpdateAvailable) Border(BorderStroke(1.5.dp, accent)) else Border.None,
+                        focusedBorder = Border.None
+                    ),
                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                     scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 0.dp),
@@ -243,7 +258,7 @@ fun TvTopBar(
                     ) {
                         AppIcon(
                             resId = com.example.tvmediaapp.R.drawable.ic_refresh,
-                            tint = if (hasUpdateAvailable) Color.Black else TextWhite,
+                            tint = if (hasUpdateAvailable) accent else TextWhite,
                             size = 13.dp
                         )
                         Text(

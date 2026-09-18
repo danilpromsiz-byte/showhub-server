@@ -1357,6 +1357,72 @@ def refresh_health() -> Dict[str, Any]:
     health_checker.run_checks()
     return health_checker.get_summary()
 
+# User Analytics & Telemetry
+USERS_STATS_FILE = os.path.join(CURRENT_DIR, "data", "users_stats.json")
+users_stats_lock = threading.Lock()
+
+def _load_users_stats() -> Dict[str, Any]:
+    if os.path.exists(USERS_STATS_FILE):
+        try:
+            with open(USERS_STATS_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return {}
+    return {}
+
+def _save_users_stats(data: Dict[str, Any]):
+    os.makedirs(os.path.dirname(USERS_STATS_FILE), exist_ok=True)
+    try:
+        with open(USERS_STATS_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print(f"[Analytics] Error saving user stats: {e}")
+
+@app.get("/api/analytics/ping")
+def analytics_ping(device_id: str = Query(..., description="Unique device ID"), version: Optional[str] = "2.7.0") -> Dict[str, Any]:
+    """Records device heartbeat and returns aggregate user counts."""
+    now_ts = int(time.time())
+    with users_stats_lock:
+        stats = _load_users_stats()
+        device_entry = stats.get(device_id, {})
+        if not device_entry:
+            device_entry = {
+                "first_seen": now_ts,
+                "created_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            }
+        device_entry["last_seen"] = now_ts
+        device_entry["version"] = version
+        device_entry["updated_at"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        stats[device_id] = device_entry
+        _save_users_stats(stats)
+        
+        total_users = len(stats)
+        active_today = sum(1 for d in stats.values() if now_ts - d.get("last_seen", 0) <= 86400)
+        active_month = sum(1 for d in stats.values() if now_ts - d.get("last_seen", 0) <= 30 * 86400)
+
+    return {
+        "status": "ok",
+        "total_users": total_users,
+        "active_today": active_today,
+        "active_month": active_month
+    }
+
+@app.get("/api/analytics/users")
+def get_user_stats() -> Dict[str, Any]:
+    """Returns aggregated count of total and active users."""
+    now_ts = int(time.time())
+    with users_stats_lock:
+        stats = _load_users_stats()
+        total_users = len(stats)
+        active_today = sum(1 for d in stats.values() if now_ts - d.get("last_seen", 0) <= 86400)
+        active_month = sum(1 for d in stats.values() if now_ts - d.get("last_seen", 0) <= 30 * 86400)
+    return {
+        "status": "ok",
+        "total_users": total_users,
+        "active_today": active_today,
+        "active_month": active_month
+    }
+
 @app.get("/api/debug/stream-diag")
 def debug_stream_diag(title: str = "Интерстеллар", year: Optional[str] = "2014"):
     import traceback

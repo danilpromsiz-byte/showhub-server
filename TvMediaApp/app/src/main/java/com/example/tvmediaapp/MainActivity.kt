@@ -128,19 +128,37 @@ fun TvAppNavHost(activity: MainActivity) {
     val lifecycleOwner = LocalLifecycleOwner.current
     val coroutineScope = rememberCoroutineScope()
 
-    val restoredMovie = remember { SessionManager.restoreLastMovie(activity) }
-    var currentScreen by remember { mutableStateOf(if (restoredMovie != null) Screen.DETAILS else Screen.HOME) }
-    var selectedMovie by remember { mutableStateOf<Movie?>(restoredMovie) }
-    var activeVideoUrl by remember { mutableStateOf<String>("") }
-    var startPositionMs by remember { mutableLongStateOf(0L) }
-    var activeSeason by remember { mutableIntStateOf(1) }
-    var activeEpisode by remember { mutableIntStateOf(1) }
+    val restoredSession = remember { SessionManager.restoreSession(activity) }
+    var currentScreen by remember {
+        mutableStateOf(
+            when {
+                restoredSession?.screen == Screen.PLAYER && restoredSession.videoUrl.isNotBlank() -> Screen.PLAYER
+                restoredSession != null -> Screen.DETAILS
+                else -> Screen.HOME
+            }
+        )
+    }
+    var selectedMovie by remember { mutableStateOf<Movie?>(restoredSession?.movie) }
+    var activeVideoUrl by remember { mutableStateOf(restoredSession?.videoUrl ?: "") }
+    var startPositionMs by remember { mutableLongStateOf(restoredSession?.positionMs ?: 0L) }
+    var activeSeason by remember { mutableIntStateOf(restoredSession?.season ?: 1) }
+    var activeEpisode by remember { mutableIntStateOf(restoredSession?.episode ?: 1) }
+    var activeAudioId by remember { mutableStateOf(restoredSession?.audioId ?: "") }
 
     // Persist session when in DETAILS or PLAYER, clear when at HOME
-    LaunchedEffect(currentScreen, selectedMovie) {
+    LaunchedEffect(currentScreen, selectedMovie, activeVideoUrl, startPositionMs, activeSeason, activeEpisode, activeAudioId) {
         if (currentScreen == Screen.DETAILS || currentScreen == Screen.PLAYER) {
             selectedMovie?.let { movie ->
-                SessionManager.saveSession(activity, movie, currentScreen)
+                SessionManager.saveSession(
+                    context = activity,
+                    movie = movie,
+                    screen = currentScreen,
+                    videoUrl = activeVideoUrl,
+                    positionMs = startPositionMs,
+                    season = activeSeason,
+                    episode = activeEpisode,
+                    audioId = activeAudioId
+                )
             }
         } else if (currentScreen == Screen.HOME) {
             SessionManager.clearSession(activity)
@@ -319,12 +337,13 @@ fun TvAppNavHost(activity: MainActivity) {
                     val isFav = homeViewModel.isFavorite(movie.id)
                     DetailsScreen(
                         movie = movie,
-                        onPlayClick = { detailedMovie, streamUrl, startPos, season, episode ->
+                        onPlayClick = { detailedMovie, streamUrl, startPos, season, episode, audioId ->
                             selectedMovie = detailedMovie
                             activeVideoUrl = streamUrl
                             startPositionMs = startPos
                             activeSeason = season
                             activeEpisode = episode
+                            activeAudioId = audioId
                             currentScreen = Screen.PLAYER
                         },
                         onBackClick = {
@@ -349,6 +368,7 @@ fun TvAppNavHost(activity: MainActivity) {
                         startPositionMs = startPositionMs,
                         season = activeSeason,
                         episode = activeEpisode,
+                        audioId = activeAudioId,
                         onBackPress = {
                             currentScreen = Screen.DETAILS
                         }

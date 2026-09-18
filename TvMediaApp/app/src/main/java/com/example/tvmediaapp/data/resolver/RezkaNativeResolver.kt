@@ -157,7 +157,7 @@ object RezkaNativeResolver {
             val json = JSONObject(ajaxResponse)
             val streamStr = json.optString("url").ifEmpty { json.optString("streams", "") }
 
-            fun parseStreams(raw: String) {
+            fun parseStreams(raw: String, isFallback: Boolean = false) {
                 val parts = raw.split(Regex(",\\s*(?=\\[[^\\]]+\\])"))
                 for (part in parts) {
                     val m = Pattern.compile("\\[([^\\]]+)\\](.*)").matcher(part)
@@ -172,14 +172,15 @@ object RezkaNativeResolver {
                             ?: urls.firstOrNull()
                         if (workingUrl != null) {
                             val isHls = workingUrl.contains(".m3u8")
-                            streams.add(StreamOption(quality = quality, url = workingUrl, isHls = isHls, source = "HDrezka"))
+                            val srcLabel = if (isFallback) "HDrezka (дубляж fallback)" else "HDrezka"
+                            streams.add(StreamOption(quality = quality, url = workingUrl, isHls = isHls, source = srcLabel))
                         }
                     }
                 }
             }
 
             if (streamStr.length > 5) {
-                parseStreams(streamStr)
+                parseStreams(streamStr, isFallback = false)
             }
 
             // Fallback: If translator did not voice this season/episode, retry with default translator "56"
@@ -196,7 +197,7 @@ object RezkaNativeResolver {
                     val fbJson = JSONObject(fbResp)
                     val fbStreamStr = fbJson.optString("url").ifEmpty { fbJson.optString("streams", "") }
                     if (fbStreamStr.length > 5) {
-                        parseStreams(fbStreamStr)
+                        parseStreams(fbStreamStr, isFallback = true)
                     }
                 }
             }

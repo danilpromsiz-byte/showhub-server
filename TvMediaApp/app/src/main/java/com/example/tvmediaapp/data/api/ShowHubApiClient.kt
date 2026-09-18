@@ -473,4 +473,44 @@ object ShowHubApiClient {
             false
         }
     }
+
+    fun getOrCreateDeviceId(context: android.content.Context): String {
+        val prefs = context.getSharedPreferences("showhub_prefs", android.content.Context.MODE_PRIVATE)
+        var id = prefs.getString("pref_device_id", null)
+        if (id.isNullOrBlank()) {
+            id = java.util.UUID.randomUUID().toString()
+            prefs.edit().putString("pref_device_id", id).apply()
+        }
+        return id
+    }
+
+    suspend fun pingAndGetUserStats(context: android.content.Context, appVersion: String): UserStats? = withContext(Dispatchers.IO) {
+        try {
+            val deviceId = getOrCreateDeviceId(context)
+            val url = URL("$SERVER_BASE/api/analytics/ping?device_id=$deviceId&version=$appVersion")
+            val conn = url.openConnection() as HttpURLConnection
+            conn.connectTimeout = 8000
+            conn.readTimeout = 8000
+            conn.setRequestProperty("User-Agent", "ShowHubTV-Native/$appVersion")
+            conn.connect()
+            if (conn.responseCode == 200) {
+                val body = BufferedReader(InputStreamReader(conn.inputStream, "UTF-8")).use { it.readText() }
+                val json = JSONObject(body)
+                UserStats(
+                    totalUsers = json.optInt("total_users", 0),
+                    activeToday = json.optInt("active_today", 0),
+                    activeMonth = json.optInt("active_month", 0)
+                )
+            } else null
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
 }
+
+data class UserStats(
+    val totalUsers: Int = 0,
+    val activeToday: Int = 0,
+    val activeMonth: Int = 0
+)

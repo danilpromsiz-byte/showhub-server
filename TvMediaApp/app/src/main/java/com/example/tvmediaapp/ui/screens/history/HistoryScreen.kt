@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.foundation.lazy.grid.TvGridCells
 import androidx.tv.foundation.lazy.grid.TvLazyVerticalGrid
 import androidx.tv.foundation.lazy.grid.items
+import androidx.tv.foundation.lazy.grid.itemsIndexed
 import androidx.tv.material3.Border
 import androidx.tv.material3.Button
 import androidx.tv.material3.ButtonDefaults
@@ -56,6 +57,12 @@ import com.example.tvmediaapp.ui.theme.SurfaceDark
 import com.example.tvmediaapp.ui.theme.TextGray
 import com.example.tvmediaapp.ui.theme.TextWhite
 
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.runtime.LaunchedEffect
+import kotlinx.coroutines.delay
+
 @Suppress("UNUSED_PARAMETER")
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
@@ -70,6 +77,17 @@ fun HistoryScreen(
     var historyItems by remember { mutableStateOf(historyManager.getHistory()) }
 
     val accent = LocalAccentColor.current
+    val firstCardFocusRequester = remember { FocusRequester() }
+    val backButtonFocusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(historyItems) {
+        if (historyItems.isNotEmpty()) {
+            delay(150)
+            try {
+                firstCardFocusRequester.requestFocus()
+            } catch (_: Exception) {}
+        }
+    }
 
     Column(
         modifier = modifier
@@ -118,7 +136,9 @@ fun HistoryScreen(
                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                         scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
-                        modifier = Modifier.height(28.dp)
+                        modifier = Modifier
+                            .height(28.dp)
+                            .focusProperties { down = firstCardFocusRequester }
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             com.example.tvmediaapp.ui.components.AppIcon(
@@ -141,7 +161,7 @@ fun HistoryScreen(
                     onClick = onBackClick,
                     colors = ButtonDefaults.colors(
                         containerColor = Color.White.copy(alpha = 0.12f),
-                        focusedContainerColor = accent,
+                        focusedContainerColor = Color.White,
                         contentColor = TextWhite,
                         focusedContentColor = Color.Black
                     ),
@@ -149,14 +169,17 @@ fun HistoryScreen(
                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                     scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
-                    modifier = Modifier.height(28.dp)
+                    modifier = Modifier
+                        .height(28.dp)
+                        .focusRequester(backButtonFocusRequester)
+                        .focusProperties { down = firstCardFocusRequester }
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         com.example.tvmediaapp.ui.components.AppIcon(
                             iconResId = com.example.tvmediaapp.R.drawable.ic_arrow_back,
                             contentDescription = "Назад",
                             modifier = Modifier.padding(end = 4.dp),
-                            tint = TextWhite,
+                            tint = Color.Unspecified,
                             size = 13.dp
                         )
                         Text(
@@ -200,7 +223,7 @@ fun HistoryScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
-                items(historyItems) { item ->
+                itemsIndexed(historyItems) { index, item ->
                     val movie = Movie(
                         id = item.id,
                         title = item.title,
@@ -213,6 +236,12 @@ fun HistoryScreen(
                         isSeries = item.isSeries
                     )
 
+                    val cardFocusMod = Modifier
+                        .width(170.dp)
+                        .aspectRatio(2f / 3f)
+                        .then(if (index == 0) Modifier.focusRequester(firstCardFocusRequester) else Modifier)
+                        .then(if (index < 6) Modifier.focusProperties { up = backButtonFocusRequester } else Modifier)
+
                     StandardCardContainer(
                         imageCard = { interactionSource ->
                             Card(
@@ -221,12 +250,10 @@ fun HistoryScreen(
                                 },
                                 interactionSource = interactionSource,
                                 border = CardDefaults.border(
-                                    focusedBorder = Border(BorderStroke(3.dp, accent))
+                                    focusedBorder = Border(BorderStroke(3.dp, Color.White))
                                 ),
                                 scale = CardDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
-                                modifier = Modifier
-                                    .width(170.dp)
-                                    .aspectRatio(2f / 3f)
+                                modifier = cardFocusMod
                             ) {
                                 Box(modifier = Modifier.fillMaxSize()) {
                                     // Poster

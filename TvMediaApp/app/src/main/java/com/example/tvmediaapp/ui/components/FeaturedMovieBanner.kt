@@ -226,7 +226,7 @@ fun FeaturedMovieBanner(
                         contentColor = Color.Black,
                         focusedContentColor = Color.Black
                     ),
-                    border = ButtonDefaults.border(border = Border.None, focusedBorder = Border.None),
+                    border = ButtonDefaults.border(border = Border(BorderStroke(1.5.dp, accent)), focusedBorder = Border.None),
                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                     scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                     modifier = Modifier.height(38.dp)
@@ -243,7 +243,7 @@ fun FeaturedMovieBanner(
                     onClick = { onDetailsClick(movie) },
                     colors = ButtonDefaults.colors(
                         containerColor = Color.White.copy(alpha = 0.15f),
-                        focusedContainerColor = accent,
+                        focusedContainerColor = Color.White,
                         contentColor = TextWhite,
                         focusedContentColor = Color.Black
                     ),
@@ -264,11 +264,14 @@ fun FeaturedMovieBanner(
                     onClick = { onToggleFavorite(movie) },
                     colors = ButtonDefaults.colors(
                         containerColor = if (isFavorite) FavoriteGold.copy(alpha = 0.25f) else Color.White.copy(alpha = 0.10f),
-                        focusedContainerColor = FavoriteGold,
+                        focusedContainerColor = Color.White,
                         contentColor = if (isFavorite) FavoriteGold else TextWhite,
                         focusedContentColor = Color.Black
                     ),
-                    border = ButtonDefaults.border(border = Border.None, focusedBorder = Border.None),
+                    border = ButtonDefaults.border(
+                        border = if (isFavorite) Border(BorderStroke(1.5.dp, FavoriteGold)) else Border.None,
+                        focusedBorder = Border.None
+                    ),
                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                     scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                     modifier = Modifier.height(38.dp)

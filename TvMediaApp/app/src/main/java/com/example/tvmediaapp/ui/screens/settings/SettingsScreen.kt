@@ -168,6 +168,16 @@ fun SettingsScreen(
     var isSendingBugReport by remember { mutableStateOf(false) }
     var bugReportStatus by remember { mutableStateOf<String?>(null) }
 
+    // User Analytics Stats
+    var userStats by remember { mutableStateOf<com.example.tvmediaapp.data.api.UserStats?>(null) }
+    var isLoadingUserStats by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        isLoadingUserStats = true
+        userStats = ShowHubApiClient.pingAndGetUserStats(context, appVersion)
+        isLoadingUserStats = false
+    }
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -196,9 +206,13 @@ fun SettingsScreen(
                     onClick = { activeTab = tab },
                     colors = ButtonDefaults.colors(
                         containerColor = if (isSelected) accent.copy(alpha = 0.22f) else ChipBackground,
-                        focusedContainerColor = accent,
+                        focusedContainerColor = Color.White,
                         contentColor = if (isSelected) accent else TextWhite,
                         focusedContentColor = Color.Black
+                    ),
+                    border = ButtonDefaults.border(
+                        border = if (isSelected) Border(BorderStroke(1.5.dp, accent)) else Border.None,
+                        focusedBorder = Border.None
                     ),
                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                     scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
@@ -224,7 +238,7 @@ fun SettingsScreen(
                     onClick = onBackClick,
                     colors = ButtonDefaults.colors(
                         containerColor = Color.White.copy(alpha = 0.08f),
-                        focusedContainerColor = accent,
+                        focusedContainerColor = Color.White,
                         contentColor = TextWhite,
                         focusedContentColor = Color.Black
                     ),
@@ -307,12 +321,12 @@ fun SettingsScreen(
                                         },
                                         colors = ButtonDefaults.colors(
                                             containerColor = if (isCur) accent.copy(alpha = 0.22f) else ChipBackground,
-                                            focusedContainerColor = accent,
+                                            focusedContainerColor = Color.White,
                                             contentColor = if (isCur) accent else TextWhite,
                                             focusedContentColor = Color.Black
                                         ),
                                         border = ButtonDefaults.border(
-                                            border = Border.None,
+                                            border = if (isCur) Border(BorderStroke(1.5.dp, accent)) else Border.None,
                                             focusedBorder = Border.None
                                         ),
                                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
@@ -338,11 +352,14 @@ fun SettingsScreen(
                                     },
                                     colors = ButtonDefaults.colors(
                                         containerColor = if (ThemeManager.isPureBlackEnabled) accent.copy(alpha = 0.22f) else ChipBackground,
-                                        focusedContainerColor = accent,
+                                        focusedContainerColor = Color.White,
                                         contentColor = if (ThemeManager.isPureBlackEnabled) accent else TextWhite,
                                         focusedContentColor = Color.Black
                                     ),
-                                    border = ButtonDefaults.border(border = Border.None, focusedBorder = Border.None),
+                                    border = ButtonDefaults.border(
+                                        border = if (ThemeManager.isPureBlackEnabled) Border(BorderStroke(1.5.dp, accent)) else Border.None,
+                                        focusedBorder = Border.None
+                                    ),
                                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                                     scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
@@ -385,9 +402,13 @@ fun SettingsScreen(
                                         },
                                         colors = ButtonDefaults.colors(
                                             containerColor = if (isCur) accent.copy(alpha = 0.22f) else ChipBackground,
-                                            focusedContainerColor = accent,
+                                            focusedContainerColor = Color.White,
                                             contentColor = if (isCur) accent else TextWhite,
                                             focusedContentColor = Color.Black
+                                        ),
+                                        border = ButtonDefaults.border(
+                                            border = if (isCur) Border(BorderStroke(1.5.dp, accent)) else Border.None,
+                                            focusedBorder = Border.None
                                         ),
                                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                                         scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
@@ -426,9 +447,13 @@ fun SettingsScreen(
                                         },
                                         colors = ButtonDefaults.colors(
                                             containerColor = if (isCur) accent.copy(alpha = 0.22f) else ChipBackground,
-                                            focusedContainerColor = accent,
+                                            focusedContainerColor = Color.White,
                                             contentColor = if (isCur) accent else TextWhite,
                                             focusedContentColor = Color.Black
+                                        ),
+                                        border = ButtonDefaults.border(
+                                            border = if (isCur) Border(BorderStroke(1.5.dp, accent)) else Border.None,
+                                            focusedBorder = Border.None
                                         ),
                                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                                         scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
@@ -462,9 +487,13 @@ fun SettingsScreen(
                                         },
                                         colors = ButtonDefaults.colors(
                                             containerColor = if (isCur) accent.copy(alpha = 0.22f) else ChipBackground,
-                                            focusedContainerColor = accent,
+                                            focusedContainerColor = Color.White,
                                             contentColor = if (isCur) accent else TextWhite,
                                             focusedContentColor = Color.Black
+                                        ),
+                                        border = ButtonDefaults.border(
+                                            border = if (isCur) Border(BorderStroke(1.5.dp, accent)) else Border.None,
+                                            focusedBorder = Border.None
                                         ),
                                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                                         scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
@@ -692,11 +721,14 @@ fun SettingsScreen(
                                         },
                                         colors = ButtonDefaults.colors(
                                             containerColor = if (isCur) accent.copy(alpha = 0.22f) else ChipBackground,
-                                            focusedContainerColor = accent,
+                                            focusedContainerColor = Color.White,
                                             contentColor = if (isCur) accent else TextWhite,
                                             focusedContentColor = Color.Black
                                         ),
-                                        border = ButtonDefaults.border(border = Border.None, focusedBorder = Border.None),
+                                        border = ButtonDefaults.border(
+                                            border = if (isCur) Border(BorderStroke(1.5.dp, accent)) else Border.None,
+                                            focusedBorder = Border.None
+                                        ),
                                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                                         scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
@@ -885,12 +917,12 @@ fun SettingsScreen(
                                         onClick = { bugReportCategory = cat },
                                         colors = ButtonDefaults.colors(
                                             containerColor = if (isCur) accent.copy(alpha = 0.22f) else ChipBackground,
-                                            focusedContainerColor = accent,
+                                            focusedContainerColor = Color.White,
                                             contentColor = if (isCur) accent else TextWhite,
                                             focusedContentColor = Color.Black
                                         ),
                                         border = ButtonDefaults.border(
-                                            border = Border.None,
+                                            border = if (isCur) Border(BorderStroke(1.5.dp, accent)) else Border.None,
                                             focusedBorder = Border.None
                                         ),
                                         shape = ButtonDefaults.shape(RoundedCornerShape(6.dp)),
@@ -1042,6 +1074,54 @@ fun SettingsScreen(
                                         fontSize = 13.sp,
                                         color = accent
                                     )
+                                }
+                            }
+
+                            // User Analytics Counter Card
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(ChipBackground)
+                                    .padding(16.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                                ) {
+                                    AppIcon(
+                                        resId = R.drawable.ic_movie,
+                                        tint = accent,
+                                        size = 32.dp
+                                    )
+                                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        Text(
+                                            text = "Статистика пользователей ShowHub TV",
+                                            fontSize = 15.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = TextWhite
+                                        )
+                                        if (userStats != null) {
+                                            Text(
+                                                text = "Всего пользователей: ${userStats!!.totalUsers}   •   Активных за 30 дней: ${userStats!!.activeMonth}   •   Сегодня: ${userStats!!.activeToday}",
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = accent
+                                            )
+                                        } else if (isLoadingUserStats) {
+                                            Text(
+                                                text = "Загрузка статистики...",
+                                                fontSize = 13.sp,
+                                                color = TextGray
+                                            )
+                                        } else {
+                                            Text(
+                                                text = "Подключение к серверу аналитики...",
+                                                fontSize = 13.sp,
+                                                color = TextGray
+                                            )
+                                        }
+                                    }
                                 }
                             }
 

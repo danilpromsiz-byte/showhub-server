@@ -161,10 +161,11 @@ fun SearchScreen(
                 onClick = onBackClick,
                 colors = ButtonDefaults.colors(
                     containerColor = Color.White.copy(alpha = 0.12f),
-                    focusedContainerColor = accent,
+                    focusedContainerColor = Color.White,
                     contentColor = TextWhite,
                     focusedContentColor = Color.Black
                 ),
+                border = ButtonDefaults.border(border = Border.None, focusedBorder = Border.None),
                 shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                 scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
@@ -322,10 +323,14 @@ fun SearchScreen(
                         Button(
                             onClick = { performSearch(histQuery) },
                             colors = ButtonDefaults.colors(
-                                containerColor = if (isSelected) accent else ChipBackground,
-                                focusedContainerColor = accent,
-                                contentColor = if (isSelected) Color.Black else TextWhite,
+                                containerColor = if (isSelected) accent.copy(alpha = 0.25f) else ChipBackground,
+                                focusedContainerColor = Color.White,
+                                contentColor = if (isSelected) accent else TextWhite,
                                 focusedContentColor = Color.Black
+                            ),
+                            border = ButtonDefaults.border(
+                                border = if (isSelected) Border(BorderStroke(1.5.dp, accent)) else Border.None,
+                                focusedBorder = Border.None
                             ),
                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                             scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
@@ -348,10 +353,11 @@ fun SearchScreen(
                             },
                             colors = ButtonDefaults.colors(
                                 containerColor = Color.White.copy(alpha = 0.08f),
-                                focusedContainerColor = Color.Red,
+                                focusedContainerColor = Color.White,
                                 contentColor = TextGray,
-                                focusedContentColor = TextWhite
+                                focusedContentColor = Color(0xFFE53935)
                             ),
+                            border = ButtonDefaults.border(border = Border.None, focusedBorder = Border.None),
                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                             scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),

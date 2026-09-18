@@ -50,11 +50,14 @@ import com.example.tvmediaapp.ui.screens.player.PlayerScreen
 import androidx.compose.foundation.shape.RoundedCornerShape
 import com.example.tvmediaapp.ui.screens.search.SearchScreen
 import com.example.tvmediaapp.ui.screens.settings.SettingsScreen
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import com.example.tvmediaapp.ui.theme.BackgroundDark
 import com.example.tvmediaapp.ui.theme.CyanNeon
 import com.example.tvmediaapp.ui.theme.LocalAccentColor
 import com.example.tvmediaapp.ui.theme.ThemeManager
 import com.example.tvmediaapp.ui.theme.TvMediaAppTheme
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 enum class Screen {
@@ -307,6 +310,14 @@ fun TvAppNavHost(activity: MainActivity) {
 
         // In-app Update Notification Banner/Dialog
         updateInfo?.takeIf { it.versionCode > activity.getInstalledVersionCode() }?.let { update ->
+            val updateFocusRequester = remember { FocusRequester() }
+            LaunchedEffect(update) {
+                delay(200)
+                try {
+                    updateFocusRequester.requestFocus()
+                } catch (e: Exception) {}
+            }
+
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -318,7 +329,7 @@ fun TvAppNavHost(activity: MainActivity) {
                     modifier = Modifier.padding(32.dp)
                 ) {
                     Text(
-                        text = "\u0414\u043e\u0441\u0442\u0443\u043f\u043d\u043e \u043e\u0431\u043d\u043e\u0432\u043b\u0435\u043d\u0438\u0435 ShowHub TV v${update.versionName}",
+                        text = "Доступно обновление ShowHub TV v${update.versionName}",
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold,
                         color = Color.White
@@ -348,7 +359,8 @@ fun TvAppNavHost(activity: MainActivity) {
                                 focusedContainerColor = Color.White,
                                 contentColor = Color.Black,
                                 focusedContentColor = Color.Black
-                            )
+                            ),
+                            modifier = Modifier.focusRequester(updateFocusRequester)
                         ) {
                             Text(
                                 text = if (isDownloadingUpdate) "Загрузка APK..." else "Обновить сейчас",

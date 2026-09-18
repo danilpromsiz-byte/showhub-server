@@ -51,3 +51,10 @@ data class MovieCategory(
     val title: String,
     val movies: List<Movie>
 )
+
+data class CommentItem(
+    val author: String,
+    val date: String,
+    val rating: String? = null,
+    val text: String
+)

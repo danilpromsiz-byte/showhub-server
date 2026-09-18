@@ -1,6 +1,7 @@
 package com.example.tvmediaapp.data.api
 
 import com.example.tvmediaapp.data.models.AudioTrackInfo
+import com.example.tvmediaapp.data.models.CommentItem
 import com.example.tvmediaapp.data.models.EpisodeInfo
 import com.example.tvmediaapp.data.models.Movie
 import com.example.tvmediaapp.data.models.SeasonInfo
@@ -285,7 +286,7 @@ object ShowHubApiClient {
             val conn = url.openConnection() as HttpURLConnection
             conn.connectTimeout = 5000
             conn.readTimeout = 8000
-            conn.setRequestProperty("User-Agent", "ShowHubTV-Native/2.5.0")
+            conn.setRequestProperty("User-Agent", "ShowHubTV-Native/2.5.1")
             conn.connect()
             if (conn.responseCode == 200) {
                 val body = BufferedReader(InputStreamReader(conn.inputStream, "UTF-8")).use { it.readText() }
@@ -299,6 +300,43 @@ object ShowHubApiClient {
             // silent fallback
         }
         null
+    }
+
+    suspend fun fetchComments(movie: Movie): List<CommentItem> = withContext(Dispatchers.IO) {
+        val comments = mutableListOf<CommentItem>()
+        try {
+            val q = URLEncoder.encode(movie.title, "UTF-8")
+            val url = URL("$SERVER_BASE/api/media/comments?source=filmix&media_id=${movie.id}&title=$q")
+            val conn = url.openConnection() as HttpURLConnection
+            conn.connectTimeout = 8000
+            conn.readTimeout = 12000
+            conn.setRequestProperty("User-Agent", "ShowHubTV-Native/2.5.1")
+            conn.connect()
+            if (conn.responseCode == 200) {
+                val body = BufferedReader(InputStreamReader(conn.inputStream, "UTF-8")).use { it.readText() }
+                val arr = JSONArray(body)
+                for (i in 0 until arr.length()) {
+                    val cObj = arr.getJSONObject(i)
+                    val author = cObj.optString("author", "Зритель")
+                    val date = cObj.optString("date", "")
+                    val text = cObj.optString("text", "")
+                    val rating = cObj.optString("rating", null)
+                    if (text.isNotEmpty()) {
+                        comments.add(
+                            CommentItem(
+                                author = author,
+                                date = date,
+                                rating = if (rating.isNullOrEmpty() || rating == "null") null else rating,
+                                text = text
+                            )
+                        )
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        comments
     }
 
 

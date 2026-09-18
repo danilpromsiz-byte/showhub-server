@@ -33,6 +33,7 @@ import androidx.tv.material3.Text
 import com.example.tvmediaapp.data.models.Movie
 import com.example.tvmediaapp.ui.components.FilterBar
 import com.example.tvmediaapp.ui.components.MovieCard
+import com.example.tvmediaapp.ui.components.NeonSpinner
 import com.example.tvmediaapp.ui.components.TvTopBar
 import com.example.tvmediaapp.ui.theme.BackgroundDark
 import com.example.tvmediaapp.ui.theme.TextGray
@@ -59,6 +60,7 @@ fun HomeScreen(
     val selectedGenre by viewModel.selectedGenre.collectAsState()
     val selectedYear by viewModel.selectedYear.collectAsState()
     val selectedCountry by viewModel.selectedCountry.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
 
     val displayMovies = remember(categories) {
         categories.firstOrNull()?.movies ?: emptyList()
@@ -97,7 +99,16 @@ fun HomeScreen(
         )
 
         // 6-COLUMN VERTICAL GRID (2 rows of 6 cards on screen at a time, scrolling down)
-        if (displayMovies.isEmpty()) {
+        if (isLoading && displayMovies.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(top = 80.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                NeonSpinner(size = 56.dp, strokeWidth = 4.dp, message = "Загрузка каталога ShowHub...")
+            }
+        } else if (displayMovies.isEmpty()) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()

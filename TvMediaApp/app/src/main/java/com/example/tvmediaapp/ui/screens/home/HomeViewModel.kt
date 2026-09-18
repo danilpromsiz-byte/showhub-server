@@ -36,6 +36,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private val _favoriteChangeTrigger = MutableStateFlow(0)
     val favoriteChangeTrigger: StateFlow<Int> = _favoriteChangeTrigger.asStateFlow()
 
+    private val _isLoading = MutableStateFlow(true)
+    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+
     init {
         loadCatalog()
     }
@@ -90,6 +93,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun loadCatalog() {
         viewModelScope.launch {
+            _isLoading.value = true
             repository.getCatalog(
                 category = _selectedType.value,
                 genre = _selectedGenre.value,
@@ -98,6 +102,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 country = _selectedCountry.value
             ).collect { data ->
                 _categories.value = data
+                _isLoading.value = false
             }
         }
     }

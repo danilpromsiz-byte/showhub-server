@@ -327,13 +327,13 @@ def get_media_poster(title: str = Query(...), year: Optional[str] = None, kp_id:
 def check_updates() -> Dict[str, Any]:
     return {
         "success": True,
-        "version_name": "2.5.0",
-        "version_code": 36,
+        "version_name": "2.5.1",
+        "version_code": 37,
         "force_update": True,
-        "min_version_code": 36,
+        "min_version_code": 37,
         "apk_url": "https://showhub-server.onrender.com/ShowHub.apk",
         "download_url": "https://showhub-server.onrender.com/ShowHub.apk",
-        "changelog": "ShowHub TV v2.5.0: Полный паритет (сетка 6x2 со скроллом, предпросмотр видео на карточках, полноценные настройки с темами и Filmix PRO, прямые потоки через нативный резолвер на ТВ, сортировка свежих новинок без старых мыльных опер)."
+        "changelog": "ShowHub TV v2.5.1: Устранение 6 замечаний (предпросмотр видео на обложках, полное название кнопки «В избранное», подробные описания и отзывы зрителей, фокус левой панели с обложкой, поле ввода в поиске, неоновый спиннер)."
     }
 
 @app.get("/api/catalog/stats")
@@ -935,13 +935,13 @@ def _fetch_media_streams(
 @app.get("/api/media/details")
 def get_media_details_query(
     source: str = Query("bazon"),
-    media_id: str = Query(...),
+    media_id: Optional[str] = Query(""),
     title: Optional[str] = None,
     year: Optional[str] = None,
     is_series: Optional[str] = None,
     kp_id: Optional[str] = None
 ) -> Dict[str, Any]:
-    return _fetch_media_details(source, media_id, title, year, is_series, kp_id)
+    return _fetch_media_details(source, media_id or "", title, year, is_series, kp_id)
 
 @app.get("/api/media/{source}/{media_id}/details")
 def get_media_details_path(source: str, media_id: str, title: Optional[str] = None, year: Optional[str] = None, is_series: Optional[str] = None, kp_id: Optional[str] = None) -> Dict[str, Any]:
@@ -951,14 +951,116 @@ def get_media_details_path(source: str, media_id: str, title: Optional[str] = No
 @app.get("/api/media/comments")
 def get_media_comments_query(
     source: str = Query("filmix"),
-    media_id: str = Query(...),
+    media_id: Optional[str] = Query(""),
     title: Optional[str] = None
 ) -> List[Dict[str, Any]]:
-    return _fetch_media_comments(source, media_id, title)
+    return _fetch_media_comments(source, media_id or "", title)
 
 @app.get("/api/media/{source}/{media_id}/comments")
 def get_media_comments_path(source: str, media_id: str, title: Optional[str] = None) -> List[Dict[str, Any]]:
     return _fetch_media_comments(source, media_id, title)
+
+
+def _resolve_trailer(title: str, year: Optional[str] = None, kp_id: Optional[str] = None) -> Optional[str]:
+    """Resolves trailer/teaser stream or web URL."""
+    # 1. Kinopoisk Unofficial API videos
+    if kp_id and str(kp_id).isdigit():
+        try:
+            url = f"https://kinopoiskapiunofficial.tech/api/v2.2/films/{kp_id}/videos"
+            req = urllib.request.Request(url, headers={"X-API-KEY": "e069b222-2ba6-455b-b9f1-f0ca333246eb", "User-Agent": "ShowHubTV"})
+            with urllib.request.urlopen(req, timeout=4) as resp:
+                if resp.status == 200:
+                    data = json.loads(resp.read().decode("utf-8"))
+                    for it in data.get("items", []):
+                        u = it.get("url", "")
+                        if u.startswith("http"):
+                            return u
+        except Exception:
+            pass
+
+    # 2. Bazon trailer
+    try:
+        b_items = bazon.search(title)
+        b_match = find_best_match(b_items, safe_parse_year(year), None)
+        if b_match and b_match.kinopoisk_id:
+            b_info = bazon.get_details(b_match.kinopoisk_id)
+            if b_info and b_info.get("trailer"):
+                return b_info["trailer"]
+    except Exception:
+        pass
+
+    # 3. Web trailer fallback
+    q_enc = urllib.parse.quote(f"трейлер {title} {year or ''}".strip())
+    return f"https://www.youtube.com/results?search_query={q_enc}"
+
+
+@app.get("/api/media/trailer")
+def get_media_trailer(
+    title: str = Query(...),
+    year: Optional[str] = None,
+    kp_id: Optional[str] = None
+) -> Dict[str, Any]:
+    trailer = _resolve_trailer(title, year, kp_id)
+    return {
+        "success": bool(trailer),
+        "web_url": trailer or "",
+        "embed_url": trailer or "",
+        "app_url": trailer or ""
+    }
+
+
+_preview_cache: Dict[str, Tuple[float, str]] = {}
+
+@app.get("/api/media/preview-stream")
+def get_media_preview_stream(
+    title: str = Query(...),
+    year: Optional[str] = None,
+    media_id: Optional[str] = None,
+    is_series: Optional[str] = None,
+    kp_id: Optional[str] = None
+) -> Dict[str, Any]:
+    cache_key = f"{title}_{year}_{media_id}_{is_series}_{kp_id}"
+    now = time.time()
+    if cache_key in _preview_cache:
+        t, cached_url = _preview_cache[cache_key]
+        if now - t < 3600:
+            return {"success": True, "stream_url": cached_url, "source": "cache"}
+
+    # 1. Try to fetch direct stream from Filmix or HDRezka or VideoCDN
+    try:
+        resolved = _fetch_media_streams(
+            source="hdrezka",
+            media_id=media_id or "0",
+            title=title,
+            season=1,
+            episode=1,
+            year=year,
+            is_series=is_series,
+            kp_id=kp_id
+        )
+        for src_key in ["hdrezka", "filmix", "videocdn"]:
+            src_data = resolved.get(src_key)
+            if src_data and isinstance(src_data, dict):
+                streams = src_data.get("streams", [])
+                for st in streams:
+                    u = st.get("url", "")
+                    s_type = st.get("stream_type", "")
+                    if u.startswith("http") and (s_type in ["hls", "mp4"] or ".m3u8" in u or ".mp4" in u):
+                        _preview_cache[cache_key] = (now, u)
+                        return {"success": True, "stream_url": u, "source": src_key}
+    except Exception as e:
+        logger.warning(f"Preview stream error for {title}: {e}")
+
+    # 2. Fallback to trailer stream if available
+    try:
+        tr = _resolve_trailer(title, year, kp_id)
+        if tr and (".m3u8" in tr or ".mp4" in tr):
+            _preview_cache[cache_key] = (now, tr)
+            return {"success": True, "stream_url": tr, "source": "trailer"}
+    except Exception:
+        pass
+
+    return {"success": False, "stream_url": None}
 
 
 @app.get("/api/media/streams")

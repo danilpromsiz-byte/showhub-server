@@ -80,12 +80,13 @@ fun MovieCard(
 
     // Video preview state
     var previewPlayer by remember { mutableStateOf<ExoPlayer?>(null) }
+    var isPreviewBuffering by remember { mutableStateOf(false) }
     var isPreviewPlaying by remember { mutableStateOf(false) }
     var targetTimelineProgress by remember { mutableFloatStateOf(0f) }
 
     val timelineProgress by animateFloatAsState(
         targetValue = targetTimelineProgress,
-        animationSpec = tween(durationMillis = 1800),
+        animationSpec = tween(durationMillis = 1500),
         label = "previewProgress"
     )
 
@@ -93,12 +94,12 @@ fun MovieCard(
     LaunchedEffect(isFocused) {
         if (isFocused) {
             targetTimelineProgress = 1f
-            // Wait 1.8 seconds before starting preview
-            delay(1800)
+            // Wait 1.5 seconds before starting preview
+            delay(1500)
             if (isFocused) {
-                // Fetch preview stream concurrently or sequentially
+                isPreviewBuffering = true
                 var streamUrl = ShowHubApiClient.fetchPreviewStream(movie)
-                if (streamUrl == null) {
+                if (streamUrl.isNullOrEmpty()) {
                     val nativeStreams = RezkaNativeResolver.resolveStreams(
                         title = movie.title,
                         year = movie.releaseYear
@@ -112,20 +113,40 @@ fun MovieCard(
                             setMediaItem(MediaItem.fromUri(streamUrl))
                             volume = 0f // strictly silent
                             repeatMode = Player.REPEAT_MODE_ALL
+                            addListener(object : Player.Listener {
+                                override fun onPlaybackStateChanged(state: Int) {
+                                    if (state == Player.STATE_READY) {
+                                        isPreviewBuffering = false
+                                        isPreviewPlaying = true
+                                    } else if (state == Player.STATE_BUFFERING) {
+                                        isPreviewBuffering = true
+                                    } else if (state == Player.STATE_ENDED) {
+                                        seekTo(0L)
+                                        play()
+                                    }
+                                }
+
+                                override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                                    isPreviewBuffering = false
+                                    isPreviewPlaying = false
+                                }
+                            })
                             prepare()
-                            seekTo(1200000L) // Skip opening credits
                             playWhenReady = true
                         }
                         previewPlayer = player
-                        isPreviewPlaying = true
                     } catch (e: Exception) {
                         e.printStackTrace()
+                        isPreviewBuffering = false
                     }
+                } else {
+                    isPreviewBuffering = false
                 }
             }
         } else {
             // Cancel preview & release player immediately
             targetTimelineProgress = 0f
+            isPreviewBuffering = false
             isPreviewPlaying = false
             previewPlayer?.let { player ->
                 player.stop()
@@ -138,6 +159,8 @@ fun MovieCard(
     // Cleanup player when card leaves composition
     DisposableEffect(Unit) {
         onDispose {
+            isPreviewBuffering = false
+            isPreviewPlaying = false
             previewPlayer?.let { player ->
                 player.stop()
                 player.release()
@@ -216,6 +239,18 @@ fun MovieCard(
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize()
                     )
+
+                    // Card Video Preview Buffering Spinner
+                    if (isPreviewBuffering) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(Color.Black.copy(alpha = 0.55f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            NeonSpinner(size = 32.dp, strokeWidth = 3.dp)
+                        }
+                    }
 
                     // Card Video Preview (ExoPlayer surface)
                     if (isPreviewPlaying && previewPlayer != null) {

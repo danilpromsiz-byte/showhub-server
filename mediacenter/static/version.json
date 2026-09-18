@@ -1,10 +1,10 @@
 {
   "success": true,
-  "version_name": "2.5.0",
-  "version_code": 36,
+  "version_name": "2.5.1",
+  "version_code": 37,
   "force_update": true,
-  "min_version_code": 36,
+  "min_version_code": 37,
   "download_url": "https://showhub-server.onrender.com/ShowHub.apk",
   "apk_url": "https://showhub-server.onrender.com/ShowHub.apk",
-  "changelog": "ShowHub TV v2.5.0: Полный паритет (сетка 6x2 со скроллом, предпросмотр видео на карточках, полноценные настройки с темами и Filmix PRO, прямые потоки через нативный резолвер на ТВ, сортировка свежих новинок без старых мыльных опер)."
+  "changelog": "ShowHub TV v2.5.1: Устранение 6 замечаний (предпросмотр видео на обложках, полное название кнопки «В избранное», подробные описания и отзывы зрителей, фокус левой панели с обложкой, поле ввода в поиске, неоновый спиннер)."
 }

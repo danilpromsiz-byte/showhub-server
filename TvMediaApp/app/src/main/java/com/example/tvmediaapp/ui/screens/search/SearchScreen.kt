@@ -9,6 +9,7 @@ package com.example.tvmediaapp.ui.screens.search
 import android.content.Context
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,6 +22,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -29,8 +31,12 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -39,14 +45,15 @@ import androidx.tv.foundation.lazy.grid.TvLazyVerticalGrid
 import androidx.tv.foundation.lazy.grid.items
 import androidx.tv.foundation.lazy.list.TvLazyRow
 import androidx.tv.foundation.lazy.list.items
+import androidx.tv.material3.Border
 import androidx.tv.material3.Button
 import androidx.tv.material3.ButtonDefaults
 import androidx.tv.material3.ExperimentalTvMaterial3Api
-import androidx.tv.material3.OutlinedButton
 import androidx.tv.material3.Text
 import com.example.tvmediaapp.data.api.ShowHubApiClient
 import com.example.tvmediaapp.data.models.Movie
 import com.example.tvmediaapp.ui.components.MovieCard
+import com.example.tvmediaapp.ui.components.NeonSpinner
 import com.example.tvmediaapp.ui.theme.BackgroundDark
 import com.example.tvmediaapp.ui.theme.ChipBackground
 import com.example.tvmediaapp.ui.theme.LocalAccentColor
@@ -138,32 +145,104 @@ fun SearchScreen(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = "Поиск",
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = TextWhite
-                )
-                if (query.isNotEmpty()) {
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Text(
-                        text = ": '$query'",
-                        fontSize = 22.sp,
-                        color = accent,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-            }
+            Text(
+                text = "Поиск",
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold,
+                color = TextWhite
+            )
 
-            OutlinedButton(
+            Button(
                 onClick = onBackClick,
-                shape = ButtonDefaults.shape(RoundedCornerShape(8.dp))
+                colors = ButtonDefaults.colors(
+                    containerColor = Color.White.copy(alpha = 0.12f),
+                    focusedContainerColor = accent,
+                    contentColor = TextWhite,
+                    focusedContentColor = Color.Black
+                ),
+                border = ButtonDefaults.border(
+                    border = Border(border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f))),
+                    focusedBorder = Border(border = BorderStroke(2.dp, TextWhite))
+                ),
+                shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                modifier = Modifier.height(38.dp)
             ) {
                 Text(
                     text = "Назад",
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                    fontSize = 14.sp,
+                    modifier = Modifier.padding(horizontal = 14.dp)
                 )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // Search Input Bar Container
+        var isInputFocused by remember { mutableStateOf(false) }
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(Color(0xFF1E293B))
+                .border(
+                    width = 1.5.dp,
+                    color = if (isInputFocused) accent else Color.White.copy(alpha = 0.15f),
+                    shape = RoundedCornerShape(8.dp)
+                )
+                .padding(horizontal = 16.dp),
+            contentAlignment = Alignment.CenterStart
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    BasicTextField(
+                        value = query,
+                        onValueChange = { performSearch(it) },
+                        singleLine = true,
+                        textStyle = TextStyle(
+                            color = TextWhite,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Medium
+                        ),
+                        cursorBrush = SolidColor(accent),
+                        decorationBox = { innerTextField ->
+                            if (query.isEmpty()) {
+                                Text(
+                                    text = "Введите название фильма или сериала...",
+                                    color = TextGray,
+                                    fontSize = 15.sp
+                                )
+                            }
+                            innerTextField()
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .onFocusChanged { isInputFocused = it.isFocused }
+                    )
+                }
+
+                if (query.isNotEmpty()) {
+                    Button(
+                        onClick = { performSearch("") },
+                        colors = ButtonDefaults.colors(
+                            containerColor = Color.White.copy(alpha = 0.12f),
+                            focusedContainerColor = Color.Red,
+                            contentColor = TextWhite,
+                            focusedContentColor = TextWhite
+                        ),
+                        shape = ButtonDefaults.shape(RoundedCornerShape(6.dp)),
+                        modifier = Modifier.height(30.dp)
+                    ) {
+                        Text(text = "Очистить", fontSize = 12.sp, modifier = Modifier.padding(horizontal = 6.dp))
+                    }
+                }
             }
         }
 
@@ -293,28 +372,43 @@ fun SearchScreen(
         Spacer(modifier = Modifier.height(14.dp))
 
         if (isSearching) {
-            Text(
-                text = "Поиск по всем базам данных ShowHub...",
-                color = accent,
-                fontSize = 14.sp
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-        }
-
-        // Results Grid (6 columns)
-        TvLazyVerticalGrid(
-            columns = TvGridCells.Fixed(6),
-            contentPadding = PaddingValues(bottom = 32.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-            modifier = Modifier.fillMaxSize()
-        ) {
-            items(results) { movie ->
-                MovieCard(
-                    movie = movie,
-                    onClick = { onMovieSelect(movie) },
-                    onFocus = {}
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(200.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                NeonSpinner(size = 48.dp, strokeWidth = 3.5.dp, message = "Поиск по всем источникам ShowHub...")
+            }
+        } else if (results.isEmpty() && query.isNotEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(32.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "По запросу '$query' ничего не найдено",
+                    color = TextGray,
+                    fontSize = 15.sp
                 )
+            }
+        } else {
+            // Results Grid (6 columns)
+            TvLazyVerticalGrid(
+                columns = TvGridCells.Fixed(6),
+                contentPadding = PaddingValues(bottom = 32.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.fillMaxSize()
+            ) {
+                items(results) { movie ->
+                    MovieCard(
+                        movie = movie,
+                        onClick = { onMovieSelect(movie) },
+                        onFocus = {}
+                    )
+                }
             }
         }
     }

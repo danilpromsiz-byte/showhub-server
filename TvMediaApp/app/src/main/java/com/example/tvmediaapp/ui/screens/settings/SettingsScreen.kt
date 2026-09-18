@@ -40,7 +40,6 @@ import androidx.tv.material3.Border
 import androidx.tv.material3.Button
 import androidx.tv.material3.ButtonDefaults
 import androidx.tv.material3.ExperimentalTvMaterial3Api
-import androidx.tv.material3.OutlinedButton
 import androidx.tv.material3.Text
 import coil.Coil
 import com.example.tvmediaapp.data.api.ShowHubApiClient
@@ -185,13 +184,27 @@ fun SettingsScreen(
 
             item {
                 Spacer(modifier = Modifier.width(16.dp))
-                OutlinedButton(
+                Button(
                     onClick = onBackClick,
+                    colors = ButtonDefaults.colors(
+                        containerColor = Color.White.copy(alpha = 0.08f),
+                        focusedContainerColor = accent,
+                        contentColor = TextWhite,
+                        focusedContentColor = Color.Black
+                    ),
+                    border = ButtonDefaults.border(
+                        border = Border(BorderStroke(1.dp, Color.White.copy(alpha = 0.15f))),
+                        focusedBorder = Border(BorderStroke(2.dp, TextWhite))
+                    ),
                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                     scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
                     modifier = Modifier.height(38.dp)
                 ) {
-                    Text(text = "Назад к каталогу", fontSize = 14.sp)
+                    Text(
+                        text = "Назад к каталогу",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium
+                    )
                 }
             }
         }

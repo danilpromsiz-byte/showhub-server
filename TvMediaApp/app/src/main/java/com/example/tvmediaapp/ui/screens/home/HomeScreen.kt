@@ -16,11 +16,17 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -28,6 +34,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.tv.foundation.lazy.grid.TvGridCells
 import androidx.tv.foundation.lazy.grid.TvLazyVerticalGrid
 import androidx.tv.foundation.lazy.grid.items
+import androidx.tv.foundation.lazy.grid.itemsIndexed
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Text
 import com.example.tvmediaapp.data.models.Movie
@@ -38,6 +45,7 @@ import com.example.tvmediaapp.ui.components.TvTopBar
 import com.example.tvmediaapp.ui.theme.BackgroundDark
 import com.example.tvmediaapp.ui.theme.TextGray
 import com.example.tvmediaapp.ui.theme.TextWhite
+import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
@@ -66,6 +74,23 @@ fun HomeScreen(
         categories.firstOrNull()?.movies ?: emptyList()
     }
 
+    val topBarSearchFocusRequester = remember { FocusRequester() }
+    val filterRow1FocusRequester = remember { FocusRequester() }
+    val filterRow2FocusRequester = remember { FocusRequester() }
+    val firstCardFocusRequester = remember { FocusRequester() }
+
+    // Automatically focus the first movie card on launch once catalog loads
+    var hasRequestedInitialFocus by remember { mutableStateOf(false) }
+    LaunchedEffect(displayMovies) {
+        if (displayMovies.isNotEmpty() && !hasRequestedInitialFocus) {
+            hasRequestedInitialFocus = true
+            delay(250)
+            try {
+                firstCardFocusRequester.requestFocus()
+            } catch (_: Exception) {}
+        }
+    }
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -80,7 +105,9 @@ fun HomeScreen(
             onCheckUpdateClick = onCheckUpdateClick,
             hasUpdateAvailable = hasUpdateAvailable,
             appVersion = appVersion,
-            currentScreenName = "home"
+            currentScreenName = "home",
+            topBarFocusRequester = topBarSearchFocusRequester,
+            focusDownRequester = filterRow1FocusRequester
         )
 
         // FILTER & SORT RIBBON
@@ -95,7 +122,11 @@ fun HomeScreen(
             onYearSelected = { viewModel.selectYear(it) },
             selectedCountry = selectedCountry,
             onCountrySelected = { viewModel.selectCountry(it) },
-            onResetFilters = { viewModel.resetFilters() }
+            onResetFilters = { viewModel.resetFilters() },
+            row1FocusRequester = filterRow1FocusRequester,
+            row2FocusRequester = filterRow2FocusRequester,
+            focusUpRequester = topBarSearchFocusRequester,
+            focusDownRequester = firstCardFocusRequester
         )
 
         // 6-COLUMN VERTICAL GRID (2 rows of 6 cards on screen at a time, scrolling down)
@@ -138,11 +169,21 @@ fun HomeScreen(
                 verticalArrangement = Arrangement.spacedBy(10.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
-                items(displayMovies) { movie ->
+                itemsIndexed(displayMovies) { index, movie ->
+                    val cardFocusMod = if (index == 0) {
+                        Modifier
+                            .focusRequester(firstCardFocusRequester)
+                            .focusProperties { up = filterRow2FocusRequester }
+                    } else if (index < 6) {
+                        Modifier.focusProperties { up = filterRow2FocusRequester }
+                    } else {
+                        Modifier
+                    }
                     MovieCard(
                         movie = movie,
                         onClick = { onMovieSelect(movie) },
-                        onFocus = { /* card focused */ }
+                        onFocus = { /* card focused */ },
+                        cardModifier = cardFocusMod
                     )
                 }
             }

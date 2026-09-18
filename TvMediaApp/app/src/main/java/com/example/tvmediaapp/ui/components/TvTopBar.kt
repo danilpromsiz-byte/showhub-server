@@ -15,6 +15,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -39,6 +42,8 @@ fun TvTopBar(
     hasUpdateAvailable: Boolean = false,
     appVersion: String = "",
     currentScreenName: String = "home",
+    focusDownRequester: FocusRequester? = null,
+    topBarFocusRequester: FocusRequester? = null,
     modifier: Modifier = Modifier
 ) {
     val accent = LocalAccentColor.current
@@ -89,6 +94,9 @@ fun TvTopBar(
         }
 
         // Top Navigation items: Search, Favorites, History, Settings, Update
+        val downMod = if (focusDownRequester != null) Modifier.focusProperties { down = focusDownRequester } else Modifier
+        val searchFocusMod = if (topBarFocusRequester != null) Modifier.focusRequester(topBarFocusRequester) else Modifier
+
         Row(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -109,7 +117,10 @@ fun TvTopBar(
                 ),
                 shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                 scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
-                modifier = Modifier.height(38.dp)
+                modifier = Modifier
+                    .height(38.dp)
+                    .then(searchFocusMod)
+                    .then(downMod)
             ) {
                 Text(
                     text = "Поиск",
@@ -134,7 +145,9 @@ fun TvTopBar(
                 ),
                 shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                 scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
-                modifier = Modifier.height(38.dp)
+                modifier = Modifier
+                    .height(38.dp)
+                    .then(downMod)
             ) {
                 Text(
                     text = "Избранное",
@@ -159,7 +172,9 @@ fun TvTopBar(
                 ),
                 shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                 scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
-                modifier = Modifier.height(38.dp)
+                modifier = Modifier
+                    .height(38.dp)
+                    .then(downMod)
             ) {
                 Text(
                     text = "История",
@@ -185,7 +200,9 @@ fun TvTopBar(
                     ),
                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                     scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
-                    modifier = Modifier.height(38.dp)
+                    modifier = Modifier
+                        .height(38.dp)
+                        .then(downMod)
                 ) {
                     Text(
                         text = "Настройки",
@@ -211,7 +228,9 @@ fun TvTopBar(
                     ),
                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                     scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
-                    modifier = Modifier.height(38.dp)
+                    modifier = Modifier
+                        .height(38.dp)
+                        .then(downMod)
                 ) {
                     Text(
                         text = if (hasUpdateAvailable) "Обновить" else "Обновления",

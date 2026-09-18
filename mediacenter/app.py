@@ -338,13 +338,13 @@ def get_media_poster(title: str = Query(...), year: Optional[str] = None, kp_id:
 def check_updates() -> Dict[str, Any]:
     return {
         "success": True,
-        "version_name": "2.6.0",
-        "version_code": 39,
+        "version_name": "2.6.1",
+        "version_code": 40,
         "force_update": True,
-        "min_version_code": 39,
+        "min_version_code": 40,
         "apk_url": "https://showhub-server.onrender.com/ShowHub.apk",
         "download_url": "https://showhub-server.onrender.com/ShowHub.apk",
-        "changelog": "ShowHub TV v2.6.0: Быстрый параллельный поиск потоков, предпросмотр видео без спиннера с 12/22 мин, высокое качество постеров, улучшенный плеер OSD и обновленный интерфейс кнопок."
+        "changelog": "ShowHub TV v2.6.1: Исправлена навигация фокуса пульта между верхним меню, фильтрами и каталогом фильмов, унифицирован стиль кнопки возврата в настройках."
     }
 
 @app.get("/api/catalog/stats")

@@ -89,16 +89,16 @@ class MainActivity : ComponentActivity() {
                 pInfo.versionCode
             }
         } catch (e: Exception) {
-            39
+            40
         }
     }
 
     fun getInstalledVersionName(): String {
         return try {
             val pInfo = packageManager.getPackageInfo(packageName, 0)
-            pInfo.versionName ?: "2.6.0"
+            pInfo.versionName ?: "2.6.1"
         } catch (e: Exception) {
-            "2.6.0"
+            "2.6.1"
         }
     }
 

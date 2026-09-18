@@ -14,12 +14,16 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.foundation.lazy.list.TvLazyRow
 import androidx.tv.foundation.lazy.list.items
+import androidx.tv.foundation.lazy.list.itemsIndexed
 import androidx.tv.material3.Border
 import androidx.tv.material3.Button
 import androidx.tv.material3.ButtonDefaults
@@ -100,6 +104,10 @@ fun FilterBar(
     selectedCountry: String,
     onCountrySelected: (String) -> Unit,
     onResetFilters: () -> Unit,
+    row1FocusRequester: FocusRequester? = null,
+    row2FocusRequester: FocusRequester? = null,
+    focusUpRequester: FocusRequester? = null,
+    focusDownRequester: FocusRequester? = null,
     modifier: Modifier = Modifier
 ) {
     val accent = LocalAccentColor.current
@@ -111,14 +119,20 @@ fun FilterBar(
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         // ROW 1: Content Type + Sort + Reset
+        val row1DirectionMod = Modifier.focusProperties {
+            if (focusUpRequester != null) up = focusUpRequester
+            if (row2FocusRequester != null) down = row2FocusRequester
+        }
+
         TvLazyRow(
             contentPadding = PaddingValues(horizontal = 48.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             // Type Chips
-            items(TYPE_OPTIONS) { (typeKey, typeLabel) ->
+            itemsIndexed(TYPE_OPTIONS) { index, (typeKey, typeLabel) ->
                 val isSelected = typeKey == selectedType
+                val firstMod = if (index == 0 && row1FocusRequester != null) Modifier.focusRequester(row1FocusRequester) else Modifier
                 Button(
                     onClick = { onTypeSelected(typeKey) },
                     colors = ButtonDefaults.colors(
@@ -129,7 +143,10 @@ fun FilterBar(
                     ),
                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                     scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
-                    modifier = Modifier.height(34.dp)
+                    modifier = Modifier
+                        .height(34.dp)
+                        .then(firstMod)
+                        .then(row1DirectionMod)
                 ) {
                     Text(
                         text = typeLabel,
@@ -160,7 +177,9 @@ fun FilterBar(
                     ),
                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                     scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
-                    modifier = Modifier.height(34.dp)
+                    modifier = Modifier
+                        .height(34.dp)
+                        .then(row1DirectionMod)
                 ) {
                     Text(
                         text = sortLabel,
@@ -183,7 +202,9 @@ fun FilterBar(
                     ),
                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                     scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
-                    modifier = Modifier.height(34.dp)
+                    modifier = Modifier
+                        .height(34.dp)
+                        .then(row1DirectionMod)
                 ) {
                     Text(
                         text = "Сброс",
@@ -195,13 +216,19 @@ fun FilterBar(
         }
 
         // ROW 2: Genres Ribbon
+        val row2DirectionMod = Modifier.focusProperties {
+            if (row1FocusRequester != null) up = row1FocusRequester
+            if (focusDownRequester != null) down = focusDownRequester
+        }
+
         TvLazyRow(
             contentPadding = PaddingValues(horizontal = 48.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            items(GENRES_LIST) { genre ->
+            itemsIndexed(GENRES_LIST) { index, genre ->
                 val isSelected = genre == selectedGenre
+                val firstMod = if (index == 0 && row2FocusRequester != null) Modifier.focusRequester(row2FocusRequester) else Modifier
                 Button(
                     onClick = { onGenreSelected(genre) },
                     colors = ButtonDefaults.colors(
@@ -216,7 +243,10 @@ fun FilterBar(
                     ),
                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                     scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
-                    modifier = Modifier.height(32.dp)
+                    modifier = Modifier
+                        .height(32.dp)
+                        .then(firstMod)
+                        .then(row2DirectionMod)
                 ) {
                     Text(
                         text = genre,

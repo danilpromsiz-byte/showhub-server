@@ -74,7 +74,8 @@ fun MovieCard(
     movie: Movie,
     onClick: () -> Unit,
     onFocus: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    cardModifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val accent = LocalAccentColor.current
@@ -204,6 +205,7 @@ fun MovieCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .aspectRatio(2f / 3f)
+                    .then(cardModifier)
                     .onFocusChanged { focusState ->
                         isFocused = focusState.isFocused
                         if (focusState.isFocused) {

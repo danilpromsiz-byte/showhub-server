@@ -3,7 +3,8 @@ package com.example.tvmediaapp.data.models
 data class StreamOption(
     val quality: String,
     val url: String,
-    val isHls: Boolean = true
+    val isHls: Boolean = true,
+    val source: String = ""
 )
 
 data class EpisodeInfo(

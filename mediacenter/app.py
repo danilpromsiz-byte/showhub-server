@@ -30,6 +30,7 @@ from mediacenter.sources.torrents import TorrentsSource
 from mediacenter.sources.hdrezka import HDRezkaSource
 from mediacenter.sources.filmix import FilmixSource
 from mediacenter.sources.videocdn import VideoCDNSource
+from mediacenter.sources.kodik import KodikSource
 from mediacenter.sources.base import MediaItem, StreamResult
 
 app = FastAPI(title="MediaCenter TV Aggregator", version="1.0.0")
@@ -54,6 +55,7 @@ torrents = TorrentsSource()
 hdrezka = HDRezkaSource()
 filmix = FilmixSource()
 videocdn = VideoCDNSource()
+kodik = KodikSource()
 
 @app.api_route("/", methods=["GET", "HEAD"], response_class=HTMLResponse)
 async def serve_index():
@@ -922,19 +924,33 @@ def _fetch_media_streams(
             pass
         return None
 
+    def _resolve_kodik():
+        try:
+            if clean_title:
+                k_items = kodik.search(clean_title, year=year_int, kp_id=resolved_kp)
+                if k_items:
+                    best = k_items[0]
+                    k_res = kodik.get_streams(best.id, season=season, episode=episode, audio_id=audio_id)
+                    if k_res.streams or k_res.embed_url:
+                        return ("kodik", k_res.model_dump())
+        except Exception:
+            pass
+        return None
+
     def _resolve_torrents():
         if clean_title:
             try:
-                torr_items = torrents.search(clean_title)
+                torr_items = torrents.search(clean_title, year=year_int, season=season, episode=episode)
                 if torr_items:
                     torr_streams = [
                         {
-                            "quality": f"{t.extra_data.get('size', '')} (Seeds: {t.extra_data.get('seeds', '0')})",
+                            "quality": f"{t.extra_data.get('size', '')} (Сиды: {t.extra_data.get('seeds', '0')})",
                             "url": t.extra_data.get("stream_url", ""),
                             "stream_type": "torrent",
-                            "headers": {}
+                            "headers": {},
+                            "magnet": t.extra_data.get("magnet", "")
                         }
-                        for t in torr_items[:5]
+                        for t in torr_items[:8]
                     ]
                     return ("torrents", {
                         "source_name": "Rutor / TorrServe",
@@ -948,10 +964,11 @@ def _fetch_media_streams(
                 pass
         return None
 
-    with ThreadPoolExecutor(max_workers=6) as executor:
+    with ThreadPoolExecutor(max_workers=7) as executor:
         futures = [
             executor.submit(_resolve_filmix),
             executor.submit(_resolve_hdrezka),
+            executor.submit(_resolve_kodik),
             executor.submit(_resolve_videocdn),
             executor.submit(_resolve_delivembd),
             executor.submit(_resolve_bazon),

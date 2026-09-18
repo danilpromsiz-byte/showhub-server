@@ -284,74 +284,66 @@ fun ShowHubLogo(
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier
     ) {
-        // Neon Emblem: Glowing Cinema Prism / Play Icon
+        // Obsidian Ceramic / Slate Emblem Tile
         Box(
             modifier = Modifier
-                .size(32.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(
-                    brush = Brush.linearGradient(
-                        colors = listOf(
-                            accent,
-                            Color(0xFF8A2BE2),
-                            Color(0xFF4A00E0)
-                        )
-                    )
-                )
+                .size(30.dp)
+                .clip(RoundedCornerShape(7.dp))
+                .background(Color(0xFF0F172A))
                 .border(
                     width = 1.dp,
-                    color = Color.White.copy(alpha = 0.4f),
-                    shape = RoundedCornerShape(8.dp)
+                    color = Color.White.copy(alpha = 0.25f),
+                    shape = RoundedCornerShape(7.dp)
                 ),
             contentAlignment = Alignment.Center
         ) {
             AppIcon(
                 resId = R.drawable.ic_play_arrow,
                 tint = Color.White,
-                size = 16.dp
+                size = 17.dp
             )
         }
 
-        Spacer(modifier = Modifier.width(10.dp))
+        Spacer(modifier = Modifier.width(9.dp))
 
-        // Styled Typography
+        // Mature Cinematic Typography
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 text = "SHOW",
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Black,
-                color = TextWhite,
-                letterSpacing = 1.2.sp
+                fontSize = 19.sp,
+                fontWeight = FontWeight.ExtraBold,
+                color = Color.White,
+                letterSpacing = 1.8.sp
             )
             Text(
                 text = "HUB",
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Black,
+                fontSize = 19.sp,
+                fontWeight = FontWeight.ExtraBold,
                 color = accent,
-                letterSpacing = 1.2.sp
+                letterSpacing = 1.8.sp
             )
         }
 
-        Spacer(modifier = Modifier.width(6.dp))
+        Spacer(modifier = Modifier.width(7.dp))
 
-        // Neon TV Badge
+        // Sleek Minimalist TV Badge
         Box(
             modifier = Modifier
                 .clip(RoundedCornerShape(4.dp))
-                .background(Color.White.copy(alpha = 0.12f))
+                .background(Color(0xFF1E293B))
                 .border(
                     width = 1.dp,
-                    color = accent.copy(alpha = 0.7f),
+                    color = Color.White.copy(alpha = 0.18f),
                     shape = RoundedCornerShape(4.dp)
                 )
-                .padding(horizontal = 5.dp, vertical = 1.dp)
+                .padding(horizontal = 5.dp, vertical = 1.5.dp)
         ) {
             Text(
                 text = "TV",
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Black,
-                color = accent,
-                letterSpacing = 0.5.sp
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFFE2E8F0),
+                letterSpacing = 1.sp
             )
         }
 
@@ -359,9 +351,9 @@ fun ShowHubLogo(
             Spacer(modifier = Modifier.width(8.dp))
             Text(
                 text = "v$appVersion",
-                fontSize = 11.sp,
+                fontSize = 10.sp,
                 fontWeight = FontWeight.Medium,
-                color = TextGray
+                color = Color(0xFF64748B)
             )
         }
     }

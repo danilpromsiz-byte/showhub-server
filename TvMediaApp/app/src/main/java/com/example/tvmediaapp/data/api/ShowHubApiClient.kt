@@ -185,14 +185,16 @@ object ShowHubApiClient {
         movie: Movie,
         season: Int? = null,
         episode: Int? = null,
-        audioId: String? = null
+        audioId: String? = null,
+        source: String? = null
     ): List<StreamOption> = withContext(Dispatchers.IO) {
         val directStreams = mutableListOf<StreamOption>()
         val embedStreams = mutableListOf<StreamOption>()
         try {
             val q = URLEncoder.encode(movie.title, "UTF-8")
             val isSeriesStr = if (movie.isSeries) "1" else "0"
-            val sb = StringBuilder("$SERVER_BASE/api/media/streams?source=videocdn&media_id=${movie.id}&kp_id=${movie.id}&title=$q&year=${movie.releaseYear}&is_series=$isSeriesStr")
+            val srcParam = if (source.isNullOrEmpty()) "all" else source.lowercase().trim()
+            val sb = StringBuilder("$SERVER_BASE/api/media/streams?source=$srcParam&media_id=${movie.id}&kp_id=${movie.id}&title=$q&year=${movie.releaseYear}&is_series=$isSeriesStr")
             if (season != null) sb.append("&season=$season")
             if (episode != null) sb.append("&episode=$episode")
             if (!audioId.isNullOrEmpty()) sb.append("&audio_id=").append(URLEncoder.encode(audioId, "UTF-8"))
@@ -200,7 +202,7 @@ object ShowHubApiClient {
             val conn = URL(sb.toString()).openConnection() as HttpURLConnection
             conn.connectTimeout = 15000
             conn.readTimeout = 25000
-            conn.setRequestProperty("User-Agent", "ShowHubTV-Native/2.6.3")
+            conn.setRequestProperty("User-Agent", "ShowHubTV-Native/2.6.7")
             conn.connect()
             if (conn.responseCode == 200) {
                 val body = BufferedReader(InputStreamReader(conn.inputStream, "UTF-8")).use { it.readText() }
@@ -217,13 +219,17 @@ object ShowHubApiClient {
                             val uStr = s.optString("url", "")
                             val sType = s.optString("stream_type", "")
                             if (uStr.startsWith("http") && !uStr.contains("rhtie.mp4")) {
-                                val isDirect = sType == "hls" || sType == "mp4" || uStr.contains(".m3u8") || uStr.contains(".mp4") || uStr.contains("voidboost")
+                                val isDirect = sType == "hls" || sType == "mp4" || sType == "torrent" ||
+                                        uStr.contains(".m3u8") || uStr.contains(".mp4") || uStr.contains("voidboost") ||
+                                        uStr.contains("/stream?link=")
+                                val sourceName = if (sType == "torrent" || src.equals("torrents", ignoreCase = true)) "Торренты (TorrServe)" else src.replaceFirstChar { it.uppercase() }
                                 if (isDirect) {
                                     directStreams.add(
                                         StreamOption(
-                                            quality = qStr,
+                                            quality = if (sType == "torrent") "P2P $qStr" else qStr,
                                             url = uStr,
-                                            isHls = uStr.contains(".m3u8")
+                                            isHls = uStr.contains(".m3u8"),
+                                            source = sourceName
                                         )
                                     )
                                 } else {
@@ -231,7 +237,8 @@ object ShowHubApiClient {
                                         StreamOption(
                                             quality = qStr,
                                             url = uStr,
-                                            isHls = false
+                                            isHls = false,
+                                            source = sourceName
                                         )
                                     )
                                 }
@@ -250,7 +257,8 @@ object ShowHubApiClient {
                             StreamOption(
                                 quality = label,
                                 url = embedUrl,
-                                isHls = false
+                                isHls = false,
+                                source = src.replaceFirstChar { it.uppercase() }
                             )
                         )
                     }

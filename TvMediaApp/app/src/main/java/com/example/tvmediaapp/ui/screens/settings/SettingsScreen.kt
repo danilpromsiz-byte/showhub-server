@@ -101,6 +101,13 @@ val VOICE_OPTIONS = listOf(
     "NewStudio"
 )
 
+val TORRSERVE_HOST_OPTIONS = listOf(
+    Pair("http://127.0.0.1:8090", "Локальный (127.0.0.1:8090)"),
+    Pair("http://192.168.1.100:8090", "LAN 1 (192.168.1.100)"),
+    Pair("http://192.168.0.100:8090", "LAN 2 (192.168.0.100)"),
+    Pair("http://192.168.1.50:8090", "LAN 3 (192.168.1.50)")
+)
+
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 fun SettingsScreen(
@@ -131,6 +138,11 @@ fun SettingsScreen(
     var serverUrl by remember { mutableStateOf(prefs.getString("pref_server_url", "https://showhub-server.onrender.com") ?: "https://showhub-server.onrender.com") }
     var pingResult by remember { mutableStateOf<String?>(null) }
     var isPinging by remember { mutableStateOf(false) }
+
+    // TorrServe State
+    var torrServeHost by remember { mutableStateOf(prefs.getString("pref_torrserve_host", "http://127.0.0.1:8090") ?: "http://127.0.0.1:8090") }
+    var torrPingResult by remember { mutableStateOf<String?>(null) }
+    var isTorrPinging by remember { mutableStateOf(false) }
 
     // Filmix States
     var filmixLogin by remember { mutableStateOf(prefs.getString("filmix_login", "") ?: "") }
@@ -298,7 +310,7 @@ fun SettingsScreen(
                                 color = TextWhite
                             )
                             Text(
-                                text = "Действие по умолчанию при нажатии кнопки «Смотреть онлайн»",
+                                text = "Действие по умолчанию при нажатии кнопки «Смотреть»",
                                 fontSize = 13.sp,
                                 color = TextGray
                             )
@@ -589,10 +601,103 @@ fun SettingsScreen(
                                 )
                             }
 
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            Text(
+                                text = "TorrServe (P2P / Торренты)",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextWhite
+                            )
+                            Text(
+                                text = "Адрес движка TorrServe для стриминга торрент-потоков на ТВ",
+                                fontSize = 13.sp,
+                                color = TextGray
+                            )
+
+                            TvLazyRow(
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                modifier = Modifier.padding(top = 4.dp)
+                            ) {
+                                items(TORRSERVE_HOST_OPTIONS) { (hostVal, hostTitle) ->
+                                    val isCur = hostVal == torrServeHost
+                                    Button(
+                                        onClick = {
+                                            torrServeHost = hostVal
+                                            prefs.edit().putString("pref_torrserve_host", hostVal).apply()
+                                            torrPingResult = null
+                                        },
+                                        colors = ButtonDefaults.colors(
+                                            containerColor = if (isCur) accent else ChipBackground,
+                                            focusedContainerColor = accent,
+                                            contentColor = if (isCur) Color.Black else TextWhite,
+                                            focusedContentColor = Color.Black
+                                        ),
+                                        shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                                        scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                                        modifier = Modifier.height(28.dp)
+                                    ) {
+                                        Text(text = hostTitle, fontSize = 11.sp, fontWeight = if (isCur) FontWeight.Bold else FontWeight.Normal, lineHeight = 13.sp)
+                                    }
+                                }
+                            }
+
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Button(
+                                    onClick = {
+                                        coroutineScope.launch {
+                                            isTorrPinging = true
+                                            torrPingResult = "Проверка TorrServe..."
+                                            val ok = withContext(Dispatchers.IO) {
+                                                try {
+                                                    val url = URL("$torrServeHost/echo")
+                                                    val conn = url.openConnection() as HttpURLConnection
+                                                    conn.connectTimeout = 3000
+                                                    conn.readTimeout = 3000
+                                                    conn.connect()
+                                                    conn.responseCode == 200
+                                                } catch (e: Exception) {
+                                                    false
+                                                }
+                                            }
+                                            isTorrPinging = false
+                                            torrPingResult = if (ok) {
+                                                "TorrServe доступен и готов к воспроизведению!"
+                                            } else {
+                                                "TorrServe не отвечает по адресу $torrServeHost"
+                                            }
+                                        }
+                                    },
+                                    colors = ButtonDefaults.colors(
+                                        containerColor = accent,
+                                        focusedContainerColor = Color.White,
+                                        contentColor = Color.Black
+                                    ),
+                                    shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                                    modifier = Modifier.height(28.dp)
+                                ) {
+                                    Text(text = if (isTorrPinging) "Проверка..." else "Тест TorrServe", fontWeight = FontWeight.Bold, fontSize = 11.sp, lineHeight = 13.sp)
+                                }
+
+                                if (torrPingResult != null) {
+                                    Text(
+                                        text = torrPingResult ?: "",
+                                        fontSize = 13.sp,
+                                        color = if (torrPingResult?.contains("готов") == true) accent else Color.Red
+                                    )
+                                }
+                            }
+
                             Spacer(modifier = Modifier.height(8.dp))
 
                             Text(
-                                text = "Источники контента: HDRezka (прямой поток на ТВ), Bazon, VideoCDN, Delivembd, Filmix",
+                                text = "Источники контента: HDRezka (прямой поток на ТВ), Kodik, Filmix PRO, VideoCDN, Collaps, Bazon, Rutor / TorrServe (P2P)",
                                 fontSize = 13.sp,
                                 color = TextGray
                             )

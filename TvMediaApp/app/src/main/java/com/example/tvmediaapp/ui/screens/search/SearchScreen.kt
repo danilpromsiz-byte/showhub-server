@@ -44,11 +44,16 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.view.KeyEvent
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.input.key.onKeyEvent
 import androidx.tv.foundation.lazy.grid.TvGridCells
 import androidx.tv.foundation.lazy.grid.TvLazyVerticalGrid
 import androidx.tv.foundation.lazy.grid.items
+import androidx.tv.foundation.lazy.grid.itemsIndexed
 import androidx.tv.foundation.lazy.list.TvLazyRow
 import androidx.tv.foundation.lazy.list.items
+import androidx.tv.foundation.lazy.list.itemsIndexed
 import androidx.tv.material3.Border
 import androidx.tv.material3.Button
 import androidx.tv.material3.ButtonDefaults
@@ -104,6 +109,8 @@ fun SearchScreen(
     var isSearching by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
     val searchInputFocusRequester = remember { FocusRequester() }
+    val historyFocusRequester = remember { FocusRequester() }
+    val resultsFocusRequester = remember { FocusRequester() }
 
     LaunchedEffect(Unit) {
         delay(150)
@@ -234,6 +241,26 @@ fun SearchScreen(
                             .fillMaxWidth()
                             .focusRequester(searchInputFocusRequester)
                             .onFocusChanged { isInputFocused = it.isFocused }
+                            .onKeyEvent { keyEvent ->
+                                if (keyEvent.nativeKeyEvent.action == KeyEvent.ACTION_DOWN) {
+                                    when (keyEvent.nativeKeyEvent.keyCode) {
+                                        KeyEvent.KEYCODE_DPAD_DOWN -> {
+                                            if (recentQueries.isNotEmpty()) {
+                                                try { historyFocusRequester.requestFocus(); true } catch (_: Exception) { false }
+                                            } else if (results.isNotEmpty()) {
+                                                try { resultsFocusRequester.requestFocus(); true } catch (_: Exception) { false }
+                                            } else false
+                                        }
+                                        KeyEvent.KEYCODE_ENTER,
+                                        KeyEvent.KEYCODE_DPAD_CENTER -> {
+                                            if (results.isNotEmpty()) {
+                                                try { resultsFocusRequester.requestFocus(); true } catch (_: Exception) { false }
+                                            } else false
+                                        }
+                                        else -> false
+                                    }
+                                } else false
+                            }
                     )
                 }
 
@@ -274,8 +301,24 @@ fun SearchScreen(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     modifier = Modifier.weight(1f)
                 ) {
-                    items(recentQueries) { histQuery ->
+                    itemsIndexed(recentQueries) { hIdx, histQuery ->
                         val isSelected = query == histQuery
+                        val chipMod = if (hIdx == 0) {
+                            Modifier
+                                .height(28.dp)
+                                .focusRequester(historyFocusRequester)
+                                .focusProperties {
+                                    up = searchInputFocusRequester
+                                    down = resultsFocusRequester
+                                }
+                        } else {
+                            Modifier
+                                .height(28.dp)
+                                .focusProperties {
+                                    up = searchInputFocusRequester
+                                    down = resultsFocusRequester
+                                }
+                        }
                         Button(
                             onClick = { performSearch(histQuery) },
                             colors = ButtonDefaults.colors(
@@ -287,7 +330,7 @@ fun SearchScreen(
                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                             scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
                             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                            modifier = Modifier.height(28.dp)
+                            modifier = chipMod
                         ) {
                             Text(
                                 text = histQuery,
@@ -358,11 +401,25 @@ fun SearchScreen(
                 verticalArrangement = Arrangement.spacedBy(10.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
-                items(results) { movie ->
+                itemsIndexed(results) { rIdx, movie ->
+                    val cardMod = if (rIdx == 0) {
+                        Modifier
+                            .focusRequester(resultsFocusRequester)
+                            .focusProperties {
+                                up = if (recentQueries.isNotEmpty()) historyFocusRequester else searchInputFocusRequester
+                            }
+                    } else if (rIdx < 6) {
+                        Modifier.focusProperties {
+                            up = if (recentQueries.isNotEmpty()) historyFocusRequester else searchInputFocusRequester
+                        }
+                    } else {
+                        Modifier
+                    }
                     MovieCard(
                         movie = movie,
                         onClick = { onMovieSelect(movie) },
-                        onFocus = {}
+                        onFocus = {},
+                        modifier = cardMod
                     )
                 }
             }

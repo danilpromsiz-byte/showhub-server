@@ -1,5 +1,6 @@
 package com.example.tvmediaapp.ui.screens.details
 
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
@@ -7,6 +8,8 @@ import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.focusable
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -109,17 +112,39 @@ fun DetailsScreen(
         historyManager.getProgress(movie.id)
     }
 
+    val prefs = remember { context.getSharedPreferences("showhub_prefs", Context.MODE_PRIVATE) }
     var currentMovie by remember { mutableStateOf(movie) }
     var selectedSeason by remember { mutableStateOf(savedHistory?.season ?: 1) }
     var selectedEpisode by remember { mutableStateOf(savedHistory?.episode ?: 1) }
     var selectedAudioId by remember { mutableStateOf(savedHistory?.audioId ?: "") }
-    var selectedQuality by remember { mutableStateOf("1080p") }
+    var selectedQuality by remember { mutableStateOf(prefs.getString("pref_quality", "1080p") ?: "1080p") }
     var isResolving by remember { mutableStateOf(false) }
     var streamStatus by remember { mutableStateOf<String?>(null) }
     var streamOptions by remember { mutableStateOf<List<StreamOption>>(emptyList()) }
     var selectedDetailTab by remember { mutableIntStateOf(0) }
     var comments by remember { mutableStateOf<List<CommentItem>>(emptyList()) }
     var isLoadingComments by remember { mutableStateOf(false) }
+
+    fun matchStreamQuality(stream: StreamOption, target: String): Boolean {
+        if (!isDirectVideoStream(stream.url)) return false
+        val sq = stream.quality.lowercase().trim()
+        val tq = target.lowercase().trim()
+        if (tq.contains("ultra")) return sq.contains("ultra")
+        if (tq.contains("4k") || tq.contains("2160")) return sq.contains("4k") || sq.contains("2160")
+        if (tq == "1080p" || tq == "1080") return sq.contains("1080") && !sq.contains("ultra")
+        return sq.contains(tq)
+    }
+
+    fun pickSafePreviewStream(streams: List<StreamOption>): String? {
+        val nonPremium = streams.filter {
+            val q = it.quality.lowercase()
+            !q.contains("ultra") && !q.contains("4k") && !q.contains("2160") && !q.contains("vip") && isDirectVideoStream(it.url)
+        }
+        return nonPremium.firstOrNull { it.quality.contains("720") }?.url
+            ?: nonPremium.firstOrNull { it.quality.contains("1080") }?.url
+            ?: nonPremium.firstOrNull { it.quality.contains("480") }?.url
+            ?: nonPremium.firstOrNull()?.url
+    }
 
     // Focus Requesters for instant TV remote control & bidirectional navigation
     val playButtonFocusRequester = remember { FocusRequester() }
@@ -130,6 +155,7 @@ fun DetailsScreen(
     val backButtonFocusRequester = remember { FocusRequester() }
     val leftPaneFocusRequester = remember { FocusRequester() }
     val tabsFocusRequester = remember { FocusRequester() }
+    val episodesFocusRequester = remember { FocusRequester() }
 
     // Automatically focus the primary play button as soon as movie card opens
     LaunchedEffect(Unit) {
@@ -171,7 +197,8 @@ fun DetailsScreen(
                     year = currentMovie.releaseYear,
                     isSeries = currentMovie.isSeries,
                     season = selectedSeason,
-                    episode = selectedEpisode
+                    episode = selectedEpisode,
+                    translatorId = selectedAudioId.ifEmpty { null }
                 )
             }
             val serverDeferred = async {
@@ -198,7 +225,7 @@ fun DetailsScreen(
     LaunchedEffect(currentMovie.id, streamOptions.isNotEmpty()) {
         delay(1000)
         if (detailsPreviewPlayer == null) {
-            var streamUrl: String? = streamOptions.firstOrNull { isDirectVideoStream(it.url) }?.url
+            var streamUrl: String? = pickSafePreviewStream(streamOptions)
             if (streamUrl.isNullOrEmpty()) {
                 try {
                     val nativeStreams = RezkaNativeResolver.resolveStreams(
@@ -208,7 +235,7 @@ fun DetailsScreen(
                         season = if (currentMovie.isSeries) selectedSeason else 1,
                         episode = if (currentMovie.isSeries) selectedEpisode else 1
                     )
-                    streamUrl = nativeStreams.firstOrNull { isDirectVideoStream(it.url) }?.url
+                    streamUrl = pickSafePreviewStream(nativeStreams)
                 } catch (_: Exception) {}
             }
             if (streamUrl.isNullOrEmpty()) {
@@ -302,7 +329,8 @@ fun DetailsScreen(
                     year = currentMovie.releaseYear,
                     isSeries = currentMovie.isSeries,
                     season = targetSeason,
-                    episode = targetEpisode
+                    episode = targetEpisode,
+                    translatorId = targetAudioId.ifEmpty { null }
                 )
             }
             val serverDeferred = async {
@@ -324,7 +352,8 @@ fun DetailsScreen(
             isResolving = false
 
             if (streams.isNotEmpty()) {
-                val matched = streams.firstOrNull { it.quality.contains(selectedQuality) && isDirectVideoStream(it.url) }
+                val matched = streams.firstOrNull { matchStreamQuality(it, selectedQuality) }
+                    ?: streams.firstOrNull { isDirectVideoStream(it.url) && !it.quality.contains("ultra", ignoreCase = true) && !it.quality.contains("4k", ignoreCase = true) }
                     ?: streams.firstOrNull { isDirectVideoStream(it.url) }
                     ?: streams.first()
                 streamStatus = "Найден поток ${matched.quality}! Запуск..."
@@ -736,7 +765,7 @@ fun DetailsScreen(
                                     size = 14.dp
                                 )
                                 Text(
-                                    text = if (isResolving) "Поиск потока..." else "Смотреть онлайн",
+                                    text = if (isResolving) "Поиск потока..." else "Смотреть",
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 11.sp,
                                     lineHeight = 13.sp
@@ -819,7 +848,8 @@ fun DetailsScreen(
                                             year = currentMovie.releaseYear,
                                             isSeries = currentMovie.isSeries,
                                             season = selectedSeason,
-                                            episode = selectedEpisode
+                                            episode = selectedEpisode,
+                                            translatorId = selectedAudioId.ifEmpty { null }
                                         )
                                     }
                                     val serverDeferred = async {
@@ -833,7 +863,8 @@ fun DetailsScreen(
                                     streams = (nativeDeferred.await() + serverDeferred.await()).distinctBy { it.url }
                                 }
                                 if (streams.isNotEmpty()) {
-                                    val matched = streams.firstOrNull { it.quality.contains(selectedQuality) && isDirectVideoStream(it.url) }
+                                    val matched = streams.firstOrNull { matchStreamQuality(it, selectedQuality) }
+                                        ?: streams.firstOrNull { isDirectVideoStream(it.url) && !it.quality.contains("ultra", ignoreCase = true) && !it.quality.contains("4k", ignoreCase = true) }
                                         ?: streams.firstOrNull { isDirectVideoStream(it.url) }
                                         ?: streams.first()
                                     try {
@@ -1031,7 +1062,7 @@ fun DetailsScreen(
                         val isSelected = selectedDetailTab == index
                         val tabMod = if (index == 0) {
                             Modifier
-                                .height(34.dp)
+                                .height(26.dp)
                                 .focusRequester(tabsFocusRequester)
                                 .focusProperties {
                                     up = favoriteButtonFocusRequester
@@ -1039,7 +1070,7 @@ fun DetailsScreen(
                                 }
                         } else {
                             Modifier
-                                .height(34.dp)
+                                .height(26.dp)
                                 .focusProperties {
                                     up = favoriteButtonFocusRequester
                                 }
@@ -1054,23 +1085,23 @@ fun DetailsScreen(
                             ),
                             border = ButtonDefaults.border(
                                 border = Border(BorderStroke(1.dp, if (isSelected) accent else Color.Transparent)),
-                                focusedBorder = Border(BorderStroke(2.5.dp, TextWhite))
+                                focusedBorder = Border(BorderStroke(2.dp, TextWhite))
                             ),
                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                             scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.04f),
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
                             modifier = tabMod
                         ) {
                             Text(
                                 text = tabTitle,
-                                fontSize = 13.sp,
+                                fontSize = 11.sp,
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                             )
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
                 when (selectedDetailTab) {
                     0 -> {
@@ -1079,7 +1110,7 @@ fun DetailsScreen(
                         if (currentMovie.audioTracks.isNotEmpty()) {
                             Text(
                                 text = "Озвучка / Перевод:",
-                                fontSize = 14.sp,
+                                fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = TextWhite
                             )
@@ -1090,7 +1121,7 @@ fun DetailsScreen(
                                     Button(
                                         onClick = {
                                             selectedAudioId = track.id
-                                            startPlayback(targetAudioId = track.id, startPos = 0L)
+                                            startPlayback(targetSeason = selectedSeason, targetEpisode = selectedEpisode, targetAudioId = track.id)
                                         },
                                         colors = ButtonDefaults.colors(
                                             containerColor = if (isSelected) accent else ChipBackground,
@@ -1101,68 +1132,9 @@ fun DetailsScreen(
                                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                                         scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
                                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                                        modifier = Modifier.height(28.dp)
+                                        modifier = Modifier.height(26.dp)
                                     ) {
                                         Text(text = track.name, fontSize = 11.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
-                                    }
-                                }
-                            }
-                            Spacer(modifier = Modifier.height(10.dp))
-                        }
-
-                        // Quality Selector Ribbon with HDrezka Premium Distinction
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Text(text = "Качество:", fontSize = 12.sp, color = TextGray)
-                            val goldColor = Color(0xFFFFD700)
-                            listOf("1080p Ultra", "1080p", "720p").forEach { quality ->
-                                val isSelected = quality == selectedQuality
-                                val isPremium = quality.contains("Ultra", ignoreCase = true) || quality.contains("4K", ignoreCase = true)
-                                Button(
-                                    onClick = { selectedQuality = quality },
-                                    colors = ButtonDefaults.colors(
-                                        containerColor = when {
-                                            isSelected && isPremium -> goldColor
-                                            isSelected -> accent
-                                            isPremium -> Color(0xFF2B2200)
-                                            else -> ChipBackground
-                                        },
-                                        focusedContainerColor = if (isPremium) goldColor else accent,
-                                        contentColor = when {
-                                            isSelected -> Color.Black
-                                            isPremium -> goldColor
-                                            else -> TextWhite
-                                        },
-                                        focusedContentColor = Color.Black
-                                    ),
-                                    border = ButtonDefaults.border(
-                                        border = Border(BorderStroke(1.dp, if (isPremium) goldColor else (if (isSelected) accent else Color.Transparent))),
-                                        focusedBorder = Border(BorderStroke(2.dp, if (isPremium) Color.White else TextWhite))
-                                    ),
-                                    shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
-                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                                    modifier = Modifier.height(28.dp)
-                                ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                    ) {
-                                        if (isPremium) {
-                                            AppIcon(
-                                                resId = R.drawable.ic_star,
-                                                tint = if (isSelected) Color.Black else goldColor,
-                                                size = 11.dp
-                                            )
-                                        }
-                                        Text(
-                                            text = if (isPremium) "$quality ★ VIP" else quality,
-                                            fontSize = 11.sp,
-                                            lineHeight = 13.sp,
-                                            fontWeight = if (isSelected || isPremium) FontWeight.Bold else FontWeight.Normal
-                                        )
                                     }
                                 }
                             }
@@ -1170,11 +1142,11 @@ fun DetailsScreen(
 
                         // SERIES: Seasons & Episodes
                         if (currentMovie.isSeries && currentMovie.seasons.isNotEmpty()) {
-                            Spacer(modifier = Modifier.height(14.dp))
-                            Text(text = "Сезоны:", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextWhite)
-                            Spacer(modifier = Modifier.height(6.dp))
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text(text = "Сезоны:", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextWhite)
+                            Spacer(modifier = Modifier.height(5.dp))
 
-                            TvLazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            TvLazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 items(currentMovie.seasons) { season ->
                                     val isSelected = season.seasonNumber == selectedSeason
                                     Button(
@@ -1188,28 +1160,28 @@ fun DetailsScreen(
                                             contentColor = if (isSelected) Color.Black else TextWhite,
                                             focusedContentColor = Color.Black
                                         ),
-                                        shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                                        shape = ButtonDefaults.shape(RoundedCornerShape(6.dp)),
                                         scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
-                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                                        modifier = Modifier.height(28.dp)
+                                        contentPadding = PaddingValues(horizontal = 7.dp, vertical = 0.dp),
+                                        modifier = Modifier.height(24.dp)
                                     ) {
-                                        Text(text = season.title, fontSize = 11.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
+                                        Text(text = season.title, fontSize = 10.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
                                     }
                                 }
                             }
 
-                            Spacer(modifier = Modifier.height(10.dp))
+                            Spacer(modifier = Modifier.height(8.dp))
 
                             val activeSeason = currentMovie.seasons.firstOrNull { it.seasonNumber == selectedSeason } ?: currentMovie.seasons.first()
                             Text(
                                 text = "Серии (${activeSeason.episodes.size}):",
-                                fontSize = 13.sp,
+                                fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = TextWhite
                             )
-                            Spacer(modifier = Modifier.height(6.dp))
+                            Spacer(modifier = Modifier.height(5.dp))
 
-                            TvLazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            TvLazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 items(activeSeason.episodes) { ep ->
                                     val isSelected = ep.episodeNumber == selectedEpisode
                                     Button(
@@ -1227,12 +1199,12 @@ fun DetailsScreen(
                                             border = Border(border = BorderStroke(1.dp, if (isSelected) accent else Color.Transparent)),
                                             focusedBorder = Border(border = BorderStroke(2.dp, TextWhite))
                                         ),
-                                        shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                                        shape = ButtonDefaults.shape(RoundedCornerShape(6.dp)),
                                         scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
-                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                                        modifier = Modifier.height(28.dp)
+                                        contentPadding = PaddingValues(horizontal = 7.dp, vertical = 0.dp),
+                                        modifier = Modifier.height(24.dp)
                                     ) {
-                                        Text(text = ep.title, fontSize = 11.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
+                                        Text(text = ep.title, fontSize = 10.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
                                     }
                                 }
                             }
@@ -1240,17 +1212,28 @@ fun DetailsScreen(
                     }
 
                     1 -> {
-                        // TAB 1: ОПИСАНИЕ И ДЕТАЛИ
+                        // TAB 1: ОПИСАНИЕ И ДЕТАЛИ (С возможностью скролла пультом)
+                        var isDescFocused by remember { mutableStateOf(false) }
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(8.dp))
-                                .background(Color.White.copy(alpha = 0.05f))
-                                .padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                                .background(Color.White.copy(alpha = if (isDescFocused) 0.10f else 0.05f))
+                                .border(
+                                    width = if (isDescFocused) 2.dp else 1.dp,
+                                    color = if (isDescFocused) accent else Color.White.copy(alpha = 0.1f),
+                                    shape = RoundedCornerShape(8.dp)
+                                )
+                                .padding(16.dp)
+                                .focusable()
+                                .onFocusChanged { isDescFocused = it.isFocused }
+                                .focusProperties {
+                                    up = tabsFocusRequester
+                                },
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             Text(
-                                text = "Сюжет:",
+                                text = "Сюжет фильма / сериала:",
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = accent
@@ -1261,7 +1244,7 @@ fun DetailsScreen(
                                 lineHeight = 22.sp,
                                 color = TextWhite
                             )
-                            Spacer(modifier = Modifier.height(8.dp))
+                            Spacer(modifier = Modifier.height(6.dp))
                             if (currentMovie.director.isNotEmpty()) {
                                 Text(text = "Режиссёр: ${currentMovie.director}", fontSize = 13.sp, color = TextGray)
                             }
@@ -1275,7 +1258,7 @@ fun DetailsScreen(
                     }
 
                     2 -> {
-                        // TAB 2: ОТЗЫВЫ ЗРИТЕЛЕЙ
+                        // TAB 2: ОТЗЫВЫ ЗРИТЕЛЕЙ (С фокусом на каждом отзыве и скроллом)
                         if (isLoadingComments) {
                             Box(
                                 modifier = Modifier
@@ -1303,15 +1286,23 @@ fun DetailsScreen(
                         } else {
                             Column(
                                 modifier = Modifier.fillMaxWidth(),
-                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                comments.forEach { c ->
+                                comments.forEachIndexed { cIdx, c ->
+                                    var isCommentFocused by remember { mutableStateOf(false) }
                                     Column(
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .clip(RoundedCornerShape(8.dp))
-                                            .background(Color.White.copy(alpha = 0.06f))
+                                            .background(Color.White.copy(alpha = if (isCommentFocused) 0.12f else 0.06f))
+                                            .border(
+                                                width = if (isCommentFocused) 2.dp else 1.dp,
+                                                color = if (isCommentFocused) accent else Color.White.copy(alpha = 0.08f),
+                                                shape = RoundedCornerShape(8.dp)
+                                            )
                                             .padding(14.dp)
+                                            .focusable()
+                                            .onFocusChanged { isCommentFocused = it.isFocused }
                                     ) {
                                         Row(
                                             modifier = Modifier.fillMaxWidth(),

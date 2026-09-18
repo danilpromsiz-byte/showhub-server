@@ -26,11 +26,15 @@ class TorrentsSource(BaseSource):
     def _get_base(self) -> str:
         return mirror_manager.get_working_mirror("rutor") or "http://rutor.info"
 
-    def search(self, query: str, year: Optional[int] = None, kp_id: Optional[str] = None) -> List[MediaItem]:
+    def search(self, query: str, year: Optional[int] = None, kp_id: Optional[str] = None, season: Optional[int] = None, episode: Optional[int] = None) -> List[MediaItem]:
         items = []
         base = self._get_base()
         clean_query = query
-        if year:
+        if season:
+            clean_query += f" s{season:02d}"
+            if episode:
+                clean_query += f"e{episode:02d}"
+        elif year:
             clean_query += f" {year}"
 
         encoded = urllib.parse.quote(clean_query)

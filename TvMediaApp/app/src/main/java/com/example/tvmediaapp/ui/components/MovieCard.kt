@@ -109,7 +109,14 @@ fun MovieCard(
                         year = movie.releaseYear,
                         isSeries = movie.isSeries
                     )
-                    streamUrl = nativeStreams.firstOrNull { isDirectVideoStream(it.url) }?.url
+                    val nonPremium = nativeStreams.filter {
+                        val q = it.quality.lowercase()
+                        !q.contains("ultra") && !q.contains("4k") && !q.contains("vip") && isDirectVideoStream(it.url)
+                    }
+                    streamUrl = nonPremium.firstOrNull { it.quality.contains("720") }?.url
+                        ?: nonPremium.firstOrNull { it.quality.contains("1080") }?.url
+                        ?: nonPremium.firstOrNull { it.quality.contains("480") }?.url
+                        ?: nonPremium.firstOrNull()?.url
                 } catch (e: Exception) {
                     // fallback to server
                 }

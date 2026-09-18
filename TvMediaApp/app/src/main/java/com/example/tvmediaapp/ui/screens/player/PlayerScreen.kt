@@ -1,3 +1,9 @@
+@file:kotlin.OptIn(
+    androidx.tv.material3.ExperimentalTvMaterial3Api::class,
+    androidx.compose.ui.ExperimentalComposeUiApi::class,
+    androidx.media3.common.util.UnstableApi::class
+)
+
 package com.example.tvmediaapp.ui.screens.player
 
 import android.annotation.SuppressLint
@@ -8,10 +14,10 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.FrameLayout
 import androidx.activity.compose.BackHandler
-import androidx.annotation.OptIn
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.focusable
@@ -21,6 +27,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -226,8 +233,7 @@ private fun EmbedWebViewPlayerScreen(
     }
 }
 
-@OptIn(UnstableApi::class)
-@kotlin.OptIn(ExperimentalTvMaterial3Api::class)
+
 @Composable
 private fun NativeExoPlayerScreen(
     movie: Movie,
@@ -240,12 +246,13 @@ private fun NativeExoPlayerScreen(
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val historyManager = remember { WatchHistoryManager(context) }
+    val prefs = remember { context.getSharedPreferences("showhub_prefs", Context.MODE_PRIVATE) }
 
     var currentSeason by remember { mutableIntStateOf(season) }
     var currentEpisode by remember { mutableIntStateOf(episode) }
     var currentStreamUrl by remember { mutableStateOf(movie.videoUrl) }
     var currentAudioId by remember { mutableStateOf(movie.audioTracks.firstOrNull()?.id ?: "") }
-    var selectedQuality by remember { mutableStateOf("1080p") }
+    var selectedQuality by remember { mutableStateOf(prefs.getString("pref_quality", "1080p") ?: "1080p") }
     var selectedSource by remember { mutableStateOf("HDrezka") }
     var currentMovieState by remember { mutableStateOf(movie) }
 
@@ -258,6 +265,19 @@ private fun NativeExoPlayerScreen(
     var isLoadingStream by remember { mutableStateOf(false) }
     var isBuffering by remember { mutableStateOf(false) }
     var isTimelineFocused by remember { mutableStateOf(false) }
+
+    // Progressive seek acceleration states
+    var lastSeekTime by remember { mutableLongStateOf(0L) }
+    var seekSpeedLevel by remember { mutableIntStateOf(0) }
+    val seekSteps = remember { listOf(10000L, 15000L, 30000L, 60000L, 120000L) }
+    var seekDeltaBadge by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(seekDeltaBadge) {
+        if (seekDeltaBadge != null) {
+            delay(1200)
+            seekDeltaBadge = null
+        }
+    }
 
     val rootFocusRequester = remember { FocusRequester() }
     val timelineFocusRequester = remember { FocusRequester() }
@@ -273,13 +293,19 @@ private fun NativeExoPlayerScreen(
     val extPlayerFocusRequester = remember { FocusRequester() }
     val episodesRowFocusRequester = remember { FocusRequester() }
 
-    // Fallback: Fetch detailed seasons and episodes in player if missing
+    // Fallback: Fetch detailed seasons, episodes and audio tracks in player if missing
     LaunchedEffect(movie.id) {
-        if (currentMovieState.isSeries && currentMovieState.seasons.isEmpty()) {
+        if ((currentMovieState.isSeries && currentMovieState.seasons.isEmpty()) || currentMovieState.audioTracks.isEmpty()) {
             try {
                 val detailed = ShowHubApiClient.fetchMediaDetails(movie)
-                if (detailed.seasons.isNotEmpty()) {
-                    currentMovieState = detailed
+                if (detailed.seasons.isNotEmpty() || detailed.audioTracks.isNotEmpty()) {
+                    currentMovieState = currentMovieState.copy(
+                        seasons = if (detailed.seasons.isNotEmpty()) detailed.seasons else currentMovieState.seasons,
+                        audioTracks = if (detailed.audioTracks.isNotEmpty()) detailed.audioTracks else currentMovieState.audioTracks
+                    )
+                    if (currentAudioId.isEmpty() && detailed.audioTracks.isNotEmpty()) {
+                        currentAudioId = detailed.audioTracks.first().id
+                    }
                 }
             } catch (_: Exception) {}
         }
@@ -314,47 +340,100 @@ private fun NativeExoPlayerScreen(
             }
     }
 
+    fun matchQuality(streamQuality: String, targetQuality: String): Boolean {
+        val s = streamQuality.lowercase()
+        val t = targetQuality.lowercase()
+        return when {
+            t.contains("ultra") || t.contains("4k") || t.contains("2160") ->
+                s.contains("ultra") || s.contains("4k") || s.contains("2160")
+            t.contains("1080") ->
+                s.contains("1080") && !s.contains("ultra") && !s.contains("vip")
+            t.contains("720") ->
+                s.contains("720")
+            t.contains("480") ->
+                s.contains("480")
+            t.contains("360") ->
+                s.contains("360")
+            else ->
+                s.contains(t)
+        }
+    }
+
     fun switchStream(
         newSeason: Int = currentSeason,
         newEpisode: Int = currentEpisode,
         newAudioId: String = currentAudioId,
-        newQuality: String = selectedQuality
+        newQuality: String = selectedQuality,
+        newSource: String = selectedSource
     ) {
         val isSameEpisode = (newSeason == currentSeason && newEpisode == currentEpisode)
         currentSeason = newSeason
         currentEpisode = newEpisode
         currentAudioId = newAudioId
         selectedQuality = newQuality
+        selectedSource = newSource
         isLoadingStream = true
         coroutineScope.launch {
             try {
                 val savedPos = exoPlayer.currentPosition
                 val nativeDeferred = async {
-                    RezkaNativeResolver.resolveStreams(
-                        title = currentMovieState.title,
-                        year = currentMovieState.releaseYear,
-                        isSeries = currentMovieState.isSeries,
-                        season = newSeason,
-                        episode = newEpisode
-                    )
+                    if (newSource.equals("HDrezka", ignoreCase = true) || newSource.startsWith("HD", ignoreCase = true) || newSource.equals("Все", ignoreCase = true)) {
+                        RezkaNativeResolver.resolveStreams(
+                            title = currentMovieState.title,
+                            year = currentMovieState.releaseYear,
+                            isSeries = currentMovieState.isSeries,
+                            season = newSeason,
+                            episode = newEpisode,
+                            translatorId = newAudioId.ifEmpty { null }
+                        )
+                    } else {
+                        emptyList()
+                    }
                 }
                 val serverDeferred = async {
                     ShowHubApiClient.fetchStreams(
                         movie = currentMovieState,
                         season = if (currentMovieState.isSeries) newSeason else null,
                         episode = if (currentMovieState.isSeries) newEpisode else null,
-                        audioId = newAudioId
+                        audioId = newAudioId.ifEmpty { null },
+                        source = if (newSource.equals("HDrezka", ignoreCase = true)) null else newSource
                     )
                 }
-                val streams = (nativeDeferred.await() + serverDeferred.await()).distinctBy { it.url }
-                val targetStream = streams.firstOrNull { it.quality.contains(newQuality) && isDirectVideoStream(it.url) }
-                    ?: streams.firstOrNull { isDirectVideoStream(it.url) }
-                    ?: streams.firstOrNull()
+                val allResolved = (nativeDeferred.await() + serverDeferred.await()).distinctBy { it.url }
+
+                // Filter by source if specific source chosen
+                val sourceStreams = if (newSource.isNotBlank() && !newSource.equals("Все", ignoreCase = true)) {
+                    val matched = allResolved.filter { s ->
+                        when {
+                            newSource.contains("Torr", ignoreCase = true) ->
+                                s.url.contains(":8090") || s.quality.contains("P2P", ignoreCase = true) || s.source.contains("torrent", ignoreCase = true)
+                            newSource.equals("HDrezka", ignoreCase = true) ->
+                                s.source.equals("HDrezka", ignoreCase = true) || s.url.contains("voidboost") || s.url.contains("rezka")
+                            else ->
+                                s.source.contains(newSource, ignoreCase = true) || s.quality.contains(newSource, ignoreCase = true) || s.url.contains(newSource.lowercase())
+                        }
+                    }
+                    if (matched.isNotEmpty()) matched else allResolved
+                } else {
+                    allResolved
+                }
+
+                // Check TorrServe custom host
+                val customTorrHost = prefs.getString("pref_torrserve_host", "http://127.0.0.1:8090") ?: "http://127.0.0.1:8090"
+                val adjustedStreams = sourceStreams.map { st ->
+                    if (st.url.contains("127.0.0.1:8090") && customTorrHost != "http://127.0.0.1:8090") {
+                        st.copy(url = st.url.replace("http://127.0.0.1:8090", customTorrHost))
+                    } else st
+                }
+
+                val targetStream = adjustedStreams.firstOrNull { matchQuality(it.quality, newQuality) && isDirectVideoStream(it.url) }
+                    ?: adjustedStreams.firstOrNull { isDirectVideoStream(it.url) }
+                    ?: adjustedStreams.firstOrNull()
 
                 if (targetStream != null) {
                     currentStreamUrl = targetStream.url
                     exoPlayer.setMediaItem(MediaItem.fromUri(targetStream.url))
-                    if (isSameEpisode) {
+                    if (isSameEpisode && savedPos > 1000L) {
                         exoPlayer.seekTo(savedPos)
                     } else {
                         exoPlayer.seekTo(0L)
@@ -545,7 +624,8 @@ private fun NativeExoPlayerScreen(
                         Text(
                             text = currentMovieState.title,
                             style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            color = TextWhite
                         )
                         val subText = if (currentMovieState.isSeries) {
                             "Сезон $currentSeason • Серия $currentEpisode"
@@ -598,7 +678,8 @@ private fun NativeExoPlayerScreen(
                                 Button(
                                     onClick = {
                                         activeDrawer = null
-                                        switchStream(currentSeason, currentEpisode, currentAudioId, qual)
+                                        selectedQuality = qual
+                                        switchStream(currentSeason, currentEpisode, currentAudioId, qual, selectedSource)
                                     },
                                     colors = ButtonDefaults.colors(
                                         containerColor = if (isSel) accent else ChipBackground,
@@ -639,7 +720,7 @@ private fun NativeExoPlayerScreen(
                         }
                     }
                 } else if (activeDrawer == "source") {
-                    val sources = listOf("HDrezka", "Filmix", "Collaps", "VideoCDN", "Alloha")
+                    val sources = listOf("HDrezka", "Filmix", "Kodik", "VideoCDN", "Collaps", "Bazon", "Торренты (TorrServe)")
                     Column(
                         modifier = Modifier
                             .align(Alignment.Center)
@@ -661,7 +742,7 @@ private fun NativeExoPlayerScreen(
                                     onClick = {
                                         activeDrawer = null
                                         selectedSource = src
-                                        switchStream(currentSeason, currentEpisode, currentAudioId, selectedQuality)
+                                        switchStream(currentSeason, currentEpisode, currentAudioId, selectedQuality, src)
                                     },
                                     colors = ButtonDefaults.colors(
                                         containerColor = if (isSel) accent else ChipBackground,
@@ -705,7 +786,8 @@ private fun NativeExoPlayerScreen(
                                 Button(
                                     onClick = {
                                         activeDrawer = null
-                                        switchStream(currentSeason, currentEpisode, track.id)
+                                        currentAudioId = track.id
+                                        switchStream(currentSeason, currentEpisode, track.id, selectedQuality, selectedSource)
                                     },
                                     colors = ButtonDefaults.colors(
                                         containerColor = if (isSel) accent else ChipBackground,
@@ -795,7 +877,7 @@ private fun NativeExoPlayerScreen(
                                     Button(
                                         onClick = {
                                             activeDrawer = null
-                                            switchStream(currentSeason, ep.episodeNumber, currentAudioId)
+                                            switchStream(currentSeason, ep.episodeNumber, currentAudioId, selectedQuality, selectedSource)
                                         },
                                         colors = ButtonDefaults.colors(
                                             containerColor = if (isSel) accent else ChipBackground,
@@ -850,7 +932,7 @@ private fun NativeExoPlayerScreen(
                                         val epReq = if (isCurrentEp) Modifier.focusRequester(episodesRowFocusRequester) else Modifier
                                         Button(
                                             onClick = {
-                                                switchStream(currentSeason, ep.episodeNumber, currentAudioId)
+                                                switchStream(currentSeason, ep.episodeNumber, currentAudioId, selectedQuality, selectedSource)
                                             },
                                             colors = ButtonDefaults.colors(
                                                 containerColor = if (isCurrentEp) accent else Color.White.copy(alpha = 0.12f),
@@ -908,7 +990,7 @@ private fun NativeExoPlayerScreen(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(if (isTimelineFocused) 18.dp else 10.dp)
+                            .height(if (isTimelineFocused) 22.dp else 12.dp)
                             .focusRequester(timelineFocusRequester)
                             .onFocusChanged { isTimelineFocused = it.isFocused }
                             .focusable()
@@ -917,21 +999,41 @@ private fun NativeExoPlayerScreen(
                                 if (currentMovieState.isSeries && currentMovieState.seasons.isNotEmpty()) {
                                     up = episodesRowFocusRequester
                                 }
+                                left = FocusRequester.Cancel
+                                right = FocusRequester.Cancel
                             }
                             .onKeyEvent { keyEvent ->
                                 if (keyEvent.nativeKeyEvent.action == KeyEvent.ACTION_DOWN) {
                                     when (keyEvent.nativeKeyEvent.keyCode) {
                                         KeyEvent.KEYCODE_DPAD_LEFT -> {
-                                            val newPos = (exoPlayer.currentPosition - 10000L).coerceAtLeast(0L)
+                                            val now = System.currentTimeMillis()
+                                            if (now - lastSeekTime < 800L) {
+                                                seekSpeedLevel = (seekSpeedLevel + 1).coerceAtMost(seekSteps.lastIndex)
+                                            } else {
+                                                seekSpeedLevel = 0
+                                            }
+                                            lastSeekTime = now
+                                            val step = seekSteps[seekSpeedLevel]
+                                            val newPos = (exoPlayer.currentPosition - step).coerceAtLeast(0L)
                                             exoPlayer.seekTo(newPos)
                                             currentPosition = newPos
+                                            seekDeltaBadge = "-${step / 1000}с"
                                             true
                                         }
                                         KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                                            val now = System.currentTimeMillis()
+                                            if (now - lastSeekTime < 800L) {
+                                                seekSpeedLevel = (seekSpeedLevel + 1).coerceAtMost(seekSteps.lastIndex)
+                                            } else {
+                                                seekSpeedLevel = 0
+                                            }
+                                            lastSeekTime = now
+                                            val step = seekSteps[seekSpeedLevel]
                                             val maxPos = if (exoPlayer.duration > 0) exoPlayer.duration else Long.MAX_VALUE
-                                            val newPos = (exoPlayer.currentPosition + 10000L).coerceAtMost(maxPos)
+                                            val newPos = (exoPlayer.currentPosition + step).coerceAtMost(maxPos)
                                             exoPlayer.seekTo(newPos)
                                             currentPosition = newPos
+                                            seekDeltaBadge = "+${step / 1000}с"
                                             true
                                         }
                                         KeyEvent.KEYCODE_DPAD_CENTER,
@@ -971,18 +1073,38 @@ private fun NativeExoPlayerScreen(
                                     shape = RoundedCornerShape(4.dp)
                                 )
                         )
-                        // 4. Scrubber Thumb when focused
+                        // 4. Scrubber Thumb & Seek delta badge when focused
                         if (isTimelineFocused) {
                             Box(
                                 modifier = Modifier.fillMaxWidth(progressFraction),
                                 contentAlignment = Alignment.CenterEnd
                             ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(16.dp)
-                                        .background(Color.White, shape = CircleShape)
-                                        .border(2.dp, accent, shape = CircleShape)
-                                )
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    modifier = Modifier.offset(x = 12.dp)
+                                ) {
+                                    if (seekDeltaBadge != null) {
+                                        Box(
+                                            modifier = Modifier
+                                                .background(accent, shape = RoundedCornerShape(4.dp))
+                                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                                        ) {
+                                            Text(
+                                                text = seekDeltaBadge ?: "",
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color.Black
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                    }
+                                    Box(
+                                        modifier = Modifier
+                                            .size(16.dp)
+                                            .background(Color.White, shape = CircleShape)
+                                            .border(2.dp, accent, shape = CircleShape)
+                                    )
+                                }
                             }
                         }
                     }
@@ -1280,7 +1402,7 @@ private fun NativeExoPlayerScreen(
 
                             if (currentEpisode > 1) {
                                 Button(
-                                    onClick = { switchStream(currentSeason, currentEpisode - 1, currentAudioId) },
+                                    onClick = { switchStream(currentSeason, currentEpisode - 1, currentAudioId, selectedQuality, selectedSource) },
                                     colors = ButtonDefaults.colors(
                                         containerColor = Color.White.copy(alpha = 0.12f),
                                         focusedContainerColor = accent,
@@ -1357,7 +1479,7 @@ private fun NativeExoPlayerScreen(
                             }
 
                             Button(
-                                onClick = { switchStream(currentSeason, currentEpisode + 1, currentAudioId) },
+                                onClick = { switchStream(currentSeason, currentEpisode + 1, currentAudioId, selectedQuality, selectedSource) },
                                 colors = ButtonDefaults.colors(
                                     containerColor = Color.White.copy(alpha = 0.12f),
                                     focusedContainerColor = accent,

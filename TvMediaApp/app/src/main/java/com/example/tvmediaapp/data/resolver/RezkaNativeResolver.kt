@@ -38,19 +38,25 @@ object RezkaNativeResolver {
 
     private val cookieStore = ConcurrentHashMap<String, String>()
 
+    fun isPremiumQuality(quality: String): Boolean {
+        val q = quality.lowercase().trim()
+        return q.contains("ultra") || q.contains("4k") || q.contains("2160") || q.contains("vip")
+    }
+
     suspend fun resolveStreams(
         title: String,
         year: String? = null,
         isSeries: Boolean = false,
         season: Int = 1,
-        episode: Int = 1
+        episode: Int = 1,
+        translatorId: String? = null
     ): List<StreamOption> = withContext(Dispatchers.IO) {
         val cleanTitle = title.split(":")[0].split(" - ")[0].trim()
         if (cleanTitle.isEmpty()) return@withContext emptyList()
 
         // Try primary and fallback mirrors
         for (baseUrl in MIRRORS) {
-            val result = tryResolveFromMirror(baseUrl, cleanTitle, year, isSeries, season, episode)
+            val result = tryResolveFromMirror(baseUrl, cleanTitle, year, isSeries, season, episode, translatorId)
             if (result.isNotEmpty()) {
                 return@withContext result
             }
@@ -64,7 +70,8 @@ object RezkaNativeResolver {
         year: String?,
         isSeries: Boolean,
         season: Int,
-        episode: Int
+        episode: Int,
+        translatorId: String? = null
     ): List<StreamOption> {
         val streams = mutableListOf<StreamOption>()
         try {
@@ -106,14 +113,18 @@ object RezkaNativeResolver {
 
             // 2. Fetch media page to establish session cookies & discover translator ID
             val pageHtml = httpGet(pageUrl, "$baseUrl/", baseUrl = baseUrl) ?: ""
-            var transId = "56"
-            val trMatcher = Pattern.compile("data-translator_id=\"(\\d+)\"").matcher(pageHtml)
-            if (trMatcher.find()) {
-                transId = trMatcher.group(1) ?: "56"
-            } else {
-                val initMatcher = Pattern.compile("initCDN(?:Movies|Series)Events\\(\\s*\\d+\\s*,\\s*(\\d+)").matcher(pageHtml)
-                if (initMatcher.find()) {
-                    transId = initMatcher.group(1) ?: "56"
+            var transId = translatorId
+            if (transId.isNullOrEmpty()) {
+                val trMatcher = Pattern.compile("data-translator_id=\"(\\d+)\"").matcher(pageHtml)
+                if (trMatcher.find()) {
+                    transId = trMatcher.group(1) ?: "56"
+                } else {
+                    val initMatcher = Pattern.compile("initCDN(?:Movies|Series)Events\\(\\s*\\d+\\s*,\\s*(\\d+)").matcher(pageHtml)
+                    if (initMatcher.find()) {
+                        transId = initMatcher.group(1) ?: "56"
+                    } else {
+                        transId = "56"
+                    }
                 }
             }
 
@@ -159,7 +170,7 @@ object RezkaNativeResolver {
                             ?: urls.firstOrNull()
                         if (workingUrl != null) {
                             val isHls = workingUrl.contains(".m3u8")
-                            streams.add(StreamOption(quality = quality, url = workingUrl, isHls = isHls))
+                            streams.add(StreamOption(quality = quality, url = workingUrl, isHls = isHls, source = "HDrezka"))
                         }
                     }
                 }

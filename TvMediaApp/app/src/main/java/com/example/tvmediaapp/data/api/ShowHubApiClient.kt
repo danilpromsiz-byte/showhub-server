@@ -294,14 +294,19 @@ object ShowHubApiClient {
             val conn = url.openConnection() as HttpURLConnection
             conn.connectTimeout = 6000
             conn.readTimeout = 8000
-            conn.setRequestProperty("User-Agent", "ShowHubTV-Native/2.6.3")
+            conn.setRequestProperty("User-Agent", "ShowHubTV-Native/2.6.4")
             conn.connect()
             if (conn.responseCode == 200) {
                 val body = BufferedReader(InputStreamReader(conn.inputStream, "UTF-8")).use { it.readText() }
                 val obj = JSONObject(body)
                 if (obj.optBoolean("success", false)) {
+                    val streamType = obj.optString("stream_type", "").lowercase()
                     val streamUrl = obj.optString("stream_url", "")
-                    if (streamUrl.startsWith("http")) return@withContext streamUrl
+                    if (streamUrl.startsWith("http") && (streamType == "hls" || streamType == "mp4" || streamUrl.contains(".m3u8") || streamUrl.contains(".mp4") || streamUrl.contains("voidboost"))) {
+                        if (!streamUrl.contains("youtube") && !streamUrl.contains("embed")) {
+                            return@withContext streamUrl
+                        }
+                    }
                 }
             }
         } catch (e: Exception) {
@@ -328,7 +333,7 @@ object ShowHubApiClient {
                     val author = cObj.optString("author", "Зритель")
                     val date = cObj.optString("date", "")
                     val text = cObj.optString("text", "")
-                    val rating = cObj.optString("rating", null)
+                    val rating = cObj.optString("rating", "")
                     if (text.isNotEmpty()) {
                         comments.add(
                             CommentItem(

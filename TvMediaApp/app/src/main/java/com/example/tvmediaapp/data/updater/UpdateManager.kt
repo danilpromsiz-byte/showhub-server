@@ -127,8 +127,38 @@ object UpdateManager {
 
             apkFile.setReadable(true, false)
 
+            if (apkFile.length() < 1_000_000L) {
+                withContext(Dispatchers.Main) {
+                    onProgress?.invoke("Файл обновления поврежден (${apkFile.length()} байт). Попробуйте снова.", -1)
+                }
+                return@withContext false
+            }
+
+            // Check Unknown App Sources permission on Android 8.0+ (API 26+)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                if (!activity.packageManager.canRequestPackageInstalls()) {
+                    withContext(Dispatchers.Main) {
+                        onProgress?.invoke("Разрешите установку для ShowHub в Настройках TV и нажмите «Обновить» снова", -1)
+                        try {
+                            val settingsIntent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
+                                data = Uri.parse("package:${activity.packageName}")
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            }
+                            activity.startActivity(settingsIntent)
+                        } catch (_: Exception) {
+                            try {
+                                activity.startActivity(Intent(Settings.ACTION_SECURITY_SETTINGS).apply {
+                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                })
+                            } catch (_: Exception) {}
+                        }
+                    }
+                    return@withContext false
+                }
+            }
+
             withContext(Dispatchers.Main) {
-                onProgress?.invoke("Запуск установщика пакетов...", 100)
+                onProgress?.invoke("Запуск установщика пакетов Android...", 100)
                 try {
                     val apkUri = FileProvider.getUriForFile(
                         activity,
@@ -138,12 +168,15 @@ object UpdateManager {
                     val intent = Intent(Intent.ACTION_VIEW).apply {
                         setDataAndType(apkUri, "application/vnd.android.package-archive")
                         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        addFlags(Intent.FLAG_GRANT_PREFIX_URI_PERMISSION)
                         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     }
                     activity.startActivity(intent)
+                    onProgress?.invoke("Установщик запущен! Нажмите «Установить» на экране TV.", 100)
                 } catch (e: Exception) {
                     e.printStackTrace()
-                    onProgress?.invoke("Ошибка запуска установщика: ${e.message}", -1)
+                    onProgress?.invoke("Сбой установщика: ${e.message}. Открываем в браузере...", -1)
+                    openDownloadUrlInBrowser(activity, apkUrl)
                 }
             }
             true
@@ -153,6 +186,17 @@ object UpdateManager {
                 onProgress?.invoke("Сбой загрузки: ${e.message ?: "таймаут сети"}", -1)
             }
             false
+        }
+    }
+
+    fun openDownloadUrlInBrowser(activity: Activity, apkUrl: String) {
+        try {
+            val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(apkUrl)).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            activity.startActivity(browserIntent)
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
     }
 }

@@ -204,15 +204,17 @@ fun DetailsScreen(
                         year = currentMovie.releaseYear,
                         isSeries = currentMovie.isSeries
                     )
-                    streamUrl = nativeStreams.firstOrNull { it.url.contains(".m3u8") || it.url.contains(".mp4") }?.url
-                        ?: nativeStreams.firstOrNull()?.url
+                    streamUrl = nativeStreams.firstOrNull { isDirectVideoStream(it.url) }?.url
                 } catch (_: Exception) {}
             }
             if (streamUrl.isNullOrEmpty()) {
-                streamUrl = ShowHubApiClient.fetchPreviewStream(currentMovie)
+                val candidate = ShowHubApiClient.fetchPreviewStream(currentMovie)
+                if (candidate != null && isDirectVideoStream(candidate)) {
+                    streamUrl = candidate
+                }
             }
 
-            if (!streamUrl.isNullOrEmpty()) {
+            if (!streamUrl.isNullOrEmpty() && isDirectVideoStream(streamUrl)) {
                 try {
                     val httpDataSourceFactory = DefaultHttpDataSource.Factory()
                         .setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
@@ -1020,10 +1022,15 @@ fun DetailsScreen(
                                     ),
                                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                                     scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
-                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
-                                    modifier = Modifier.height(34.dp)
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                                    modifier = Modifier.height(32.dp)
                                 ) {
-                                    Text(text = quality, fontSize = 12.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
+                                    Text(
+                                        text = quality,
+                                        fontSize = 12.sp,
+                                        lineHeight = 14.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                    )
                                 }
                             }
                         }

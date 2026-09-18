@@ -1,6 +1,7 @@
 package com.example.tvmediaapp
 
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -10,9 +11,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.ui.draw.clip
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -89,16 +92,16 @@ class MainActivity : ComponentActivity() {
                 pInfo.versionCode
             }
         } catch (e: Exception) {
-            42
+            43
         }
     }
 
     fun getInstalledVersionName(): String {
         return try {
             val pInfo = packageManager.getPackageInfo(packageName, 0)
-            pInfo.versionName ?: "2.6.3"
+            pInfo.versionName ?: "2.6.4"
         } catch (e: Exception) {
-            "2.6.3"
+            "2.6.4"
         }
     }
 
@@ -132,14 +135,27 @@ fun TvAppNavHost(activity: MainActivity) {
     var updateInfo by remember { mutableStateOf<UpdateInfo?>(null) }
     var isDownloadingUpdate by remember { mutableStateOf(false) }
 
-    fun triggerUpdateCheck() {
+    fun triggerUpdateCheck(isUserClick: Boolean = false) {
         coroutineScope.launch {
+            if (isUserClick) {
+                Toast.makeText(activity, "Проверка обновлений ShowHub TV...", Toast.LENGTH_SHORT).show()
+            }
             val myCode = activity.getInstalledVersionCode()
             val info = UpdateManager.checkUpdate(myCode)
             if (info.hasUpdate && info.versionCode > myCode) {
                 updateInfo = info
+                if (isUserClick) {
+                    Toast.makeText(activity, "Доступно обновление ShowHub TV v${info.versionName}!", Toast.LENGTH_SHORT).show()
+                }
             } else {
                 updateInfo = null
+                if (isUserClick) {
+                    if (info.versionCode > 0) {
+                        Toast.makeText(activity, "У вас установлена актуальная версия ShowHub TV (v${activity.getInstalledVersionName()})", Toast.LENGTH_LONG).show()
+                    } else {
+                        Toast.makeText(activity, "Не удалось проверить обновления. Проверьте интернет-соединение.", Toast.LENGTH_LONG).show()
+                    }
+                }
             }
         }
     }
@@ -212,7 +228,7 @@ fun TvAppNavHost(activity: MainActivity) {
                     onSettingsClick = {
                         currentScreen = Screen.SETTINGS
                     },
-                    onCheckUpdateClick = { triggerUpdateCheck() },
+                    onCheckUpdateClick = { triggerUpdateCheck(isUserClick = true) },
                     hasUpdateAvailable = (updateInfo != null && updateInfo!!.versionCode > activity.getInstalledVersionCode()),
                     appVersion = activity.getInstalledVersionName(),
                     viewModel = homeViewModel
@@ -227,7 +243,7 @@ fun TvAppNavHost(activity: MainActivity) {
                     onSearchClick = { currentScreen = Screen.SEARCH },
                     onFavoritesClick = { currentScreen = Screen.FAVORITES },
                     onHistoryClick = { currentScreen = Screen.HISTORY },
-                    onCheckUpdateClick = { triggerUpdateCheck() },
+                    onCheckUpdateClick = { triggerUpdateCheck(isUserClick = true) },
                     hasUpdateAvailable = (updateInfo != null && updateInfo!!.versionCode > activity.getInstalledVersionCode())
                 )
             }
@@ -324,6 +340,7 @@ fun TvAppNavHost(activity: MainActivity) {
         if (isUpdateDialogVisible) {
             val update = updateInfo!!
             val updateFocusRequester = remember { FocusRequester() }
+            val browserFocusRequester = remember { FocusRequester() }
             val remindLaterFocusRequester = remember { FocusRequester() }
             var updateStatus by remember { mutableStateOf<String?>(null) }
             var updatePercent by remember { mutableIntStateOf(0) }
@@ -341,7 +358,7 @@ fun TvAppNavHost(activity: MainActivity) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.90f))
+                    .background(Color.Black.copy(alpha = 0.92f))
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null
@@ -364,9 +381,42 @@ fun TvAppNavHost(activity: MainActivity) {
                         style = MaterialTheme.typography.bodyLarge,
                         color = Color.LightGray
                     )
+
+                    // Download Progress Bar
+                    if (isDownloadingUpdate && updatePercent >= 0) {
+                        Spacer(modifier = Modifier.height(18.dp))
+                        Box(
+                            modifier = Modifier
+                                .width(460.dp)
+                                .height(8.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(Color.White.copy(alpha = 0.15f))
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth((updatePercent / 100f).coerceIn(0f, 1f))
+                                    .height(8.dp)
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(LocalAccentColor.current)
+                            )
+                        }
+                    }
+
+                    // Status Text Message
+                    if (updateStatus != null) {
+                        Spacer(modifier = Modifier.height(14.dp))
+                        Text(
+                            text = updateStatus!!,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = if (updateStatus!!.contains("Ошибка") || updateStatus!!.contains("Сбой") || updateStatus!!.contains("поврежден")) Color(0xFFF87171) else LocalAccentColor.current,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+
                     Spacer(modifier = Modifier.height(24.dp))
                     val accent = LocalAccentColor.current
-                    Row {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        // Button 1: Install Update
                         Button(
                             onClick = {
                                 if (!isDownloadingUpdate) {
@@ -391,7 +441,7 @@ fun TvAppNavHost(activity: MainActivity) {
                             modifier = Modifier
                                 .focusRequester(updateFocusRequester)
                                 .focusProperties {
-                                    right = remindLaterFocusRequester
+                                    right = browserFocusRequester
                                     up = FocusRequester.Cancel
                                     down = FocusRequester.Cancel
                                     left = FocusRequester.Cancel
@@ -400,6 +450,8 @@ fun TvAppNavHost(activity: MainActivity) {
                             Text(
                                 text = if (isDownloadingUpdate) {
                                     if (updatePercent > 0) "Загрузка: $updatePercent%" else "Загрузка..."
+                                } else if (updateStatus != null && (updateStatus!!.contains("Ошибка") || updateStatus!!.contains("Сбой"))) {
+                                    "Повторить попытку"
                                 } else {
                                     "Обновить сейчас"
                                 },
@@ -407,15 +459,55 @@ fun TvAppNavHost(activity: MainActivity) {
                                 fontWeight = FontWeight.Bold
                             )
                         }
-                        Spacer(modifier = Modifier.width(16.dp))
+
+                        Spacer(modifier = Modifier.width(14.dp))
+
+                        // Button 2: Browser Fallback Download
+                        Button(
+                            onClick = {
+                                UpdateManager.openDownloadUrlInBrowser(activity, update.downloadUrl)
+                            },
+                            shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                            colors = ButtonDefaults.colors(
+                                containerColor = Color.White.copy(alpha = 0.12f),
+                                focusedContainerColor = Color.White,
+                                contentColor = Color.White,
+                                focusedContentColor = Color.Black
+                            ),
+                            modifier = Modifier
+                                .focusRequester(browserFocusRequester)
+                                .focusProperties {
+                                    left = updateFocusRequester
+                                    right = remindLaterFocusRequester
+                                    up = FocusRequester.Cancel
+                                    down = FocusRequester.Cancel
+                                }
+                        ) {
+                            Text(
+                                text = "Открыть в браузере",
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.width(14.dp))
+
+                        // Button 3: Remind Later
                         Button(
                             onClick = { updateInfo = null },
                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                             scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                            colors = ButtonDefaults.colors(
+                                containerColor = Color.White.copy(alpha = 0.08f),
+                                focusedContainerColor = Color.White,
+                                contentColor = Color.LightGray,
+                                focusedContentColor = Color.Black
+                            ),
                             modifier = Modifier
                                 .focusRequester(remindLaterFocusRequester)
                                 .focusProperties {
-                                    left = updateFocusRequester
+                                    left = browserFocusRequester
                                     up = FocusRequester.Cancel
                                     down = FocusRequester.Cancel
                                     right = FocusRequester.Cancel
@@ -426,16 +518,6 @@ fun TvAppNavHost(activity: MainActivity) {
                                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
                             )
                         }
-                    }
-
-                    if (updateStatus != null) {
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(
-                            text = updateStatus!!,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = accent,
-                            fontWeight = FontWeight.Medium
-                        )
                     }
                 }
             }

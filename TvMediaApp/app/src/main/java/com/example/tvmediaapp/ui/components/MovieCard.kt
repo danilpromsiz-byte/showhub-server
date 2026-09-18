@@ -62,6 +62,7 @@ import coil.compose.SubcomposeAsyncImage
 import com.example.tvmediaapp.data.api.ShowHubApiClient
 import com.example.tvmediaapp.data.models.Movie
 import com.example.tvmediaapp.data.resolver.RezkaNativeResolver
+import com.example.tvmediaapp.ui.screens.player.isDirectVideoStream
 import com.example.tvmediaapp.ui.theme.LocalAccentColor
 import com.example.tvmediaapp.ui.theme.TextGray
 import com.example.tvmediaapp.ui.theme.TextWhite
@@ -108,17 +109,19 @@ fun MovieCard(
                         year = movie.releaseYear,
                         isSeries = movie.isSeries
                     )
-                    streamUrl = nativeStreams.firstOrNull { it.url.contains(".m3u8") || it.url.contains(".mp4") }?.url
-                        ?: nativeStreams.firstOrNull()?.url
+                    streamUrl = nativeStreams.firstOrNull { isDirectVideoStream(it.url) }?.url
                 } catch (e: Exception) {
                     // fallback to server
                 }
 
                 if (streamUrl.isNullOrEmpty()) {
-                    streamUrl = ShowHubApiClient.fetchPreviewStream(movie)
+                    val candidate = ShowHubApiClient.fetchPreviewStream(movie)
+                    if (candidate != null && isDirectVideoStream(candidate)) {
+                        streamUrl = candidate
+                    }
                 }
 
-                if (isFocused && !streamUrl.isNullOrEmpty()) {
+                if (isFocused && !streamUrl.isNullOrEmpty() && isDirectVideoStream(streamUrl)) {
                     try {
                         val httpDataSourceFactory = DefaultHttpDataSource.Factory()
                             .setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")

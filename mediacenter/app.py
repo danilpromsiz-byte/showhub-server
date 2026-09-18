@@ -336,15 +336,32 @@ def get_media_poster(title: str = Query(...), year: Optional[str] = None, kp_id:
 @app.api_route("/api/updates/check", methods=["GET", "HEAD"])
 @app.api_route("/version.json", methods=["GET", "HEAD"])
 def check_updates() -> Dict[str, Any]:
+    try:
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        candidates = [
+            os.path.join(base_dir, "static", "version.json"),
+            os.path.join(base_dir, "version.json"),
+            os.path.join(os.getcwd(), "mediacenter", "static", "version.json"),
+            os.path.join(os.getcwd(), "version.json")
+        ]
+        for c in candidates:
+            if os.path.exists(c):
+                with open(c, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    if isinstance(data, dict) and data.get("version_code"):
+                        return data
+    except Exception as e:
+        logger.warning(f"Failed to read version.json from disk: {e}")
+
     return {
         "success": True,
-        "version_name": "2.6.2",
-        "version_code": 41,
+        "version_name": "2.6.4",
+        "version_code": 43,
         "force_update": True,
-        "min_version_code": 41,
+        "min_version_code": 43,
         "apk_url": "https://showhub-server.onrender.com/ShowHub.apk",
         "download_url": "https://showhub-server.onrender.com/ShowHub.apk",
-        "changelog": "ShowHub TV v2.6.2: Полноценный предпросмотр видеофрагментов (в каталоге и карточке фильма), автономный обход защиты HDRezka (Anubis PoW), мгновенный фокус на кнопке просмотра."
+        "changelog": "ShowHub TV v2.6.4: Прямое обновление в один клик с подробным статусом загрузки, надежный установщик APK, оптимизированный предпросмотр видео без задержек и спиннеров."
     }
 
 @app.get("/api/catalog/stats")
@@ -1247,25 +1264,6 @@ def get_media_preview_stream(
             }
             _preview_cache[cache_key] = res
             return res
-
-    # Source 5: Trailer fallback (direct YouTube embed/stream) so card preview is never empty
-    try:
-        trailer_data = get_media_trailer(title=clean_title, year=year, kp_id=target_kp)
-        if trailer_data and trailer_data.get("success"):
-            t_url = trailer_data.get("embed_url") or trailer_data.get("web_url") or ""
-            if t_url:
-                res = {
-                    "success": True,
-                    "stream_url": t_url,
-                    "stream_type": "trailer",
-                    "quality": "Trailer",
-                    "start_time": 0,
-                    "title": title
-                }
-                _preview_cache[cache_key] = res
-                return res
-    except Exception:
-        pass
 
     res = {"success": False, "message": "No direct preview stream available"}
     _preview_cache[cache_key] = res

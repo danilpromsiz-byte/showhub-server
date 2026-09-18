@@ -1,10 +1,10 @@
 {
   "success": true,
-  "version_name": "2.4.0",
-  "version_code": 34,
+  "version_name": "2.4.1",
+  "version_code": 35,
   "force_update": true,
-  "min_version_code": 34,
+  "min_version_code": 35,
   "download_url": "https://showhub-server.onrender.com/ShowHub.apk",
   "apk_url": "https://showhub-server.onrender.com/ShowHub.apk",
-  "changelog": "ShowHub TV v2.4.0: Трейлеры, сторонние плееры (VLC/MX Player), все источники и балансеры (VideoCDN, Bazon, HDRezka, Filmix)."
+  "changelog": "ShowHub TV v2.4.1: Исправлено зацикливание окна обновления, отображение версии в меню, гибридный плеер (ExoPlayer + балансеры), трейлеры и внешние плееры."
 }

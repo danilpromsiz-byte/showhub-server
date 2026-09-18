@@ -307,13 +307,13 @@ def get_media_poster(title: str = Query(...), year: Optional[str] = None, kp_id:
 def check_updates() -> Dict[str, Any]:
     return {
         "success": True,
-        "version_name": "2.4.0",
-        "version_code": 34,
+        "version_name": "2.4.1",
+        "version_code": 35,
         "force_update": True,
-        "min_version_code": 34,
+        "min_version_code": 35,
         "apk_url": "https://showhub-server.onrender.com/ShowHub.apk",
         "download_url": "https://showhub-server.onrender.com/ShowHub.apk",
-        "changelog": "ShowHub TV v2.4.0: \u0422\u0440\u0435\u0439\u043b\u0435\u0440\u044b, \u0441\u0442\u043e\u0440\u043e\u043d\u043d\u0438\u0435 \u043f\u043b\u0435\u0435\u0440\u044b (VLC/MX Player), \u0432\u0441\u0435 \u0438\u0441\u0442\u043e\u0447\u043d\u0438\u043a\u0438 \u0438 \u0431\u0430\u043b\u0430\u043d\u0441\u0435\u0440\u044b (VideoCDN, Bazon, HDRezka, Filmix)."
+        "changelog": "ShowHub TV v2.4.1: Исправлено зацикливание окна обновления, отображение версии в меню, гибридный плеер (ExoPlayer + балансеры), трейлеры и внешние плееры."
     }
 
 @app.get("/api/catalog/stats")

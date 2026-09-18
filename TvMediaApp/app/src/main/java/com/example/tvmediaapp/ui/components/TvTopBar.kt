@@ -36,6 +36,7 @@ fun TvTopBar(
     onHistoryClick: () -> Unit,
     onCheckUpdateClick: (() -> Unit)? = null,
     hasUpdateAvailable: Boolean = false,
+    appVersion: String = "",
     currentScreenName: String = "home",
     modifier: Modifier = Modifier
 ) {
@@ -71,6 +72,15 @@ fun TvTopBar(
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Black,
                     color = Color.Black
+                )
+            }
+            if (appVersion.isNotEmpty()) {
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "v$appVersion",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = TextGray
                 )
             }
         }

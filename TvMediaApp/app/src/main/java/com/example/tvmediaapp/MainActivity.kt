@@ -63,9 +63,32 @@ enum class Screen {
 }
 
 class MainActivity : ComponentActivity() {
-    companion object {
-        const val VERSION_CODE = 33
-        const val VERSION_NAME = "2.3.0"
+    fun getInstalledVersionCode(): Int {
+        return try {
+            val pInfo = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                packageManager.getPackageInfo(packageName, android.content.pm.PackageManager.PackageInfoFlags.of(0))
+            } else {
+                @Suppress("DEPRECATION")
+                packageManager.getPackageInfo(packageName, 0)
+            }
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                pInfo.longVersionCode.toInt()
+            } else {
+                @Suppress("DEPRECATION")
+                pInfo.versionCode
+            }
+        } catch (e: Exception) {
+            35
+        }
+    }
+
+    fun getInstalledVersionName(): String {
+        return try {
+            val pInfo = packageManager.getPackageInfo(packageName, 0)
+            pInfo.versionName ?: "2.4.1"
+        } catch (e: Exception) {
+            "2.4.1"
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -99,9 +122,12 @@ fun TvAppNavHost(activity: MainActivity) {
 
     fun triggerUpdateCheck() {
         coroutineScope.launch {
-            val info = UpdateManager.checkUpdate(MainActivity.VERSION_CODE)
-            if (info.hasUpdate) {
+            val myCode = activity.getInstalledVersionCode()
+            val info = UpdateManager.checkUpdate(myCode)
+            if (info.hasUpdate && info.versionCode > myCode) {
                 updateInfo = info
+            } else {
+                updateInfo = null
             }
         }
     }
@@ -161,6 +187,9 @@ fun TvAppNavHost(activity: MainActivity) {
                     onHistoryClick = {
                         currentScreen = Screen.HISTORY
                     },
+                    onCheckUpdateClick = { triggerUpdateCheck() },
+                    hasUpdateAvailable = (updateInfo != null && updateInfo!!.versionCode > activity.getInstalledVersionCode()),
+                    appVersion = activity.getInstalledVersionName(),
                     viewModel = homeViewModel
                 )
             }
@@ -254,7 +283,7 @@ fun TvAppNavHost(activity: MainActivity) {
         }
 
         // In-app Update Notification Banner/Dialog
-        updateInfo?.let { update ->
+        updateInfo?.takeIf { it.versionCode > activity.getInstalledVersionCode() }?.let { update ->
             Box(
                 modifier = Modifier
                     .fillMaxSize()

@@ -38,6 +38,9 @@ fun HomeScreen(
     onSearchClick: () -> Unit,
     onFavoritesClick: () -> Unit,
     onHistoryClick: () -> Unit,
+    onCheckUpdateClick: (() -> Unit)? = null,
+    hasUpdateAvailable: Boolean = false,
+    appVersion: String = "",
     viewModel: HomeViewModel = viewModel(),
     modifier: Modifier = Modifier
 ) {
@@ -65,11 +68,14 @@ fun HomeScreen(
             .fillMaxSize()
             .background(BackgroundDark)
     ) {
-        // TOP NAVIGATION BAR: Logo + Search + Favorites + History
+        // TOP NAVIGATION BAR: Logo + Search + Favorites + History + Version
         TvTopBar(
             onSearchClick = onSearchClick,
             onFavoritesClick = onFavoritesClick,
             onHistoryClick = onHistoryClick,
+            onCheckUpdateClick = onCheckUpdateClick,
+            hasUpdateAvailable = hasUpdateAvailable,
+            appVersion = appVersion,
             currentScreenName = "home"
         )
 

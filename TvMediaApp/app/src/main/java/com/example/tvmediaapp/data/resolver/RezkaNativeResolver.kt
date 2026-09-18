@@ -157,8 +157,8 @@ object RezkaNativeResolver {
             val json = JSONObject(ajaxResponse)
             val streamStr = json.optString("url").ifEmpty { json.optString("streams", "") }
 
-            if (streamStr.length > 5) {
-                val parts = streamStr.split(Regex(",\\s*(?=\\[[^\\]]+\\])"))
+            fun parseStreams(raw: String) {
+                val parts = raw.split(Regex(",\\s*(?=\\[[^\\]]+\\])"))
                 for (part in parts) {
                     val m = Pattern.compile("\\[([^\\]]+)\\](.*)").matcher(part)
                     if (m.find()) {
@@ -174,6 +174,29 @@ object RezkaNativeResolver {
                             val isHls = workingUrl.contains(".m3u8")
                             streams.add(StreamOption(quality = quality, url = workingUrl, isHls = isHls, source = "HDrezka"))
                         }
+                    }
+                }
+            }
+
+            if (streamStr.length > 5) {
+                parseStreams(streamStr)
+            }
+
+            // Fallback: If translator did not voice this season/episode, retry with default translator "56"
+            if (streams.isEmpty() && transId != "56") {
+                val fbPostData = StringBuilder()
+                    .append("id=").append(dataId)
+                    .append("&translator_id=56")
+                    .append("&action=").append(if (actualIsSeries) "get_stream" else "get_movie")
+                if (actualIsSeries) {
+                    fbPostData.append("&season=").append(season).append("&episode=").append(episode)
+                }
+                val fbResp = httpPost(ajaxUrl, fbPostData.toString(), headers, baseUrl = baseUrl)
+                if (fbResp != null && fbResp.trim().startsWith("{")) {
+                    val fbJson = JSONObject(fbResp)
+                    val fbStreamStr = fbJson.optString("url").ifEmpty { fbJson.optString("streams", "") }
+                    if (fbStreamStr.length > 5) {
+                        parseStreams(fbStreamStr)
                     }
                 }
             }

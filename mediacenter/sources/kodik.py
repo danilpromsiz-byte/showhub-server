@@ -13,7 +13,11 @@ class KodikSource(BaseSource):
     display_name = "Kodik"
     source_type = "balancer"
 
-    API_ENDPOINT = "https://kodikapi.com/search"
+    API_ENDPOINTS = [
+        "https://kodik-api.com/search",
+        "https://bd.kodikres.com/search",
+        "https://kodikapi.com/search"
+    ]
     # Public tokens from Kino HD / LazyMedia
     TOKENS = [
         "41dd95f84c21719b09d6c71182237a25",
@@ -40,31 +44,35 @@ class KodikSource(BaseSource):
             if year:
                 params["year"] = str(year)
 
-        try:
-            url = f"{self.API_ENDPOINT}?{urllib.parse.urlencode(params)}"
-            resp = requests.get(url, headers=self.headers, timeout=5)
-            if resp.status_code == 200:
-                data = resp.json()
-                for res in data.get("results", []):
-                    title = res.get("title", query)
-                    link = res.get("link", "")
-                    r_year = res.get("year")
-                    trans = res.get("translation", {}).get("title", "Оригинал")
-                    items.append(MediaItem(
-                        id=str(res.get("id", link)),
-                        source_name=self.name,
-                        title=f"{title} ({trans})",
-                        year=r_year,
-                        description=f"Перевод: {trans}",
-                        extra_data={
-                            "link": link,
-                            "translation": trans,
-                            "type": res.get("type", "movie"),
-                            "seasons": res.get("seasons", {})
-                        }
-                    ))
-        except Exception:
-            pass
+        for endpoint in self.API_ENDPOINTS:
+            try:
+                url = f"{endpoint}?{urllib.parse.urlencode(params)}"
+                resp = requests.get(url, headers=self.headers, timeout=5)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    results = data.get("results", [])
+                    if results:
+                        for res in results:
+                            title = res.get("title", query)
+                            link = res.get("link", "")
+                            r_year = res.get("year")
+                            trans = res.get("translation", {}).get("title", "Оригинал")
+                            items.append(MediaItem(
+                                id=str(res.get("id", link)),
+                                source_name=self.name,
+                                title=f"{title} ({trans})",
+                                year=r_year,
+                                description=f"Перевод: {trans}",
+                                extra_data={
+                                    "link": link,
+                                    "translation": trans,
+                                    "type": res.get("type", "movie"),
+                                    "seasons": res.get("seasons", {})
+                                }
+                            ))
+                        break
+            except Exception:
+                continue
         return items
 
     def get_streams(self, media_id: str, season: Optional[int] = None, episode: Optional[int] = None, audio_id: Optional[str] = None) -> StreamResult:

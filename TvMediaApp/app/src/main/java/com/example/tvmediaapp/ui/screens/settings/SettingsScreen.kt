@@ -20,6 +20,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
@@ -40,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.foundation.lazy.list.TvLazyRow
 import androidx.tv.foundation.lazy.list.items
+import androidx.tv.foundation.lazy.list.itemsIndexed
 import androidx.tv.material3.Border
 import androidx.tv.material3.Button
 import androidx.tv.material3.ButtonDefaults
@@ -130,6 +134,7 @@ fun SettingsScreen(
     val coroutineScope = rememberCoroutineScope()
     val accent = LocalAccentColor.current
     val prefs = remember { context.getSharedPreferences("showhub_prefs", Context.MODE_PRIVATE) }
+    val contentFocusRequester = remember { FocusRequester() }
 
     var activeTab by remember { mutableStateOf(SettingsTab.PLAYER) }
 
@@ -182,7 +187,7 @@ fun SettingsScreen(
 
         // TABS RIBBON
         TvLazyRow(
-            contentPadding = PaddingValues(horizontal = 48.dp, vertical = 12.dp),
+            contentPadding = PaddingValues(horizontal = 48.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             items(SettingsTab.values()) { tab ->
@@ -190,15 +195,19 @@ fun SettingsScreen(
                 Button(
                     onClick = { activeTab = tab },
                     colors = ButtonDefaults.colors(
-                        containerColor = if (isSelected) accent else ChipBackground,
+                        containerColor = if (isSelected) accent.copy(alpha = 0.22f) else ChipBackground,
                         focusedContainerColor = accent,
-                        contentColor = if (isSelected) Color.Black else TextWhite,
+                        contentColor = if (isSelected) accent else TextWhite,
                         focusedContentColor = Color.Black
                     ),
                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                     scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
-                    modifier = Modifier.height(28.dp)
+                    modifier = Modifier
+                        .height(28.dp)
+                        .focusProperties {
+                            down = contentFocusRequester
+                        }
                 ) {
                     Text(
                         text = tab.title,
@@ -226,7 +235,11 @@ fun SettingsScreen(
                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                     scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
-                    modifier = Modifier.height(28.dp)
+                    modifier = Modifier
+                        .height(28.dp)
+                        .focusProperties {
+                            down = contentFocusRequester
+                        }
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -284,17 +297,18 @@ fun SettingsScreen(
                                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                                 modifier = Modifier.padding(top = 4.dp)
                             ) {
-                                items(THEME_OPTIONS) { (themeKey, themeTitle) ->
+                                itemsIndexed(THEME_OPTIONS) { index, (themeKey, themeTitle) ->
                                     val isCur = themeKey == selectedTheme
+                                    val focusMod = if (index == 0) Modifier.focusRequester(contentFocusRequester) else Modifier
                                     Button(
                                         onClick = {
                                             selectedTheme = themeKey
                                             ThemeManager.setTheme(themeKey)
                                         },
                                         colors = ButtonDefaults.colors(
-                                            containerColor = if (isCur) accent else ChipBackground,
+                                            containerColor = if (isCur) accent.copy(alpha = 0.22f) else ChipBackground,
                                             focusedContainerColor = accent,
-                                            contentColor = if (isCur) Color.Black else TextWhite,
+                                            contentColor = if (isCur) accent else TextWhite,
                                             focusedContentColor = Color.Black
                                         ),
                                         border = ButtonDefaults.border(
@@ -304,10 +318,43 @@ fun SettingsScreen(
                                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                                         scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
-                                        modifier = Modifier.height(28.dp)
+                                        modifier = Modifier.height(28.dp).then(focusMod)
                                     ) {
                                         Text(text = themeTitle, fontSize = 11.sp, fontWeight = if (isCur) FontWeight.Bold else FontWeight.Normal, lineHeight = 13.sp)
                                     }
+                                }
+                            }
+
+                            // True Black OLED toggle
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                modifier = Modifier.padding(top = 6.dp)
+                            ) {
+                                Button(
+                                    onClick = {
+                                        val newState = !ThemeManager.isPureBlackEnabled
+                                        ThemeManager.setPureBlack(newState)
+                                    },
+                                    colors = ButtonDefaults.colors(
+                                        containerColor = if (ThemeManager.isPureBlackEnabled) accent.copy(alpha = 0.22f) else ChipBackground,
+                                        focusedContainerColor = accent,
+                                        contentColor = if (ThemeManager.isPureBlackEnabled) accent else TextWhite,
+                                        focusedContentColor = Color.Black
+                                    ),
+                                    border = ButtonDefaults.border(border = Border.None, focusedBorder = Border.None),
+                                    shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                                    modifier = Modifier.height(28.dp)
+                                ) {
+                                    val mark = if (ThemeManager.isPureBlackEnabled) "☑" else "☐"
+                                    Text(
+                                        text = "$mark Чистый черный фон для OLED/LED (True Black)",
+                                        fontSize = 11.sp,
+                                        fontWeight = if (ThemeManager.isPureBlackEnabled) FontWeight.Bold else FontWeight.Normal,
+                                        lineHeight = 13.sp
+                                    )
                                 }
                             }
                         }
@@ -337,9 +384,9 @@ fun SettingsScreen(
                                             prefs.edit().putString("pref_player", playerKey).apply()
                                         },
                                         colors = ButtonDefaults.colors(
-                                            containerColor = if (isCur) accent else ChipBackground,
+                                            containerColor = if (isCur) accent.copy(alpha = 0.22f) else ChipBackground,
                                             focusedContainerColor = accent,
-                                            contentColor = if (isCur) Color.Black else TextWhite,
+                                            contentColor = if (isCur) accent else TextWhite,
                                             focusedContentColor = Color.Black
                                         ),
                                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
@@ -378,9 +425,9 @@ fun SettingsScreen(
                                             prefs.edit().putString("pref_quality", qKey).apply()
                                         },
                                         colors = ButtonDefaults.colors(
-                                            containerColor = if (isCur) accent else ChipBackground,
+                                            containerColor = if (isCur) accent.copy(alpha = 0.22f) else ChipBackground,
                                             focusedContainerColor = accent,
-                                            contentColor = if (isCur) Color.Black else TextWhite,
+                                            contentColor = if (isCur) accent else TextWhite,
                                             focusedContentColor = Color.Black
                                         ),
                                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
@@ -414,9 +461,9 @@ fun SettingsScreen(
                                             prefs.edit().putString("pref_voice", voice).apply()
                                         },
                                         colors = ButtonDefaults.colors(
-                                            containerColor = if (isCur) accent else ChipBackground,
+                                            containerColor = if (isCur) accent.copy(alpha = 0.22f) else ChipBackground,
                                             focusedContainerColor = accent,
-                                            contentColor = if (isCur) Color.Black else TextWhite,
+                                            contentColor = if (isCur) accent else TextWhite,
                                             focusedContentColor = Color.Black
                                         ),
                                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
@@ -484,7 +531,8 @@ fun SettingsScreen(
                                             colors = ButtonDefaults.colors(containerColor = Color.Red.copy(alpha = 0.8f)),
                                             border = ButtonDefaults.border(border = Border.None, focusedBorder = Border.None),
                                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f)
+                                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
+                                            modifier = Modifier.focusRequester(contentFocusRequester)
                                         ) {
                                             Text("Выйти", fontSize = 13.sp)
                                         }
@@ -504,6 +552,7 @@ fun SettingsScreen(
                                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
+                                val filmixBtnMod = if (!isFilmixPro) Modifier.height(28.dp).focusRequester(contentFocusRequester) else Modifier.height(28.dp)
                                 Button(
                                     onClick = {
                                         // Auto-activate demo PRO session
@@ -526,7 +575,7 @@ fun SettingsScreen(
                                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                                     scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
-                                    modifier = Modifier.height(28.dp)
+                                    modifier = filmixBtnMod
                                 ) {
                                     Text("Активировать Filmix PRO", fontWeight = FontWeight.Bold, fontSize = 11.sp, lineHeight = 13.sp)
                                 }
@@ -601,7 +650,7 @@ fun SettingsScreen(
                                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                                     scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
-                                    modifier = Modifier.height(28.dp)
+                                    modifier = Modifier.height(28.dp).focusRequester(contentFocusRequester)
                                 ) {
                                     Text(text = if (isPinging) "Проверка..." else "Проверить связь (Ping)", fontWeight = FontWeight.Bold, fontSize = 11.sp, lineHeight = 13.sp)
                                 }
@@ -642,9 +691,9 @@ fun SettingsScreen(
                                             torrPingResult = null
                                         },
                                         colors = ButtonDefaults.colors(
-                                            containerColor = if (isCur) accent else ChipBackground,
+                                            containerColor = if (isCur) accent.copy(alpha = 0.22f) else ChipBackground,
                                             focusedContainerColor = accent,
-                                            contentColor = if (isCur) Color.Black else TextWhite,
+                                            contentColor = if (isCur) accent else TextWhite,
                                             focusedContentColor = Color.Black
                                         ),
                                         border = ButtonDefaults.border(border = Border.None, focusedBorder = Border.None),
@@ -765,7 +814,7 @@ fun SettingsScreen(
                                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                                     scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
-                                    modifier = Modifier.height(28.dp)
+                                    modifier = Modifier.height(28.dp).focusRequester(contentFocusRequester)
                                 ) {
                                     Text("Очистить историю", fontSize = 11.sp, lineHeight = 13.sp)
                                 }
@@ -829,14 +878,15 @@ fun SettingsScreen(
                             TvLazyRow(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                items(categories) { cat ->
+                                itemsIndexed(categories) { index, cat ->
                                     val isCur = cat == bugReportCategory
+                                    val focusMod = if (index == 0) Modifier.focusRequester(contentFocusRequester) else Modifier
                                     Button(
                                         onClick = { bugReportCategory = cat },
                                         colors = ButtonDefaults.colors(
-                                            containerColor = if (isCur) accent else ChipBackground,
+                                            containerColor = if (isCur) accent.copy(alpha = 0.22f) else ChipBackground,
                                             focusedContainerColor = accent,
-                                            contentColor = if (isCur) Color.Black else TextWhite,
+                                            contentColor = if (isCur) accent else TextWhite,
                                             focusedContentColor = Color.Black
                                         ),
                                         border = ButtonDefaults.border(
@@ -846,7 +896,7 @@ fun SettingsScreen(
                                         shape = ButtonDefaults.shape(RoundedCornerShape(6.dp)),
                                         scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
-                                        modifier = Modifier.height(26.dp)
+                                        modifier = Modifier.height(26.dp).then(focusMod)
                                     ) {
                                         Text(text = cat, fontSize = 11.sp, fontWeight = if (isCur) FontWeight.Bold else FontWeight.Normal)
                                     }
@@ -958,7 +1008,7 @@ fun SettingsScreen(
                         }
                     }
 
-                    // TAB 5: ABOUT & UPDATES
+                    // TAB 6: ABOUT & UPDATES
                     SettingsTab.ABOUT -> {
                         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                             Text(
@@ -1018,7 +1068,7 @@ fun SettingsScreen(
                                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                                     scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
-                                    modifier = Modifier.height(28.dp)
+                                    modifier = Modifier.height(28.dp).focusRequester(contentFocusRequester)
                                 ) {
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,

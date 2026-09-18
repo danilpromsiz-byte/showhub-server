@@ -789,6 +789,23 @@ def _fetch_media_details(
     except Exception:
         pass
 
+    # 4. Fetch Kodik translations and merge
+    try:
+        if clean_title:
+            k_items = kodik.search(clean_title, year=year_int, kp_id=resolved_kp)
+            existing_trans_names = {t.get("name", "").lower() for t in details["translators"]}
+            for k_it in k_items:
+                trans_name = k_it.extra_data.get("translation")
+                if trans_name and trans_name.lower() not in existing_trans_names:
+                    existing_trans_names.add(trans_name.lower())
+                    details["translators"].append({
+                        "id": f"kodik_{k_it.id}",
+                        "name": f"{trans_name}",
+                        "is_default": False
+                    })
+    except Exception:
+        pass
+
     return details
 
 
@@ -858,6 +875,10 @@ def _fetch_media_streams(
                 fx_streams = filmix.get_streams(fx_id, season=season, episode=episode, audio_id=audio_id)
                 if fx_streams.streams:
                     return ("filmix", fx_streams.model_dump())
+                if audio_id:
+                    fx_streams_fallback = filmix.get_streams(fx_id, season=season, episode=episode, audio_id=None)
+                    if fx_streams_fallback.streams:
+                        return ("filmix", fx_streams_fallback.model_dump())
         except Exception:
             pass
         return None
@@ -877,6 +898,10 @@ def _fetch_media_streams(
                 rz_streams = hdrezka.get_streams(rz_id, season=season, episode=episode, audio_id=audio_id)
                 if rz_streams.streams:
                     return ("hdrezka", rz_streams.model_dump())
+                if audio_id:
+                    rz_streams_fallback = hdrezka.get_streams(rz_id, season=season, episode=episode, audio_id=None)
+                    if rz_streams_fallback.streams:
+                        return ("hdrezka", rz_streams_fallback.model_dump())
         except Exception:
             pass
         return None

@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -306,75 +307,85 @@ fun MovieCard(
                         )
                     }
 
-                    // Series episodes info badge (top left)
-                    if (movie.isSeries) {
-                        val epText = if (movie.episodesInfo.isNotBlank()) movie.episodesInfo else "Сериал"
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.TopStart)
-                                .padding(6.dp)
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(Color.Black.copy(alpha = 0.85f))
-                                .padding(horizontal = 5.dp, vertical = 2.dp)
-                        ) {
-                            Text(
-                                text = epText,
-                                fontSize = 9.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White
-                            )
-                        }
-                    }
-
-                    // Rating Badges: KP & IMDb (top right)
+                    // Top badges header row (never overlaps series/seasons with ratings)
                     Row(
                         modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .padding(6.dp),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            .fillMaxWidth()
+                            .align(Alignment.TopStart)
+                            .padding(5.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.Top
                     ) {
-                        if (movie.ratingKp > 0) {
+                        // Left: Series / Episodes Info
+                        if (movie.isSeries) {
+                            val epText = if (movie.episodesInfo.isNotBlank()) movie.episodesInfo else "Сериал"
                             Box(
                                 modifier = Modifier
+                                    .weight(1f, fill = false)
                                     .clip(RoundedCornerShape(4.dp))
-                                    .background(Color(0xFFFF6600).copy(alpha = 0.90f))
+                                    .background(Color.Black.copy(alpha = 0.85f))
                                     .padding(horizontal = 4.dp, vertical = 2.dp)
                             ) {
                                 Text(
-                                    text = "КП ${String.format(java.util.Locale.US, "%.1f", movie.ratingKp)}",
+                                    text = epText,
                                     fontSize = 9.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color.White
+                                    color = Color.White,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                             }
+                        } else {
+                            Spacer(modifier = Modifier.width(1.dp))
                         }
-                        if (movie.ratingImdb > 0) {
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(4.dp))
-                                    .background(Color(0xFFE5A00D).copy(alpha = 0.90f))
-                                    .padding(horizontal = 4.dp, vertical = 2.dp)
-                            ) {
-                                Text(
-                                    text = "IMDb ${String.format(java.util.Locale.US, "%.1f", movie.ratingImdb)}",
-                                    fontSize = 9.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.Black
-                                )
-                            }
-                        } else if (movie.ratingKp <= 0 && movie.rating > 0) {
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(4.dp))
-                                    .background(Color.Black.copy(alpha = 0.80f))
-                                    .padding(horizontal = 5.dp, vertical = 2.dp)
-                            ) {
-                                Text(
-                                    text = String.format(java.util.Locale.US, "%.1f", movie.rating),
-                                    fontSize = 9.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = accent
-                                )
+
+                        // Right: Rating Badge (KP or IMDb or general rating)
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(3.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            if (movie.ratingKp > 0) {
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(Color(0xFFFF6600).copy(alpha = 0.92f))
+                                        .padding(horizontal = 4.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = "КП ${String.format(java.util.Locale.US, "%.1f", movie.ratingKp)}",
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
+                                }
+                            } else if (movie.ratingImdb > 0) {
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(Color(0xFFE5A00D).copy(alpha = 0.92f))
+                                        .padding(horizontal = 4.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = "IMDb ${String.format(java.util.Locale.US, "%.1f", movie.ratingImdb)}",
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.Black
+                                    )
+                                }
+                            } else if (movie.rating > 0) {
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(Color.Black.copy(alpha = 0.80f))
+                                        .padding(horizontal = 4.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = String.format(java.util.Locale.US, "%.1f", movie.rating),
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = accent
+                                    )
+                                }
                             }
                         }
                     }

@@ -47,6 +47,7 @@ import com.example.tvmediaapp.data.models.Movie
 import com.example.tvmediaapp.data.updater.UpdateInfo
 import com.example.tvmediaapp.data.updater.UpdateManager
 import com.example.tvmediaapp.ui.screens.details.DetailsScreen
+import com.example.tvmediaapp.data.history.SessionManager
 import com.example.tvmediaapp.ui.screens.favorites.FavoritesScreen
 import com.example.tvmediaapp.ui.screens.history.HistoryScreen
 import com.example.tvmediaapp.ui.screens.home.HomeScreen
@@ -127,12 +128,25 @@ fun TvAppNavHost(activity: MainActivity) {
     val lifecycleOwner = LocalLifecycleOwner.current
     val coroutineScope = rememberCoroutineScope()
 
-    var currentScreen by remember { mutableStateOf(Screen.HOME) }
-    var selectedMovie by remember { mutableStateOf<Movie?>(null) }
+    val restoredMovie = remember { SessionManager.restoreLastMovie(activity) }
+    var currentScreen by remember { mutableStateOf(if (restoredMovie != null) Screen.DETAILS else Screen.HOME) }
+    var selectedMovie by remember { mutableStateOf<Movie?>(restoredMovie) }
     var activeVideoUrl by remember { mutableStateOf<String>("") }
     var startPositionMs by remember { mutableLongStateOf(0L) }
     var activeSeason by remember { mutableIntStateOf(1) }
     var activeEpisode by remember { mutableIntStateOf(1) }
+
+    // Persist session when in DETAILS or PLAYER, clear when at HOME
+    LaunchedEffect(currentScreen, selectedMovie) {
+        if (currentScreen == Screen.DETAILS || currentScreen == Screen.PLAYER) {
+            selectedMovie?.let { movie ->
+                SessionManager.saveSession(activity, movie, currentScreen)
+            }
+        } else if (currentScreen == Screen.HOME) {
+            SessionManager.clearSession(activity)
+            homeViewModel.refreshCatalog()
+        }
+    }
 
     var updateInfo by remember { mutableStateOf<UpdateInfo?>(null) }
     var isDownloadingUpdate by remember { mutableStateOf(false) }
@@ -192,7 +206,10 @@ fun TvAppNavHost(activity: MainActivity) {
     BackHandler(enabled = !isUpdateDialogVisible && currentScreen != Screen.HOME) {
         when (currentScreen) {
             Screen.PLAYER -> currentScreen = Screen.DETAILS
-            Screen.DETAILS -> currentScreen = Screen.HOME
+            Screen.DETAILS -> {
+                SessionManager.clearSession(activity)
+                currentScreen = Screen.HOME
+            }
             Screen.SEARCH -> currentScreen = Screen.HOME
             Screen.FAVORITES -> currentScreen = Screen.HOME
             Screen.HISTORY -> currentScreen = Screen.HOME
@@ -311,6 +328,7 @@ fun TvAppNavHost(activity: MainActivity) {
                             currentScreen = Screen.PLAYER
                         },
                         onBackClick = {
+                            SessionManager.clearSession(activity)
                             currentScreen = Screen.HOME
                         },
                         onToggleFavorite = {

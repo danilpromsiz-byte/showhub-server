@@ -136,9 +136,9 @@ fun FilterBar(
                 Button(
                     onClick = { onTypeSelected(typeKey) },
                     colors = ButtonDefaults.colors(
-                        containerColor = if (isSelected) accent else ChipBackground,
+                        containerColor = if (isSelected) accent.copy(alpha = 0.22f) else ChipBackground,
                         focusedContainerColor = accent,
-                        contentColor = if (isSelected) Color.Black else TextWhite,
+                        contentColor = if (isSelected) accent else TextWhite,
                         focusedContentColor = Color.Black
                     ),
                     border = ButtonDefaults.border(border = Border.None, focusedBorder = Border.None),
@@ -237,7 +237,7 @@ fun FilterBar(
                 Button(
                     onClick = { onGenreSelected(genre) },
                     colors = ButtonDefaults.colors(
-                        containerColor = if (isSelected) accent.copy(alpha = 0.3f) else ChipBackground,
+                        containerColor = if (isSelected) accent.copy(alpha = 0.22f) else ChipBackground,
                         focusedContainerColor = accent,
                         contentColor = if (isSelected) accent else TextWhite,
                         focusedContentColor = Color.Black

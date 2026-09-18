@@ -526,6 +526,7 @@ private fun NativeExoPlayerScreen(
 
     var quickSeekBadgeText by remember { mutableStateOf<String?>(null) }
     var quickSeekBadgeJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+    var accumulatedSeekSeconds by remember { mutableIntStateOf(0) }
 
     // Request focus for D-Pad events on launch
     LaunchedEffect(Unit) {
@@ -555,29 +556,51 @@ private fun NativeExoPlayerScreen(
                     if (!isControlsVisible) {
                         when (nativeEvent.keyCode) {
                             KeyEvent.KEYCODE_DPAD_LEFT -> {
+                                if (accumulatedSeekSeconds > 0) {
+                                    accumulatedSeekSeconds = -10
+                                } else {
+                                    accumulatedSeekSeconds -= 10
+                                }
                                 val cur = exoPlayer.currentPosition
                                 val target = (cur - 10000L).coerceAtLeast(0L)
                                 exoPlayer.seekTo(target)
                                 currentPosition = target
-                                quickSeekBadgeText = "-10с"
+                                quickSeekBadgeText = "${accumulatedSeekSeconds}с"
                                 quickSeekBadgeJob?.cancel()
                                 quickSeekBadgeJob = coroutineScope.launch {
                                     delay(1500)
                                     quickSeekBadgeText = null
+                                    accumulatedSeekSeconds = 0
                                 }
                                 return@onKeyEvent true
                             }
                             KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                                if (accumulatedSeekSeconds < 0) {
+                                    accumulatedSeekSeconds = 10
+                                } else {
+                                    accumulatedSeekSeconds += 10
+                                }
                                 val cur = exoPlayer.currentPosition
                                 val dur = if (exoPlayer.duration > 0) exoPlayer.duration else Long.MAX_VALUE
                                 val target = (cur + 10000L).coerceAtMost(dur)
                                 exoPlayer.seekTo(target)
                                 currentPosition = target
-                                quickSeekBadgeText = "+10с"
+                                quickSeekBadgeText = "+${accumulatedSeekSeconds}с"
                                 quickSeekBadgeJob?.cancel()
                                 quickSeekBadgeJob = coroutineScope.launch {
                                     delay(1500)
                                     quickSeekBadgeText = null
+                                    accumulatedSeekSeconds = 0
+                                }
+                                return@onKeyEvent true
+                            }
+                            KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
+                                if (exoPlayer.isPlaying) {
+                                    exoPlayer.pause()
+                                    isControlsVisible = true
+                                    try { playPauseFocusRequester.requestFocus() } catch (_: Exception) {}
+                                } else {
+                                    exoPlayer.play()
                                 }
                                 return@onKeyEvent true
                             }
@@ -764,9 +787,9 @@ private fun NativeExoPlayerScreen(
                                         switchStream(currentSeason, currentEpisode, currentAudioId, qual, selectedSource)
                                     },
                                     colors = ButtonDefaults.colors(
-                                        containerColor = if (isSel) accent else ChipBackground,
+                                        containerColor = if (isSel) accent.copy(alpha = 0.22f) else ChipBackground,
                                         focusedContainerColor = if (isVip) Color(0xFFFFD700) else accent,
-                                        contentColor = if (isSel) Color.Black else TextWhite,
+                                        contentColor = if (isSel) accent else TextWhite,
                                         focusedContentColor = Color.Black
                                     ),
                                     border = ButtonDefaults.border(border = Border.None, focusedBorder = Border.None),
@@ -819,9 +842,9 @@ private fun NativeExoPlayerScreen(
                                         switchStream(currentSeason, currentEpisode, currentAudioId, selectedQuality, src)
                                     },
                                     colors = ButtonDefaults.colors(
-                                        containerColor = if (isSel) accent else ChipBackground,
+                                        containerColor = if (isSel) accent.copy(alpha = 0.22f) else ChipBackground,
                                         focusedContainerColor = accent,
-                                        contentColor = if (isSel) Color.Black else TextWhite,
+                                        contentColor = if (isSel) accent else TextWhite,
                                         focusedContentColor = Color.Black
                                     ),
                                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
@@ -864,9 +887,9 @@ private fun NativeExoPlayerScreen(
                                         switchStream(currentSeason, currentEpisode, track.id, selectedQuality, selectedSource)
                                     },
                                     colors = ButtonDefaults.colors(
-                                        containerColor = if (isSel) accent else ChipBackground,
+                                        containerColor = if (isSel) accent.copy(alpha = 0.22f) else ChipBackground,
                                         focusedContainerColor = accent,
-                                        contentColor = if (isSel) Color.Black else TextWhite,
+                                        contentColor = if (isSel) accent else TextWhite,
                                         focusedContentColor = Color.Black
                                     ),
                                     border = ButtonDefaults.border(border = Border.None, focusedBorder = Border.None),
@@ -920,9 +943,9 @@ private fun NativeExoPlayerScreen(
                                         Button(
                                             onClick = { currentSeason = s.seasonNumber },
                                             colors = ButtonDefaults.colors(
-                                                containerColor = if (isCurrentS) accent else ChipBackground,
+                                                containerColor = if (isCurrentS) accent.copy(alpha = 0.22f) else ChipBackground,
                                                 focusedContainerColor = accent,
-                                                contentColor = if (isCurrentS) Color.Black else TextWhite,
+                                                contentColor = if (isCurrentS) accent else TextWhite,
                                                 focusedContentColor = Color.Black
                                             ),
                                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
@@ -946,32 +969,53 @@ private fun NativeExoPlayerScreen(
                                 color = TextWhite
                             )
                             Spacer(modifier = Modifier.height(8.dp))
+                            val activeEpFocusRequester = remember { FocusRequester() }
+                            LaunchedEffect(activeDrawer) {
+                                if (activeDrawer == "episodes") {
+                                    try {
+                                        activeEpFocusRequester.requestFocus()
+                                    } catch (_: Exception) {}
+                                }
+                            }
                             TvLazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 items(activeSeason.episodes) { ep ->
                                     val isSel = ep.episodeNumber == currentEpisode
+                                    val epFocusMod = if (isSel) Modifier.focusRequester(activeEpFocusRequester) else Modifier
                                     Button(
                                         onClick = {
                                             activeDrawer = null
                                             switchStream(currentSeason, ep.episodeNumber, currentAudioId, selectedQuality, selectedSource)
                                         },
                                         colors = ButtonDefaults.colors(
-                                            containerColor = if (isSel) accent else ChipBackground,
+                                            containerColor = if (isSel) accent.copy(alpha = 0.22f) else ChipBackground,
                                             focusedContainerColor = accent,
-                                            contentColor = if (isSel) Color.Black else TextWhite,
+                                            contentColor = if (isSel) accent else TextWhite,
                                             focusedContentColor = Color.Black
                                         ),
                                         border = ButtonDefaults.border(border = Border.None, focusedBorder = Border.None),
                                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                                         scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
-                                        modifier = Modifier.height(28.dp)
+                                        modifier = Modifier.height(28.dp).then(epFocusMod)
                                     ) {
-                                        Text(
-                                            text = if (ep.title.isNotBlank() && ep.title != "null") ep.title else "Серия ${ep.episodeNumber}",
-                                            fontSize = 11.sp,
-                                            fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal,
-                                            lineHeight = 13.sp
-                                        )
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                        ) {
+                                            if (isSel) {
+                                                AppIcon(
+                                                    resId = R.drawable.ic_play_arrow,
+                                                    tint = accent,
+                                                    size = 12.dp
+                                                )
+                                            }
+                                            Text(
+                                                text = if (ep.title.isNotBlank() && ep.title != "null") ep.title else "Серия ${ep.episodeNumber}",
+                                                fontSize = 11.sp,
+                                                fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal,
+                                                lineHeight = 13.sp
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -1011,9 +1055,9 @@ private fun NativeExoPlayerScreen(
                                                 switchStream(currentSeason, ep.episodeNumber, currentAudioId, selectedQuality, selectedSource)
                                             },
                                             colors = ButtonDefaults.colors(
-                                                containerColor = if (isCurrentEp) accent else Color.White.copy(alpha = 0.12f),
-                                                focusedContainerColor = if (isCurrentEp) Color.White else accent,
-                                                contentColor = if (isCurrentEp) Color.Black else TextWhite,
+                                                containerColor = if (isCurrentEp) accent.copy(alpha = 0.22f) else Color.White.copy(alpha = 0.08f),
+                                                focusedContainerColor = accent,
+                                                contentColor = if (isCurrentEp) accent else TextWhite,
                                                 focusedContentColor = Color.Black
                                             ),
                                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),

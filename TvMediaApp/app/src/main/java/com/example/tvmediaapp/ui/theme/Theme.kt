@@ -17,6 +17,7 @@ val LocalAccentColor = compositionLocalOf { CyanNeon }
 
 object ThemeManager {
     private const val PREF_THEME_KEY = "pref_theme"
+    private const val PREF_PURE_BLACK_KEY = "pref_pure_black"
     private var prefs: SharedPreferences? = null
 
     var currentAccentColor by mutableStateOf(CyanNeon)
@@ -25,10 +26,19 @@ object ThemeManager {
     var currentThemeKey by mutableStateOf("cyan")
         private set
 
+    var isPureBlackEnabled by mutableStateOf(false)
+        private set
+
     fun init(context: Context) {
         prefs = context.getSharedPreferences("showhub_prefs", Context.MODE_PRIVATE)
         val saved = prefs?.getString(PREF_THEME_KEY, "cyan") ?: "cyan"
+        isPureBlackEnabled = prefs?.getBoolean(PREF_PURE_BLACK_KEY, false) ?: false
         setTheme(saved)
+    }
+
+    fun setPureBlack(enabled: Boolean) {
+        isPureBlackEnabled = enabled
+        prefs?.edit()?.putBoolean(PREF_PURE_BLACK_KEY, enabled)?.apply()
     }
 
     fun setTheme(themeKey: String) {
@@ -49,15 +59,16 @@ object ThemeManager {
 @Composable
 fun TvMediaAppTheme(content: @Composable () -> Unit) {
     val accent = ThemeManager.currentAccentColor
+    val isPureBlack = ThemeManager.isPureBlackEnabled
 
     val darkColorScheme = darkColorScheme(
         primary = accent,
         onPrimary = TextWhite,
-        background = BackgroundDark,
+        background = if (isPureBlack) PureBlack else BackgroundDark,
         onBackground = TextWhite,
-        surface = SurfaceDark,
+        surface = if (isPureBlack) PureBlackSurface else SurfaceDark,
         onSurface = TextWhite,
-        surfaceVariant = SurfaceVariantDark,
+        surfaceVariant = if (isPureBlack) PureBlackSurfaceVariant else SurfaceVariantDark,
         onSurfaceVariant = TextGray,
         border = accent
     )

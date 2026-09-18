@@ -47,11 +47,14 @@ import com.example.tvmediaapp.ui.screens.history.HistoryScreen
 import com.example.tvmediaapp.ui.screens.home.HomeScreen
 import com.example.tvmediaapp.ui.screens.home.HomeViewModel
 import com.example.tvmediaapp.ui.screens.player.PlayerScreen
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusRequester
 import com.example.tvmediaapp.ui.screens.search.SearchScreen
 import com.example.tvmediaapp.ui.screens.settings.SettingsScreen
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import com.example.tvmediaapp.ui.theme.BackgroundDark
 import com.example.tvmediaapp.ui.theme.CyanNeon
 import com.example.tvmediaapp.ui.theme.LocalAccentColor
@@ -86,16 +89,16 @@ class MainActivity : ComponentActivity() {
                 pInfo.versionCode
             }
         } catch (e: Exception) {
-            36
+            38
         }
     }
 
     fun getInstalledVersionName(): String {
         return try {
             val pInfo = packageManager.getPackageInfo(packageName, 0)
-            pInfo.versionName ?: "2.5.0"
+            pInfo.versionName ?: "2.5.2"
         } catch (e: Exception) {
-            "2.5.0"
+            "2.5.2"
         }
     }
 
@@ -112,7 +115,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-@OptIn(ExperimentalTvMaterial3Api::class)
+@OptIn(ExperimentalTvMaterial3Api::class, androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
 fun TvAppNavHost(activity: MainActivity) {
     val homeViewModel: HomeViewModel = viewModel()
@@ -159,8 +162,14 @@ fun TvAppNavHost(activity: MainActivity) {
         }
     }
 
+    val isUpdateDialogVisible = updateInfo?.let { it.versionCode > activity.getInstalledVersionCode() } == true
+
     // Hardware Back button handling for Android TV remotes
-    BackHandler(enabled = currentScreen != Screen.HOME) {
+    BackHandler(enabled = isUpdateDialogVisible) {
+        updateInfo = null
+    }
+
+    BackHandler(enabled = !isUpdateDialogVisible && currentScreen != Screen.HOME) {
         when (currentScreen) {
             Screen.PLAYER -> currentScreen = Screen.DETAILS
             Screen.DETAILS -> currentScreen = Screen.HOME
@@ -176,6 +185,9 @@ fun TvAppNavHost(activity: MainActivity) {
         modifier = Modifier
             .fillMaxSize()
             .background(BackgroundDark)
+            .focusProperties {
+                canFocus = !isUpdateDialogVisible
+            }
     ) {
         when (currentScreen) {
             Screen.HOME -> {
@@ -309,19 +321,29 @@ fun TvAppNavHost(activity: MainActivity) {
         }
 
         // In-app Update Notification Banner/Dialog
-        updateInfo?.takeIf { it.versionCode > activity.getInstalledVersionCode() }?.let { update ->
+        if (isUpdateDialogVisible) {
+            val update = updateInfo!!
             val updateFocusRequester = remember { FocusRequester() }
+            val remindLaterFocusRequester = remember { FocusRequester() }
+
             LaunchedEffect(update) {
-                delay(200)
-                try {
-                    updateFocusRequester.requestFocus()
-                } catch (e: Exception) {}
+                for (i in 1..5) {
+                    delay(120)
+                    try {
+                        updateFocusRequester.requestFocus()
+                        break
+                    } catch (_: Exception) {}
+                }
             }
 
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.88f)),
+                    .background(Color.Black.copy(alpha = 0.90f))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) {},
                 contentAlignment = Alignment.Center
             ) {
                 Column(
@@ -360,7 +382,14 @@ fun TvAppNavHost(activity: MainActivity) {
                                 contentColor = Color.Black,
                                 focusedContentColor = Color.Black
                             ),
-                            modifier = Modifier.focusRequester(updateFocusRequester)
+                            modifier = Modifier
+                                .focusRequester(updateFocusRequester)
+                                .focusProperties {
+                                    right = remindLaterFocusRequester
+                                    up = FocusRequester.Cancel
+                                    down = FocusRequester.Cancel
+                                    left = FocusRequester.Cancel
+                                }
                         ) {
                             Text(
                                 text = if (isDownloadingUpdate) "Загрузка APK..." else "Обновить сейчас",
@@ -371,7 +400,15 @@ fun TvAppNavHost(activity: MainActivity) {
                         Spacer(modifier = Modifier.width(16.dp))
                         Button(
                             onClick = { updateInfo = null },
-                            shape = ButtonDefaults.shape(RoundedCornerShape(8.dp))
+                            shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                            modifier = Modifier
+                                .focusRequester(remindLaterFocusRequester)
+                                .focusProperties {
+                                    left = updateFocusRequester
+                                    up = FocusRequester.Cancel
+                                    down = FocusRequester.Cancel
+                                    right = FocusRequester.Cancel
+                                }
                         ) {
                             Text(
                                 text = "Напомнить позже",

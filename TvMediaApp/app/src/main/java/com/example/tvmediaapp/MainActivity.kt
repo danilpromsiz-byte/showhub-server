@@ -47,9 +47,13 @@ import com.example.tvmediaapp.ui.screens.history.HistoryScreen
 import com.example.tvmediaapp.ui.screens.home.HomeScreen
 import com.example.tvmediaapp.ui.screens.home.HomeViewModel
 import com.example.tvmediaapp.ui.screens.player.PlayerScreen
+import androidx.compose.foundation.shape.RoundedCornerShape
 import com.example.tvmediaapp.ui.screens.search.SearchScreen
+import com.example.tvmediaapp.ui.screens.settings.SettingsScreen
 import com.example.tvmediaapp.ui.theme.BackgroundDark
 import com.example.tvmediaapp.ui.theme.CyanNeon
+import com.example.tvmediaapp.ui.theme.LocalAccentColor
+import com.example.tvmediaapp.ui.theme.ThemeManager
 import com.example.tvmediaapp.ui.theme.TvMediaAppTheme
 import kotlinx.coroutines.launch
 
@@ -59,6 +63,7 @@ enum class Screen {
     SEARCH,
     FAVORITES,
     HISTORY,
+    SETTINGS,
     PLAYER
 }
 
@@ -78,22 +83,23 @@ class MainActivity : ComponentActivity() {
                 pInfo.versionCode
             }
         } catch (e: Exception) {
-            35
+            36
         }
     }
 
     fun getInstalledVersionName(): String {
         return try {
             val pInfo = packageManager.getPackageInfo(packageName, 0)
-            pInfo.versionName ?: "2.4.1"
+            pInfo.versionName ?: "2.5.0"
         } catch (e: Exception) {
-            "2.4.1"
+            "2.5.0"
         }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         CoilSetup.init(this)
+        ThemeManager.init(this)
 
         setContent {
             TvMediaAppTheme {
@@ -158,6 +164,7 @@ fun TvAppNavHost(activity: MainActivity) {
             Screen.SEARCH -> currentScreen = Screen.HOME
             Screen.FAVORITES -> currentScreen = Screen.HOME
             Screen.HISTORY -> currentScreen = Screen.HOME
+            Screen.SETTINGS -> currentScreen = Screen.HOME
             Screen.HOME -> activity.finish()
         }
     }
@@ -187,10 +194,26 @@ fun TvAppNavHost(activity: MainActivity) {
                     onHistoryClick = {
                         currentScreen = Screen.HISTORY
                     },
+                    onSettingsClick = {
+                        currentScreen = Screen.SETTINGS
+                    },
                     onCheckUpdateClick = { triggerUpdateCheck() },
                     hasUpdateAvailable = (updateInfo != null && updateInfo!!.versionCode > activity.getInstalledVersionCode()),
                     appVersion = activity.getInstalledVersionName(),
                     viewModel = homeViewModel
+                )
+            }
+
+            Screen.SETTINGS -> {
+                SettingsScreen(
+                    appVersion = activity.getInstalledVersionName(),
+                    versionCode = activity.getInstalledVersionCode(),
+                    onBackClick = { currentScreen = Screen.HOME },
+                    onSearchClick = { currentScreen = Screen.SEARCH },
+                    onFavoritesClick = { currentScreen = Screen.FAVORITES },
+                    onHistoryClick = { currentScreen = Screen.HISTORY },
+                    onCheckUpdateClick = { triggerUpdateCheck() },
+                    hasUpdateAvailable = (updateInfo != null && updateInfo!!.versionCode > activity.getInstalledVersionCode())
                 )
             }
 
@@ -307,6 +330,7 @@ fun TvAppNavHost(activity: MainActivity) {
                         color = Color.LightGray
                     )
                     Spacer(modifier = Modifier.height(24.dp))
+                    val accent = LocalAccentColor.current
                     Row {
                         Button(
                             onClick = {
@@ -318,25 +342,27 @@ fun TvAppNavHost(activity: MainActivity) {
                                     }
                                 }
                             },
+                            shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                             colors = ButtonDefaults.colors(
-                                containerColor = CyanNeon,
+                                containerColor = accent,
                                 focusedContainerColor = Color.White,
                                 contentColor = Color.Black,
                                 focusedContentColor = Color.Black
                             )
                         ) {
                             Text(
-                                text = if (isDownloadingUpdate) "\u23f3  \u0417\u0430\u0433\u0440\u0443\u0437\u043a\u0430 APK..." else "\u2b07\ufe0f  \u041e\u0431\u043d\u043e\u0432\u0438\u0442\u044c \u0441\u0435\u0439\u0447\u0430\u0441",
+                                text = if (isDownloadingUpdate) "Загрузка APK..." else "Обновить сейчас",
                                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
                                 fontWeight = FontWeight.Bold
                             )
                         }
                         Spacer(modifier = Modifier.width(16.dp))
                         Button(
-                            onClick = { updateInfo = null }
+                            onClick = { updateInfo = null },
+                            shape = ButtonDefaults.shape(RoundedCornerShape(8.dp))
                         ) {
                             Text(
-                                text = "\u041d\u0430\u043f\u043e\u043c\u043d\u0438\u0442\u044c \u043f\u043e\u0437\u0436\u0435",
+                                text = "Напомнить позже",
                                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
                             )
                         }

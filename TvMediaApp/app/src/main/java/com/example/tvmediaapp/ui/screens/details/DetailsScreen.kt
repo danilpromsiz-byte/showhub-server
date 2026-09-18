@@ -54,31 +54,37 @@ import com.example.tvmediaapp.data.history.WatchHistoryManager
 import com.example.tvmediaapp.data.models.Movie
 import com.example.tvmediaapp.data.models.StreamOption
 import com.example.tvmediaapp.data.resolver.RezkaNativeResolver
+import com.example.tvmediaapp.ui.screens.player.isDirectVideoStream
 import com.example.tvmediaapp.ui.theme.BackgroundDark
 import com.example.tvmediaapp.ui.theme.ChipBackground
-import com.example.tvmediaapp.ui.theme.CyanNeon
 import com.example.tvmediaapp.ui.theme.FavoriteGold
 import com.example.tvmediaapp.ui.theme.ImdbGold
 import com.example.tvmediaapp.ui.theme.KpOrange
+import com.example.tvmediaapp.ui.theme.LocalAccentColor
 import com.example.tvmediaapp.ui.theme.TextGray
 import com.example.tvmediaapp.ui.theme.TextWhite
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 fun DetailsScreen(
     movie: Movie,
-    onPlayClick: (url: String, startPositionMs: Long, season: Int, episode: Int) -> Unit,
+    onPlayClick: (videoUrl: String, startPositionMs: Long, season: Int, episode: Int) -> Unit,
     onBackClick: () -> Unit,
-    onToggleFavorite: (Movie) -> Unit = {},
-    isFavorite: Boolean = false,
+    onToggleFavorite: (Movie) -> Unit,
+    isFavorite: Boolean,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val historyManager = remember { WatchHistoryManager(context) }
-    val savedHistory = remember { historyManager.getProgress(movie.id) }
-
     val coroutineScope = rememberCoroutineScope()
+    val accent = LocalAccentColor.current
+
+    val historyManager = remember { WatchHistoryManager(context) }
+    val savedHistory = remember(movie.id) {
+        historyManager.getProgress(movie.id)
+    }
+
     var currentMovie by remember { mutableStateOf(movie) }
     var selectedSeason by remember { mutableStateOf(savedHistory?.season ?: 1) }
     var selectedEpisode by remember { mutableStateOf(savedHistory?.episode ?: 1) }
@@ -100,17 +106,32 @@ fun DetailsScreen(
         }
     }
 
-    // Pre-fetch streams in background so available sources and qualities show up immediately
+    // Pre-fetch streams in background: query native Rezka and server in parallel
     LaunchedEffect(currentMovie.id, selectedSeason, selectedEpisode, selectedAudioId) {
         try {
-            val streams = ShowHubApiClient.fetchStreams(
-                movie = currentMovie,
-                season = if (currentMovie.isSeries) selectedSeason else null,
-                episode = if (currentMovie.isSeries) selectedEpisode else null,
-                audioId = selectedAudioId
-            )
-            if (streams.isNotEmpty()) {
-                streamOptions = streams
+            val nativeDeferred = async {
+                RezkaNativeResolver.resolveStreams(
+                    title = currentMovie.title,
+                    year = currentMovie.releaseYear,
+                    isSeries = currentMovie.isSeries,
+                    season = selectedSeason,
+                    episode = selectedEpisode
+                )
+            }
+            val serverDeferred = async {
+                ShowHubApiClient.fetchStreams(
+                    movie = currentMovie,
+                    season = if (currentMovie.isSeries) selectedSeason else null,
+                    episode = if (currentMovie.isSeries) selectedEpisode else null,
+                    audioId = selectedAudioId
+                )
+            }
+            val nativeStreams = nativeDeferred.await()
+            val serverStreams = serverDeferred.await()
+            val combined = (nativeStreams + serverStreams).distinctBy { it.url }
+            val sorted = combined.sortedByDescending { isDirectVideoStream(it.url) }
+            if (sorted.isNotEmpty()) {
+                streamOptions = sorted
             }
         } catch (e: Exception) {
             e.printStackTrace()
@@ -125,18 +146,12 @@ fun DetailsScreen(
     ) {
         if (isResolving) return
         isResolving = true
-        streamStatus = "\u23f3  \u041f\u043e\u0438\u0441\u043a \u043f\u0440\u044f\u043c\u043e\u0433\u043e HLS \u043f\u043e\u0442\u043e\u043a\u0430..."
+        streamStatus = "Поиск прямого HLS потока..."
 
         coroutineScope.launch {
-            var streams = ShowHubApiClient.fetchStreams(
-                movie = currentMovie,
-                season = if (currentMovie.isSeries) targetSeason else null,
-                episode = if (currentMovie.isSeries) targetEpisode else null,
-                audioId = targetAudioId
-            )
-
-            if (streams.isEmpty()) {
-                streams = RezkaNativeResolver.resolveStreams(
+            // Priority 1: Query Rezka directly on TV (residential IP) and server concurrently
+            val nativeDeferred = async {
+                RezkaNativeResolver.resolveStreams(
                     title = currentMovie.title,
                     year = currentMovie.releaseYear,
                     isSeries = currentMovie.isSeries,
@@ -144,16 +159,32 @@ fun DetailsScreen(
                     episode = targetEpisode
                 )
             }
+            val serverDeferred = async {
+                ShowHubApiClient.fetchStreams(
+                    movie = currentMovie,
+                    season = if (currentMovie.isSeries) targetSeason else null,
+                    episode = if (currentMovie.isSeries) targetEpisode else null,
+                    audioId = targetAudioId
+                )
+            }
+
+            val nativeStreams = nativeDeferred.await()
+            val serverStreams = serverDeferred.await()
+            val combined = (nativeStreams + serverStreams).distinctBy { it.url }
+            // Sort direct streams (HLS/MP4) first, balancers last
+            val streams = combined.sortedByDescending { isDirectVideoStream(it.url) }
 
             streamOptions = streams
             isResolving = false
 
             if (streams.isNotEmpty()) {
-                val matched = streams.firstOrNull { it.quality.contains(selectedQuality) } ?: streams.first()
-                streamStatus = "\u2705  \u041d\u0430\u0439\u0434\u0435\u043d \u043f\u043e\u0442\u043e\u043a ${matched.quality}! \u0417\u0430\u043f\u0443\u0441\u043a..."
+                val matched = streams.firstOrNull { it.quality.contains(selectedQuality) && isDirectVideoStream(it.url) }
+                    ?: streams.firstOrNull { isDirectVideoStream(it.url) }
+                    ?: streams.first()
+                streamStatus = "Найден поток ${matched.quality}! Запуск..."
                 onPlayClick(matched.url, startPos, targetSeason, targetEpisode)
             } else {
-                streamStatus = "\u26a0\ufe0f  \u041f\u043e\u0442\u043e\u043a \u0432 \u043e\u0431\u0440\u0430\u0431\u043e\u0442\u043a\u0435. \u041f\u043e\u043f\u0440\u043e\u0431\u0443\u0439\u0442\u0435 \u0434\u0440\u0443\u0433\u043e\u0439 \u0444\u0438\u043b\u044c\u043c."
+                streamStatus = "Поток в обработке. Попробуйте другой фильм."
             }
         }
     }
@@ -200,8 +231,8 @@ fun DetailsScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .aspectRatio(2f / 3f)
-                        .clip(RoundedCornerShape(12.dp))
-                        .border(1.5.dp, CyanNeon.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
+                        .clip(RoundedCornerShape(8.dp))
+                        .border(1.5.dp, accent.copy(alpha = 0.4f), RoundedCornerShape(8.dp))
                 ) {
                     AsyncImage(
                         model = currentMovie.posterUrl,
@@ -220,12 +251,12 @@ fun DetailsScreen(
                 ) {
                     Box(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(6.dp))
+                            .clip(RoundedCornerShape(8.dp))
                             .background(KpOrange)
                             .padding(horizontal = 10.dp, vertical = 4.dp)
                     ) {
                         Text(
-                            text = "\u041a\u041f \u2605 ${currentMovie.ratingKp}",
+                            text = "КП ${currentMovie.ratingKp}",
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color.White
@@ -234,12 +265,12 @@ fun DetailsScreen(
 
                     Box(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(6.dp))
+                            .clip(RoundedCornerShape(8.dp))
                             .background(ImdbGold)
                             .padding(horizontal = 10.dp, vertical = 4.dp)
                     ) {
                         Text(
-                            text = "IMDb \u2605 ${currentMovie.ratingImdb}",
+                            text = "IMDb ${currentMovie.ratingImdb}",
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color.Black
@@ -249,48 +280,48 @@ fun DetailsScreen(
 
                 Spacer(modifier = Modifier.height(14.dp))
 
-                if (currentMovie.director.isNotEmpty()) {
-                    Text(
-                        text = "\u0420\u0435\u0436\u0438\u0441\u0441\u0451\u0440: ${currentMovie.director}",
-                        fontSize = 13.sp,
-                        color = TextGray,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
+                // Quick Metadata Badges
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    if (currentMovie.director.isNotEmpty()) {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(text = "Режиссёр:", fontSize = 12.sp, color = TextGray)
+                            Text(text = currentMovie.director, fontSize = 12.sp, color = TextWhite, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                    }
+                    if (currentMovie.country.isNotEmpty()) {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(text = "Страна:", fontSize = 12.sp, color = TextGray)
+                            Text(text = currentMovie.country, fontSize = 12.sp, color = TextWhite, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                    }
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text(text = "Тип:", fontSize = 12.sp, color = TextGray)
+                        Text(
+                            text = if (currentMovie.isSeries) "Сериал" else "Фильм",
+                            fontSize = 12.sp,
+                            color = accent,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
-
-                if (currentMovie.country.isNotEmpty()) {
-                    Text(
-                        text = "\u0421\u0442\u0440\u0430\u043d\u0430: ${currentMovie.country}",
-                        fontSize = 13.sp,
-                        color = TextGray,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                }
-
-                Text(
-                    text = "${currentMovie.releaseYear} \u2022 ${currentMovie.duration}",
-                    fontSize = 13.sp,
-                    color = TextGray
-                )
             }
 
-            // RIGHT PANE: Title, Actions, Synopsis, Series Navigator, Quality
+            // RIGHT PANE: Details, Translators, Seasons, Episodes & Actions
             Column(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxHeight()
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.Top
+                    .verticalScroll(rememberScrollState())
             ) {
                 Text(
                     text = currentMovie.title,
                     fontSize = 32.sp,
                     fontWeight = FontWeight.ExtraBold,
-                    color = TextWhite
+                    color = TextWhite,
+                    lineHeight = 38.sp
                 )
 
                 if (currentMovie.originalTitle.isNotEmpty() && currentMovie.originalTitle != currentMovie.title) {
@@ -305,9 +336,9 @@ fun DetailsScreen(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Text(
-                    text = currentMovie.genres.joinToString(" \u2022 "),
+                    text = currentMovie.genres.joinToString(" • "),
                     fontSize = 14.sp,
-                    color = CyanNeon,
+                    color = accent,
                     fontWeight = FontWeight.Medium
                 )
 
@@ -321,9 +352,9 @@ fun DetailsScreen(
                     if (savedHistory != null && savedHistory.positionMs > 10_000L) {
                         val mins = savedHistory.positionMs / 60000L
                         val resumeLabel = if (currentMovie.isSeries) {
-                            "\u25b6  \u041f\u0440\u043e\u0434\u043e\u043b\u0436\u0438\u0442\u044c (S${savedHistory.season} E${savedHistory.episode}, ${mins} \u043c\u0438\u043d)"
+                            "Продолжить (S${savedHistory.season} E${savedHistory.episode}, $mins мин)"
                         } else {
-                            "\u25b6  \u041f\u0440\u043e\u0434\u043e\u043b\u0436\u0438\u0442\u044c (${mins} \u043c\u0438\u043d)"
+                            "Продолжить ($mins мин)"
                         }
 
                         Button(
@@ -336,7 +367,7 @@ fun DetailsScreen(
                                 )
                             },
                             colors = ButtonDefaults.colors(
-                                containerColor = CyanNeon,
+                                containerColor = accent,
                                 focusedContainerColor = Color.White,
                                 contentColor = Color.Black,
                                 focusedContentColor = Color.Black
@@ -356,7 +387,7 @@ fun DetailsScreen(
                             onClick = { startPlayback(startPos = 0L) },
                             colors = ButtonDefaults.colors(
                                 containerColor = Color.White.copy(alpha = 0.12f),
-                                focusedContainerColor = CyanNeon,
+                                focusedContainerColor = accent,
                                 contentColor = TextWhite,
                                 focusedContentColor = Color.Black
                             ),
@@ -364,7 +395,7 @@ fun DetailsScreen(
                             modifier = Modifier.height(44.dp)
                         ) {
                             Text(
-                                text = "\u0421 \u043d\u0430\u0447\u0430\u043b\u0430",
+                                text = "С начала",
                                 fontWeight = FontWeight.Medium,
                                 fontSize = 14.sp,
                                 modifier = Modifier.padding(horizontal = 8.dp)
@@ -374,7 +405,7 @@ fun DetailsScreen(
                         Button(
                             onClick = { startPlayback(startPos = 0L) },
                             colors = ButtonDefaults.colors(
-                                containerColor = CyanNeon,
+                                containerColor = accent,
                                 focusedContainerColor = Color.White,
                                 contentColor = Color.Black,
                                 focusedContentColor = Color.Black
@@ -383,7 +414,7 @@ fun DetailsScreen(
                             modifier = Modifier.height(44.dp)
                         ) {
                             Text(
-                                text = if (isResolving) "\u23f3 \u041f\u043e\u0438\u0441\u043a..." else "\u25b6  \u0421\u043c\u043e\u0442\u0440\u0435\u0442\u044c \u043e\u043d\u043b\u0430\u0439\u043d",
+                                text = if (isResolving) "Поиск..." else "Смотреть онлайн",
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 14.sp,
                                 modifier = Modifier.padding(horizontal = 12.dp)
@@ -395,7 +426,7 @@ fun DetailsScreen(
                     Button(
                         onClick = {
                             coroutineScope.launch {
-                                streamStatus = "⏳ Поиск трейлера..."
+                                streamStatus = "Поиск трейлера..."
                                 val trailerUrl = ShowHubApiClient.fetchTrailerUrl(currentMovie)
                                 if (!trailerUrl.isNullOrEmpty()) {
                                     try {
@@ -408,13 +439,13 @@ fun DetailsScreen(
                                         streamStatus = "Ошибка запуска видео: ${e.message}"
                                     }
                                 } else {
-                                    streamStatus = "⚠️ Трейлер не найден"
+                                    streamStatus = "Трейлер не найден"
                                 }
                             }
                         },
                         colors = ButtonDefaults.colors(
                             containerColor = Color.White.copy(alpha = 0.12f),
-                            focusedContainerColor = CyanNeon,
+                            focusedContainerColor = accent,
                             contentColor = TextWhite,
                             focusedContentColor = Color.Black
                         ),
@@ -422,7 +453,7 @@ fun DetailsScreen(
                         modifier = Modifier.height(44.dp)
                     ) {
                         Text(
-                            text = "🎬 Трейлер",
+                            text = "Трейлер",
                             fontWeight = FontWeight.SemiBold,
                             fontSize = 14.sp,
                             modifier = Modifier.padding(horizontal = 6.dp)
@@ -433,27 +464,32 @@ fun DetailsScreen(
                     Button(
                         onClick = {
                             coroutineScope.launch {
-                                streamStatus = "⏳ Получение ссылки для стороннего плеера..."
+                                streamStatus = "Получение ссылки для стороннего плеера..."
                                 var streams = streamOptions
                                 if (streams.isEmpty()) {
-                                    streams = ShowHubApiClient.fetchStreams(
-                                        movie = currentMovie,
-                                        season = if (currentMovie.isSeries) selectedSeason else null,
-                                        episode = if (currentMovie.isSeries) selectedEpisode else null,
-                                        audioId = selectedAudioId
-                                    )
-                                }
-                                if (streams.isEmpty()) {
-                                    streams = RezkaNativeResolver.resolveStreams(
-                                        title = currentMovie.title,
-                                        year = currentMovie.releaseYear,
-                                        isSeries = currentMovie.isSeries,
-                                        season = selectedSeason,
-                                        episode = selectedEpisode
-                                    )
+                                    val nativeDeferred = async {
+                                        RezkaNativeResolver.resolveStreams(
+                                            title = currentMovie.title,
+                                            year = currentMovie.releaseYear,
+                                            isSeries = currentMovie.isSeries,
+                                            season = selectedSeason,
+                                            episode = selectedEpisode
+                                        )
+                                    }
+                                    val serverDeferred = async {
+                                        ShowHubApiClient.fetchStreams(
+                                            movie = currentMovie,
+                                            season = if (currentMovie.isSeries) selectedSeason else null,
+                                            episode = if (currentMovie.isSeries) selectedEpisode else null,
+                                            audioId = selectedAudioId
+                                        )
+                                    }
+                                    streams = (nativeDeferred.await() + serverDeferred.await()).distinctBy { it.url }
                                 }
                                 if (streams.isNotEmpty()) {
-                                    val matched = streams.firstOrNull { it.quality.contains(selectedQuality) } ?: streams.first()
+                                    val matched = streams.firstOrNull { it.quality.contains(selectedQuality) && isDirectVideoStream(it.url) }
+                                        ?: streams.firstOrNull { isDirectVideoStream(it.url) }
+                                        ?: streams.first()
                                     try {
                                         val intent = Intent(Intent.ACTION_VIEW).apply {
                                             val uri = Uri.parse(matched.url)
@@ -472,17 +508,17 @@ fun DetailsScreen(
                                             context.startActivity(webIntent)
                                             streamStatus = null
                                         } catch (e2: Exception) {
-                                            streamStatus = "⚠️ Не найден внешний плеер"
+                                            streamStatus = "Не найден внешний плеер"
                                         }
                                     }
                                 } else {
-                                    streamStatus = "⚠️ Потоки не найдены"
+                                    streamStatus = "Потоки не найдены"
                                 }
                             }
                         },
                         colors = ButtonDefaults.colors(
                             containerColor = Color.White.copy(alpha = 0.12f),
-                            focusedContainerColor = CyanNeon,
+                            focusedContainerColor = accent,
                             contentColor = TextWhite,
                             focusedContentColor = Color.Black
                         ),
@@ -490,7 +526,7 @@ fun DetailsScreen(
                         modifier = Modifier.height(44.dp)
                     ) {
                         Text(
-                            text = "📺 Сторонний плеер",
+                            text = "Внешний плеер",
                             fontWeight = FontWeight.SemiBold,
                             fontSize = 14.sp,
                             modifier = Modifier.padding(horizontal = 6.dp)
@@ -517,7 +553,7 @@ fun DetailsScreen(
                         modifier = Modifier.height(44.dp)
                     ) {
                         Text(
-                            text = if (isFavorite) "\u2605 \u0412 \u0438\u0437\u0431\u0440\u0430\u043d\u043d\u043e\u043c" else "\u2606 \u0412 \u0438\u0437\u0431\u0440\u0430\u043d\u043d\u043e\u0435",
+                            text = if (isFavorite) "В избранном" else "В избранное",
                             fontWeight = FontWeight.SemiBold,
                             fontSize = 14.sp,
                             modifier = Modifier.padding(horizontal = 8.dp)
@@ -530,7 +566,7 @@ fun DetailsScreen(
                         modifier = Modifier.height(44.dp)
                     ) {
                         Text(
-                            text = "\u2190 \u041d\u0430\u0437\u0430\u0434",
+                            text = "Назад",
                             fontSize = 14.sp,
                             modifier = Modifier.padding(horizontal = 12.dp)
                         )
@@ -543,7 +579,7 @@ fun DetailsScreen(
                     Text(
                         text = streamStatus ?: "",
                         fontSize = 14.sp,
-                        color = CyanNeon
+                        color = accent
                     )
                 }
 
@@ -551,7 +587,7 @@ fun DetailsScreen(
                 if (currentMovie.audioTracks.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
-                        text = "\u041e\u0437\u0432\u0443\u0447\u043a\u0430 / \u041f\u0435\u0440\u0435\u0432\u043e\u0434:",
+                        text = "Озвучка / Перевод:",
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
                         color = TextWhite
@@ -569,8 +605,8 @@ fun DetailsScreen(
                                     startPlayback(targetAudioId = track.id, startPos = 0L)
                                 },
                                 colors = ButtonDefaults.colors(
-                                    containerColor = if (isSelected) CyanNeon else ChipBackground,
-                                    focusedContainerColor = CyanNeon,
+                                    containerColor = if (isSelected) accent else ChipBackground,
+                                    focusedContainerColor = accent,
                                     contentColor = if (isSelected) Color.Black else TextWhite,
                                     focusedContentColor = Color.Black
                                 ),
@@ -595,7 +631,7 @@ fun DetailsScreen(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(
-                        text = "\u041a\u0430\u0447\u0435\u0441\u0442\u0432\u043e:",
+                        text = "Качество:",
                         fontSize = 13.sp,
                         color = TextGray
                     )
@@ -604,8 +640,8 @@ fun DetailsScreen(
                         Button(
                             onClick = { selectedQuality = quality },
                             colors = ButtonDefaults.colors(
-                                containerColor = if (isSelected) CyanNeon else ChipBackground,
-                                focusedContainerColor = CyanNeon,
+                                containerColor = if (isSelected) accent else ChipBackground,
+                                focusedContainerColor = accent,
                                 contentColor = if (isSelected) Color.Black else TextWhite,
                                 focusedContentColor = Color.Black
                             ),
@@ -639,8 +675,8 @@ fun DetailsScreen(
                                     selectedEpisode = 1
                                 },
                                 colors = ButtonDefaults.colors(
-                                    containerColor = if (isSelected) CyanNeon else ChipBackground,
-                                    focusedContainerColor = CyanNeon,
+                                    containerColor = if (isSelected) accent else ChipBackground,
+                                    focusedContainerColor = accent,
                                     contentColor = if (isSelected) Color.Black else TextWhite,
                                     focusedContentColor = Color.Black
                                 ),
@@ -660,7 +696,7 @@ fun DetailsScreen(
 
                     val activeSeason = currentMovie.seasons.firstOrNull { it.seasonNumber == selectedSeason } ?: currentMovie.seasons.first()
                     Text(
-                        text = "\u0421\u0435\u0440\u0438\u0438 (${activeSeason.episodes.size}):",
+                        text = "Серии (${activeSeason.episodes.size}):",
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
                         color = TextWhite
@@ -678,14 +714,14 @@ fun DetailsScreen(
                                     startPlayback(targetSeason = selectedSeason, targetEpisode = ep.episodeNumber, startPos = 0L)
                                 },
                                 colors = ButtonDefaults.colors(
-                                    containerColor = if (isSelected) CyanNeon.copy(alpha = 0.3f) else ChipBackground,
-                                    focusedContainerColor = CyanNeon,
-                                    contentColor = if (isSelected) CyanNeon else TextWhite,
+                                    containerColor = if (isSelected) accent.copy(alpha = 0.3f) else ChipBackground,
+                                    focusedContainerColor = accent,
+                                    contentColor = if (isSelected) accent else TextWhite,
                                     focusedContentColor = Color.Black
                                 ),
                                 border = ButtonDefaults.border(
                                     border = Border(
-                                        border = BorderStroke(1.dp, if (isSelected) CyanNeon else Color.Transparent)
+                                        border = BorderStroke(1.dp, if (isSelected) accent else Color.Transparent)
                                     ),
                                     focusedBorder = Border(
                                         border = BorderStroke(2.dp, TextWhite)

@@ -1,3 +1,9 @@
+@file:OptIn(
+    androidx.tv.material3.ExperimentalTvMaterial3Api::class,
+    androidx.compose.foundation.ExperimentalFoundationApi::class,
+    androidx.tv.foundation.ExperimentalTvFoundationApi::class
+)
+
 package com.example.tvmediaapp.ui.screens.favorites
 
 import androidx.compose.foundation.background
@@ -36,6 +42,7 @@ import com.example.tvmediaapp.ui.screens.home.HomeViewModel
 import com.example.tvmediaapp.ui.theme.BackgroundDark
 import com.example.tvmediaapp.ui.theme.CyanNeon
 import com.example.tvmediaapp.ui.theme.FavoriteGold
+import com.example.tvmediaapp.ui.theme.LocalAccentColor
 import com.example.tvmediaapp.ui.theme.TextGray
 import com.example.tvmediaapp.ui.theme.TextWhite
 
@@ -53,6 +60,8 @@ fun FavoritesScreen(
         allMovies.filter { viewModel.isFavorite(it.id) }
     }
 
+    val accent = LocalAccentColor.current
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -67,7 +76,7 @@ fun FavoritesScreen(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = "\u2b50 \u0418\u0437\u0431\u0440\u0430\u043d\u043d\u043e\u0435",
+                    text = "Избранное",
                     fontSize = 26.sp,
                     fontWeight = FontWeight.Bold,
                     color = TextWhite
@@ -77,7 +86,7 @@ fun FavoritesScreen(
                     Text(
                         text = "(${favoriteMovies.size})",
                         fontSize = 20.sp,
-                        color = FavoriteGold,
+                        color = accent,
                         fontWeight = FontWeight.SemiBold
                     )
                 }
@@ -89,7 +98,7 @@ fun FavoritesScreen(
                 modifier = Modifier.height(38.dp)
             ) {
                 Text(
-                    text = "\u2190 \u041d\u0430\u0437\u0430\u0434",
+                    text = "Назад",
                     fontSize = 13.sp,
                     modifier = Modifier.padding(horizontal = 8.dp)
                 )
@@ -105,19 +114,14 @@ fun FavoritesScreen(
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
-                        text = "\u2b50",
-                        fontSize = 48.sp
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text(
-                        text = "\u0412 \u0438\u0437\u0431\u0440\u0430\u043d\u043d\u043e\u043c \u043f\u043e\u043a\u0430 \u043d\u0438\u0447\u0435\u0433\u043e \u043d\u0435\u0442",
+                        text = "В избранном пока ничего нет",
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
                         color = TextWhite
                     )
-                    Spacer(modifier = Modifier.height(6.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "\u041d\u0430\u0436\u0438\u043c\u0430\u0439\u0442\u0435 \u00ab\u0412 \u0438\u0437\u0431\u0440\u0430\u043d\u043d\u043e\u0435\u00bb \u043d\u0430 \u043a\u0430\u0440\u0442\u043e\u0447\u043a\u0435 \u0444\u0438\u043b\u044c\u043c\u0430, \u0447\u0442\u043e\u0431\u044b \u0431\u044b\u0441\u0442\u0440\u043e \u043d\u0430\u0445\u043e\u0434\u0438\u0442\u044c \u0435\u0433\u043e.",
+                        text = "Нажимайте «В избранное» на карточке фильма, чтобы быстро находить его.",
                         fontSize = 14.sp,
                         color = TextGray,
                         textAlign = TextAlign.Center
@@ -126,10 +130,10 @@ fun FavoritesScreen(
             }
         } else {
             TvLazyVerticalGrid(
-                columns = TvGridCells.Adaptive(160.dp),
+                columns = TvGridCells.Fixed(6),
                 contentPadding = PaddingValues(bottom = 32.dp),
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
                 items(favoriteMovies) { movie ->
@@ -143,3 +147,4 @@ fun FavoritesScreen(
         }
     }
 }
+

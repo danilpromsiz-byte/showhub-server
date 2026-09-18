@@ -1,33 +1,41 @@
+@file:OptIn(
+    androidx.tv.material3.ExperimentalTvMaterial3Api::class,
+    androidx.compose.foundation.ExperimentalFoundationApi::class,
+    androidx.tv.foundation.ExperimentalTvFoundationApi::class
+)
+
 package com.example.tvmediaapp.ui.screens.home
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.tv.foundation.lazy.list.TvLazyColumn
-import androidx.tv.foundation.lazy.list.TvLazyRow
-import androidx.tv.foundation.lazy.list.items
+import androidx.tv.foundation.lazy.grid.TvGridCells
+import androidx.tv.foundation.lazy.grid.TvLazyVerticalGrid
+import androidx.tv.foundation.lazy.grid.items
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Text
 import com.example.tvmediaapp.data.models.Movie
-import com.example.tvmediaapp.ui.components.FeaturedMovieBanner
 import com.example.tvmediaapp.ui.components.FilterBar
 import com.example.tvmediaapp.ui.components.MovieCard
 import com.example.tvmediaapp.ui.components.TvTopBar
 import com.example.tvmediaapp.ui.theme.BackgroundDark
+import com.example.tvmediaapp.ui.theme.TextGray
 import com.example.tvmediaapp.ui.theme.TextWhite
 
 @OptIn(ExperimentalTvMaterial3Api::class)
@@ -38,6 +46,7 @@ fun HomeScreen(
     onSearchClick: () -> Unit,
     onFavoritesClick: () -> Unit,
     onHistoryClick: () -> Unit,
+    onSettingsClick: (() -> Unit)? = null,
     onCheckUpdateClick: (() -> Unit)? = null,
     hasUpdateAvailable: Boolean = false,
     appVersion: String = "",
@@ -50,17 +59,9 @@ fun HomeScreen(
     val selectedGenre by viewModel.selectedGenre.collectAsState()
     val selectedYear by viewModel.selectedYear.collectAsState()
     val selectedCountry by viewModel.selectedCountry.collectAsState()
-    @Suppress("UNUSED_VARIABLE")
-    val favTrigger by viewModel.favoriteChangeTrigger.collectAsState()
 
-    var featuredMovie by remember { mutableStateOf<Movie?>(null) }
-
-    // Auto-select first movie for hero spotlight if none or if category switched
-    if (featuredMovie == null || categories.none { cat -> cat.movies.any { it.id == featuredMovie?.id } }) {
-        val firstAvailable = categories.firstOrNull { it.movies.isNotEmpty() }?.movies?.firstOrNull()
-        if (firstAvailable != null) {
-            featuredMovie = firstAvailable
-        }
+    val displayMovies = remember(categories) {
+        categories.firstOrNull()?.movies ?: emptyList()
     }
 
     Column(
@@ -68,95 +69,73 @@ fun HomeScreen(
             .fillMaxSize()
             .background(BackgroundDark)
     ) {
-        // TOP NAVIGATION BAR: Logo + Search + Favorites + History + Version
+        // TOP NAVIGATION BAR: Logo + Search + Favorites + History + Settings + Update
         TvTopBar(
             onSearchClick = onSearchClick,
             onFavoritesClick = onFavoritesClick,
             onHistoryClick = onHistoryClick,
+            onSettingsClick = onSettingsClick,
             onCheckUpdateClick = onCheckUpdateClick,
             hasUpdateAvailable = hasUpdateAvailable,
             appVersion = appVersion,
             currentScreenName = "home"
         )
 
-        TvLazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(bottom = 48.dp)
-        ) {
-            // 1. Hero Spotlight Preview Banner
-            item {
-                val isFav = featuredMovie?.let { viewModel.isFavorite(it.id) } ?: false
-                FeaturedMovieBanner(
-                    movie = featuredMovie,
-                    onWatchClick = { onWatchClick(it) },
-                    onDetailsClick = { onMovieSelect(it) },
-                    onToggleFavorite = { viewModel.toggleFavorite(it) },
-                    isFavorite = isFav
-                )
-            }
+        // FILTER & SORT RIBBON
+        FilterBar(
+            selectedType = selectedType,
+            onTypeSelected = { viewModel.selectType(it) },
+            selectedSort = selectedSort,
+            onSortSelected = { viewModel.selectSort(it) },
+            selectedGenre = selectedGenre,
+            onGenreSelected = { viewModel.selectGenre(it) },
+            selectedYear = selectedYear,
+            onYearSelected = { viewModel.selectYear(it) },
+            selectedCountry = selectedCountry,
+            onCountrySelected = { viewModel.selectCountry(it) },
+            onResetFilters = { viewModel.resetFilters() }
+        )
 
-            // 2. Full Extended Catalog Filter Ribbon (Content Type, Sort, Genres, Year, Country, Reset)
-            item {
-                FilterBar(
-                    selectedType = selectedType,
-                    onTypeSelected = { viewModel.selectType(it) },
-                    selectedSort = selectedSort,
-                    onSortSelected = { viewModel.selectSort(it) },
-                    selectedGenre = selectedGenre,
-                    onGenreSelected = { viewModel.selectGenre(it) },
-                    selectedYear = selectedYear,
-                    onYearSelected = { viewModel.selectYear(it) },
-                    selectedCountry = selectedCountry,
-                    onCountrySelected = { viewModel.selectCountry(it) },
-                    onResetFilters = { viewModel.resetFilters() }
-                )
-            }
-
-            // 3. Movie Rows / Categories
-            if (categories.isEmpty() || categories.all { it.movies.isEmpty() }) {
-                item {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(top = 40.dp, start = 48.dp)
-                    ) {
-                        Text(
-                            text = "\u041f\u043e \u0432\u044b\u0431\u0440\u0430\u043d\u043d\u044b\u043c \u0444\u0438\u043b\u044c\u0442\u0440\u0430\u043c \u043d\u0438\u0447\u0435\u0433\u043e \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d\u043e.",
-                            fontSize = 18.sp,
-                            color = TextWhite
-                        )
-                    }
+        // 6-COLUMN VERTICAL GRID (2 rows of 6 cards on screen at a time, scrolling down)
+        if (displayMovies.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(top = 60.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = "По выбранным фильтрам ничего не найдено",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = TextWhite
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Попробуйте изменить категорию, жанр или сбросить фильтры",
+                        fontSize = 13.sp,
+                        color = TextGray
+                    )
                 }
-            } else {
-                items(categories) { category ->
-                    if (category.movies.isNotEmpty()) {
-                        Column(
-                            modifier = Modifier.padding(top = 16.dp)
-                        ) {
-                            Text(
-                                text = category.title,
-                                fontSize = 20.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = TextWhite,
-                                modifier = Modifier.padding(start = 48.dp, bottom = 8.dp)
-                            )
-
-                            TvLazyRow(
-                                contentPadding = PaddingValues(start = 48.dp, end = 48.dp),
-                                horizontalArrangement = Arrangement.spacedBy(16.dp)
-                            ) {
-                                items(category.movies) { movie ->
-                                    MovieCard(
-                                        movie = movie,
-                                        onClick = { onMovieSelect(movie) },
-                                        onFocus = { featuredMovie = movie }
-                                    )
-                                }
-                            }
-                        }
-                    }
+            }
+        } else {
+            TvLazyVerticalGrid(
+                columns = TvGridCells.Fixed(6),
+                contentPadding = PaddingValues(horizontal = 32.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.fillMaxSize()
+            ) {
+                items(displayMovies) { movie ->
+                    MovieCard(
+                        movie = movie,
+                        onClick = { onMovieSelect(movie) },
+                        onFocus = { /* card focused */ }
+                    )
                 }
             }
         }
     }
 }
+

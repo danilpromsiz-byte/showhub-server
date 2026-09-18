@@ -22,3 +22,11 @@ val KpOrange = Color(0xFFFF6600)
 val ImdbGold = Color(0xFFF5C518)
 val RatingStar = Color(0xFFFFB800)
 val FavoriteGold = Color(0xFFFFD700)
+
+// Theme Palette
+val ThemeCyan = Color(0xFF00E5FF)
+val ThemeEmerald = Color(0xFF00D26A)
+val ThemeAmber = Color(0xFFFFB300)
+val ThemeRuby = Color(0xFFE50914)
+val ThemeAmethyst = Color(0xFFA855F7)
+val ThemeSapphire = Color(0xFF3B82F6)

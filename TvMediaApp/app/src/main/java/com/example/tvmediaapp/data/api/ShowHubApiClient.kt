@@ -263,7 +263,7 @@ object ShowHubApiClient {
             val conn = url.openConnection() as HttpURLConnection
             conn.connectTimeout = 8000
             conn.readTimeout = 8000
-            conn.setRequestProperty("User-Agent", "ShowHubTV-Native/2.4.0")
+            conn.setRequestProperty("User-Agent", "ShowHubTV-Native/2.5.0")
             conn.connect()
             if (conn.responseCode == 200) {
                 val body = BufferedReader(InputStreamReader(conn.inputStream, "UTF-8")).use { it.readText() }
@@ -276,6 +276,31 @@ object ShowHubApiClient {
         }
         null
     }
+
+    suspend fun fetchPreviewStream(movie: Movie): String? = withContext(Dispatchers.IO) {
+        try {
+            val q = URLEncoder.encode(movie.title, "UTF-8")
+            val isSeries = if (movie.isSeries) "1" else "0"
+            val url = URL("$SERVER_BASE/api/media/preview-stream?title=$q&media_id=${movie.id}&year=${movie.releaseYear}&is_series=$isSeries")
+            val conn = url.openConnection() as HttpURLConnection
+            conn.connectTimeout = 5000
+            conn.readTimeout = 8000
+            conn.setRequestProperty("User-Agent", "ShowHubTV-Native/2.5.0")
+            conn.connect()
+            if (conn.responseCode == 200) {
+                val body = BufferedReader(InputStreamReader(conn.inputStream, "UTF-8")).use { it.readText() }
+                val obj = JSONObject(body)
+                if (obj.optBoolean("success", false)) {
+                    val streamUrl = obj.optString("stream_url", "")
+                    if (streamUrl.startsWith("http")) return@withContext streamUrl
+                }
+            }
+        } catch (e: Exception) {
+            // silent fallback
+        }
+        null
+    }
+
 
 
     private fun parseMoviesJson(arr: JSONArray, outList: MutableList<Movie>) {

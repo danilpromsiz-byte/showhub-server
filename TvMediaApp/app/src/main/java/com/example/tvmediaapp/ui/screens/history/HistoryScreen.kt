@@ -50,6 +50,7 @@ import com.example.tvmediaapp.data.history.WatchHistoryManager
 import com.example.tvmediaapp.data.models.Movie
 import com.example.tvmediaapp.ui.theme.BackgroundDark
 import com.example.tvmediaapp.ui.theme.CyanNeon
+import com.example.tvmediaapp.ui.theme.LocalAccentColor
 import com.example.tvmediaapp.ui.theme.RedPrimary
 import com.example.tvmediaapp.ui.theme.SurfaceDark
 import com.example.tvmediaapp.ui.theme.TextGray
@@ -68,6 +69,8 @@ fun HistoryScreen(
     val historyManager = remember { WatchHistoryManager(context) }
     var historyItems by remember { mutableStateOf(historyManager.getHistory()) }
 
+    val accent = LocalAccentColor.current
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -82,7 +85,7 @@ fun HistoryScreen(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = "\ud83d\udd52 \u0418\u0441\u0442\u043e\u0440\u0438\u044f \u043f\u0440\u043e\u0441\u043c\u043e\u0442\u0440\u043e\u0432",
+                    text = "История просмотров",
                     fontSize = 26.sp,
                     fontWeight = FontWeight.Bold,
                     color = TextWhite
@@ -92,7 +95,7 @@ fun HistoryScreen(
                     Text(
                         text = "(${historyItems.size})",
                         fontSize = 20.sp,
-                        color = CyanNeon,
+                        color = accent,
                         fontWeight = FontWeight.SemiBold
                     )
                 }
@@ -115,7 +118,7 @@ fun HistoryScreen(
                         modifier = Modifier.height(38.dp)
                     ) {
                         Text(
-                            text = "\u2715 \u041e\u0447\u0438\u0441\u0442\u0438\u0442\u044c \u0438\u0441\u0442\u043e\u0440\u0438\u044e",
+                            text = "Очистить историю",
                             fontSize = 13.sp
                         )
                     }
@@ -127,7 +130,7 @@ fun HistoryScreen(
                     modifier = Modifier.height(38.dp)
                 ) {
                     Text(
-                        text = "\u2190 \u041d\u0430\u0437\u0430\u0434",
+                        text = "Назад",
                         fontSize = 13.sp,
                         modifier = Modifier.padding(horizontal = 8.dp)
                     )
@@ -144,19 +147,14 @@ fun HistoryScreen(
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
-                        text = "\ud83d\udcfa",
-                        fontSize = 48.sp
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text(
-                        text = "\u0418\u0441\u0442\u043e\u0440\u0438\u044f \u043f\u0440\u043e\u0441\u043c\u043e\u0442\u0440\u043e\u0432 \u043f\u0443\u0441\u0442\u0430",
+                        text = "История просмотров пуста",
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
                         color = TextWhite
                     )
-                    Spacer(modifier = Modifier.height(6.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "\u0424\u0438\u043b\u044c\u043c\u044b \u0438 \u0441\u0435\u0440\u0438\u0430\u043b\u044b, \u043a\u043e\u0442\u043e\u0440\u044b\u0435 \u0432\u044b \u043d\u0430\u0447\u043d\u0451\u0442\u0435 \u0441\u043c\u043e\u0442\u0440\u0435\u0442\u044c, \u043f\u043e\u044f\u0432\u044f\u0442\u0441\u044f \u0437\u0434\u0435\u0441\u044c \u0441 \u043f\u0440\u043e\u0433\u0440\u0435\u0441\u0441\u043e\u043c.",
+                        text = "Фильмы и сериалы, которые вы начнёте смотреть, появятся здесь с прогрессом.",
                         fontSize = 14.sp,
                         color = TextGray,
                         textAlign = TextAlign.Center
@@ -192,7 +190,7 @@ fun HistoryScreen(
                                 },
                                 interactionSource = interactionSource,
                                 border = CardDefaults.border(
-                                    focusedBorder = Border(BorderStroke(3.dp, CyanNeon))
+                                    focusedBorder = Border(BorderStroke(3.dp, accent))
                                 ),
                                 scale = CardDefaults.scale(scale = 1.0f, focusedScale = 1.08f),
                                 modifier = Modifier
@@ -222,7 +220,7 @@ fun HistoryScreen(
                                                 text = "S${item.season} E${item.episode}",
                                                 fontSize = 11.sp,
                                                 fontWeight = FontWeight.Bold,
-                                                color = CyanNeon
+                                                color = accent
                                             )
                                         }
                                     }
@@ -243,7 +241,7 @@ fun HistoryScreen(
                                                 modifier = Modifier
                                                     .fillMaxWidth(item.percentage.coerceIn(0, 100) / 100f)
                                                     .height(5.dp)
-                                                    .background(CyanNeon)
+                                                    .background(accent)
                                             )
                                         }
                                     }
@@ -263,9 +261,9 @@ fun HistoryScreen(
                         subtitle = {
                             val timeStr = formatTime(item.positionMs)
                             Text(
-                                text = "\u25b6 \u041f\u0440\u043e\u0441\u043c\u043e\u0442\u0440\u0435\u043d\u043e ${item.percentage}% ($timeStr)",
+                                text = "Просмотрено ${item.percentage}% ($timeStr)",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = CyanNeon,
+                                color = accent,
                                 maxLines = 1,
                                 modifier = Modifier.padding(top = 2.dp)
                             )

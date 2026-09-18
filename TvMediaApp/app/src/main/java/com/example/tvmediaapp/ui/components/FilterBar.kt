@@ -26,64 +26,64 @@ import androidx.tv.material3.ButtonDefaults
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Text
 import com.example.tvmediaapp.ui.theme.ChipBackground
-import com.example.tvmediaapp.ui.theme.CyanNeon
+import com.example.tvmediaapp.ui.theme.LocalAccentColor
 import com.example.tvmediaapp.ui.theme.TextGray
 import com.example.tvmediaapp.ui.theme.TextWhite
 
 // 1. Content Types
 val TYPE_OPTIONS = listOf(
-    Pair("all", "\u0412\u0441\u0435 \u0442\u0438\u043f\u044b"),
-    Pair("movies", "\u0424\u0438\u043b\u044c\u043c\u044b"),
-    Pair("series", "\u0421\u0435\u0440\u0438\u0430\u043b\u044b"),
-    Pair("cartoons", "\u041c\u0443\u043b\u044c\u0442\u0444\u0438\u043b\u044c\u043c\u044b"),
-    Pair("anime", "\u0410\u043d\u0438\u043c\u0435")
+    Pair("all", "Все типы"),
+    Pair("movies", "Фильмы"),
+    Pair("series", "Сериалы"),
+    Pair("cartoons", "Мультфильмы"),
+    Pair("anime", "Аниме")
 )
 
 // 2. Sort Options
 val SORT_OPTIONS = listOf(
-    Pair("newest", "\u041d\u043e\u0432\u0438\u043d\u043a\u0438"),
-    Pair("rating", "\u2605 \u041f\u043e \u0440\u0435\u0439\u0442\u0438\u043d\u0433\u0443"),
-    Pair("popular", "\ud83d\udd25 \u041f\u043e \u043f\u043e\u043f\u0443\u043b\u044f\u0440\u043d\u043e\u0441\u0442\u0438"),
-    Pair("year", "\ud83d\udcc5 \u041f\u043e \u0433\u043e\u0434\u0443")
+    Pair("newest", "Новинки"),
+    Pair("rating", "По рейтингу"),
+    Pair("popular", "По популярности"),
+    Pair("year", "По году")
 )
 
 // 3. Genres
 val GENRES_LIST = listOf(
-    "\u0412\u0441\u0435 \u0436\u0430\u043d\u0440\u044b",
-    "\u0411\u043e\u0435\u0432\u0438\u043a",
-    "\u041a\u043e\u043c\u0435\u0434\u0438\u044f",
-    "\u0424\u0430\u043d\u0442\u0430\u0441\u0442\u0438\u043a\u0430",
-    "\u0414\u0440\u0430\u043c\u0430",
-    "\u0422\u0440\u0438\u043b\u043b\u0435\u0440",
-    "\u0423\u0436\u0430\u0441\u044b",
-    "\u041f\u0440\u0438\u043a\u043b\u044e\u0447\u0435\u043d\u0438\u044f",
-    "\u0424\u044d\u043d\u0442\u0435\u0437\u0438",
-    "\u0414\u0435\u0442\u0435\u043a\u0442\u0438\u0432",
-    "\u041a\u0440\u0438\u043c\u0438\u043d\u0430\u043b"
+    "Все жанры",
+    "Боевик",
+    "Комедия",
+    "Фантастика",
+    "Драма",
+    "Триллер",
+    "Ужасы",
+    "Приключения",
+    "Фэнтези",
+    "Детектив",
+    "Криминал"
 )
 
 // 4. Release Year
 val YEAR_OPTIONS = listOf(
-    Pair("all", "\u0412\u0441\u0435 \u0433\u043e\u0434\u044b"),
+    Pair("all", "Все годы"),
     Pair("2026", "2026"),
     Pair("2025", "2025"),
     Pair("2024", "2024"),
     Pair("2023", "2023"),
-    Pair("2020-2022", "2020\u20132022"),
-    Pair("2010s", "2010\u20132019"),
-    Pair("before_2000", "\u0414\u043e 2000")
+    Pair("2020-2022", "2020–2022"),
+    Pair("2010s", "2010–2019"),
+    Pair("before_2000", "До 2000")
 )
 
 // 5. Country
 val COUNTRY_OPTIONS = listOf(
-    Pair("all", "\u0412\u0441\u0435 \u0441\u0442\u0440\u0430\u043d\u044b"),
-    Pair("\u0421\u0428\u0410", "\u0421\u0428\u0410"),
-    Pair("\u0420\u043e\u0441\u0441\u0438\u044f", "\u0420\u043e\u0441\u0441\u0438\u044f"),
-    Pair("\u0412\u0435\u043b\u0438\u043a\u043e\u0431\u0440\u0438\u0442\u0430\u043d\u0438\u044f", "\u0412\u0435\u043b\u0438\u043a\u043e\u0431\u0440\u0438\u0442\u0430\u043d\u0438\u044f"),
-    Pair("\u041a\u043e\u0440\u0435\u044f", "\u042e\u0436\u043d\u0430\u044f \u041a\u043e\u0440\u0435\u044f"),
-    Pair("\u0424\u0440\u0430\u043d\u0446\u0438\u044f", "\u0424\u0440\u0430\u043d\u0446\u0438\u044f"),
-    Pair("\u042f\u043f\u043e\u043d\u0438\u044f", "\u042f\u043f\u043e\u043d\u0438\u044f"),
-    Pair("\u041a\u0438\u0442\u0430\u0439", "\u041a\u0438\u0442\u0430\u0439")
+    Pair("all", "Все страны"),
+    Pair("США", "США"),
+    Pair("Россия", "Россия"),
+    Pair("Великобритания", "Великобритания"),
+    Pair("Корея", "Южная Корея"),
+    Pair("Франция", "Франция"),
+    Pair("Япония", "Япония"),
+    Pair("Китай", "Китай")
 )
 
 @OptIn(ExperimentalTvMaterial3Api::class)
@@ -102,6 +102,8 @@ fun FilterBar(
     onResetFilters: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val accent = LocalAccentColor.current
+
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -120,12 +122,12 @@ fun FilterBar(
                 Button(
                     onClick = { onTypeSelected(typeKey) },
                     colors = ButtonDefaults.colors(
-                        containerColor = if (isSelected) CyanNeon else ChipBackground,
-                        focusedContainerColor = CyanNeon,
+                        containerColor = if (isSelected) accent else ChipBackground,
+                        focusedContainerColor = accent,
                         contentColor = if (isSelected) Color.Black else TextWhite,
                         focusedContentColor = Color.Black
                     ),
-                    shape = ButtonDefaults.shape(RoundedCornerShape(12.dp)),
+                    shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                     modifier = Modifier.height(34.dp)
                 ) {
                     Text(
@@ -146,16 +148,16 @@ fun FilterBar(
                 Button(
                     onClick = { onSortSelected(sortKey) },
                     colors = ButtonDefaults.colors(
-                        containerColor = if (isSelected) CyanNeon.copy(alpha = 0.35f) else ChipBackground.copy(alpha = 0.6f),
-                        focusedContainerColor = CyanNeon,
-                        contentColor = if (isSelected) CyanNeon else TextGray,
+                        containerColor = if (isSelected) accent.copy(alpha = 0.35f) else ChipBackground.copy(alpha = 0.6f),
+                        focusedContainerColor = accent,
+                        contentColor = if (isSelected) accent else TextGray,
                         focusedContentColor = Color.Black
                     ),
                     border = ButtonDefaults.border(
-                        border = Border(BorderStroke(1.dp, if (isSelected) CyanNeon else Color.Transparent)),
+                        border = Border(BorderStroke(1.dp, if (isSelected) accent else Color.Transparent)),
                         focusedBorder = Border(BorderStroke(2.dp, TextWhite))
                     ),
-                    shape = ButtonDefaults.shape(RoundedCornerShape(12.dp)),
+                    shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                     modifier = Modifier.height(34.dp)
                 ) {
                     Text(
@@ -177,11 +179,11 @@ fun FilterBar(
                         contentColor = TextGray,
                         focusedContentColor = TextWhite
                     ),
-                    shape = ButtonDefaults.shape(RoundedCornerShape(12.dp)),
+                    shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                     modifier = Modifier.height(34.dp)
                 ) {
                     Text(
-                        text = "\u2715 \u0421\u0431\u0440\u043e\u0441",
+                        text = "Сброс",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Medium
                     )
@@ -200,16 +202,16 @@ fun FilterBar(
                 Button(
                     onClick = { onGenreSelected(genre) },
                     colors = ButtonDefaults.colors(
-                        containerColor = if (isSelected) CyanNeon.copy(alpha = 0.3f) else ChipBackground,
-                        focusedContainerColor = CyanNeon,
-                        contentColor = if (isSelected) CyanNeon else TextWhite,
+                        containerColor = if (isSelected) accent.copy(alpha = 0.3f) else ChipBackground,
+                        focusedContainerColor = accent,
+                        contentColor = if (isSelected) accent else TextWhite,
                         focusedContentColor = Color.Black
                     ),
                     border = ButtonDefaults.border(
-                        border = Border(BorderStroke(1.dp, if (isSelected) CyanNeon else Color.Transparent)),
+                        border = Border(BorderStroke(1.dp, if (isSelected) accent else Color.Transparent)),
                         focusedBorder = Border(BorderStroke(2.dp, TextWhite))
                     ),
-                    shape = ButtonDefaults.shape(RoundedCornerShape(14.dp)),
+                    shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                     modifier = Modifier.height(32.dp)
                 ) {
                     Text(

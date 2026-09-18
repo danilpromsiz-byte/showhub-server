@@ -24,7 +24,7 @@ import androidx.tv.material3.Button
 import androidx.tv.material3.ButtonDefaults
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Text
-import com.example.tvmediaapp.ui.theme.CyanNeon
+import com.example.tvmediaapp.ui.theme.LocalAccentColor
 import com.example.tvmediaapp.ui.theme.TextGray
 import com.example.tvmediaapp.ui.theme.TextWhite
 
@@ -34,12 +34,15 @@ fun TvTopBar(
     onSearchClick: () -> Unit,
     onFavoritesClick: () -> Unit,
     onHistoryClick: () -> Unit,
+    onSettingsClick: (() -> Unit)? = null,
     onCheckUpdateClick: (() -> Unit)? = null,
     hasUpdateAvailable: Boolean = false,
     appVersion: String = "",
     currentScreenName: String = "home",
     modifier: Modifier = Modifier
 ) {
+    val accent = LocalAccentColor.current
+
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -64,7 +67,7 @@ fun TvTopBar(
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(4.dp))
-                    .background(CyanNeon)
+                    .background(accent)
                     .padding(horizontal = 6.dp, vertical = 2.dp)
             ) {
                 Text(
@@ -85,7 +88,7 @@ fun TvTopBar(
             }
         }
 
-        // Top Navigation items: Search, Favorites, History, Update
+        // Top Navigation items: Search, Favorites, History, Settings, Update
         Row(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -95,20 +98,20 @@ fun TvTopBar(
             Button(
                 onClick = onSearchClick,
                 colors = ButtonDefaults.colors(
-                    containerColor = if (isSearch) CyanNeon.copy(alpha = 0.3f) else Color.White.copy(alpha = 0.08f),
-                    focusedContainerColor = CyanNeon,
-                    contentColor = if (isSearch) CyanNeon else TextWhite,
+                    containerColor = if (isSearch) accent.copy(alpha = 0.3f) else Color.White.copy(alpha = 0.08f),
+                    focusedContainerColor = accent,
+                    contentColor = if (isSearch) accent else TextWhite,
                     focusedContentColor = Color.Black
                 ),
                 border = ButtonDefaults.border(
-                    border = Border(BorderStroke(1.dp, if (isSearch) CyanNeon else Color.Transparent)),
+                    border = Border(BorderStroke(1.dp, if (isSearch) accent else Color.Transparent)),
                     focusedBorder = Border(BorderStroke(2.dp, TextWhite))
                 ),
                 shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                 modifier = Modifier.height(38.dp)
             ) {
                 Text(
-                    text = "\ud83d\udd0d \u041f\u043e\u0438\u0441\u043a",
+                    text = "Поиск",
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 14.sp
                 )
@@ -119,20 +122,20 @@ fun TvTopBar(
             Button(
                 onClick = onFavoritesClick,
                 colors = ButtonDefaults.colors(
-                    containerColor = if (isFav) CyanNeon.copy(alpha = 0.3f) else Color.White.copy(alpha = 0.08f),
-                    focusedContainerColor = CyanNeon,
-                    contentColor = if (isFav) CyanNeon else TextWhite,
+                    containerColor = if (isFav) accent.copy(alpha = 0.3f) else Color.White.copy(alpha = 0.08f),
+                    focusedContainerColor = accent,
+                    contentColor = if (isFav) accent else TextWhite,
                     focusedContentColor = Color.Black
                 ),
                 border = ButtonDefaults.border(
-                    border = Border(BorderStroke(1.dp, if (isFav) CyanNeon else Color.Transparent)),
+                    border = Border(BorderStroke(1.dp, if (isFav) accent else Color.Transparent)),
                     focusedBorder = Border(BorderStroke(2.dp, TextWhite))
                 ),
                 shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                 modifier = Modifier.height(38.dp)
             ) {
                 Text(
-                    text = "\u2b50 \u0418\u0437\u0431\u0440\u0430\u043d\u043d\u043e\u0435",
+                    text = "Избранное",
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 14.sp
                 )
@@ -143,23 +146,49 @@ fun TvTopBar(
             Button(
                 onClick = onHistoryClick,
                 colors = ButtonDefaults.colors(
-                    containerColor = if (isHist) CyanNeon.copy(alpha = 0.3f) else Color.White.copy(alpha = 0.08f),
-                    focusedContainerColor = CyanNeon,
-                    contentColor = if (isHist) CyanNeon else TextWhite,
+                    containerColor = if (isHist) accent.copy(alpha = 0.3f) else Color.White.copy(alpha = 0.08f),
+                    focusedContainerColor = accent,
+                    contentColor = if (isHist) accent else TextWhite,
                     focusedContentColor = Color.Black
                 ),
                 border = ButtonDefaults.border(
-                    border = Border(BorderStroke(1.dp, if (isHist) CyanNeon else Color.Transparent)),
+                    border = Border(BorderStroke(1.dp, if (isHist) accent else Color.Transparent)),
                     focusedBorder = Border(BorderStroke(2.dp, TextWhite))
                 ),
                 shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                 modifier = Modifier.height(38.dp)
             ) {
                 Text(
-                    text = "\ud83d\udd52 \u0418\u0441\u0442\u043e\u0440\u0438\u044f",
+                    text = "История",
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 14.sp
                 )
+            }
+
+            // Settings
+            if (onSettingsClick != null) {
+                val isSettings = currentScreenName == "settings"
+                Button(
+                    onClick = onSettingsClick,
+                    colors = ButtonDefaults.colors(
+                        containerColor = if (isSettings) accent.copy(alpha = 0.3f) else Color.White.copy(alpha = 0.08f),
+                        focusedContainerColor = accent,
+                        contentColor = if (isSettings) accent else TextWhite,
+                        focusedContentColor = Color.Black
+                    ),
+                    border = ButtonDefaults.border(
+                        border = Border(BorderStroke(1.dp, if (isSettings) accent else Color.Transparent)),
+                        focusedBorder = Border(BorderStroke(2.dp, TextWhite))
+                    ),
+                    shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                    modifier = Modifier.height(38.dp)
+                ) {
+                    Text(
+                        text = "Настройки",
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 14.sp
+                    )
+                }
             }
 
             // Update Check / Action Button
@@ -167,20 +196,20 @@ fun TvTopBar(
                 Button(
                     onClick = onCheckUpdateClick,
                     colors = ButtonDefaults.colors(
-                        containerColor = if (hasUpdateAvailable) CyanNeon else Color.White.copy(alpha = 0.08f),
-                        focusedContainerColor = CyanNeon,
+                        containerColor = if (hasUpdateAvailable) accent else Color.White.copy(alpha = 0.08f),
+                        focusedContainerColor = accent,
                         contentColor = if (hasUpdateAvailable) Color.Black else TextWhite,
                         focusedContentColor = Color.Black
                     ),
                     border = ButtonDefaults.border(
-                        border = Border(BorderStroke(1.dp, if (hasUpdateAvailable) CyanNeon else Color.Transparent)),
+                        border = Border(BorderStroke(1.dp, if (hasUpdateAvailable) accent else Color.Transparent)),
                         focusedBorder = Border(BorderStroke(2.dp, TextWhite))
                     ),
                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                     modifier = Modifier.height(38.dp)
                 ) {
                     Text(
-                        text = if (hasUpdateAvailable) "\u2b07\ufe0f \u041e\u0431\u043d\u043e\u0432\u0438\u0442\u044c" else "\ud83d\udd04",
+                        text = if (hasUpdateAvailable) "Обновить" else "Обновления",
                         fontWeight = FontWeight.Bold,
                         fontSize = 13.sp
                     )

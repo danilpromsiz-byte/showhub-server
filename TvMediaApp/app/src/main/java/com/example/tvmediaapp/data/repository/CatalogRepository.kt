@@ -338,12 +338,12 @@ class CatalogRepository(context: Context? = null) {
 
                 if (liveMovies.isNotEmpty()) {
                     val combined = (liveMovies + filtered).distinctBy { it.title.lowercase().trim() }
-                    val updatedCategories = if (category == "all" && (genre.isNullOrEmpty() || genre == "\u0412\u0441\u0435 \u0436\u0430\u043d\u0440\u044b")) {
+                    val updatedCategories = if (category == "all" && (genre.isNullOrEmpty() || genre == "Все жанры")) {
                         listOf(
-                            MovieCategory(id = "popular", title = "\u041f\u043e\u043f\u0443\u043b\u044f\u0440\u043d\u044b\u0435 \u043d\u043e\u0432\u0438\u043d\u043a\u0438", movies = combined.take(24)),
-                            MovieCategory(id = "top_rated", title = "\u0422\u043e\u043f \u0440\u0435\u0439\u0442\u0438\u043d\u0433\u0430", movies = combined.sortedByDescending { it.rating }.take(24)),
-                            MovieCategory(id = "series", title = "\u0421\u0435\u0440\u0438\u0430\u043b\u044b", movies = combined.filter { it.isSeries }),
-                            MovieCategory(id = "movies", title = "\u0424\u0438\u043b\u044c\u043c\u044b", movies = combined.filter { !it.isSeries })
+                            MovieCategory(id = "popular", title = "Популярные новинки", movies = combined),
+                            MovieCategory(id = "top_rated", title = "Топ рейтинга", movies = combined.sortedByDescending { it.rating }),
+                            MovieCategory(id = "series", title = "Сериалы", movies = combined.filter { it.isSeries }),
+                            MovieCategory(id = "movies", title = "Фильмы", movies = combined.filter { !it.isSeries })
                         )
                     } else {
                         val title = initialCategories.firstOrNull()?.title ?: "\u041a\u0430\u0442\u0430\u043b\u043e\u0433"

@@ -1,3 +1,9 @@
+@file:OptIn(
+    androidx.tv.material3.ExperimentalTvMaterial3Api::class,
+    androidx.compose.foundation.ExperimentalFoundationApi::class,
+    androidx.tv.foundation.ExperimentalTvFoundationApi::class
+)
+
 package com.example.tvmediaapp.ui.screens.search
 
 import android.content.Context
@@ -43,22 +49,22 @@ import com.example.tvmediaapp.data.models.Movie
 import com.example.tvmediaapp.ui.components.MovieCard
 import com.example.tvmediaapp.ui.theme.BackgroundDark
 import com.example.tvmediaapp.ui.theme.ChipBackground
-import com.example.tvmediaapp.ui.theme.CyanNeon
+import com.example.tvmediaapp.ui.theme.LocalAccentColor
 import com.example.tvmediaapp.ui.theme.TextGray
 import com.example.tvmediaapp.ui.theme.TextWhite
 import kotlinx.coroutines.launch
 import org.json.JSONArray
 
 val POPULAR_QUERIES = listOf(
-    "\u041f\u043e\u0436\u0438\u0440\u0430\u0442\u0435\u043b\u044c \u0437\u0432\u0451\u0437\u0434",
-    "\u0421\u043b\u043e\u0432\u043e \u043f\u0430\u0446\u0430\u043d\u0430",
-    "\u041c\u0430\u0441\u0442\u0435\u0440 \u0438 \u041c\u0430\u0440\u0433\u0430\u0440\u0438\u0442\u0430",
-    "\u0414\u044e\u043d\u0430",
-    "\u0418\u043d\u0442\u0435\u0440\u0441\u0442\u0435\u043b\u043b\u0430\u0440",
-    "\u041e\u043f\u043f\u0435\u043d\u0433\u0435\u0439\u043c\u0435\u0440",
-    "\u0414\u0436\u0435\u043d\u0442\u043b\u044c\u043c\u0435\u043d\u044b",
-    "\u0422\u0440\u0438\u0433\u0433\u0435\u0440",
-    "\u0413\u043e\u043b\u043e\u0432\u043e\u043b\u043e\u043c\u043a\u0430 2"
+    "Пожиратель звёзд",
+    "Слово пацана",
+    "Мастер и Маргарита",
+    "Дюна",
+    "Интерстеллар",
+    "Оппенгеймер",
+    "Джентльмены",
+    "Триггер",
+    "Головоломка 2"
 )
 
 val RU_KEYBOARD_ROW1 = listOf("А", "Б", "В", "Г", "Д", "Е", "Ж", "З", "И", "К", "Л", "М", "Н", "О", "П", "Р")
@@ -73,6 +79,7 @@ fun SearchScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val accent = LocalAccentColor.current
     val searchPrefs = remember { context.getSharedPreferences("showhub_search_history", Context.MODE_PRIVATE) }
 
     fun loadHistory(): List<String> {
@@ -133,7 +140,7 @@ fun SearchScreen(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = "\ud83d\udd0d \u041f\u043e\u0438\u0441\u043a",
+                    text = "Поиск",
                     fontSize = 24.sp,
                     fontWeight = FontWeight.Bold,
                     color = TextWhite
@@ -143,17 +150,18 @@ fun SearchScreen(
                     Text(
                         text = ": '$query'",
                         fontSize = 22.sp,
-                        color = CyanNeon,
+                        color = accent,
                         fontWeight = FontWeight.SemiBold
                     )
                 }
             }
 
             OutlinedButton(
-                onClick = onBackClick
+                onClick = onBackClick,
+                shape = ButtonDefaults.shape(RoundedCornerShape(8.dp))
             ) {
                 Text(
-                    text = "\u2190 \u041d\u0430\u0437\u0430\u0434",
+                    text = "Назад",
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
                 )
             }
@@ -170,11 +178,11 @@ fun SearchScreen(
                     onClick = { performSearch(query + char) },
                     colors = ButtonDefaults.colors(
                         containerColor = ChipBackground,
-                        focusedContainerColor = CyanNeon,
+                        focusedContainerColor = accent,
                         contentColor = TextWhite,
                         focusedContentColor = Color.Black
                     ),
-                    shape = ButtonDefaults.shape(RoundedCornerShape(6.dp)),
+                    shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                     modifier = Modifier.height(32.dp)
                 ) {
                     Text(text = char, fontSize = 13.sp, fontWeight = FontWeight.Bold)
@@ -192,11 +200,11 @@ fun SearchScreen(
                     onClick = { performSearch(query + char) },
                     colors = ButtonDefaults.colors(
                         containerColor = ChipBackground,
-                        focusedContainerColor = CyanNeon,
+                        focusedContainerColor = accent,
                         contentColor = TextWhite,
                         focusedContentColor = Color.Black
                     ),
-                    shape = ButtonDefaults.shape(RoundedCornerShape(6.dp)),
+                    shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                     modifier = Modifier.height(32.dp)
                 ) {
                     Text(text = char, fontSize = 13.sp, fontWeight = FontWeight.Bold)
@@ -208,14 +216,14 @@ fun SearchScreen(
                     onClick = { performSearch(query + " ") },
                     colors = ButtonDefaults.colors(
                         containerColor = Color.White.copy(alpha = 0.15f),
-                        focusedContainerColor = CyanNeon,
+                        focusedContainerColor = accent,
                         contentColor = TextWhite,
                         focusedContentColor = Color.Black
                     ),
-                    shape = ButtonDefaults.shape(RoundedCornerShape(6.dp)),
+                    shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                     modifier = Modifier.height(32.dp)
                 ) {
-                    Text(text = "[_]", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text(text = "Пробел", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
             }
 
@@ -226,14 +234,14 @@ fun SearchScreen(
                     },
                     colors = ButtonDefaults.colors(
                         containerColor = Color.White.copy(alpha = 0.15f),
-                        focusedContainerColor = CyanNeon,
+                        focusedContainerColor = accent,
                         contentColor = TextWhite,
                         focusedContentColor = Color.Black
                     ),
-                    shape = ButtonDefaults.shape(RoundedCornerShape(6.dp)),
+                    shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                     modifier = Modifier.height(32.dp)
                 ) {
-                    Text(text = "\u232b", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    Text(text = "Стереть", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
             }
 
@@ -246,10 +254,10 @@ fun SearchScreen(
                         contentColor = TextWhite,
                         focusedContentColor = TextWhite
                     ),
-                    shape = ButtonDefaults.shape(RoundedCornerShape(6.dp)),
+                    shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                     modifier = Modifier.height(32.dp)
                 ) {
-                    Text(text = "\u2715 \u041e\u0447\u0438\u0441\u0442\u0438\u0442\u044c", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Text(text = "Очистить", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -265,12 +273,12 @@ fun SearchScreen(
                 Button(
                     onClick = { performSearch(itemQuery) },
                     colors = ButtonDefaults.colors(
-                        containerColor = if (isSelected) CyanNeon else ChipBackground,
-                        focusedContainerColor = CyanNeon,
+                        containerColor = if (isSelected) accent else ChipBackground,
+                        focusedContainerColor = accent,
                         contentColor = if (isSelected) Color.Black else TextWhite,
                         focusedContentColor = Color.Black
                     ),
-                    shape = ButtonDefaults.shape(RoundedCornerShape(10.dp)),
+                    shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                     modifier = Modifier.height(32.dp)
                 ) {
                     Text(
@@ -286,19 +294,19 @@ fun SearchScreen(
 
         if (isSearching) {
             Text(
-                text = "\u23f3 \u041f\u043e\u0438\u0441\u043a \u043f\u043e \u0432\u0441\u0435\u043c \u0431\u0430\u0437\u0430\u043c \u0434\u0430\u043d\u043d\u044b\u0445 ShowHub...",
-                color = CyanNeon,
+                text = "Поиск по всем базам данных ShowHub...",
+                color = accent,
                 fontSize = 14.sp
             )
             Spacer(modifier = Modifier.height(8.dp))
         }
 
-        // Results Grid
+        // Results Grid (6 columns)
         TvLazyVerticalGrid(
-            columns = TvGridCells.Adaptive(160.dp),
+            columns = TvGridCells.Fixed(6),
             contentPadding = PaddingValues(bottom = 32.dp),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
             modifier = Modifier.fillMaxSize()
         ) {
             items(results) { movie ->

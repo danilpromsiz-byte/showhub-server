@@ -55,6 +55,7 @@ import com.example.tvmediaapp.data.history.WatchHistoryManager
 import com.example.tvmediaapp.data.models.Movie
 import com.example.tvmediaapp.ui.theme.BackgroundDark
 import com.example.tvmediaapp.ui.theme.CyanNeon
+import com.example.tvmediaapp.ui.theme.LocalAccentColor
 import com.example.tvmediaapp.ui.theme.RedPrimary
 import com.example.tvmediaapp.ui.theme.TextGray
 import com.example.tvmediaapp.ui.theme.TextWhite
@@ -206,6 +207,7 @@ private fun NativeExoPlayerScreen(
     episode: Int = 1,
     onBackPress: () -> Unit
 ) {
+    val accent = LocalAccentColor.current
     val context = LocalContext.current
     val historyManager = remember { WatchHistoryManager(context) }
     var isPlaying by remember { mutableStateOf(true) }
@@ -385,7 +387,7 @@ private fun NativeExoPlayerScreen(
                         Text(
                             text = subText,
                             style = MaterialTheme.typography.bodySmall,
-                            color = CyanNeon
+                            color = accent
                         )
                     }
 
@@ -417,7 +419,7 @@ private fun NativeExoPlayerScreen(
                         horizontalArrangement = Arrangement.Center
                     ) {
                         Text(
-                            text = "◀◀  10 сек  •  ОК Пауза  •  10 сек  ▶▶",
+                            text = "Назад 10с  •  ОК Пауза  •  Вперед 10с",
                             fontSize = 12.sp,
                             color = TextGray
                         )
@@ -440,9 +442,10 @@ private fun NativeExoPlayerScreen(
                             modifier = Modifier
                                 .fillMaxWidth(progressFraction)
                                 .height(6.dp)
-                                .background(CyanNeon, shape = MaterialTheme.shapes.extraSmall)
+                                .background(accent, shape = MaterialTheme.shapes.extraSmall)
                         )
                     }
+
 
                     Spacer(modifier = Modifier.height(8.dp))
 

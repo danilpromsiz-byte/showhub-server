@@ -295,6 +295,26 @@ def resolve_real_poster(title: str, year: Optional[Any] = None, kp_id: Optional[
     except Exception:
         pass
 
+    # 3. Check initial_catalog.json for verified high-res Kinopoisk avatars
+    try:
+        init_cat_path = os.path.join(CURRENT_DIR, "static", "initial_catalog.json")
+        if os.path.exists(init_cat_path):
+            with open(init_cat_path, "r", encoding="utf-8") as f:
+                init_items = json.load(f)
+                for item in init_items:
+                    if item.get("title", "").lower() in clean_t.lower() or clean_t.lower() in item.get("title", "").lower():
+                        if item.get("poster"):
+                            _poster_cache[cache_key] = item["poster"]
+                            return item["poster"]
+    except Exception:
+        pass
+
+    # 4. Fallback to Kinopoisk Unofficial / Yandex search proxy
+    if kp_id and str(kp_id).isdigit():
+        kp_poster = f"https://kinopoiskapiunofficial.tech/images/posters/kp/{kp_id}.jpg"
+        _poster_cache[cache_key] = kp_poster
+        return kp_poster
+
     return None
 
 @app.get("/api/media/poster")
@@ -307,13 +327,13 @@ def get_media_poster(title: str = Query(...), year: Optional[str] = None, kp_id:
 def check_updates() -> Dict[str, Any]:
     return {
         "success": True,
-        "version_name": "2.4.1",
-        "version_code": 35,
+        "version_name": "2.5.0",
+        "version_code": 36,
         "force_update": True,
-        "min_version_code": 35,
+        "min_version_code": 36,
         "apk_url": "https://showhub-server.onrender.com/ShowHub.apk",
         "download_url": "https://showhub-server.onrender.com/ShowHub.apk",
-        "changelog": "ShowHub TV v2.4.1: Исправлено зацикливание окна обновления, отображение версии в меню, гибридный плеер (ExoPlayer + балансеры), трейлеры и внешние плееры."
+        "changelog": "ShowHub TV v2.5.0: Полный паритет (сетка 6x2 со скроллом, предпросмотр видео на карточках, полноценные настройки с темами и Filmix PRO, прямые потоки через нативный резолвер на ТВ, сортировка свежих новинок без старых мыльных опер)."
     }
 
 @app.get("/api/catalog/stats")
@@ -485,11 +505,17 @@ def get_catalog(
     current_year = now.year
 
     def compute_freshness(it):
-        # Base year score (scale 10,000,000 per year)
-        y = it.get("year") or (current_year - 5)
-        year_score = y * 10_000_000
+        # Strict release year hierarchy: 2026 > 2025 > 2024 > 2023 > 2022
+        raw_y = it.get("year")
+        try:
+            y = int(raw_y) if raw_y else (current_year - 6)
+        except Exception:
+            y = current_year - 6
 
-        # Receipt date timestamp (from Bazon date or HDRezka parsed poster timestamp)
+        # Each year is worth 1,000,000,000 points - strictly dominates
+        year_score = y * 1_000_000_000
+
+        # Receipt date timestamp (typically ~1.7e9, within reasonable bounds)
         da = it.get("date_added") or 0
         if isinstance(da, (int, float)):
             if da > now_ts + 86400 * 30:  # Future timestamp sanity check
@@ -498,20 +524,23 @@ def get_catalog(
         else:
             date_score = 0
 
-        # High priority bonus for series with fresh released episodes
+        # Real poster bonus: items with valid covers are boosted over missing/placeholder covers
+        poster_str = str(it.get("poster") or "")
+        has_real_poster = bool(poster_str and "no_image_poster" not in poster_str and "noposter" not in poster_str)
+        poster_bonus = 50_000_000 if has_real_poster else 0
+
+        # Moderate bonus for fresh series episodes ONLY for current or previous year
         series_bonus = 0
-        if it.get("is_series"):
+        if it.get("is_series") and y >= current_year - 1:
             ep_info = str(it.get("episodes_info") or "")
             if ep_info:
                 ep_m = re.search(r'(\d+)\s*сер', ep_info, re.I)
                 if ep_m:
-                    series_bonus += int(ep_m.group(1)) * 500_000
-            if it.get("year") == current_year:
+                    series_bonus += min(int(ep_m.group(1)), 30) * 100_000
+            if y == current_year:
                 series_bonus += 5_000_000
-            elif it.get("year") == current_year - 1:
-                series_bonus += 2_000_000
 
-        return year_score + date_score + series_bonus
+        return year_score + date_score + poster_bonus + series_bonus
 
     if sort_by == "rating":
         all_items.sort(

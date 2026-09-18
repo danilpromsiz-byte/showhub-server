@@ -69,12 +69,14 @@ import androidx.tv.material3.CardDefaults
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Text
 import coil.compose.AsyncImage
+import com.example.tvmediaapp.R
 import com.example.tvmediaapp.data.api.ShowHubApiClient
 import com.example.tvmediaapp.data.history.WatchHistoryManager
 import com.example.tvmediaapp.data.models.CommentItem
 import com.example.tvmediaapp.data.models.Movie
 import com.example.tvmediaapp.data.models.StreamOption
 import com.example.tvmediaapp.data.resolver.RezkaNativeResolver
+import com.example.tvmediaapp.ui.components.AppIcon
 import com.example.tvmediaapp.ui.components.NeonSpinner
 import com.example.tvmediaapp.ui.screens.player.isDirectVideoStream
 import com.example.tvmediaapp.ui.theme.BackgroundDark
@@ -192,9 +194,9 @@ fun DetailsScreen(
         }
     }
 
-    // Background video preview in details screen (starts after 1.2s, silent clip from 22/12 min)
-    LaunchedEffect(currentMovie.id) {
-        delay(1200)
+    // Video preview in details screen (starts after 1.0s, silent clip from 22/12 min)
+    LaunchedEffect(currentMovie.id, streamOptions.isNotEmpty()) {
+        delay(1000)
         if (detailsPreviewPlayer == null) {
             var streamUrl: String? = streamOptions.firstOrNull { isDirectVideoStream(it.url) }?.url
             if (streamUrl.isNullOrEmpty()) {
@@ -202,7 +204,9 @@ fun DetailsScreen(
                     val nativeStreams = RezkaNativeResolver.resolveStreams(
                         title = currentMovie.title,
                         year = currentMovie.releaseYear,
-                        isSeries = currentMovie.isSeries
+                        isSeries = currentMovie.isSeries,
+                        season = if (currentMovie.isSeries) selectedSeason else 1,
+                        episode = if (currentMovie.isSeries) selectedEpisode else 1
                     )
                     streamUrl = nativeStreams.firstOrNull { isDirectVideoStream(it.url) }?.url
                 } catch (_: Exception) {}
@@ -337,29 +341,10 @@ fun DetailsScreen(
             model = currentMovie.backdropUrl.ifEmpty { currentMovie.posterUrl },
             contentDescription = currentMovie.title,
             contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier
+                .fillMaxSize()
+                .alpha(0.30f)
         )
-
-        // Details Background Video Preview (smooth crossfade)
-        if (isDetailsPreviewPlaying && detailsPreviewPlayer != null) {
-            val previewAlpha by animateFloatAsState(
-                targetValue = if (isDetailsPreviewPlaying) 0.65f else 0f,
-                animationSpec = tween(durationMillis = 800),
-                label = "detailsPreviewFade"
-            )
-            AndroidView(
-                factory = { ctx ->
-                    PlayerView(ctx).apply {
-                        player = detailsPreviewPlayer
-                        useController = false
-                        resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-                    }
-                },
-                modifier = Modifier
-                    .fillMaxSize()
-                    .alpha(previewAlpha)
-            )
-        }
 
         // Dark gradient overlay
         Box(
@@ -368,9 +353,9 @@ fun DetailsScreen(
                 .background(
                     Brush.horizontalGradient(
                         colors = listOf(
-                            BackgroundDark,
-                            BackgroundDark.copy(alpha = 0.95f),
-                            BackgroundDark.copy(alpha = 0.70f)
+                            BackgroundDark.copy(alpha = 0.96f),
+                            BackgroundDark.copy(alpha = 0.88f),
+                            BackgroundDark.copy(alpha = 0.75f)
                         )
                     )
                 )
@@ -426,6 +411,56 @@ fun DetailsScreen(
                             contentScale = ContentScale.Crop,
                             modifier = Modifier.fillMaxSize()
                         )
+
+                        // Details Poster Video Preview (smooth crossfade)
+                        if (isDetailsPreviewPlaying && detailsPreviewPlayer != null) {
+                            val previewAlpha by animateFloatAsState(
+                                targetValue = if (isDetailsPreviewPlaying) 1f else 0f,
+                                animationSpec = tween(durationMillis = 600),
+                                label = "detailsPreviewFade"
+                            )
+                            AndroidView(
+                                factory = { ctx ->
+                                    PlayerView(ctx).apply {
+                                        player = detailsPreviewPlayer
+                                        useController = false
+                                        resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                                    }
+                                },
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .alpha(previewAlpha)
+                                    .clip(RoundedCornerShape(8.dp))
+                            )
+
+                            // Preview Badge
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.BottomCenter)
+                                    .fillMaxWidth()
+                                    .background(Color.Black.copy(alpha = 0.75f))
+                                    .padding(vertical = 4.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    AppIcon(
+                                        resId = R.drawable.ic_play_arrow,
+                                        tint = accent,
+                                        size = 12.dp
+                                    )
+                                    Text(
+                                        text = "ПРЕДПРОСМОТР",
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = accent,
+                                        letterSpacing = 1.sp
+                                    )
+                                }
+                            }
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(14.dp))
@@ -597,9 +632,9 @@ fun DetailsScreen(
                             ),
                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                             scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.04f),
-                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
                             modifier = Modifier
-                                .height(36.dp)
+                                .height(32.dp)
                                 .focusRequester(playButtonFocusRequester)
                                 .focusProperties {
                                     left = leftPaneFocusRequester
@@ -607,12 +642,22 @@ fun DetailsScreen(
                                     down = favoriteButtonFocusRequester
                                 }
                         ) {
-                            Text(
-                                text = resumeLabel,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 13.sp,
-                                modifier = Modifier.padding(horizontal = 4.dp)
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                AppIcon(
+                                    resId = R.drawable.ic_play_arrow,
+                                    tint = Color.Black,
+                                    size = 15.dp
+                                )
+                                Text(
+                                    text = resumeLabel,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp,
+                                    lineHeight = 14.sp
+                                )
+                            }
                         }
 
                         Button(
@@ -629,9 +674,9 @@ fun DetailsScreen(
                             ),
                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                             scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.04f),
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
                             modifier = Modifier
-                                .height(36.dp)
+                                .height(32.dp)
                                 .focusRequester(fromStartButtonFocusRequester)
                                 .focusProperties {
                                     left = playButtonFocusRequester
@@ -639,12 +684,22 @@ fun DetailsScreen(
                                     down = favoriteButtonFocusRequester
                                 }
                         ) {
-                            Text(
-                                text = "С начала",
-                                fontWeight = FontWeight.Medium,
-                                fontSize = 13.sp,
-                                modifier = Modifier.padding(horizontal = 4.dp)
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                AppIcon(
+                                    resId = R.drawable.ic_replay_10,
+                                    tint = TextWhite,
+                                    size = 14.dp
+                                )
+                                Text(
+                                    text = "С начала",
+                                    fontWeight = FontWeight.Medium,
+                                    fontSize = 12.sp,
+                                    lineHeight = 14.sp
+                                )
+                            }
                         }
                     } else {
                         Button(
@@ -661,9 +716,9 @@ fun DetailsScreen(
                             ),
                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                             scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.04f),
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
                             modifier = Modifier
-                                .height(36.dp)
+                                .height(32.dp)
                                 .focusRequester(playButtonFocusRequester)
                                 .focusProperties {
                                     left = leftPaneFocusRequester
@@ -671,12 +726,22 @@ fun DetailsScreen(
                                     down = favoriteButtonFocusRequester
                                 }
                         ) {
-                            Text(
-                                text = if (isResolving) "Поиск потока..." else "Смотреть онлайн",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 13.sp,
-                                modifier = Modifier.padding(horizontal = 6.dp)
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                AppIcon(
+                                    resId = R.drawable.ic_play_arrow,
+                                    tint = Color.Black,
+                                    size = 15.dp
+                                )
+                                Text(
+                                    text = if (isResolving) "Поиск потока..." else "Смотреть онлайн",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp,
+                                    lineHeight = 14.sp
+                                )
+                            }
                         }
                     }
 
@@ -713,9 +778,9 @@ fun DetailsScreen(
                         ),
                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                         scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.04f),
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
                         modifier = Modifier
-                            .height(36.dp)
+                            .height(32.dp)
                             .focusRequester(trailerButtonFocusRequester)
                             .focusProperties {
                                 left = if (hasResume) fromStartButtonFocusRequester else playButtonFocusRequester
@@ -723,12 +788,22 @@ fun DetailsScreen(
                                 down = favoriteButtonFocusRequester
                             }
                     ) {
-                        Text(
-                            text = "Трейлер",
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 13.sp,
-                            modifier = Modifier.padding(horizontal = 4.dp)
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            AppIcon(
+                                resId = R.drawable.ic_movie,
+                                tint = TextWhite,
+                                size = 15.dp
+                            )
+                            Text(
+                                text = "Трейлер",
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 12.sp,
+                                lineHeight = 14.sp
+                            )
+                        }
                     }
 
                     // EXTERNAL PLAYER BUTTON
@@ -799,21 +874,31 @@ fun DetailsScreen(
                         ),
                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                         scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.04f),
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
                         modifier = Modifier
-                            .height(36.dp)
+                            .height(32.dp)
                             .focusRequester(externalPlayerFocusRequester)
                             .focusProperties {
                                 left = trailerButtonFocusRequester
                                 down = backButtonFocusRequester
                             }
                     ) {
-                        Text(
-                            text = "Внешний плеер",
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 13.sp,
-                            modifier = Modifier.padding(horizontal = 4.dp)
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            AppIcon(
+                                resId = R.drawable.ic_open_in_new,
+                                tint = TextWhite,
+                                size = 14.dp
+                            )
+                            Text(
+                                text = "Внешний плеер",
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 12.sp,
+                                lineHeight = 14.sp
+                            )
+                        }
                     }
                 }
 
@@ -842,9 +927,9 @@ fun DetailsScreen(
                         ),
                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                         scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.04f),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
                         modifier = Modifier
-                            .height(34.dp)
+                            .height(32.dp)
                             .focusRequester(favoriteButtonFocusRequester)
                             .focusProperties {
                                 left = leftPaneFocusRequester
@@ -853,12 +938,22 @@ fun DetailsScreen(
                                 down = tabsFocusRequester
                             }
                     ) {
-                        Text(
-                            text = if (isFavorite) "В избранном" else "В избранное",
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 13.sp,
-                            modifier = Modifier.padding(horizontal = 6.dp)
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            AppIcon(
+                                resId = if (isFavorite) R.drawable.ic_star else R.drawable.ic_star_border,
+                                tint = if (isFavorite) FavoriteGold else TextWhite,
+                                size = 14.dp
+                            )
+                            Text(
+                                text = if (isFavorite) "В избранном" else "В избранное",
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 12.sp,
+                                lineHeight = 14.sp
+                            )
+                        }
                     }
 
                     Button(
@@ -875,9 +970,9 @@ fun DetailsScreen(
                         ),
                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                         scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.04f),
-                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 2.dp),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
                         modifier = Modifier
-                            .height(34.dp)
+                            .height(32.dp)
                             .focusRequester(backButtonFocusRequester)
                             .focusProperties {
                                 left = favoriteButtonFocusRequester
@@ -885,11 +980,21 @@ fun DetailsScreen(
                                 down = tabsFocusRequester
                             }
                     ) {
-                        Text(
-                            text = "Назад",
-                            fontSize = 13.sp,
-                            modifier = Modifier.padding(horizontal = 6.dp)
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            AppIcon(
+                                resId = R.drawable.ic_arrow_back,
+                                tint = TextWhite,
+                                size = 14.dp
+                            )
+                            Text(
+                                text = "Назад",
+                                fontSize = 12.sp,
+                                lineHeight = 14.sp
+                            )
+                        }
                     }
                 }
 

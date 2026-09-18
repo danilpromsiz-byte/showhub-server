@@ -42,10 +42,12 @@ import androidx.tv.material3.ButtonDefaults
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Text
 import coil.Coil
+import com.example.tvmediaapp.R
 import com.example.tvmediaapp.data.api.ShowHubApiClient
 import com.example.tvmediaapp.data.history.WatchHistoryManager
 import com.example.tvmediaapp.data.updater.UpdateInfo
 import com.example.tvmediaapp.data.updater.UpdateManager
+import com.example.tvmediaapp.ui.components.AppIcon
 import com.example.tvmediaapp.ui.components.TvTopBar
 import com.example.tvmediaapp.ui.theme.BackgroundDark
 import com.example.tvmediaapp.ui.theme.ChipBackground
@@ -157,7 +159,7 @@ fun SettingsScreen(
 
         // TABS RIBBON
         TvLazyRow(
-            contentPadding = PaddingValues(horizontal = 48.dp, vertical = 14.dp),
+            contentPadding = PaddingValues(horizontal = 48.dp, vertical = 12.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             items(SettingsTab.values()) { tab ->
@@ -172,12 +174,14 @@ fun SettingsScreen(
                     ),
                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                     scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
-                    modifier = Modifier.height(38.dp)
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                    modifier = Modifier.height(32.dp)
                 ) {
                     Text(
                         text = tab.title,
                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                        fontSize = 14.sp
+                        fontSize = 12.sp,
+                        lineHeight = 14.sp
                     )
                 }
             }
@@ -198,13 +202,25 @@ fun SettingsScreen(
                     ),
                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                     scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
-                    modifier = Modifier.height(38.dp)
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                    modifier = Modifier.height(32.dp)
                 ) {
-                    Text(
-                        text = "Назад к каталогу",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Medium
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        AppIcon(
+                            resId = R.drawable.ic_arrow_back,
+                            tint = TextWhite,
+                            size = 14.dp
+                        )
+                        Text(
+                            text = "Назад к каталогу",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            lineHeight = 14.sp
+                        )
+                    }
                 }
             }
         }
@@ -264,9 +280,10 @@ fun SettingsScreen(
                                         ),
                                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                                         scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
-                                        modifier = Modifier.height(36.dp)
+                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                                        modifier = Modifier.height(32.dp)
                                     ) {
-                                        Text(text = themeTitle, fontSize = 13.sp, fontWeight = if (isCur) FontWeight.Bold else FontWeight.Normal)
+                                        Text(text = themeTitle, fontSize = 12.sp, fontWeight = if (isCur) FontWeight.Bold else FontWeight.Normal, lineHeight = 14.sp)
                                     }
                                 }
                             }
@@ -304,9 +321,10 @@ fun SettingsScreen(
                                         ),
                                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                                         scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
-                                        modifier = Modifier.height(36.dp)
+                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                                        modifier = Modifier.height(32.dp)
                                     ) {
-                                        Text(text = playerTitle, fontSize = 13.sp, fontWeight = if (isCur) FontWeight.Bold else FontWeight.Normal)
+                                        Text(text = playerTitle, fontSize = 12.sp, fontWeight = if (isCur) FontWeight.Bold else FontWeight.Normal, lineHeight = 14.sp)
                                     }
                                 }
                             }
@@ -344,9 +362,10 @@ fun SettingsScreen(
                                         ),
                                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                                         scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
-                                        modifier = Modifier.height(36.dp)
+                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                                        modifier = Modifier.height(32.dp)
                                     ) {
-                                        Text(text = qTitle, fontSize = 13.sp, fontWeight = if (isCur) FontWeight.Bold else FontWeight.Normal)
+                                        Text(text = qTitle, fontSize = 12.sp, fontWeight = if (isCur) FontWeight.Bold else FontWeight.Normal, lineHeight = 14.sp)
                                     }
                                 }
                             }
@@ -379,9 +398,10 @@ fun SettingsScreen(
                                         ),
                                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                                         scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
-                                        modifier = Modifier.height(36.dp)
+                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                                        modifier = Modifier.height(32.dp)
                                     ) {
-                                        Text(text = voice, fontSize = 13.sp, fontWeight = if (isCur) FontWeight.Bold else FontWeight.Normal)
+                                        Text(text = voice, fontSize = 12.sp, fontWeight = if (isCur) FontWeight.Bold else FontWeight.Normal, lineHeight = 14.sp)
                                     }
                                 }
                             }
@@ -480,9 +500,10 @@ fun SettingsScreen(
                                     ),
                                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                                     scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
-                                    modifier = Modifier.height(42.dp)
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                                    modifier = Modifier.height(32.dp)
                                 ) {
-                                    Text("Активировать Filmix PRO", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                    Text("Активировать Filmix PRO", fontWeight = FontWeight.Bold, fontSize = 12.sp)
                                 }
                             }
                         }
@@ -553,9 +574,10 @@ fun SettingsScreen(
                                     ),
                                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                                     scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
-                                    modifier = Modifier.height(42.dp)
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                                    modifier = Modifier.height(32.dp)
                                 ) {
-                                    Text(text = if (isPinging) "Проверка..." else "Проверить связь (Ping)", fontWeight = FontWeight.Bold)
+                                    Text(text = if (isPinging) "Проверка..." else "Проверить связь (Ping)", fontWeight = FontWeight.Bold, fontSize = 12.sp)
                                 }
                             }
 
@@ -604,9 +626,11 @@ fun SettingsScreen(
                                     },
                                     colors = ButtonDefaults.colors(containerColor = Color.Red.copy(alpha = 0.8f)),
                                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f)
+                                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                                    modifier = Modifier.height(32.dp)
                                 ) {
-                                    Text("Очистить историю", fontSize = 13.sp)
+                                    Text("Очистить историю", fontSize = 12.sp)
                                 }
                             }
 
@@ -637,9 +661,11 @@ fun SettingsScreen(
                                     },
                                     colors = ButtonDefaults.colors(containerColor = Color.White.copy(alpha = 0.12f)),
                                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f)
+                                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                                    modifier = Modifier.height(32.dp)
                                 ) {
-                                    Text("Очистить кэш картинок", fontSize = 13.sp)
+                                    Text("Очистить кэш картинок", fontSize = 12.sp)
                                 }
                             }
                         }
@@ -703,9 +729,20 @@ fun SettingsScreen(
                                     ),
                                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                                     scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
-                                    modifier = Modifier.height(42.dp)
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                                    modifier = Modifier.height(32.dp)
                                 ) {
-                                    Text("Проверить обновления", fontWeight = FontWeight.Bold)
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        AppIcon(
+                                            resId = R.drawable.ic_refresh,
+                                            tint = Color.Black,
+                                            size = 14.dp
+                                        )
+                                        Text("Проверить обновления", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                    }
                                 }
                             }
 

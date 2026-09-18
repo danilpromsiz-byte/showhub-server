@@ -355,13 +355,13 @@ def check_updates() -> Dict[str, Any]:
 
     return {
         "success": True,
-        "version_name": "2.6.4",
-        "version_code": 43,
+        "version_name": "2.6.5",
+        "version_code": 44,
         "force_update": True,
-        "min_version_code": 43,
+        "min_version_code": 44,
         "apk_url": "https://showhub-server.onrender.com/ShowHub.apk",
         "download_url": "https://showhub-server.onrender.com/ShowHub.apk",
-        "changelog": "ShowHub TV v2.6.4: Прямое обновление в один клик с подробным статусом загрузки, надежный установщик APK, оптимизированный предпросмотр видео без задержек и спиннеров."
+        "changelog": "ShowHub TV v2.6.5: Предпросмотр видео в карточке фильма, единый компактный стиль кнопок 32dp, профессиональный векторный айкон-пак, навигация и кнопки серий в плеере, надёжный выход по кнопке «Назад» на пульте."
     }
 
 @app.get("/api/catalog/stats")

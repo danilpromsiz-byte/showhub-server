@@ -166,13 +166,20 @@ fun SearchScreen(
                 ),
                 shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                 scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
-                modifier = Modifier.height(38.dp)
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                modifier = Modifier.height(32.dp)
             ) {
-                Text(
-                    text = "Назад",
-                    fontSize = 14.sp,
-                    modifier = Modifier.padding(horizontal = 14.dp)
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    com.example.tvmediaapp.ui.components.AppIcon(
+                        iconResId = com.example.tvmediaapp.R.drawable.ic_arrow_back,
+                        contentDescription = "Назад",
+                        modifier = Modifier.padding(end = 6.dp)
+                    )
+                    Text(
+                        text = "Назад",
+                        fontSize = 13.sp
+                    )
+                }
             }
         }
 
@@ -238,10 +245,11 @@ fun SearchScreen(
                             contentColor = TextWhite,
                             focusedContentColor = TextWhite
                         ),
-                        shape = ButtonDefaults.shape(RoundedCornerShape(6.dp)),
-                        modifier = Modifier.height(30.dp)
+                        shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                        modifier = Modifier.height(32.dp)
                     ) {
-                        Text(text = "Очистить", fontSize = 12.sp, modifier = Modifier.padding(horizontal = 6.dp))
+                        Text(text = "Очистить", fontSize = 12.sp)
                     }
                 }
             }

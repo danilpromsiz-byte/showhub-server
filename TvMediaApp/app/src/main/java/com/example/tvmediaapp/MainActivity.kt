@@ -27,11 +27,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -92,16 +94,16 @@ class MainActivity : ComponentActivity() {
                 pInfo.versionCode
             }
         } catch (e: Exception) {
-            43
+            44
         }
     }
 
     fun getInstalledVersionName(): String {
         return try {
             val pInfo = packageManager.getPackageInfo(packageName, 0)
-            pInfo.versionName ?: "2.6.4"
+            pInfo.versionName ?: "2.6.5"
         } catch (e: Exception) {
-            "2.6.4"
+            "2.6.5"
         }
     }
 
@@ -432,6 +434,7 @@ fun TvAppNavHost(activity: MainActivity) {
                             },
                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                             scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
                             colors = ButtonDefaults.colors(
                                 containerColor = accent,
                                 focusedContainerColor = Color.White,
@@ -439,6 +442,7 @@ fun TvAppNavHost(activity: MainActivity) {
                                 focusedContentColor = Color.Black
                             ),
                             modifier = Modifier
+                                .height(32.dp)
                                 .focusRequester(updateFocusRequester)
                                 .focusProperties {
                                     right = browserFocusRequester
@@ -455,7 +459,7 @@ fun TvAppNavHost(activity: MainActivity) {
                                 } else {
                                     "Обновить сейчас"
                                 },
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                                fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold
                             )
                         }
@@ -469,6 +473,7 @@ fun TvAppNavHost(activity: MainActivity) {
                             },
                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                             scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
                             colors = ButtonDefaults.colors(
                                 containerColor = Color.White.copy(alpha = 0.12f),
                                 focusedContainerColor = Color.White,
@@ -476,6 +481,7 @@ fun TvAppNavHost(activity: MainActivity) {
                                 focusedContentColor = Color.Black
                             ),
                             modifier = Modifier
+                                .height(32.dp)
                                 .focusRequester(browserFocusRequester)
                                 .focusProperties {
                                     left = updateFocusRequester
@@ -486,7 +492,7 @@ fun TvAppNavHost(activity: MainActivity) {
                         ) {
                             Text(
                                 text = "Открыть в браузере",
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                                fontSize = 13.sp,
                                 fontWeight = FontWeight.Medium
                             )
                         }
@@ -498,6 +504,7 @@ fun TvAppNavHost(activity: MainActivity) {
                             onClick = { updateInfo = null },
                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                             scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
                             colors = ButtonDefaults.colors(
                                 containerColor = Color.White.copy(alpha = 0.08f),
                                 focusedContainerColor = Color.White,
@@ -505,6 +512,7 @@ fun TvAppNavHost(activity: MainActivity) {
                                 focusedContentColor = Color.Black
                             ),
                             modifier = Modifier
+                                .height(32.dp)
                                 .focusRequester(remindLaterFocusRequester)
                                 .focusProperties {
                                     left = browserFocusRequester
@@ -515,7 +523,7 @@ fun TvAppNavHost(activity: MainActivity) {
                         ) {
                             Text(
                                 text = "Напомнить позже",
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+                                fontSize = 13.sp
                             )
                         }
                     }

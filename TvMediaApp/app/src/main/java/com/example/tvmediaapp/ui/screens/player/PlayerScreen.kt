@@ -62,16 +62,21 @@ import com.example.tvmediaapp.ui.theme.TextGray
 import com.example.tvmediaapp.ui.theme.TextWhite
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.focus.focusProperties
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.tv.foundation.lazy.list.TvLazyRow
 import androidx.tv.foundation.lazy.list.items
+import androidx.tv.material3.Border
 import androidx.tv.material3.Button
 import androidx.tv.material3.ButtonDefaults
+import com.example.tvmediaapp.R
 import com.example.tvmediaapp.data.api.ShowHubApiClient
+import com.example.tvmediaapp.ui.components.AppIcon
 import com.example.tvmediaapp.ui.theme.ChipBackground
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -238,7 +243,16 @@ private fun NativeExoPlayerScreen(
     var isControlsVisible by remember { mutableStateOf(true) }
     var activeDrawer by remember { mutableStateOf<String?>(null) } // "audio", "episodes", null
 
-    val focusRequester = remember { FocusRequester() }
+    val rootFocusRequester = remember { FocusRequester() }
+    val playPauseFocusRequester = remember { FocusRequester() }
+    val rewindFocusRequester = remember { FocusRequester() }
+    val forwardFocusRequester = remember { FocusRequester() }
+    val audioFocusRequester = remember { FocusRequester() }
+    val prevEpisodeFocusRequester = remember { FocusRequester() }
+    val episodesDrawerFocusRequester = remember { FocusRequester() }
+    val nextEpisodeFocusRequester = remember { FocusRequester() }
+    val extPlayerFocusRequester = remember { FocusRequester() }
+    val episodesRowFocusRequester = remember { FocusRequester() }
 
     // Initialize Media3 ExoPlayer with headers and resume support
     val exoPlayer = remember {
@@ -323,12 +337,20 @@ private fun NativeExoPlayerScreen(
         }
     }
 
-    // Handle Hardware Back button
+    // Auto-focus play/pause button when controls become visible
+    LaunchedEffect(isControlsVisible) {
+        if (isControlsVisible && activeDrawer == null) {
+            delay(50)
+            try {
+                playPauseFocusRequester.requestFocus()
+            } catch (_: Exception) {}
+        }
+    }
+
+    // Handle Hardware Back button - always exits cleanly or dismisses drawer
     BackHandler {
         if (activeDrawer != null) {
             activeDrawer = null
-        } else if (isControlsVisible) {
-            isControlsVisible = false
         } else {
             onBackPress()
         }
@@ -360,47 +382,54 @@ private fun NativeExoPlayerScreen(
 
     // Request focus for D-Pad events on launch
     LaunchedEffect(Unit) {
-        focusRequester.requestFocus()
+        rootFocusRequester.requestFocus()
     }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
-            .focusRequester(focusRequester)
+            .focusRequester(rootFocusRequester)
             .focusable()
             .onKeyEvent { keyEvent ->
                 val nativeEvent = keyEvent.nativeKeyEvent
+                // Direct hardware back button handling
+                if (nativeEvent.keyCode == KeyEvent.KEYCODE_BACK) {
+                    if (nativeEvent.action == KeyEvent.ACTION_DOWN) {
+                        if (activeDrawer != null) {
+                            activeDrawer = null
+                            return@onKeyEvent true
+                        }
+                        onBackPress()
+                        return@onKeyEvent true
+                    }
+                }
                 if (nativeEvent.action == KeyEvent.ACTION_DOWN) {
-                    isControlsVisible = true
-                    when (nativeEvent.keyCode) {
-                        KeyEvent.KEYCODE_DPAD_CENTER,
-                        KeyEvent.KEYCODE_ENTER,
-                        KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
-                            if (activeDrawer == null) {
-                                if (exoPlayer.isPlaying) {
-                                    exoPlayer.pause()
-                                } else {
-                                    exoPlayer.play()
+                    if (!isControlsVisible) {
+                        isControlsVisible = true
+                        try { playPauseFocusRequester.requestFocus() } catch (_: Exception) {}
+                        return@onKeyEvent true
+                    } else {
+                        when (nativeEvent.keyCode) {
+                            KeyEvent.KEYCODE_DPAD_DOWN -> {
+                                try { playPauseFocusRequester.requestFocus() } catch (_: Exception) {}
+                                return@onKeyEvent true
+                            }
+                            KeyEvent.KEYCODE_DPAD_UP -> {
+                                try { episodesRowFocusRequester.requestFocus() } catch (_: Exception) {}
+                                return@onKeyEvent true
+                            }
+                            KeyEvent.KEYCODE_DPAD_CENTER,
+                            KeyEvent.KEYCODE_ENTER,
+                            KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
+                                if (activeDrawer == null) {
+                                    if (exoPlayer.isPlaying) {
+                                        exoPlayer.pause()
+                                    } else {
+                                        exoPlayer.play()
+                                    }
+                                    return@onKeyEvent true
                                 }
-                                return@onKeyEvent true
-                            }
-                        }
-                        KeyEvent.KEYCODE_DPAD_LEFT,
-                        KeyEvent.KEYCODE_MEDIA_REWIND -> {
-                            if (activeDrawer == null) {
-                                val newPos = (exoPlayer.currentPosition - 10000L).coerceAtLeast(0L)
-                                exoPlayer.seekTo(newPos)
-                                return@onKeyEvent true
-                            }
-                        }
-                        KeyEvent.KEYCODE_DPAD_RIGHT,
-                        KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> {
-                            if (activeDrawer == null) {
-                                val maxPos = if (exoPlayer.duration > 0) exoPlayer.duration else Long.MAX_VALUE
-                                val newPos = (exoPlayer.currentPosition + 10000L).coerceAtMost(maxPos)
-                                exoPlayer.seekTo(newPos)
-                                return@onKeyEvent true
                             }
                         }
                     }
@@ -579,8 +608,77 @@ private fun NativeExoPlayerScreen(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .fillMaxWidth()
-                        .padding(horizontal = 48.dp, vertical = 28.dp)
+                        .padding(horizontal = 48.dp, vertical = 24.dp)
                 ) {
+                    // Inline Series Episodes Strip
+                    if (movie.isSeries) {
+                        val activeSeason = movie.seasons.firstOrNull { it.seasonNumber == currentSeason } ?: movie.seasons.firstOrNull()
+                        val episodeList = activeSeason?.episodes ?: emptyList()
+                        if (episodeList.isNotEmpty()) {
+                            Column(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
+                                Text(
+                                    text = "Серии сезона $currentSeason:",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = TextGray
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                TvLazyRow(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    items(episodeList) { ep ->
+                                        val isCurrentEp = ep.episodeNumber == currentEpisode
+                                        val epReq = if (isCurrentEp) Modifier.focusRequester(episodesRowFocusRequester) else Modifier
+                                        Button(
+                                            onClick = {
+                                                switchStream(currentSeason, ep.episodeNumber, currentAudioId)
+                                            },
+                                            colors = ButtonDefaults.colors(
+                                                containerColor = if (isCurrentEp) accent else Color.White.copy(alpha = 0.12f),
+                                                focusedContainerColor = if (isCurrentEp) Color.White else accent,
+                                                contentColor = if (isCurrentEp) Color.Black else TextWhite,
+                                                focusedContentColor = Color.Black
+                                            ),
+                                            border = ButtonDefaults.border(
+                                                border = Border(BorderStroke(1.dp, if (isCurrentEp) accent else Color.Transparent)),
+                                                focusedBorder = Border(BorderStroke(2.dp, TextWhite))
+                                            ),
+                                            shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.04f),
+                                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                                            modifier = Modifier
+                                                .height(30.dp)
+                                                .then(epReq)
+                                                .focusProperties {
+                                                    down = playPauseFocusRequester
+                                                }
+                                        ) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                            ) {
+                                                if (isCurrentEp) {
+                                                    AppIcon(
+                                                        resId = R.drawable.ic_play_arrow,
+                                                        tint = Color.Black,
+                                                        size = 12.dp
+                                                    )
+                                                }
+                                                Text(
+                                                    text = if (ep.title.isNotBlank() && ep.title != "null") ep.title else "Серия ${ep.episodeNumber}",
+                                                    fontSize = 12.sp,
+                                                    fontWeight = if (isCurrentEp) FontWeight.Bold else FontWeight.Normal,
+                                                    lineHeight = 14.sp
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     // Progress Bar
                     val progressFraction = if (duration > 0) {
                         (currentPosition.toFloat() / duration.toFloat()).coerceIn(0f, 1f)
@@ -619,7 +717,7 @@ private fun NativeExoPlayerScreen(
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(14.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
 
                     // TV Remote Interactive Buttons Bar
                     Row(
@@ -638,12 +736,37 @@ private fun NativeExoPlayerScreen(
                                 contentColor = TextWhite,
                                 focusedContentColor = Color.Black
                             ),
+                            border = ButtonDefaults.border(
+                                border = Border(BorderStroke(1.dp, Color.White.copy(alpha = 0.15f))),
+                                focusedBorder = Border(BorderStroke(2.dp, TextWhite))
+                            ),
                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                             scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp),
-                            modifier = Modifier.height(34.dp)
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                            modifier = Modifier
+                                .height(32.dp)
+                                .focusRequester(playPauseFocusRequester)
+                                .focusProperties {
+                                    right = rewindFocusRequester
+                                    up = episodesRowFocusRequester
+                                }
                         ) {
-                            Text(if (isPlaying) "⏸ Пауза" else "▶ Старт", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                AppIcon(
+                                    resId = if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play_arrow,
+                                    tint = TextWhite,
+                                    size = 14.dp
+                                )
+                                Text(
+                                    text = if (isPlaying) "Пауза" else "Старт",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    lineHeight = 14.sp
+                                )
+                            }
                         }
 
                         // 2. Rewind -10s
@@ -658,15 +781,37 @@ private fun NativeExoPlayerScreen(
                                 contentColor = TextWhite,
                                 focusedContentColor = Color.Black
                             ),
+                            border = ButtonDefaults.border(
+                                border = Border(BorderStroke(1.dp, Color.White.copy(alpha = 0.15f))),
+                                focusedBorder = Border(BorderStroke(2.dp, TextWhite))
+                            ),
                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                             scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
-                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
-                            modifier = Modifier.height(34.dp)
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                            modifier = Modifier
+                                .height(32.dp)
+                                .focusRequester(rewindFocusRequester)
+                                .focusProperties {
+                                    left = playPauseFocusRequester
+                                    right = forwardFocusRequester
+                                    up = episodesRowFocusRequester
+                                }
                         ) {
-                            Text("« 10с", fontSize = 12.sp)
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                AppIcon(
+                                    resId = R.drawable.ic_replay_10,
+                                    tint = TextWhite,
+                                    size = 14.dp
+                                )
+                                Text("10с", fontSize = 12.sp, lineHeight = 14.sp)
+                            }
                         }
 
                         // 3. Forward +10s
+                        val afterForwardFocus = if (movie.audioTracks.isNotEmpty()) audioFocusRequester else (if (movie.isSeries) episodesDrawerFocusRequester else extPlayerFocusRequester)
                         Button(
                             onClick = {
                                 val maxPos = if (exoPlayer.duration > 0) exoPlayer.duration else Long.MAX_VALUE
@@ -679,17 +824,42 @@ private fun NativeExoPlayerScreen(
                                 contentColor = TextWhite,
                                 focusedContentColor = Color.Black
                             ),
+                            border = ButtonDefaults.border(
+                                border = Border(BorderStroke(1.dp, Color.White.copy(alpha = 0.15f))),
+                                focusedBorder = Border(BorderStroke(2.dp, TextWhite))
+                            ),
                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                             scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
-                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
-                            modifier = Modifier.height(34.dp)
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                            modifier = Modifier
+                                .height(32.dp)
+                                .focusRequester(forwardFocusRequester)
+                                .focusProperties {
+                                    left = rewindFocusRequester
+                                    right = afterForwardFocus
+                                    up = episodesRowFocusRequester
+                                }
                         ) {
-                            Text("10с »", fontSize = 12.sp)
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                AppIcon(
+                                    resId = R.drawable.ic_forward_10,
+                                    tint = TextWhite,
+                                    size = 14.dp
+                                )
+                                Text("10с", fontSize = 12.sp, lineHeight = 14.sp)
+                            }
                         }
 
                         // 4. Audio Tracks Selector Button
                         if (movie.audioTracks.isNotEmpty()) {
                             val curName = movie.audioTracks.firstOrNull { it.id == currentAudioId }?.name ?: "Озвучка"
+                            val afterAudioFocus = if (movie.isSeries) {
+                                if (currentEpisode > 1) prevEpisodeFocusRequester else episodesDrawerFocusRequester
+                            } else extPlayerFocusRequester
+
                             Button(
                                 onClick = {
                                     activeDrawer = if (activeDrawer == "audio") null else "audio"
@@ -700,17 +870,40 @@ private fun NativeExoPlayerScreen(
                                     contentColor = if (activeDrawer == "audio") Color.Black else TextWhite,
                                     focusedContentColor = Color.Black
                                 ),
+                                border = ButtonDefaults.border(
+                                    border = Border(BorderStroke(1.dp, Color.White.copy(alpha = 0.15f))),
+                                    focusedBorder = Border(BorderStroke(2.dp, TextWhite))
+                                ),
                                 shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                                 scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp),
-                                modifier = Modifier.height(34.dp)
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                                modifier = Modifier
+                                    .height(32.dp)
+                                    .focusRequester(audioFocusRequester)
+                                    .focusProperties {
+                                        left = forwardFocusRequester
+                                        right = afterAudioFocus
+                                        up = episodesRowFocusRequester
+                                    }
                             ) {
-                                Text("🔊 $curName", fontSize = 12.sp, maxLines = 1)
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    AppIcon(
+                                        resId = R.drawable.ic_volume_up,
+                                        tint = TextWhite,
+                                        size = 14.dp
+                                    )
+                                    Text(curName, fontSize = 12.sp, maxLines = 1, lineHeight = 14.sp)
+                                }
                             }
                         }
 
                         // 5. Series Next / Prev / List Buttons
                         if (movie.isSeries) {
+                            val beforeSeriesFocus = if (movie.audioTracks.isNotEmpty()) audioFocusRequester else forwardFocusRequester
+
                             if (currentEpisode > 1) {
                                 Button(
                                     onClick = { switchStream(currentSeason, currentEpisode - 1, currentAudioId) },
@@ -720,12 +913,33 @@ private fun NativeExoPlayerScreen(
                                         contentColor = TextWhite,
                                         focusedContentColor = Color.Black
                                     ),
+                                    border = ButtonDefaults.border(
+                                        border = Border(BorderStroke(1.dp, Color.White.copy(alpha = 0.15f))),
+                                        focusedBorder = Border(BorderStroke(2.dp, TextWhite))
+                                    ),
                                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                                     scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
-                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
-                                    modifier = Modifier.height(34.dp)
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                                    modifier = Modifier
+                                        .height(32.dp)
+                                        .focusRequester(prevEpisodeFocusRequester)
+                                        .focusProperties {
+                                            left = beforeSeriesFocus
+                                            right = episodesDrawerFocusRequester
+                                            up = episodesRowFocusRequester
+                                        }
                                 ) {
-                                    Text("⏮ Пред. серия", fontSize = 12.sp)
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        AppIcon(
+                                            resId = R.drawable.ic_skip_previous,
+                                            tint = TextWhite,
+                                            size = 14.dp
+                                        )
+                                        Text("Пред. серия", fontSize = 12.sp, lineHeight = 14.sp)
+                                    }
                                 }
                             }
 
@@ -739,12 +953,33 @@ private fun NativeExoPlayerScreen(
                                     contentColor = if (activeDrawer == "episodes") Color.Black else TextWhite,
                                     focusedContentColor = Color.Black
                                 ),
+                                border = ButtonDefaults.border(
+                                    border = Border(BorderStroke(1.dp, Color.White.copy(alpha = 0.15f))),
+                                    focusedBorder = Border(BorderStroke(2.dp, TextWhite))
+                                ),
                                 shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                                 scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp),
-                                modifier = Modifier.height(34.dp)
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                                modifier = Modifier
+                                    .height(32.dp)
+                                    .focusRequester(episodesDrawerFocusRequester)
+                                    .focusProperties {
+                                        left = if (currentEpisode > 1) prevEpisodeFocusRequester else beforeSeriesFocus
+                                        right = nextEpisodeFocusRequester
+                                        up = episodesRowFocusRequester
+                                    }
                             ) {
-                                Text("📑 Серии", fontSize = 12.sp)
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    AppIcon(
+                                        resId = R.drawable.ic_video_library,
+                                        tint = TextWhite,
+                                        size = 14.dp
+                                    )
+                                    Text("Все серии", fontSize = 12.sp, lineHeight = 14.sp)
+                                }
                             }
 
                             Button(
@@ -755,16 +990,38 @@ private fun NativeExoPlayerScreen(
                                     contentColor = TextWhite,
                                     focusedContentColor = Color.Black
                                 ),
+                                border = ButtonDefaults.border(
+                                    border = Border(BorderStroke(1.dp, Color.White.copy(alpha = 0.15f))),
+                                    focusedBorder = Border(BorderStroke(2.dp, TextWhite))
+                                ),
                                 shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                                 scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
-                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
-                                modifier = Modifier.height(34.dp)
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                                modifier = Modifier
+                                    .height(32.dp)
+                                    .focusRequester(nextEpisodeFocusRequester)
+                                    .focusProperties {
+                                        left = episodesDrawerFocusRequester
+                                        right = extPlayerFocusRequester
+                                        up = episodesRowFocusRequester
+                                    }
                             ) {
-                                Text("След. серия ⏭", fontSize = 12.sp)
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Text("След. серия", fontSize = 12.sp, lineHeight = 14.sp)
+                                    AppIcon(
+                                        resId = R.drawable.ic_skip_next,
+                                        tint = TextWhite,
+                                        size = 14.dp
+                                    )
+                                }
                             }
                         }
 
                         // 6. External Player Button
+                        val beforeExtFocus = if (movie.isSeries) nextEpisodeFocusRequester else (if (movie.audioTracks.isNotEmpty()) audioFocusRequester else forwardFocusRequester)
                         Button(
                             onClick = {
                                 try {
@@ -791,12 +1048,32 @@ private fun NativeExoPlayerScreen(
                                 contentColor = TextWhite,
                                 focusedContentColor = Color.Black
                             ),
+                            border = ButtonDefaults.border(
+                                border = Border(BorderStroke(1.dp, Color.White.copy(alpha = 0.15f))),
+                                focusedBorder = Border(BorderStroke(2.dp, TextWhite))
+                            ),
                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                             scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
-                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
-                            modifier = Modifier.height(34.dp)
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                            modifier = Modifier
+                                .height(32.dp)
+                                .focusRequester(extPlayerFocusRequester)
+                                .focusProperties {
+                                    left = beforeExtFocus
+                                    up = episodesRowFocusRequester
+                                }
                         ) {
-                            Text("📺 Внешний плеер", fontSize = 12.sp)
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                AppIcon(
+                                    resId = R.drawable.ic_open_in_new,
+                                    tint = TextWhite,
+                                    size = 14.dp
+                                )
+                                Text("Внешний плеер", fontSize = 12.sp, lineHeight = 14.sp)
+                            }
                         }
                     }
                 }

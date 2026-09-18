@@ -117,16 +117,28 @@ fun TvTopBar(
                 ),
                 shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                 scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 0.dp),
                 modifier = Modifier
-                    .height(38.dp)
+                    .height(32.dp)
                     .then(searchFocusMod)
                     .then(downMod)
             ) {
-                Text(
-                    text = "Поиск",
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 14.sp
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    AppIcon(
+                        resId = com.example.tvmediaapp.R.drawable.ic_search,
+                        tint = if (isSearch) accent else TextWhite,
+                        size = 14.dp
+                    )
+                    Text(
+                        text = "Поиск",
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 12.sp,
+                        lineHeight = 14.sp
+                    )
+                }
             }
 
             // Favorites
@@ -145,15 +157,27 @@ fun TvTopBar(
                 ),
                 shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                 scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 0.dp),
                 modifier = Modifier
-                    .height(38.dp)
+                    .height(32.dp)
                     .then(downMod)
             ) {
-                Text(
-                    text = "Избранное",
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 14.sp
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    AppIcon(
+                        resId = com.example.tvmediaapp.R.drawable.ic_star,
+                        tint = if (isFav) accent else TextWhite,
+                        size = 14.dp
+                    )
+                    Text(
+                        text = "Избранное",
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 12.sp,
+                        lineHeight = 14.sp
+                    )
+                }
             }
 
             // History
@@ -172,15 +196,27 @@ fun TvTopBar(
                 ),
                 shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                 scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 0.dp),
                 modifier = Modifier
-                    .height(38.dp)
+                    .height(32.dp)
                     .then(downMod)
             ) {
-                Text(
-                    text = "История",
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 14.sp
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    AppIcon(
+                        resId = com.example.tvmediaapp.R.drawable.ic_history,
+                        tint = if (isHist) accent else TextWhite,
+                        size = 14.dp
+                    )
+                    Text(
+                        text = "История",
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 12.sp,
+                        lineHeight = 14.sp
+                    )
+                }
             }
 
             // Settings
@@ -200,15 +236,27 @@ fun TvTopBar(
                     ),
                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                     scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 0.dp),
                     modifier = Modifier
-                        .height(38.dp)
+                        .height(32.dp)
                         .then(downMod)
                 ) {
-                    Text(
-                        text = "Настройки",
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 14.sp
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        AppIcon(
+                            resId = com.example.tvmediaapp.R.drawable.ic_settings,
+                            tint = if (isSettings) accent else TextWhite,
+                            size = 14.dp
+                        )
+                        Text(
+                            text = "Настройки",
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 12.sp,
+                            lineHeight = 14.sp
+                        )
+                    }
                 }
             }
 
@@ -228,15 +276,27 @@ fun TvTopBar(
                     ),
                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                     scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 0.dp),
                     modifier = Modifier
-                        .height(38.dp)
+                        .height(32.dp)
                         .then(downMod)
                 ) {
-                    Text(
-                        text = if (hasUpdateAvailable) "Обновить" else "Обновления",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        AppIcon(
+                            resId = com.example.tvmediaapp.R.drawable.ic_refresh,
+                            tint = if (hasUpdateAvailable) Color.Black else TextWhite,
+                            size = 14.dp
+                        )
+                        Text(
+                            text = if (hasUpdateAvailable) "Обновить" else "Обновления",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp,
+                            lineHeight = 14.sp
+                        )
+                    }
                 }
             }
         }

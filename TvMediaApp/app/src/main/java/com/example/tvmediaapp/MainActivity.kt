@@ -271,11 +271,15 @@ fun TvAppNavHost(activity: MainActivity) {
         modifier = Modifier
             .fillMaxSize()
             .background(LocalBackgroundColor.current)
-            .focusProperties {
-                canFocus = !isUpdateDialogVisible && !showExitDialog
-            }
     ) {
-        when (currentScreen) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .focusProperties {
+                    canFocus = !isUpdateDialogVisible && !showExitDialog
+                }
+        ) {
+            when (currentScreen) {
             Screen.HOME -> {
                 HomeScreen(
                     onMovieSelect = { movie ->
@@ -442,6 +446,7 @@ fun TvAppNavHost(activity: MainActivity) {
                 }
             }
         }
+    }
 
         // In-app Update Notification Banner/Dialog
         if (isUpdateDialogVisible) {
@@ -661,9 +666,9 @@ fun TvAppNavHost(activity: MainActivity) {
             val exitFocusRequester = remember { FocusRequester() }
             val cancelFocusRequester = remember { FocusRequester() }
 
-            LaunchedEffect(Unit) {
-                repeat(5) {
-                    delay(60)
+            LaunchedEffect(showExitDialog) {
+                repeat(8) {
+                    delay(50)
                     try { cancelFocusRequester.requestFocus() } catch (_: Exception) {}
                 }
             }
@@ -671,7 +676,11 @@ fun TvAppNavHost(activity: MainActivity) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.85f)),
+                    .background(Color.Black.copy(alpha = 0.85f))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) {},
                 contentAlignment = Alignment.Center
             ) {
                 Column(
@@ -727,6 +736,9 @@ fun TvAppNavHost(activity: MainActivity) {
                                 .focusRequester(cancelFocusRequester)
                                 .focusProperties {
                                     right = exitFocusRequester
+                                    up = FocusRequester.Cancel
+                                    down = FocusRequester.Cancel
+                                    left = FocusRequester.Cancel
                                 }
                         ) {
                             Text(
@@ -755,6 +767,9 @@ fun TvAppNavHost(activity: MainActivity) {
                                 .focusRequester(exitFocusRequester)
                                 .focusProperties {
                                     left = cancelFocusRequester
+                                    up = FocusRequester.Cancel
+                                    down = FocusRequester.Cancel
+                                    right = FocusRequester.Cancel
                                 }
                         ) {
                             Text(

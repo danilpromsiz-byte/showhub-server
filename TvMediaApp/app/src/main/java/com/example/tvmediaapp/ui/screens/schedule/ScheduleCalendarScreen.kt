@@ -353,16 +353,29 @@ fun CalendarEpisodeCard(
                 }
 
                 // Status Badge
-                val isOut = entry.scheduleItem.status.contains("Вышла", ignoreCase = true) || entry.scheduleItem.status.contains("Доступна", ignoreCase = true)
-                val badgeColor = when {
-                    entry.isSummary -> Color(0xFFEA580C).copy(alpha = 0.95f) // Warm Orange
-                    isOut -> Color(0xFF16A34A).copy(alpha = 0.9f) // Green
-                    else -> Color(0xFFEAB308).copy(alpha = 0.9f) // Yellow
+                val isEpisodeAlreadyInMovie = entry.movie.seasons.any { s ->
+                    val epMatch = Regex("""(?:(\d+)\s+сезон)?.*?(\d+)\s+серия""").find(entry.scheduleItem.episode)
+                    if (epMatch != null) {
+                        val sNum = epMatch.groupValues[1].takeIf { it.isNotBlank() }?.toIntOrNull() ?: s.seasonNumber
+                        val epNum = epMatch.groupValues[2].takeIf { it.isNotBlank() }?.toIntOrNull() ?: 0
+                        s.seasonNumber == sNum && s.episodes.any { it.episodeNumber == epNum }
+                    } else false
                 }
-                val badgeText = when {
-                    entry.isSummary -> "Осталось: ${entry.unwatchedCount} сер."
-                    isOut -> "Вышла"
-                    else -> "Ожидается"
+                val isOut = entry.scheduleItem.status.contains("Вышла", ignoreCase = true) ||
+                    entry.scheduleItem.status.contains("Доступна", ignoreCase = true) ||
+                    entry.scheduleItem.status.contains("✓") ||
+                    isEpisodeAlreadyInMovie ||
+                    isDatePast(entry.scheduleItem.date)
+
+                val isToday = isDateToday(entry.scheduleItem.status) || isDateToday(entry.scheduleItem.date)
+                val isTomorrow = isDateTomorrow(entry.scheduleItem.status) || isDateTomorrow(entry.scheduleItem.date)
+
+                val (badgeText, badgeColor) = when {
+                    entry.isSummary -> "Осталось: ${entry.unwatchedCount} сер." to Color(0xFFEA580C).copy(alpha = 0.95f) // Warm Orange
+                    isOut -> "Вышла" to Color(0xFF16A34A).copy(alpha = 0.9f) // Green
+                    isToday -> "Сегодня" to Color(0xFF0284C7).copy(alpha = 0.9f) // Sky Blue
+                    isTomorrow -> "Завтра" to Color(0xFF8B5CF6).copy(alpha = 0.9f) // Purple
+                    else -> "Ожидается" to Color(0xFFEAB308).copy(alpha = 0.9f) // Yellow
                 }
                 Box(
                     modifier = Modifier
@@ -418,9 +431,81 @@ fun CalendarEpisodeCard(
     }
 }
 
-fun anyFutureMonth(s: String): Boolean {
-    val months = listOf("январ", "феврал", "март", "апрел", "ма", "июн", "июл", "август", "сентябр", "октябр", "ноябр", "декабр")
-    return months.any { s.contains(it) }
+fun parseDateCal(dateStr: String): java.util.Calendar? {
+    val dLower = dateStr.lowercase()
+    val match = Regex("""(\d{1,2})\s+([а-я]+)(?:\s+(\d{4}))?""").find(dLower) ?: return null
+    val dayStr = match.groupValues[1]
+    val monthRu = match.groupValues[2]
+    val yearStr = match.groupValues.getOrNull(3).orEmpty()
+    val day = dayStr.toIntOrNull() ?: return null
+    val currentCal = java.util.Calendar.getInstance()
+    val year = if (yearStr.isNotBlank()) (yearStr.toIntOrNull() ?: currentCal.get(java.util.Calendar.YEAR)) else currentCal.get(java.util.Calendar.YEAR)
+    val monthIdx = when {
+        monthRu.startsWith("янв") -> 0
+        monthRu.startsWith("фев") -> 1
+        monthRu.startsWith("мар") -> 2
+        monthRu.startsWith("апр") -> 3
+        monthRu.startsWith("ма") -> 4
+        monthRu.startsWith("июн") -> 5
+        monthRu.startsWith("июл") -> 6
+        monthRu.startsWith("авг") -> 7
+        monthRu.startsWith("сен") -> 8
+        monthRu.startsWith("окт") -> 9
+        monthRu.startsWith("ноя") -> 10
+        monthRu.startsWith("дек") -> 11
+        else -> return null
+    }
+    return java.util.Calendar.getInstance().apply {
+        set(year, monthIdx, day, 12, 0, 0)
+        set(java.util.Calendar.MILLISECOND, 0)
+    }
+}
+
+fun isDatePast(dateStr: String): Boolean {
+    val dLower = dateStr.lowercase()
+    if (dLower.contains("вчера") || dLower.contains("вышла") || dLower.contains("доступна") || dLower.contains("✓")) return true
+    if (dLower.contains("сегодня") || dLower.contains("завтра")) return false
+    val cal = parseDateCal(dateStr) ?: return false
+    val todayCal = java.util.Calendar.getInstance().apply {
+        set(java.util.Calendar.HOUR_OF_DAY, 0)
+        set(java.util.Calendar.MINUTE, 0)
+        set(java.util.Calendar.SECOND, 0)
+        set(java.util.Calendar.MILLISECOND, 0)
+    }
+    return cal.before(todayCal)
+}
+
+fun isDateFuture(dateStr: String): Boolean {
+    val dLower = dateStr.lowercase()
+    if (dLower.contains("завтра")) return true
+    if (dLower.contains("сегодня") || dLower.contains("вчера") || dLower.contains("вышла") || dLower.contains("доступна") || dLower.contains("✓")) return false
+    val cal = parseDateCal(dateStr) ?: return false
+    val todayEndCal = java.util.Calendar.getInstance().apply {
+        set(java.util.Calendar.HOUR_OF_DAY, 23)
+        set(java.util.Calendar.MINUTE, 59)
+        set(java.util.Calendar.SECOND, 59)
+        set(java.util.Calendar.MILLISECOND, 999)
+    }
+    return cal.after(todayEndCal)
+}
+
+fun isDateToday(dateStr: String): Boolean {
+    val dLower = dateStr.lowercase()
+    if (dLower.contains("сегодня")) return true
+    if (dLower.contains("завтра") || dLower.contains("вчера")) return false
+    val cal = parseDateCal(dateStr) ?: return false
+    val today = java.util.Calendar.getInstance()
+    return cal.get(java.util.Calendar.YEAR) == today.get(java.util.Calendar.YEAR) &&
+           cal.get(java.util.Calendar.DAY_OF_YEAR) == today.get(java.util.Calendar.DAY_OF_YEAR)
+}
+
+fun isDateTomorrow(dateStr: String): Boolean {
+    val dLower = dateStr.lowercase()
+    if (dLower.contains("завтра")) return true
+    val cal = parseDateCal(dateStr) ?: return false
+    val tmrw = java.util.Calendar.getInstance().apply { add(java.util.Calendar.DAY_OF_YEAR, 1) }
+    return cal.get(java.util.Calendar.YEAR) == tmrw.get(java.util.Calendar.YEAR) &&
+           cal.get(java.util.Calendar.DAY_OF_YEAR) == tmrw.get(java.util.Calendar.DAY_OF_YEAR)
 }
 
 fun buildCalendarGroups(movies: List<Movie>, historyManager: WatchHistoryManager? = null): List<CalendarDayGroup> {
@@ -431,15 +516,43 @@ fun buildCalendarGroups(movies: List<Movie>, historyManager: WatchHistoryManager
     val recentEntries = mutableListOf<CalendarEpisodeEntry>()
 
     for (m in movies) {
-        // 1. Check unwatched episodes in seasons
-        val unwatchedInSeasons = mutableListOf<Pair<SeasonInfo, com.example.tvmediaapp.data.models.EpisodeInfo>>()
+        // 1. Check unwatched episodes for current/target season (not historical seasons)
         if (m.seasons.isNotEmpty()) {
-            for (s in m.seasons) {
-                for (ep in s.episodes) {
-                    val isWatched = historyManager?.isEpisodeWatched(m.id, s.seasonNumber, ep.episodeNumber) ?: false
-                    if (!isWatched) {
-                        unwatchedInSeasons.add(s to ep)
-                    }
+            val historyItem = historyManager?.getHistory()?.firstOrNull { it.id == m.id }
+            val targetSeason = historyItem?.season ?: m.seasons.maxOfOrNull { it.seasonNumber } ?: 1
+            val targetSeasonObj = m.seasons.firstOrNull { it.seasonNumber == targetSeason }
+            val targetUnwatched = targetSeasonObj?.episodes?.filter { ep ->
+                !(historyManager?.isEpisodeWatched(m.id, targetSeason, ep.episodeNumber) ?: false)
+            } ?: emptyList()
+
+            if (targetUnwatched.size > 2) {
+                val firstUnwatched = targetUnwatched.first()
+                unwatchedSummaryEntries.add(
+                    CalendarEpisodeEntry(
+                        movie = m,
+                        scheduleItem = EpisodeScheduleItem(
+                            episode = "${targetSeason} сезон, ${firstUnwatched.episodeNumber} серия",
+                            title = "${targetSeason} сезон: не просмотрено ${targetUnwatched.size} сер.",
+                            date = "В эфире",
+                            status = "Не просмотрено"
+                        ),
+                        isSummary = true,
+                        unwatchedCount = targetUnwatched.size
+                    )
+                )
+            } else if (targetUnwatched.isNotEmpty()) {
+                for (ep in targetUnwatched) {
+                    recentEntries.add(
+                        CalendarEpisodeEntry(
+                            movie = m,
+                            scheduleItem = EpisodeScheduleItem(
+                                episode = "${targetSeason} сезон ${ep.episodeNumber} серия",
+                                title = ep.title.ifEmpty { "Серия ${ep.episodeNumber}" },
+                                date = "Доступна",
+                                status = "Вышла"
+                            )
+                        )
+                    )
                 }
             }
         }
@@ -454,45 +567,15 @@ fun buildCalendarGroups(movies: List<Movie>, historyManager: WatchHistoryManager
         for (item in sched) {
             val dLower = (item.date + " " + item.status).lowercase()
             when {
-                dLower.contains("сегодня") -> todaySched.add(item)
-                dLower.contains("завтра") -> tomorrowSched.add(item)
-                dLower.contains("ожидается") || anyFutureMonth(dLower) -> upcomingSched.add(item)
+                isDateToday(item.status) || isDateToday(item.date) -> todaySched.add(item)
+                isDateTomorrow(item.status) || isDateTomorrow(item.date) -> tomorrowSched.add(item)
+                isDateFuture(item.date) || dLower.contains("ожидается") -> upcomingSched.add(item)
                 else -> otherSched.add(item)
             }
         }
 
-        // Smart aggregation: if > 2 unwatched episodes, single summary card
-        if (unwatchedInSeasons.size > 2) {
-            val firstUnwatched = unwatchedInSeasons.first()
-            unwatchedSummaryEntries.add(
-                CalendarEpisodeEntry(
-                    movie = m,
-                    scheduleItem = EpisodeScheduleItem(
-                        episode = "${firstUnwatched.first.seasonNumber} сезон, ${firstUnwatched.second.episodeNumber} серия",
-                        title = "Не просмотрено ещё ${unwatchedInSeasons.size} серий",
-                        date = "В эфире",
-                        status = "Не просмотрено"
-                    ),
-                    isSummary = true,
-                    unwatchedCount = unwatchedInSeasons.size
-                )
-            )
-        } else if (unwatchedInSeasons.isNotEmpty()) {
-            // <= 2 unwatched episodes: schedule individually
-            for (pair in unwatchedInSeasons) {
-                recentEntries.add(
-                    CalendarEpisodeEntry(
-                        movie = m,
-                        scheduleItem = EpisodeScheduleItem(
-                            episode = "${pair.first.seasonNumber} сезон ${pair.second.episodeNumber} серия",
-                            title = pair.second.title.ifEmpty { "Серия ${pair.second.episodeNumber}" },
-                            date = "Доступна",
-                            status = "Вышла"
-                        )
-                    )
-                )
-            }
-        } else if (m.seasons.isEmpty() && otherSched.isNotEmpty()) {
+        // Add recent/other items if series has no seasons loaded yet
+        if (m.seasons.isEmpty() && otherSched.isNotEmpty()) {
             for (item in otherSched.take(2)) {
                 recentEntries.add(CalendarEpisodeEntry(m, item))
             }

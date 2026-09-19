@@ -97,6 +97,7 @@ import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.exoplayer.upstream.DefaultAllocator
 import androidx.media3.common.C
 import androidx.tv.foundation.PivotOffsets
 import androidx.tv.foundation.lazy.list.TvLazyRow
@@ -393,8 +394,10 @@ private fun NativeExoPlayerScreen(
     }
 
     var playbackActionBadge by remember { mutableStateOf<String?>(null) } // "play" or "pause"
+    var displayedActionBadge by remember { mutableStateOf("play") }
     LaunchedEffect(playbackActionBadge) {
         if (playbackActionBadge != null) {
+            displayedActionBadge = playbackActionBadge!!
             delay(900)
             playbackActionBadge = null
         }
@@ -451,13 +454,15 @@ private fun NativeExoPlayerScreen(
         val mediaSourceFactory = DefaultMediaSourceFactory(httpDataSourceFactory)
 
         val loadControl = DefaultLoadControl.Builder()
+            .setAllocator(DefaultAllocator(true, C.DEFAULT_BUFFER_SEGMENT_SIZE))
             .setBufferDurationsMs(
-                15000, // minBufferMs (15s)
-                30000, // maxBufferMs (30s)
-                1500,  // bufferForPlaybackMs (1.5s)
-                2500   // bufferForPlaybackAfterRebufferMs (2.5s)
+                60000, // minBufferMs (60s)
+                120000, // maxBufferMs (120s / 2 minutes)
+                2500,  // bufferForPlaybackMs (2.5s)
+                5000   // bufferForPlaybackAfterRebufferMs (5s)
             )
-            .setBackBuffer(10000, true) // Release back buffer after 10s to prevent RAM heap bloat & GC stutter
+            .setTargetBufferBytes(64 * 1024 * 1024) // 64 MB video buffer pool
+            .setBackBuffer(30000, true) // Retain 30s back buffer for smooth rewinds
             .build()
 
         val renderersFactory = DefaultRenderersFactory(context).apply {
@@ -1045,7 +1050,7 @@ private fun NativeExoPlayerScreen(
                 contentAlignment = Alignment.Center
             ) {
                 AppIcon(
-                    resId = if (playbackActionBadge == "play") R.drawable.ic_play_arrow else R.drawable.ic_pause,
+                    resId = if (displayedActionBadge == "play") R.drawable.ic_play_arrow else R.drawable.ic_pause,
                     tint = Color.White.copy(alpha = 0.95f),
                     size = 64.dp
                 )

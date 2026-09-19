@@ -374,12 +374,20 @@ class HDRezkaSource(BaseSource):
                             date_str = tds[1]
 
                         if ep_name and (date_str or ep_title):
-                            final_status = status or ("Вышла" if any(x in (status or date_str).lower() for x in ["вышла", "вчера", "сегодня", "✓"]) else "Ожидается")
+                            clean_status = (status or "").strip()
+                            if clean_status == "✓":
+                                clean_status = "Вышла"
+                            elif clean_status.lower() == "сегодня":
+                                clean_status = "Сегодня"
+                            elif clean_status.lower() == "завтра":
+                                clean_status = "Завтра"
+                            elif not clean_status:
+                                clean_status = "Вышла" if any(x in date_str.lower() for x in ["вышла", "вчера", "сегодня", "✓"]) else "Ожидается"
                             schedule.append({
                                 "episode": ep_name,
                                 "title": ep_title or ep_name,
                                 "date": date_str or "Дата уточняется",
-                                "status": final_status
+                                "status": clean_status
                             })
             if not schedule and seasons:
                 for s in seasons:

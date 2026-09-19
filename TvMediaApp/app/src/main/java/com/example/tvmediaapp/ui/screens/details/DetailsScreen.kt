@@ -1360,7 +1360,6 @@ fun DetailsScreen(
                                     .focusRequester(scheduleTabFocusRequester)
                                     .focusProperties {
                                         up = favoriteButtonFocusRequester
-                                        down = firstScheduleItemFocusRequester
                                     }
                             } else {
                                 Modifier
@@ -1368,7 +1367,6 @@ fun DetailsScreen(
                                     .focusRequester(descriptionTabFocusRequester)
                                     .focusProperties {
                                         up = favoriteButtonFocusRequester
-                                        down = synopsisBlockFocusRequester
                                     }
                             }
                             2 -> if (currentMovie.isSeries) {
@@ -1377,7 +1375,6 @@ fun DetailsScreen(
                                     .focusRequester(descriptionTabFocusRequester)
                                     .focusProperties {
                                         up = favoriteButtonFocusRequester
-                                        down = synopsisBlockFocusRequester
                                     }
                             } else {
                                 Modifier.height(26.dp).focusProperties { up = favoriteButtonFocusRequester }
@@ -1519,8 +1516,9 @@ fun DetailsScreen(
                                                                   if (realSeasons.isNotEmpty()) {
                                                                       translatorSeasonsCache[targetTrack.id] = realSeasons
                                                                       val epCount = realSeasons.sumOf { it.episodes.size }
+                                                                      val sMap = realSeasons.associate { it.seasonNumber to it.episodes.size }
                                                                       val updatedTracks = currentMovie.audioTracks.map {
-                                                                          if (it.id == targetTrack.id) it.copy(episodesCount = epCount) else it
+                                                                          if (it.id == targetTrack.id) it.copy(episodesCount = epCount, seasonsEpisodes = sMap) else it
                                                                       }
                                                                       currentMovie = currentMovie.copy(seasons = realSeasons, audioTracks = updatedTracks)
                                                                       val validSeason = realSeasons.firstOrNull { it.seasonNumber == selectedSeason } ?: realSeasons.first()
@@ -1585,8 +1583,9 @@ fun DetailsScreen(
                                                              if (realSeasons.isNotEmpty()) {
                                                                  translatorSeasonsCache[track.id] = realSeasons
                                                                  val epCount = realSeasons.sumOf { it.episodes.size }
+                                                                 val sMap = realSeasons.associate { it.seasonNumber to it.episodes.size }
                                                                  val updatedTracks = currentMovie.audioTracks.map {
-                                                                     if (it.id == track.id) it.copy(episodesCount = epCount) else it
+                                                                     if (it.id == track.id) it.copy(episodesCount = epCount, seasonsEpisodes = sMap) else it
                                                                  }
                                                                  currentMovie = currentMovie.copy(seasons = realSeasons, audioTracks = updatedTracks)
                                                                  val validSeason = realSeasons.firstOrNull { it.seasonNumber == selectedSeason } ?: realSeasons.first()
@@ -1615,8 +1614,9 @@ fun DetailsScreen(
                                          contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                                          modifier = Modifier.height(26.dp)
                                      ) {
-                                         val seasonEpCount = track.seasonsEpisodes[selectedSeason]
-                                             ?: translatorSeasonsCache[track.id]?.firstOrNull { it.seasonNumber == selectedSeason }?.episodes?.size
+                                         val cachedSeasonEps = translatorSeasonsCache[track.id]?.firstOrNull { it.seasonNumber == selectedSeason }?.episodes?.size
+                                         val seasonEpCount = cachedSeasonEps
+                                             ?: track.seasonsEpisodes[selectedSeason]
                                              ?: if (currentMovie.seasons.size <= 1) track.episodesCount else (currentMovie.seasons.firstOrNull { it.seasonNumber == selectedSeason }?.episodes?.size ?: track.episodesCount)
                                          val countSuffix = if (seasonEpCount > 0) " ($seasonEpCount сер.)" else ""
                                          Text(text = "${track.name}$countSuffix", fontSize = 11.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
@@ -1884,9 +1884,7 @@ fun DetailsScreen(
 
                                     var isRowFocused by remember { mutableStateOf(false) }
                                     val itemFocusMod = if (itemIdx == 0) {
-                                        Modifier
-                                            .focusRequester(firstScheduleItemFocusRequester)
-                                            .focusProperties { up = scheduleTabFocusRequester }
+                                        Modifier.focusRequester(firstScheduleItemFocusRequester)
                                     } else Modifier
 
                                     Row(
@@ -1970,7 +1968,6 @@ fun DetailsScreen(
                                     shape = RoundedCornerShape(8.dp)
                                 )
                                 .focusRequester(synopsisBlockFocusRequester)
-                                .focusProperties { up = descriptionTabFocusRequester }
                                 .focusable()
                                 .onFocusChanged { isSynopsisFocused = it.isFocused }
                                 .onPreviewKeyEvent { evt ->

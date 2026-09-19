@@ -577,13 +577,13 @@ def check_updates() -> Dict[str, Any]:
 
     return {
         "success": True,
-        "version_name": "2.8.3",
-        "version_code": 62,
+        "version_name": "2.8.4",
+        "version_code": 63,
         "force_update": True,
-        "min_version_code": 62,
+        "min_version_code": 63,
         "apk_url": "https://showhub-server.onrender.com/ShowHub.apk",
         "download_url": "https://showhub-server.onrender.com/ShowHub.apk",
-        "changelog": "ShowHub TV v2.8.3: Предварительный и точный подсчёт серий по сезонам на кнопках озвучек/источников; снятие с паузы по одному клику OK; всегда видимая активная серия в плеере; полный скролл описания и серий до нижнего края; постоянный дисковый кэш данных фильмов; надёжный фокус в диалоге выхода; календарь выхода серий для избранного с умной группировкой."
+        "changelog": "ShowHub TV v2.8.4: Увеличен кэш и видеобуфер ExoPlayer (до 120 сек / 64 МБ); устранён кратковременный значок паузы при снятии с паузы; исправлен краш навигации по вкладкам (FocusRequester); восстановлен фокус в диалоге подтверждения выхода; синхронизировано количество серий на кнопках озвучек и в заголовке; точный статус серий в календаре (сегодня/вышла/ожидается) и группировка по текущему сезону."
     }
 
 CRASHES_FILE = os.path.join(CURRENT_DIR, "data", "crashes.json")

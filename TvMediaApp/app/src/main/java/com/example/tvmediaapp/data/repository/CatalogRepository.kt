@@ -349,6 +349,11 @@ class CatalogRepository(context: Context? = null) {
                 }
             }
 
+            // Immediately enrich movies with cached details from disk on startup
+            effectiveMovies = effectiveMovies.map { m ->
+                com.example.tvmediaapp.data.cache.MediaDiskCache.getCachedDetails(m.id, m.title, m.releaseYear) ?: m
+            }
+
             if (effectiveMovies.isNotEmpty()) {
                 val liveCategories = if (category == "all" && (genre.isNullOrEmpty() || genre == "Все жанры")) {
                     listOf(

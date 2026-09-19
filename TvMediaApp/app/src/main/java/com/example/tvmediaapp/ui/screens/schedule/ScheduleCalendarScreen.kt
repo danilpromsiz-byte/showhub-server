@@ -42,6 +42,7 @@ import androidx.tv.foundation.lazy.grid.items
 import androidx.tv.foundation.lazy.list.TvLazyColumn
 import androidx.tv.foundation.lazy.list.TvLazyRow
 import androidx.tv.foundation.lazy.list.items
+import androidx.tv.foundation.lazy.list.itemsIndexed
 import androidx.tv.material3.Border
 import androidx.tv.material3.Button
 import androidx.tv.material3.ButtonDefaults
@@ -56,6 +57,7 @@ import com.example.tvmediaapp.data.cache.MediaDiskCache
 import com.example.tvmediaapp.data.history.WatchHistoryManager
 import com.example.tvmediaapp.data.models.EpisodeScheduleItem
 import com.example.tvmediaapp.data.models.Movie
+import com.example.tvmediaapp.data.models.SeasonInfo
 import com.example.tvmediaapp.ui.components.AppIcon
 import com.example.tvmediaapp.ui.components.NeonSpinner
 import com.example.tvmediaapp.ui.theme.LocalAccentColor
@@ -67,12 +69,15 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 data class CalendarEpisodeEntry(
     val movie: Movie,
-    val scheduleItem: EpisodeScheduleItem
+    val scheduleItem: EpisodeScheduleItem,
+    val isSummary: Boolean = false,
+    val unwatchedCount: Int = 0
 )
 
 data class CalendarDayGroup(
@@ -98,13 +103,29 @@ fun ScheduleCalendarScreen(
     var calendarGroups by remember { mutableStateOf<List<CalendarDayGroup>>(emptyList()) }
     val backButtonFocusRequester = remember { FocusRequester() }
 
+    val firstItemFocusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(isLoading, calendarGroups) {
+        if (!isLoading) {
+            repeat(4) {
+                delay(60)
+                try {
+                    if (calendarGroups.isNotEmpty()) {
+                        firstItemFocusRequester.requestFocus()
+                    } else {
+                        backButtonFocusRequester.requestFocus()
+                    }
+                } catch (_: Exception) {}
+            }
+        }
+    }
+
     LaunchedEffect(Unit) {
         withContext(Dispatchers.IO) {
             val historyManager = WatchHistoryManager(context)
-            val historyItems = historyManager.getHistory()
             val candidateMovies = mutableListOf<Movie>()
 
-            // 1. Gather movies from history and trackedMovies with disk cache check
+            // 1. Gather ONLY favorite series with disk cache check
             val seenIds = mutableSetOf<String>()
             for (m in trackedMovies) {
                 if (m.isSeries && !seenIds.contains(m.id)) {
@@ -113,32 +134,9 @@ fun ScheduleCalendarScreen(
                     candidateMovies.add(cached ?: m)
                 }
             }
-            for (h in historyItems) {
-                if (h.isSeries && !seenIds.contains(h.id)) {
-                    seenIds.add(h.id)
-                    val cached = MediaDiskCache.getCachedDetails(h.id, h.title, h.releaseYear)
-                    if (cached != null) {
-                        candidateMovies.add(cached)
-                    } else {
-                        candidateMovies.add(
-                            Movie(
-                                id = h.id,
-                                title = h.title,
-                                description = "",
-                                posterUrl = h.posterUrl,
-                                backdropUrl = h.backdropUrl,
-                                rating = 0.0,
-                                releaseYear = h.releaseYear,
-                                duration = "",
-                                isSeries = true
-                            )
-                        )
-                    }
-                }
-            }
 
             // Immediately display cached or existing schedule without waiting for network!
-            val initialGroups = buildCalendarGroups(candidateMovies)
+            val initialGroups = buildCalendarGroups(candidateMovies, historyManager)
             if (initialGroups.isNotEmpty()) {
                 calendarGroups = initialGroups
                 isLoading = false
@@ -164,10 +162,11 @@ fun ScheduleCalendarScreen(
                     val idx = updatedMovies.indexOfFirst { it.id == item.id }
                     if (idx != -1) {
                         updatedMovies[idx] = item
+                        MediaDiskCache.putCachedDetails(item)
                     }
                 }
 
-                calendarGroups = buildCalendarGroups(updatedMovies)
+                calendarGroups = buildCalendarGroups(updatedMovies, historyManager)
             }
 
             isLoading = false
@@ -245,14 +244,14 @@ fun ScheduleCalendarScreen(
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
-                        text = "График серий пока пуст",
+                        text = "В избранном пока нет сериалов",
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
                         color = TextWhite
                     )
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
-                        text = "Добавляйте сериалы в избранное или начинайте просмотр, чтобы отслеживать новые серии.",
+                        text = "Добавляйте любимые сериалы в Избранное (кнопка со звездой), чтобы отслеживать график выхода серий.",
                         fontSize = 12.sp,
                         color = TextGray,
                         textAlign = TextAlign.Center
@@ -264,7 +263,7 @@ fun ScheduleCalendarScreen(
                 verticalArrangement = Arrangement.spacedBy(20.dp),
                 contentPadding = PaddingValues(bottom = 40.dp)
             ) {
-                items(calendarGroups) { group ->
+                itemsIndexed(calendarGroups) { gIdx, group ->
                     Column {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -290,10 +289,14 @@ fun ScheduleCalendarScreen(
                             horizontalArrangement = Arrangement.spacedBy(14.dp),
                             contentPadding = PaddingValues(vertical = 4.dp)
                         ) {
-                            items(group.entries) { entry ->
+                            itemsIndexed(group.entries) { eIdx, entry ->
+                                val cardMod = if (gIdx == 0 && eIdx == 0) {
+                                    Modifier.focusRequester(firstItemFocusRequester)
+                                } else Modifier
                                 CalendarEpisodeCard(
                                     entry = entry,
-                                    onClick = { onMovieSelect(entry.movie) }
+                                    onClick = { onMovieSelect(entry.movie) },
+                                    modifier = cardMod
                                 )
                             }
                         }
@@ -318,11 +321,11 @@ fun CalendarEpisodeCard(
     Card(
         onClick = onClick,
         colors = CardDefaults.colors(
-            containerColor = Color.White.copy(alpha = 0.06f),
+            containerColor = if (entry.isSummary) Color(0xFF1E293B).copy(alpha = 0.85f) else Color.White.copy(alpha = 0.06f),
             focusedContainerColor = focusColor.copy(alpha = 0.18f)
         ),
         border = CardDefaults.border(
-            border = Border(androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.08f))),
+            border = Border(androidx.compose.foundation.BorderStroke(1.dp, if (entry.isSummary) accent.copy(alpha = 0.35f) else Color.White.copy(alpha = 0.08f))),
             focusedBorder = Border(androidx.compose.foundation.BorderStroke(2.dp, focusColor))
         ),
         shape = CardDefaults.shape(RoundedCornerShape(10.dp)),
@@ -351,21 +354,28 @@ fun CalendarEpisodeCard(
 
                 // Status Badge
                 val isOut = entry.scheduleItem.status.contains("Вышла", ignoreCase = true) || entry.scheduleItem.status.contains("Доступна", ignoreCase = true)
+                val badgeColor = when {
+                    entry.isSummary -> Color(0xFFEA580C).copy(alpha = 0.95f) // Warm Orange
+                    isOut -> Color(0xFF16A34A).copy(alpha = 0.9f) // Green
+                    else -> Color(0xFFEAB308).copy(alpha = 0.9f) // Yellow
+                }
+                val badgeText = when {
+                    entry.isSummary -> "Осталось: ${entry.unwatchedCount} сер."
+                    isOut -> "Вышла"
+                    else -> "Ожидается"
+                }
                 Box(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
                         .padding(5.dp)
-                        .background(
-                            if (isOut) Color(0xFF16A34A).copy(alpha = 0.9f) else Color(0xFFEAB308).copy(alpha = 0.9f),
-                            RoundedCornerShape(4.dp)
-                        )
+                        .background(badgeColor, RoundedCornerShape(4.dp))
                         .padding(horizontal = 5.dp, vertical = 2.dp)
                 ) {
                     Text(
-                        text = if (isOut) "Вышла" else "Ожидается",
+                        text = badgeText,
                         fontSize = 9.sp,
                         fontWeight = FontWeight.Bold,
-                        color = if (isOut) Color.White else Color.Black
+                        color = Color.White
                     )
                 }
             }
@@ -382,9 +392,9 @@ fun CalendarEpisodeCard(
                 overflow = TextOverflow.Ellipsis
             )
 
-            // Episode info
+            // Episode info or next to watch
             Text(
-                text = entry.scheduleItem.episode.ifEmpty { entry.scheduleItem.title },
+                text = if (entry.isSummary) "Далее: ${entry.scheduleItem.episode}" else entry.scheduleItem.episode.ifEmpty { entry.scheduleItem.title },
                 fontSize = 10.sp,
                 fontWeight = FontWeight.Medium,
                 color = accent,
@@ -392,12 +402,14 @@ fun CalendarEpisodeCard(
                 overflow = TextOverflow.Ellipsis
             )
 
-            // Date
-            if (entry.scheduleItem.date.isNotBlank()) {
+            // Date / action label
+            val dateLabel = if (entry.isSummary) "Смотреть сериал →" else entry.scheduleItem.date
+            if (dateLabel.isNotBlank()) {
                 Text(
-                    text = entry.scheduleItem.date,
+                    text = dateLabel,
                     fontSize = 9.sp,
-                    color = TextGray,
+                    color = if (entry.isSummary) Color(0xFF4ADE80) else TextGray,
+                    fontWeight = if (entry.isSummary) FontWeight.SemiBold else FontWeight.Normal,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -411,47 +423,115 @@ fun anyFutureMonth(s: String): Boolean {
     return months.any { s.contains(it) }
 }
 
-fun buildCalendarGroups(movies: List<Movie>): List<CalendarDayGroup> {
+fun buildCalendarGroups(movies: List<Movie>, historyManager: WatchHistoryManager? = null): List<CalendarDayGroup> {
+    val unwatchedSummaryEntries = mutableListOf<CalendarEpisodeEntry>()
     val todayEntries = mutableListOf<CalendarEpisodeEntry>()
     val tomorrowEntries = mutableListOf<CalendarEpisodeEntry>()
     val upcomingEntries = mutableListOf<CalendarEpisodeEntry>()
     val recentEntries = mutableListOf<CalendarEpisodeEntry>()
 
     for (m in movies) {
-        val sched = m.episodesSchedule
-        if (sched.isNotEmpty()) {
-            for (item in sched) {
-                val entry = CalendarEpisodeEntry(m, item)
-                val dLower = (item.date + " " + item.status).lowercase()
-                when {
-                    dLower.contains("сегодня") -> todayEntries.add(entry)
-                    dLower.contains("завтра") -> tomorrowEntries.add(entry)
-                    dLower.contains("ожидается") || anyFutureMonth(dLower) -> upcomingEntries.add(entry)
-                    else -> recentEntries.add(entry)
+        // 1. Check unwatched episodes in seasons
+        val unwatchedInSeasons = mutableListOf<Pair<SeasonInfo, com.example.tvmediaapp.data.models.EpisodeInfo>>()
+        if (m.seasons.isNotEmpty()) {
+            for (s in m.seasons) {
+                for (ep in s.episodes) {
+                    val isWatched = historyManager?.isEpisodeWatched(m.id, s.seasonNumber, ep.episodeNumber) ?: false
+                    if (!isWatched) {
+                        unwatchedInSeasons.add(s to ep)
+                    }
                 }
             }
-        } else if (m.seasons.isNotEmpty()) {
-            val lastSeason = m.seasons.lastOrNull()
-            if (lastSeason != null) {
-                val lastEps = lastSeason.episodes.takeLast(3)
-                for (ep in lastEps) {
-                    recentEntries.add(
-                        CalendarEpisodeEntry(
-                            movie = m,
-                            scheduleItem = EpisodeScheduleItem(
-                                episode = "${lastSeason.seasonNumber} сезон ${ep.episodeNumber} серия",
-                                title = ep.title,
-                                date = "Недавно",
-                                status = "Вышла"
-                            )
+        }
+
+        // 2. Schedule items
+        val sched = m.episodesSchedule
+        val upcomingSched = mutableListOf<EpisodeScheduleItem>()
+        val todaySched = mutableListOf<EpisodeScheduleItem>()
+        val tomorrowSched = mutableListOf<EpisodeScheduleItem>()
+        val otherSched = mutableListOf<EpisodeScheduleItem>()
+
+        for (item in sched) {
+            val dLower = (item.date + " " + item.status).lowercase()
+            when {
+                dLower.contains("сегодня") -> todaySched.add(item)
+                dLower.contains("завтра") -> tomorrowSched.add(item)
+                dLower.contains("ожидается") || anyFutureMonth(dLower) -> upcomingSched.add(item)
+                else -> otherSched.add(item)
+            }
+        }
+
+        // Smart aggregation: if > 2 unwatched episodes, single summary card
+        if (unwatchedInSeasons.size > 2) {
+            val firstUnwatched = unwatchedInSeasons.first()
+            unwatchedSummaryEntries.add(
+                CalendarEpisodeEntry(
+                    movie = m,
+                    scheduleItem = EpisodeScheduleItem(
+                        episode = "${firstUnwatched.first.seasonNumber} сезон, ${firstUnwatched.second.episodeNumber} серия",
+                        title = "Не просмотрено ещё ${unwatchedInSeasons.size} серий",
+                        date = "В эфире",
+                        status = "Не просмотрено"
+                    ),
+                    isSummary = true,
+                    unwatchedCount = unwatchedInSeasons.size
+                )
+            )
+        } else if (unwatchedInSeasons.isNotEmpty()) {
+            // <= 2 unwatched episodes: schedule individually
+            for (pair in unwatchedInSeasons) {
+                recentEntries.add(
+                    CalendarEpisodeEntry(
+                        movie = m,
+                        scheduleItem = EpisodeScheduleItem(
+                            episode = "${pair.first.seasonNumber} сезон ${pair.second.episodeNumber} серия",
+                            title = pair.second.title.ifEmpty { "Серия ${pair.second.episodeNumber}" },
+                            date = "Доступна",
+                            status = "Вышла"
                         )
                     )
-                }
+                )
             }
+        } else if (m.seasons.isEmpty() && otherSched.isNotEmpty()) {
+            for (item in otherSched.take(2)) {
+                recentEntries.add(CalendarEpisodeEntry(m, item))
+            }
+        }
+
+        // Smart aggregation for upcoming: if > 2 upcoming, aggregate; else individual
+        if (upcomingSched.size > 2) {
+            val nextUp = upcomingSched.first()
+            upcomingEntries.add(
+                CalendarEpisodeEntry(
+                    movie = m,
+                    scheduleItem = EpisodeScheduleItem(
+                        episode = nextUp.episode,
+                        title = "Ожидается ещё ${upcomingSched.size} серий",
+                        date = nextUp.date,
+                        status = "Ожидается"
+                    ),
+                    isSummary = true,
+                    unwatchedCount = upcomingSched.size
+                )
+            )
+        } else {
+            for (item in upcomingSched) {
+                upcomingEntries.add(CalendarEpisodeEntry(m, item))
+            }
+        }
+
+        for (item in todaySched) {
+            todayEntries.add(CalendarEpisodeEntry(m, item))
+        }
+        for (item in tomorrowSched) {
+            tomorrowEntries.add(CalendarEpisodeEntry(m, item))
         }
     }
 
     val groups = mutableListOf<CalendarDayGroup>()
+    if (unwatchedSummaryEntries.isNotEmpty()) {
+        groups.add(CalendarDayGroup("Не просмотрено в избранном", unwatchedSummaryEntries))
+    }
     if (todayEntries.isNotEmpty()) {
         groups.add(CalendarDayGroup("Сегодня", todayEntries.take(15)))
     }
@@ -462,7 +542,7 @@ fun buildCalendarGroups(movies: List<Movie>): List<CalendarDayGroup> {
         groups.add(CalendarDayGroup("Скоро выйдут", upcomingEntries.take(20)))
     }
     if (recentEntries.isNotEmpty()) {
-        groups.add(CalendarDayGroup("Недавно вышли", recentEntries.take(25)))
+        groups.add(CalendarDayGroup("Недавно вышли / Доступны", recentEntries.take(25)))
     }
     return groups
 }

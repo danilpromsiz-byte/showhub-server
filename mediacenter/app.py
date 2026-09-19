@@ -577,13 +577,13 @@ def check_updates() -> Dict[str, Any]:
 
     return {
         "success": True,
-        "version_name": "2.8.2",
-        "version_code": 61,
+        "version_name": "2.8.3",
+        "version_code": 62,
         "force_update": True,
-        "min_version_code": 61,
+        "min_version_code": 62,
         "apk_url": "https://showhub-server.onrender.com/ShowHub.apk",
         "download_url": "https://showhub-server.onrender.com/ShowHub.apk",
-        "changelog": "ShowHub TV v2.8.2: Предотвращение ухода ТВ в заставку и спящий режим (FLAG_KEEP_SCREEN_ON); обновлена иконка приложения в лаунчере с названием ShowHub; чистый значок паузы без круга; устранена карусель повторных обновлений с валидацией версий APK."
+        "changelog": "ShowHub TV v2.8.3: Предварительный и точный подсчёт серий по сезонам на кнопках озвучек/источников; снятие с паузы по одному клику OK; всегда видимая активная серия в плеере; полный скролл описания и серий до нижнего края; постоянный дисковый кэш данных фильмов; надёжный фокус в диалоге выхода; календарь выхода серий для избранного с умной группировкой."
     }
 
 CRASHES_FILE = os.path.join(CURRENT_DIR, "data", "crashes.json")
@@ -1327,22 +1327,42 @@ def _fetch_media_details(
     except Exception:
         pass
 
+    def _is_matching_title(item_title: str, query: str) -> bool:
+        def norm(s: str) -> str:
+            return re.sub(r'[^a-zA-Zа-яА-Я0-9]', '', (s or "").lower())
+        qt = norm(query)
+        it = norm(item_title)
+        if not qt or not it:
+            return False
+        return qt in it or it in qt
+
     # Merge Kodik translations & seasons
     kd_max_eps = 0
+    kd_seasons_eps: Dict[int, int] = {}
     try:
         if resolved_kp or clean_title:
-            k_items = kodik.search(clean_title, year=year_int, kp_id=resolved_kp)
+            k_raw_items = kodik.search(clean_title, year=year_int, kp_id=resolved_kp)
+            # Filter strictly matching items only
+            k_items = [
+                it for it in k_raw_items
+                if _is_matching_title(it.title, clean_title) or (resolved_kp and str(getattr(it, "kinopoisk_id", "") or "") == str(resolved_kp))
+            ]
             for k_it in k_items:
                 trans_name = k_it.extra_data.get("translation")
                 if not trans_name:
                     continue
                 k_key = _norm_t_name(trans_name)
                 k_seasons = k_it.extra_data.get("seasons", {})
+                k_this_seasons_eps: Dict[int, int] = {}
                 k_eps_count = 0
                 if isinstance(k_seasons, dict):
-                    for s_v in k_seasons.values():
+                    for s_k, s_v in k_seasons.items():
                         if isinstance(s_v, dict) and "episodes" in s_v:
-                            k_eps_count = max(k_eps_count, len(s_v["episodes"]))
+                            s_num = int(s_k) if str(s_k).isdigit() else 1
+                            ep_count_s = len(s_v["episodes"])
+                            k_this_seasons_eps[s_num] = ep_count_s
+                            kd_seasons_eps[s_num] = max(kd_seasons_eps.get(s_num, 0), ep_count_s)
+                            k_eps_count = max(k_eps_count, ep_count_s)
                 kd_max_eps = max(kd_max_eps, k_eps_count)
 
                 k_trans_obj = {
@@ -1351,7 +1371,8 @@ def _fetch_media_details(
                     "is_default": False,
                     "kodik_id": k_it.id,
                     "source": "kodik",
-                    "episodes_count": k_eps_count
+                    "episodes_count": k_eps_count,
+                    "seasons_episodes": k_this_seasons_eps
                 }
 
                 if k_key in trans_map:
@@ -1366,44 +1387,70 @@ def _fetch_media_details(
                 # If Kodik has more episodes than currently in details["seasons"], expand details["seasons"]
                 if k_eps_count > 0 and isinstance(k_seasons, dict):
                     details["is_series"] = True
-                    existing_seasons = {s.get("season_number"): s for s in details.get("seasons", [])}
+                    existing_seasons = {s.get("season_number", s.get("season_id")): s for s in details.get("seasons", [])}
                     for s_k, s_v in k_seasons.items():
-                        s_num = int(s_k) if s_k.isdigit() else 1
-                        ep_keys = sorted([int(x) for x in s_v.get("episodes", {}).keys() if x.isdigit()])
+                        s_num = int(s_k) if str(s_k).isdigit() else 1
+                        ep_keys = sorted([int(x) for x in s_v.get("episodes", {}).keys() if str(x).isdigit()])
                         if s_num not in existing_seasons:
                             new_s = {
+                                "season_id": s_num,
                                 "season_number": s_num,
                                 "title": f"Сезон {s_num}",
-                                "episodes": [{"episode_number": ep_n, "title": f"Серия {ep_n}"} for ep_n in ep_keys]
+                                "episodes": [{"episode_id": ep_n, "episode_number": ep_n, "title": f"Серия {ep_n}"} for ep_n in ep_keys]
                             }
                             details["seasons"].append(new_s)
                             existing_seasons[s_num] = new_s
                         else:
                             curr_s = existing_seasons[s_num]
-                            curr_ep_nums = {e.get("episode_number") for e in curr_s.get("episodes", [])}
+                            curr_s["season_id"] = s_num
+                            curr_s["season_number"] = s_num
+                            curr_ep_nums = {e.get("episode_number", e.get("episode_id")) for e in curr_s.get("episodes", [])}
                             for ep_n in ep_keys:
                                 if ep_n not in curr_ep_nums:
-                                    curr_s.get("episodes", []).append({"episode_number": ep_n, "title": f"Серия {ep_n}"})
+                                    curr_s.get("episodes", []).append({"episode_id": ep_n, "episode_number": ep_n, "title": f"Серия {ep_n}"})
                                     curr_ep_nums.add(ep_n)
-                            curr_s["episodes"].sort(key=lambda x: x.get("episode_number", 0))
+                            curr_s["episodes"].sort(key=lambda x: x.get("episode_number", x.get("episode_id", 0)))
     except Exception:
         pass
 
-    # Normalize and ensure all translators have accurate series episode count
-    total_series_eps = max((len(s.get("episodes", [])) for s in details.get("seasons", [])), default=0)
+    # Ensure all existing season dictionaries have both season_number and season_id, and episode_number & episode_id
+    for s in details.get("seasons", []):
+        s_num = s.get("season_number") or s.get("season_id") or 1
+        s["season_number"] = s_num
+        s["season_id"] = s_num
+        for ep in s.get("episodes", []):
+            e_num = ep.get("episode_number") or ep.get("episode_id") or 1
+            ep["episode_number"] = e_num
+            ep["episode_id"] = e_num
+
+    # Normalize and ensure all translators have accurate series episode count and seasons mapping
+    rz_seasons_eps = {s.get("season_number", s.get("season_id", 1)): len(s.get("episodes", [])) for s in details.get("seasons", [])}
+    total_series_eps = max(rz_seasons_eps.values(), default=0)
     if total_series_eps > 0:
         details["is_series"] = True
     for t in details.get("translators", []):
+        if not t.get("seasons_episodes"):
+            t["seasons_episodes"] = rz_seasons_eps
         ep_cnt = t.get("episodes_count")
         if ep_cnt is None or ep_cnt <= 0 or (ep_cnt == 1 and total_series_eps > 1):
             t["episodes_count"] = total_series_eps
 
     # Source availability metadata for UI Source selector
     sources_info = []
-    if kd_max_eps > 0:
-        sources_info.append({"source": "kodik", "name": "Kodik", "episodes_count": max(kd_max_eps, total_series_eps)})
+    if kd_max_eps > 0 or any(t.get("source") == "kodik" for t in details.get("translators", [])):
+        sources_info.append({
+            "source": "kodik",
+            "name": "Kodik",
+            "episodes_count": kd_max_eps if kd_max_eps > 0 else total_series_eps,
+            "seasons_episodes": kd_seasons_eps
+        })
     if rz_max_eps > 0 or details.get("seasons"):
-        sources_info.append({"source": "hdrezka", "name": "HDRezka", "episodes_count": max(rz_max_eps, total_series_eps)})
+        sources_info.append({
+            "source": "hdrezka",
+            "name": "HDRezka",
+            "episodes_count": rz_max_eps if rz_max_eps > 0 else total_series_eps,
+            "seasons_episodes": rz_seasons_eps
+        })
     details["sources_info"] = sources_info
 
     # 4b. Enrich missing ratings from Kodik and Shikimori (especially for anime and fresh titles)
@@ -1817,7 +1864,18 @@ def get_media_episodes(
     kodik_seasons = []
     try:
         if clean_t:
-            k_items = kodik.search(clean_t, year=year_int, kp_id=resolved_kp)
+            k_raw_items = kodik.search(clean_t, year=year_int, kp_id=resolved_kp)
+            def _is_matching_title_local(item_title: str, query: str) -> bool:
+                def norm(s: str) -> str:
+                    return re.sub(r'[^a-zA-Zа-яА-Я0-9]', '', (s or "").lower())
+                qt = norm(query)
+                it = norm(item_title)
+                return bool(qt and it and (qt in it or it in qt))
+
+            k_items = [
+                it for it in k_raw_items
+                if _is_matching_title_local(it.title, clean_t) or (resolved_kp and str(getattr(it, "kinopoisk_id", "") or "") == str(resolved_kp))
+            ]
             matched_k = None
             if translator_id.startswith("kodik_"):
                 matched_k_id = translator_id.replace("kodik_", "")

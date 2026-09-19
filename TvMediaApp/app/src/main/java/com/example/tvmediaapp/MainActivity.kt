@@ -386,7 +386,7 @@ fun TvAppNavHost(activity: MainActivity) {
                     onBackClick = {
                         currentScreen = Screen.HOME
                     },
-                    trackedMovies = homeViewModel.getAllMovies()
+                    trackedMovies = homeViewModel.getAllMovies().filter { homeViewModel.isFavorite(it.id) && it.isSeries }
                 )
             }
 
@@ -662,8 +662,10 @@ fun TvAppNavHost(activity: MainActivity) {
             val cancelFocusRequester = remember { FocusRequester() }
 
             LaunchedEffect(Unit) {
-                delay(100)
-                try { cancelFocusRequester.requestFocus() } catch (_: Exception) {}
+                repeat(5) {
+                    delay(60)
+                    try { cancelFocusRequester.requestFocus() } catch (_: Exception) {}
+                }
             }
 
             Box(

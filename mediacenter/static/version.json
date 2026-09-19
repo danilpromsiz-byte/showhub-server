@@ -1,10 +1,10 @@
 {
   "success": true,
-  "version_name": "2.8.2",
-  "version_code": 61,
+  "version_name": "2.8.3",
+  "version_code": 62,
   "force_update": true,
-  "min_version_code": 61,
+  "min_version_code": 62,
   "download_url": "https://showhub-server.onrender.com/ShowHub.apk",
   "apk_url": "https://showhub-server.onrender.com/ShowHub.apk",
-  "changelog": "ShowHub TV v2.8.2: Предотвращение ухода ТВ в заставку и спящий режим (FLAG_KEEP_SCREEN_ON); обновлена иконка приложения в лаунчере с названием ShowHub; чистый значок паузы без круга; устранена карусель повторных обновлений с валидацией версий APK."
+  "changelog": "ShowHub TV v2.8.3: Предварительный и точный подсчёт серий по сезонам на кнопках озвучек/источников; снятие с паузы по одному клику OK; всегда видимая активная серия в плеере; полный скролл описания и серий до нижнего края; постоянный дисковый кэш данных фильмов; надёжный фокус в диалоге выхода; календарь выхода серий для избранного с умной группировкой."
 }

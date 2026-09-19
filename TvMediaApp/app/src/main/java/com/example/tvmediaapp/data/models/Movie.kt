@@ -23,7 +23,8 @@ data class AudioTrackInfo(
     val id: String,
     val name: String,
     val episodesCount: Int = 0,
-    val source: String = "hdrezka"
+    val source: String = "hdrezka",
+    val seasonsEpisodes: Map<Int, Int> = emptyMap()
 )
 
 data class PersonInfo(
@@ -43,7 +44,8 @@ data class EpisodeScheduleItem(
 data class SourceInfo(
     val id: String,
     val name: String,
-    val episodesCount: Int = 0
+    val episodesCount: Int = 0,
+    val seasonsEpisodes: Map<Int, Int> = emptyMap()
 )
 
 data class Movie(

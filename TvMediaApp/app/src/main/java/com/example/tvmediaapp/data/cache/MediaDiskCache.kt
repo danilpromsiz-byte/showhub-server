@@ -175,14 +175,40 @@ object MediaDiskCache {
 
             val tArr = JSONArray()
             movie.audioTracks.forEach { t ->
-                tArr.put(
-                    JSONObject().apply {
-                        put("id", t.id)
-                        put("name", t.name)
+                val to = JSONObject().apply {
+                    put("id", t.id)
+                    put("name", t.name)
+                    put("episodesCount", t.episodesCount)
+                    put("source", t.source)
+                    if (t.seasonsEpisodes.isNotEmpty()) {
+                        val seObj = JSONObject()
+                        t.seasonsEpisodes.forEach { (sNum, epCount) ->
+                            seObj.put(sNum.toString(), epCount)
+                        }
+                        put("seasonsEpisodes", seObj)
                     }
-                )
+                }
+                tArr.put(to)
             }
             put("audioTracks", tArr)
+
+            val srcArr = JSONArray()
+            movie.sources.forEach { s ->
+                val so = JSONObject().apply {
+                    put("id", s.id)
+                    put("name", s.name)
+                    put("episodesCount", s.episodesCount)
+                    if (s.seasonsEpisodes.isNotEmpty()) {
+                        val seObj = JSONObject()
+                        s.seasonsEpisodes.forEach { (sNum, epCount) ->
+                            seObj.put(sNum.toString(), epCount)
+                        }
+                        put("seasonsEpisodes", seObj)
+                    }
+                }
+                srcArr.put(so)
+            }
+            put("sources", srcArr)
 
             val cArr = JSONArray()
             movie.cast.forEach { c ->
@@ -195,6 +221,21 @@ object MediaDiskCache {
                     }
                 )
             }
+            put("cast", cArr)
+
+            val dArr = JSONArray()
+            movie.directorsList.forEach { d ->
+                dArr.put(
+                    JSONObject().apply {
+                        put("id", d.id)
+                        put("name", d.name)
+                        put("role", d.role)
+                        put("photoUrl", d.photoUrl)
+                    }
+                )
+            }
+            put("directorsList", dArr)
+
             val schArr = JSONArray()
             movie.episodesSchedule.forEach { s ->
                 schArr.put(
@@ -207,7 +248,6 @@ object MediaDiskCache {
                 )
             }
             put("episodesSchedule", schArr)
-            put("cast", cArr)
         }
     }
 
@@ -252,10 +292,53 @@ object MediaDiskCache {
         if (tArr != null) {
             for (i in 0 until tArr.length()) {
                 val to = tArr.getJSONObject(i)
+                val seMap = mutableMapOf<Int, Int>()
+                val seObj = to.optJSONObject("seasonsEpisodes")
+                if (seObj != null) {
+                    val keys = seObj.keys()
+                    while (keys.hasNext()) {
+                        val k = keys.next()
+                        val sNum = k.toIntOrNull()
+                        if (sNum != null) {
+                            seMap[sNum] = seObj.optInt(k, 0)
+                        }
+                    }
+                }
                 audioTracks.add(
                     AudioTrackInfo(
                         id = to.optString("id", i.toString()),
-                        name = to.optString("name", "")
+                        name = to.optString("name", ""),
+                        episodesCount = to.optInt("episodesCount", 0),
+                        source = to.optString("source", "hdrezka"),
+                        seasonsEpisodes = seMap
+                    )
+                )
+            }
+        }
+
+        val sources = mutableListOf<com.example.tvmediaapp.data.models.SourceInfo>()
+        val srcArr = obj.optJSONArray("sources")
+        if (srcArr != null) {
+            for (i in 0 until srcArr.length()) {
+                val so = srcArr.getJSONObject(i)
+                val seMap = mutableMapOf<Int, Int>()
+                val seObj = so.optJSONObject("seasonsEpisodes")
+                if (seObj != null) {
+                    val keys = seObj.keys()
+                    while (keys.hasNext()) {
+                        val k = keys.next()
+                        val sNum = k.toIntOrNull()
+                        if (sNum != null) {
+                            seMap[sNum] = seObj.optInt(k, 0)
+                        }
+                    }
+                }
+                sources.add(
+                    com.example.tvmediaapp.data.models.SourceInfo(
+                        id = so.optString("id", i.toString()),
+                        name = so.optString("name", ""),
+                        episodesCount = so.optInt("episodesCount", 0),
+                        seasonsEpisodes = seMap
                     )
                 )
             }
@@ -272,6 +355,22 @@ object MediaDiskCache {
                         name = co.optString("name", ""),
                         role = co.optString("role", "Актер"),
                         photoUrl = co.optString("photoUrl", "")
+                    )
+                )
+            }
+        }
+
+        val directors = mutableListOf<PersonInfo>()
+        val dArr = obj.optJSONArray("directorsList")
+        if (dArr != null) {
+            for (i in 0 until dArr.length()) {
+                val dObj = dArr.getJSONObject(i)
+                directors.add(
+                    PersonInfo(
+                        id = dObj.optString("id", i.toString()),
+                        name = dObj.optString("name", ""),
+                        role = dObj.optString("role", "Режиссер"),
+                        photoUrl = dObj.optString("photoUrl", "")
                     )
                 )
             }
@@ -313,7 +412,9 @@ object MediaDiskCache {
             isSeries = obj.optBoolean("isSeries", false),
             seasons = seasons,
             audioTracks = audioTracks,
+            sources = sources,
             cast = cast,
+            directorsList = directors,
             episodesSchedule = schedule,
             ageRating = obj.optString("ageRating", "12+")
         )

@@ -175,7 +175,18 @@ object ShowHubApiClient {
                             val name = trObj.optString("name", "")
                             val epsCount = trObj.optInt("episodes_count", 0)
                             val src = trObj.optString("source", if (id.startsWith("kodik")) "kodik" else "hdrezka")
-                            if (name.isNotEmpty()) audioList.add(AudioTrackInfo(id, name, epsCount, src))
+                            val sMap = mutableMapOf<Int, Int>()
+                            val seObj = trObj.optJSONObject("seasons_episodes")
+                            if (seObj != null) {
+                                val keys = seObj.keys()
+                                while (keys.hasNext()) {
+                                    val k = keys.next()
+                                    k.toIntOrNull()?.let { sNum ->
+                                        sMap[sNum] = seObj.optInt(k, 0)
+                                    }
+                                }
+                            }
+                            if (name.isNotEmpty()) audioList.add(AudioTrackInfo(id, name, epsCount, src, sMap))
                         } else {
                             val name = trArr.optString(tIdx, "")
                             if (name.isNotEmpty()) audioList.add(AudioTrackInfo(tIdx.toString(), name, 0, "hdrezka"))
@@ -236,11 +247,23 @@ object ShowHubApiClient {
                 if (srcArr != null) {
                     for (sIdx in 0 until srcArr.length()) {
                         val sObj = srcArr.getJSONObject(sIdx)
+                        val sMap = mutableMapOf<Int, Int>()
+                        val seObj = sObj.optJSONObject("seasons_episodes")
+                        if (seObj != null) {
+                            val keys = seObj.keys()
+                            while (keys.hasNext()) {
+                                val k = keys.next()
+                                k.toIntOrNull()?.let { sNum ->
+                                    sMap[sNum] = seObj.optInt(k, 0)
+                                }
+                            }
+                        }
                         sourcesList.add(
                             com.example.tvmediaapp.data.models.SourceInfo(
                                 id = sObj.optString("source", ""),
                                 name = sObj.optString("name", ""),
-                                episodesCount = sObj.optInt("episodes_count", 0)
+                                episodesCount = sObj.optInt("episodes_count", 0),
+                                seasonsEpisodes = sMap
                             )
                         )
                     }

@@ -98,8 +98,10 @@ import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.common.C
+import androidx.tv.foundation.PivotOffsets
 import androidx.tv.foundation.lazy.list.TvLazyRow
 import androidx.tv.foundation.lazy.list.items
+import androidx.tv.foundation.lazy.list.rememberTvLazyListState
 import androidx.tv.material3.Border
 import androidx.tv.material3.Button
 import androidx.tv.material3.ButtonDefaults
@@ -844,9 +846,16 @@ private fun NativeExoPlayerScreen(
     var quickSeekBadgeJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     var accumulatedSeekSeconds by remember { mutableIntStateOf(0) }
 
-    // Request focus for D-Pad events on launch
+    // Request focus for D-Pad events on launch and whenever controls hide
     LaunchedEffect(Unit) {
         rootFocusRequester.requestFocus()
+    }
+    LaunchedEffect(isControlsVisible) {
+        if (!isControlsVisible) {
+            try {
+                rootFocusRequester.requestFocus()
+            } catch (_: Exception) {}
+        }
     }
 
     Box(
@@ -915,7 +924,16 @@ private fun NativeExoPlayerScreen(
                                 return@onKeyEvent true
                             }
                             KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
-                                togglePlayPause()
+                                if (!exoPlayer.isPlaying) {
+                                    exoPlayer.play()
+                                    playbackActionBadge = "play"
+                                    coroutineScope.launch {
+                                        delay(1500)
+                                        playbackActionBadge = null
+                                    }
+                                } else {
+                                    togglePlayPause()
+                                }
                                 return@onKeyEvent true
                             }
                             KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
@@ -952,6 +970,9 @@ private fun NativeExoPlayerScreen(
                 PlayerView(ctx).apply {
                     player = exoPlayer
                     useController = false
+                    isFocusable = false
+                    isFocusableInTouchMode = false
+                    isClickable = false
                     layoutParams = FrameLayout.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT,
                         ViewGroup.LayoutParams.MATCH_PARENT
@@ -1353,14 +1374,27 @@ private fun NativeExoPlayerScreen(
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             val activeEpFocusRequester = remember { FocusRequester() }
-                            LaunchedEffect(activeDrawer) {
+                            val activeIndex = remember(activeSeason.episodes, currentEpisode) {
+                                val idx = activeSeason.episodes.indexOfFirst { it.episodeNumber == currentEpisode }
+                                if (idx >= 0) idx else 0
+                            }
+                            val drawerEpisodesListState = rememberTvLazyListState()
+                            LaunchedEffect(activeDrawer, currentEpisode, activeSeason) {
                                 if (activeDrawer == "episodes") {
                                     try {
+                                        if (activeIndex >= 0) {
+                                            drawerEpisodesListState.scrollToItem((activeIndex - 1).coerceAtLeast(0))
+                                        }
                                         activeEpFocusRequester.requestFocus()
                                     } catch (_: Exception) {}
                                 }
                             }
-                            TvLazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            TvLazyRow(
+                                state = drawerEpisodesListState,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                contentPadding = PaddingValues(start = 8.dp, end = 80.dp),
+                                pivotOffsets = PivotOffsets(parentFraction = 0.5f)
+                            ) {
                                 items(activeSeason.episodes) { ep ->
                                     val isSel = ep.episodeNumber == currentEpisode
                                     val isWatched = historyManager.isEpisodeWatched(currentMovieState.id, currentSeason, ep.episodeNumber)
@@ -1432,8 +1466,23 @@ private fun NativeExoPlayerScreen(
                                     color = TextGray
                                 )
                                 Spacer(modifier = Modifier.height(4.dp))
+                                val inlineIndex = remember(episodeList, currentEpisode) {
+                                    val idx = episodeList.indexOfFirst { it.episodeNumber == currentEpisode }
+                                    if (idx >= 0) idx else 0
+                                }
+                                val inlineEpisodesListState = rememberTvLazyListState()
+                                LaunchedEffect(currentEpisode, episodeList) {
+                                    try {
+                                        if (inlineIndex >= 0) {
+                                            inlineEpisodesListState.scrollToItem((inlineIndex - 1).coerceAtLeast(0))
+                                        }
+                                    } catch (_: Exception) {}
+                                }
                                 TvLazyRow(
+                                    state = inlineEpisodesListState,
                                     horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    contentPadding = PaddingValues(start = 4.dp, end = 80.dp),
+                                    pivotOffsets = PivotOffsets(parentFraction = 0.5f),
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
                                     items(episodeList) { ep ->

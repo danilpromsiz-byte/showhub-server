@@ -251,6 +251,46 @@ object ShowHubApiClient {
         movie
     }
 
+    suspend fun fetchEpisodes(
+        movie: Movie,
+        translatorId: String
+    ): List<SeasonInfo> = withContext(Dispatchers.IO) {
+        if (translatorId.isBlank()) return@withContext emptyList()
+        try {
+            val encId = URLEncoder.encode(movie.id, "UTF-8")
+            val encTrans = URLEncoder.encode(translatorId, "UTF-8")
+            val urlStr = "$SERVER_BASE/api/media/episodes?source=hdrezka&media_id=$encId&translator_id=$encTrans"
+            val conn = URL(urlStr).openConnection() as HttpURLConnection
+            conn.connectTimeout = 8000
+            conn.readTimeout = 12000
+            conn.setRequestProperty("User-Agent", "ShowHubTV-Native/2.7.5")
+            conn.connect()
+            if (conn.responseCode == 200) {
+                val body = BufferedReader(InputStreamReader(conn.inputStream, "UTF-8")).use { it.readText() }
+                val arr = JSONArray(body)
+                val seasons = mutableListOf<SeasonInfo>()
+                for (sIdx in 0 until arr.length()) {
+                    val sObj = arr.getJSONObject(sIdx)
+                    val sNum = sObj.optInt("season_id", sIdx + 1)
+                    val sTitle = sObj.optString("title", "Сезон $sNum")
+                    val epArr = sObj.optJSONArray("episodes") ?: JSONArray()
+                    val episodes = mutableListOf<EpisodeInfo>()
+                    for (eIdx in 0 until epArr.length()) {
+                        val eObj = epArr.getJSONObject(eIdx)
+                        val epNum = eObj.optInt("episode_id", eIdx + 1)
+                        val epTitle = eObj.optString("title", "Серия $epNum")
+                        episodes.add(EpisodeInfo(episodeNumber = epNum, title = epTitle))
+                    }
+                    seasons.add(SeasonInfo(seasonNumber = sNum, title = sTitle, episodes = episodes))
+                }
+                return@withContext seasons
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        emptyList()
+    }
+
     suspend fun fetchStreams(
         movie: Movie,
         season: Int? = null,
@@ -499,6 +539,12 @@ object ShowHubApiClient {
             }.ifEmpty {
                 val cArr = extraObj?.optJSONArray("countries") ?: it.optJSONArray("countries")
                 if (cArr != null && cArr.length() > 0) cArr.getString(0) else ""
+            }.ifEmpty {
+                val desc = it.optString("description", "")
+                if (desc.contains(",")) {
+                    val sp = desc.split(",")
+                    if (sp.size >= 2 && !sp[1].any { ch -> ch.isDigit() }) sp[1].trim() else ""
+                } else ""
             }
             val country = if (rawCountry.isBlank() || rawCountry.equals("null", ignoreCase = true)) "" else rawCountry
 

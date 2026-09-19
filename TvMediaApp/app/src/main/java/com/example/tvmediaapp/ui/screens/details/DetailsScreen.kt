@@ -3,12 +3,14 @@ package com.example.tvmediaapp.ui.screens.details
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.view.KeyEvent
 import android.widget.Toast
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.focusable
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -456,10 +458,15 @@ fun DetailsScreen(
                     ?: streams.firstOrNull { isDirectVideoStream(it.url) && !it.quality.contains("ultra", ignoreCase = true) && !it.quality.contains("4k", ignoreCase = true) }
                     ?: streams.firstOrNull { isDirectVideoStream(it.url) }
                     ?: streams.first()
-                streamStatus = "Найден поток ${matched.quality}! Запуск..."
-                onPlayClick(currentMovie, matched.url, startPos, targetSeason, targetEpisode, targetAudioId)
+
+                if (matched.url.isNotBlank() && matched.url.startsWith("http")) {
+                    streamStatus = "Найден поток ${matched.quality}! Запуск..."
+                    onPlayClick(currentMovie, matched.url, startPos, targetSeason, targetEpisode, targetAudioId)
+                } else {
+                    streamStatus = "Поток недоступен для выбранной серии. Попробуйте другую озвучку."
+                }
             } else {
-                streamStatus = "Поток в обработке. Попробуйте другой фильм."
+                streamStatus = "Поток недоступен для выбранной серии. Попробуйте другую озвучку."
             }
         }
     }
@@ -500,6 +507,7 @@ fun DetailsScreen(
         ) {
             // LEFT PANE: Focusable Poster & Metadata Card
             var isLeftPaneFocused by remember { mutableStateOf(false) }
+            val leftPaneScrollState = rememberScrollState()
             Card(
                 onClick = { /* keep focus */ },
                 colors = CardDefaults.colors(
@@ -507,7 +515,7 @@ fun DetailsScreen(
                     focusedContainerColor = Color.White.copy(alpha = 0.08f)
                 ),
                 border = CardDefaults.border(
-                    border = Border(BorderStroke(1.dp, Color.White.copy(alpha = 0.1f))),
+                    border = Border(BorderStroke(2.dp, Color.White.copy(alpha = 0.1f))),
                     focusedBorder = Border(BorderStroke(2.dp, accent))
                 ),
                 scale = CardDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
@@ -520,12 +528,23 @@ fun DetailsScreen(
                         right = playButtonFocusRequester
                     }
                     .onFocusChanged { isLeftPaneFocused = it.isFocused }
+                    .onPreviewKeyEvent { evt ->
+                        if (evt.nativeKeyEvent.action == KeyEvent.ACTION_DOWN) {
+                            if (evt.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
+                                coroutineScope.launch { leftPaneScrollState.animateScrollTo(leftPaneScrollState.value + 220) }
+                                true
+                            } else if (evt.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_UP && leftPaneScrollState.value > 0) {
+                                coroutineScope.launch { leftPaneScrollState.animateScrollTo((leftPaneScrollState.value - 220).coerceAtLeast(0)) }
+                                true
+                            } else false
+                        } else false
+                    }
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(14.dp)
-                        .verticalScroll(rememberScrollState()),
+                        .verticalScroll(leftPaneScrollState),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Box(
@@ -1342,7 +1361,31 @@ fun DetailsScreen(
                                     Button(
                                         onClick = {
                                             selectedAudioId = track.id
-                                            startPlayback(targetSeason = selectedSeason, targetEpisode = selectedEpisode, targetAudioId = track.id)
+                                            if (currentMovie.isSeries) {
+                                                coroutineScope.launch {
+                                                    try {
+                                                        val realSeasons = ShowHubApiClient.fetchEpisodes(currentMovie, track.id)
+                                                        val targetSeasons = if (realSeasons.isNotEmpty()) realSeasons else currentMovie.seasons
+                                                        if (realSeasons.isNotEmpty()) {
+                                                            currentMovie = currentMovie.copy(seasons = realSeasons)
+                                                        }
+                                                        val activeS = targetSeasons.firstOrNull { it.seasonNumber == selectedSeason } ?: targetSeasons.firstOrNull()
+                                                        val maxEp = activeS?.episodes?.maxOfOrNull { it.episodeNumber } ?: 1
+                                                        val targetEp = if (selectedEpisode > maxEp) {
+                                                            streamStatus = "В озвучке «${track.name}» доступно $maxEp серий (включена $maxEp серия)"
+                                                            maxEp
+                                                        } else {
+                                                            selectedEpisode
+                                                        }
+                                                        selectedEpisode = targetEp
+                                                        startPlayback(targetSeason = activeS?.seasonNumber ?: selectedSeason, targetEpisode = targetEp, targetAudioId = track.id)
+                                                    } catch (_: Exception) {
+                                                        startPlayback(targetSeason = selectedSeason, targetEpisode = selectedEpisode, targetAudioId = track.id)
+                                                    }
+                                                }
+                                            } else {
+                                                startPlayback(targetSeason = selectedSeason, targetEpisode = selectedEpisode, targetAudioId = track.id)
+                                            }
                                         },
                                         colors = ButtonDefaults.colors(
                                             containerColor = if (isSelected) accent.copy(alpha = 0.85f) else ChipBackground,
@@ -1485,11 +1528,11 @@ fun DetailsScreen(
                                             focusedContainerColor = LocalFocusColor.current.copy(alpha = 0.22f)
                                         ),
                                         border = CardDefaults.border(
-                                            border = Border.None,
+                                            border = Border(BorderStroke(2.dp, Color.Transparent)),
                                             focusedBorder = Border(BorderStroke(2.dp, LocalFocusColor.current))
                                         ),
                                         shape = CardDefaults.shape(RoundedCornerShape(8.dp)),
-                                        scale = CardDefaults.scale(scale = 1.0f, focusedScale = 1.05f),
+                                        scale = CardDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                                         modifier = Modifier
                                             .width(84.dp)
                                             .onFocusChanged { isActorFocused = it.isFocused }
@@ -1590,11 +1633,11 @@ fun DetailsScreen(
                                                 focusedContainerColor = LocalFocusColor.current.copy(alpha = 0.22f)
                                             ),
                                             border = CardDefaults.border(
-                                                border = Border.None,
+                                                border = Border(BorderStroke(2.dp, Color.Transparent)),
                                                 focusedBorder = Border(BorderStroke(2.dp, LocalFocusColor.current))
                                             ),
                                             shape = CardDefaults.shape(RoundedCornerShape(8.dp)),
-                                            scale = CardDefaults.scale(scale = 1.0f, focusedScale = 1.05f),
+                                            scale = CardDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                                             modifier = Modifier
                                                 .width(84.dp)
                                                 .onFocusChanged { isDirFocused = it.isFocused }
@@ -1665,11 +1708,11 @@ fun DetailsScreen(
                                                 focusedContainerColor = LocalFocusColor.current.copy(alpha = 0.22f)
                                             ),
                                             border = CardDefaults.border(
-                                                border = Border.None,
+                                                border = Border(BorderStroke(2.dp, Color.Transparent)),
                                                 focusedBorder = Border(BorderStroke(2.dp, LocalFocusColor.current))
                                             ),
                                             shape = CardDefaults.shape(RoundedCornerShape(8.dp)),
-                                            scale = CardDefaults.scale(scale = 1.0f, focusedScale = 1.05f),
+                                            scale = CardDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                                             modifier = Modifier
                                                 .width(84.dp)
                                                 .onFocusChanged { isActorFocused = it.isFocused }

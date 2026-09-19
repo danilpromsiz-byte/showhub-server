@@ -156,6 +156,15 @@ class HDRezkaSource(BaseSource):
             # Monotonic proxy timestamp
             date_added = 1700000000 + int(data_id) * 1000
 
+        extra_info = {"page_url": item_id, "data_id": data_id}
+        if desc and "," in desc:
+            sp = [p.strip() for p in desc.split(",") if p.strip()]
+            if len(sp) >= 2 and not any(ch.isdigit() for ch in sp[1]):
+                extra_info["country"] = sp[1]
+                extra_info["countries"] = [sp[1]]
+            if len(sp) >= 3:
+                extra_info["genres"] = sp[2:]
+
         return MediaItem(
             id=item_id,
             source_name=self.name,
@@ -166,7 +175,7 @@ class HDRezkaSource(BaseSource):
             description=desc,
             date_added=date_added,
             episodes_info=episodes_info,
-            extra_data={"page_url": item_id, "data_id": data_id}
+            extra_data=extra_info
         )
 
     def search(self, query: str, year: Optional[int] = None, kp_id: Optional[str] = None) -> List[MediaItem]:
@@ -401,6 +410,98 @@ class HDRezkaSource(BaseSource):
             }
         except Exception:
             return None
+
+    def get_episodes(self, media_id: str, translator_id: str) -> List[Dict[str, Any]]:
+        """Fetches authentic translator-specific seasons and episodes via HDRezka CDN AJAX."""
+        media_str = str(media_id).strip()
+        base = self._get_base()
+        if media_str.isdigit():
+            data_id = media_str
+            page_url = f"{base}/"
+        else:
+            if media_str.startswith("http"):
+                parsed = urllib.parse.urlparse(media_str)
+                page_url = f"{base}{parsed.path}"
+            else:
+                page_url = f"{base}{media_str}"
+
+            try:
+                res = self._get_with_anubis(page_url, base)
+                if res.status_code != 200:
+                    return []
+
+                id_match = re.search(r'data-id="(\d+)"', res.text)
+                m_init_args = re.search(r'initCDN(?:Movies|Series)Events\(\s*(\d+)\s*,\s*(\d+)', res.text)
+                data_id = (id_match.group(1) if id_match else None) or (m_init_args.group(1) if m_init_args else None)
+                if not data_id:
+                    return []
+            except Exception:
+                return []
+
+        try:
+            t_now = int(time.time() * 1000)
+            ajax_url = f"{base}/ajax/get_cdn_series/?t={t_now}"
+            post_data = {
+                "id": data_id,
+                "translator_id": translator_id,
+                "action": "get_episodes"
+            }
+            post_headers = {
+                "X-Requested-With": "XMLHttpRequest",
+                "Referer": page_url
+            }
+            r = self.session.post(ajax_url, data=post_data, headers=post_headers, timeout=8)
+            if r.status_code == 200:
+                d = r.json()
+                if d.get("success"):
+                    episodes_html = d.get("episodes", "")
+                    seasons_html = d.get("seasons", "")
+                    soup_s = BeautifulSoup(seasons_html, "html.parser")
+                    soup_e = BeautifulSoup(episodes_html, "html.parser")
+
+                    seasons = []
+                    s_items = soup_s.select(".b-simple_season__item")
+                    if s_items:
+                        for s_tag in s_items:
+                            s_id_str = s_tag.get("data-tab_id")
+                            if s_id_str and s_id_str.isdigit():
+                                s_num = int(s_id_str)
+                                s_title = s_tag.text.strip() or f"Сезон {s_num}"
+                                ep_ul = soup_e.select_one(f"#simple-episodes-list-{s_num}")
+                                ep_list = []
+                                if ep_ul:
+                                    for ep in ep_ul.select(".b-simple_episode__item"):
+                                        ep_id = ep.get("data-episode_id")
+                                        if ep_id and ep_id.isdigit():
+                                            ep_list.append({
+                                                "episode_id": int(ep_id),
+                                                "title": ep.text.strip() or f"Серия {ep_id}",
+                                                "season_id": s_num
+                                            })
+                                seasons.append({
+                                    "season_id": s_num,
+                                    "title": s_title,
+                                    "episodes": ep_list
+                                })
+                    else:
+                        ep_list = []
+                        for ep in soup_e.select(".b-simple_episode__item"):
+                            ep_id = ep.get("data-episode_id")
+                            if ep_id and ep_id.isdigit():
+                                ep_list.append({
+                                    "episode_id": int(ep_id),
+                                    "title": ep.text.strip() or f"Серия {ep_id}",
+                                    "season_id": 1
+                                })
+                        seasons.append({
+                            "season_id": 1,
+                            "title": "Сезон 1",
+                            "episodes": ep_list
+                        })
+                    return seasons
+        except Exception:
+            pass
+        return []
 
     def get_streams(self, media_id: str, season: Optional[int] = None, episode: Optional[int] = None, audio_id: Optional[str] = None) -> StreamResult:
         base = self._get_base()

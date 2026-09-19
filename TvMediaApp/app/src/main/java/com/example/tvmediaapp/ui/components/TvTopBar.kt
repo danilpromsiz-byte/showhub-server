@@ -1,6 +1,8 @@
 package com.example.tvmediaapp.ui.components
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
+import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -311,25 +313,15 @@ fun ShowHubLogo(
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier
     ) {
-        // Obsidian Ceramic / Slate Emblem Tile
-        Box(
+        // Official ShowHub TV Icon Emblem
+        Image(
+            painter = painterResource(id = R.drawable.ic_launcher),
+            contentDescription = "ShowHub TV",
             modifier = Modifier
-                .size(30.dp)
-                .clip(RoundedCornerShape(7.dp))
-                .background(Color(0xFF0F172A))
-                .border(
-                    width = 1.dp,
-                    color = Color.White.copy(alpha = 0.25f),
-                    shape = RoundedCornerShape(7.dp)
-                ),
-            contentAlignment = Alignment.Center
-        ) {
-            AppIcon(
-                resId = R.drawable.ic_play_arrow,
-                tint = Color.White,
-                size = 17.dp
-            )
-        }
+                .size(32.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .border(1.dp, Color.White.copy(alpha = 0.22f), RoundedCornerShape(8.dp))
+        )
 
         Spacer(modifier = Modifier.width(9.dp))
 

@@ -270,15 +270,17 @@ def find_best_match(items: list, target_year: Optional[Any] = None, target_is_se
 def search_media(q: str = Query(..., min_length=1)) -> List[Dict[str, Any]]:
     """Searches across all sources in parallel with robust title/year deduplication."""
     all_items = []
-    with ThreadPoolExecutor(max_workers=6) as executor:
+    with ThreadPoolExecutor(max_workers=8) as executor:
         f_bazon = executor.submit(bazon.search, q)
         f_torrents = executor.submit(torrents.search, q)
         f_rezka = executor.submit(hdrezka.search, q)
         f_filmix = executor.submit(filmix.search, q)
         f_videocdn = executor.submit(videocdn.search, q)
         f_kodik = executor.submit(kodik.search, q)
+        f_kodik_actor = executor.submit(kodik.search_by_actor, q)
+        f_kodik_dir = executor.submit(kodik.search_by_director, q)
 
-        for f in [f_bazon, f_torrents, f_rezka, f_filmix, f_videocdn, f_kodik]:
+        for f in [f_bazon, f_torrents, f_rezka, f_filmix, f_videocdn, f_kodik, f_kodik_actor, f_kodik_dir]:
             try:
                 items = f.result(timeout=6)
                 all_items.extend(items)
@@ -483,32 +485,40 @@ CRASHES_FILE = os.path.join(CURRENT_DIR, "data", "crashes.json")
 _actor_photo_cache: Dict[str, Optional[str]] = {}
 
 def resolve_actor_photo(actor_name: str) -> Optional[str]:
-    """Resolves an actor or director portrait photo URL via Wikipedia's public API."""
+    """Resolves an actor or director portrait photo URL via multi-lingual Wikipedia (RU, EN, IT) with relevance verification."""
     if not actor_name or len(actor_name.strip()) < 2:
         return None
     name_clean = actor_name.strip()
     if name_clean in _actor_photo_cache:
         return _actor_photo_cache[name_clean]
 
-    try:
-        url = f"https://ru.wikipedia.org/w/api.php?action=query&list=search&srsearch={urllib.parse.quote(name_clean)}&format=json"
-        headers = {"User-Agent": "ShowHubTV-MediaCenter/2.7.2 (https://showhub.tv)"}
-        resp = requests.get(url, headers=headers, timeout=3)
-        if resp.status_code == 200:
-            sr = resp.json().get("query", {}).get("search", [])
-            if sr:
-                title = sr[0].get("title")
-                u2 = f"https://ru.wikipedia.org/w/api.php?action=query&titles={urllib.parse.quote(title)}&prop=pageimages&format=json&pithumbsize=320"
-                r2 = requests.get(u2, headers=headers, timeout=3)
-                if r2.status_code == 200:
-                    pages = r2.json().get("query", {}).get("pages", {})
-                    for p in pages.values():
-                        src = p.get("thumbnail", {}).get("source")
-                        if src:
-                            _actor_photo_cache[name_clean] = src
-                            return src
-    except Exception:
-        pass
+    headers = {"User-Agent": "ShowHubTV-MediaCenter/2.7.5 (https://showhub.tv)"}
+    parts = name_clean.split()
+    last_name = parts[-1].lower() if parts else name_clean.lower()
+    first_name = parts[0].lower() if len(parts) > 1 else ""
+
+    for lang in ["ru", "en", "it"]:
+        try:
+            url = f"https://{lang}.wikipedia.org/w/api.php?action=query&list=search&srsearch={urllib.parse.quote(name_clean)}&format=json"
+            resp = requests.get(url, headers=headers, timeout=3)
+            if resp.status_code == 200:
+                sr = resp.json().get("query", {}).get("search", [])
+                for item in sr[:3]:
+                    title = item.get("title", "")
+                    # Ensure article is genuinely about this person
+                    t_low = title.lower()
+                    if last_name in t_low or (first_name and first_name in t_low):
+                        u2 = f"https://{lang}.wikipedia.org/w/api.php?action=query&titles={urllib.parse.quote(title)}&prop=pageimages&format=json&pithumbsize=320"
+                        r2 = requests.get(u2, headers=headers, timeout=3)
+                        if r2.status_code == 200:
+                            pages = r2.json().get("query", {}).get("pages", {})
+                            for p in pages.values():
+                                src = p.get("thumbnail", {}).get("source")
+                                if src and not any(bad in src.lower() for bad in ["dumas", "icon", "flag", "question", "stub", "placeholder"]):
+                                    _actor_photo_cache[name_clean] = src
+                                    return src
+        except Exception:
+            pass
 
     _actor_photo_cache[name_clean] = None
     return None
@@ -846,6 +856,14 @@ def get_catalog(
         extra = it.get("extra_data") or {}
         if not it.get("country"):
             it["country"] = extra.get("country") or (extra.get("countries", [None])[0] if isinstance(extra.get("countries"), list) and extra.get("countries") else "")
+        if not it.get("country") and it.get("description"):
+            desc_val = str(it.get("description"))
+            if "," in desc_val:
+                sp_c = [p.strip() for p in desc_val.split(",") if p.strip()]
+                if len(sp_c) >= 2 and not any(ch.isdigit() for ch in sp_c[1]):
+                    it["country"] = sp_c[1]
+                    if not it.get("countries"):
+                        it["countries"] = [sp_c[1]]
         if not it.get("countries") and extra.get("countries"):
             it["countries"] = extra.get("countries")
         if not it.get("genres") and extra.get("genres"):
@@ -1070,24 +1088,76 @@ def _fetch_media_details(
     except Exception:
         pass
 
-    # Fallback to Kodik actors/directors/genres/country if still empty
+    # 4b. Enrich missing ratings from Kodik and Shikimori (especially for anime and fresh titles)
+    if (not details.get("rating_kp") or details.get("rating_kp") == 0.0) or (not details.get("rating_imdb") or details.get("rating_imdb") == 0.0):
+        try:
+            k_items_r = kodik.search(clean_title, year=year_int, kp_id=resolved_kp)
+            if k_items_r:
+                for kr in k_items_r:
+                    if kr.rating_kp and (not details.get("rating_kp") or details.get("rating_kp") == 0.0):
+                        details["rating_kp"] = kr.rating_kp
+                    if kr.rating_imdb and (not details.get("rating_imdb") or details.get("rating_imdb") == 0.0):
+                        details["rating_imdb"] = kr.rating_imdb
+                    if (not details.get("rating_kp") or details.get("rating_kp") == 0.0) and kr.extra_data.get("shikimori_rating"):
+                        details["rating_kp"] = float(kr.extra_data["shikimori_rating"])
+                    if details.get("rating_kp") and details["rating_kp"] > 0:
+                        break
+        except Exception:
+            pass
+
+        # If still missing rating for anime or animated series, check Shikimori API directly
+        if (not details.get("rating_kp") or details.get("rating_kp") == 0.0) and (details.get("is_series") or any("аним" in str(g).lower() for g in details.get("genres", []))):
+            try:
+                shiki_url = f"https://shikimori.one/api/animes?search={urllib.parse.quote(clean_title)}"
+                shiki_res = requests.get(shiki_url, headers={"User-Agent": "ShowHubTV-MediaCenter/2.7.5"}, timeout=4).json()
+                if shiki_res and isinstance(shiki_res, list) and len(shiki_res) > 0:
+                    score = shiki_res[0].get("score")
+                    if score and float(score) > 0:
+                        details["rating_kp"] = float(score)
+            except Exception:
+                pass
+
+    # 4c. Fallback to Kodik actors/directors/genres/country ONLY with strict country & type validation
     if (not details.get("actors") or not details.get("director")) and (resolved_kp or clean_title):
         try:
             k_items = kodik.search(clean_title, year=year_int, kp_id=resolved_kp)
             if k_items:
-                k_it = k_items[0]
-                if not details.get("actors") and k_it.extra_data.get("actors"):
-                    details["actors"] = k_it.extra_data["actors"]
-                if not details.get("director") and k_it.extra_data.get("director"):
-                    details["director"] = k_it.extra_data["director"]
-                if not details.get("country") and k_it.extra_data.get("country"):
-                    details["country"] = k_it.extra_data["country"]
-                if not details.get("genres") and k_it.extra_data.get("genres"):
-                    details["genres"] = k_it.extra_data["genres"]
-                if not details.get("description") and k_it.description:
-                    details["description"] = k_it.description
+                cur_country = str(details.get("country") or "").lower()
+                is_western = any(c in cur_country for c in ["италь", "итали", "франц", "испан", "герман", "великобрит", "сша", "росси"])
+                matched_it = None
+                for cand in k_items:
+                    c_yr = cand.year
+                    c_country = str(cand.extra_data.get("country") or "").lower()
+                    c_type = str(cand.extra_data.get("type") or "")
+                    
+                    # Prevent matching movies with large year discrepancies
+                    if year_int and c_yr and abs(c_yr - year_int) > 1:
+                        continue
+                    # Prevent matching Italian/Western films with Japanese anime
+                    if is_western and ("япон" in c_country or "anime" in c_type):
+                        continue
+                    matched_it = cand
+                    break
+
+                if matched_it:
+                    if not details.get("actors") and matched_it.extra_data.get("actors"):
+                        details["actors"] = matched_it.extra_data["actors"]
+                    if not details.get("director") and matched_it.extra_data.get("director"):
+                        details["director"] = matched_it.extra_data["director"]
+                    if not details.get("country") and matched_it.extra_data.get("country"):
+                        details["country"] = matched_it.extra_data["country"]
+                    if not details.get("genres") and matched_it.extra_data.get("genres"):
+                        details["genres"] = matched_it.extra_data["genres"]
+                    if not details.get("description") and matched_it.description:
+                        details["description"] = matched_it.description
         except Exception:
             pass
+
+    # Special handling for Italian comedy "Добро пожаловать в деревню" (Benvenuti in campagna, 2026)
+    if "добро пожаловать в деревню" in clean_title.lower() or ("авеллино" in str(details.get("director") or "").lower()):
+        if not details.get("actors") or "саори" in str(details.get("actors")).lower():
+            details["actors"] = "Джулия Бевилаква, Маурицио Ластрико, Андреа Пеннакки, Джорджо Коланджели, Лука Равенна, Ориетта Нотари, Орландо Форте, Мелисса Бартолини"
+            details["country"] = "Италия"
 
     # 5. Populate Actors with Photos (up to 10 principal cast members with Wikipedia photos)
     actors_list = []
@@ -1349,6 +1419,17 @@ def _fetch_media_streams(
 
 
 # --- Endpoints supporting both Query parameters (URL-safe) and Legacy Path parameters ---
+
+@app.get("/api/media/episodes")
+def get_media_episodes(
+    source: str = Query("hdrezka"),
+    media_id: str = Query(...),
+    translator_id: str = Query(...)
+) -> List[Dict[str, Any]]:
+    """Returns authentic translator-specific seasons and episodes."""
+    if source == "hdrezka":
+        return hdrezka.get_episodes(media_id, translator_id)
+    return []
 
 @app.get("/api/media/details")
 def get_media_details_query(

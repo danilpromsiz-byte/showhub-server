@@ -14,10 +14,11 @@ import java.io.File
 
 object MediaDiskCache {
     private const val TAG = "MediaDiskCache"
+    private const val MAX_AGE_MS = 30L * 24 * 60 * 60 * 1000L // 30 days
     private var cacheDir: File? = null
 
     fun init(context: Context) {
-        val base = File(context.applicationContext.cacheDir, "showhub_disk_cache")
+        val base = File(context.applicationContext.filesDir, "showhub_media_cache")
         if (!base.exists()) {
             base.mkdirs()
         }
@@ -41,6 +42,10 @@ object MediaDiskCache {
             val safeId = movieId.replace(Regex("[^a-zA-Z0-9_-]"), "_")
             val file = File(getDetailsDir(), "$safeId.json")
             if (!file.exists()) return null
+            if (System.currentTimeMillis() - file.lastModified() > MAX_AGE_MS) {
+                file.delete()
+                return null
+            }
             val content = file.readText()
             val obj = JSONObject(content)
             deserializeMovie(obj)

@@ -67,6 +67,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -130,18 +131,23 @@ fun PlayerScreen(
     audioId: String = "",
     onBackPress: () -> Unit
 ) {
-    if (isDirectVideoStream(movie.videoUrl)) {
+    val isEmbedWeb = !isDirectVideoStream(movie.videoUrl) &&
+            movie.videoUrl.isNotBlank() &&
+            movie.videoUrl.startsWith("http") &&
+            (movie.videoUrl.contains("embed") || movie.videoUrl.contains("iframe") || movie.videoUrl.contains(".html"))
+
+    if (isEmbedWeb) {
+        EmbedWebViewPlayerScreen(
+            movie = movie,
+            onBackPress = onBackPress
+        )
+    } else {
         NativeExoPlayerScreen(
             movie = movie,
             startPositionMs = startPositionMs,
             season = season,
             episode = episode,
             audioId = audioId,
-            onBackPress = onBackPress
-        )
-    } else {
-        EmbedWebViewPlayerScreen(
-            movie = movie,
             onBackPress = onBackPress
         )
     }
@@ -155,8 +161,30 @@ private fun EmbedWebViewPlayerScreen(
     modifier: Modifier = Modifier
 ) {
     var webViewRef by remember { mutableStateOf<WebView?>(null) }
+    var hasError by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf("") }
+    val accent = LocalAccentColor.current
+    val backFocusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(movie.videoUrl) {
+        if (movie.videoUrl.isBlank() || !movie.videoUrl.startsWith("http")) {
+            hasError = true
+            errorMessage = "Поток воспроизведения недоступен"
+        }
+    }
+
+    LaunchedEffect(hasError) {
+        if (hasError) {
+            delay(150)
+            try { backFocusRequester.requestFocus() } catch (_: Exception) {}
+        }
+    }
 
     BackHandler {
+        if (hasError) {
+            onBackPress()
+            return@BackHandler
+        }
         webViewRef?.let { wv ->
             if (wv.canGoBack()) {
                 wv.goBack()
@@ -180,71 +208,137 @@ private fun EmbedWebViewPlayerScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Color.Black)
+            .background(Color.Black),
+        contentAlignment = Alignment.Center
     ) {
-        AndroidView(
-            factory = { ctx ->
-                WebView(ctx).apply {
-                    layoutParams = ViewGroup.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        ViewGroup.LayoutParams.MATCH_PARENT
-                    )
-                    settings.apply {
-                        javaScriptEnabled = true
-                        domStorageEnabled = true
-                        mediaPlaybackRequiresUserGesture = false
-                        userAgentString = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
-                        loadWithOverviewMode = true
-                        useWideViewPort = true
-                        allowFileAccess = true
-                        setSupportZoom(false)
-                        builtInZoomControls = false
-                        displayZoomControls = false
-                    }
-                    webChromeClient = WebChromeClient()
-                    webViewClient = object : WebViewClient() {
-                        override fun onPageFinished(view: WebView?, url: String?) {
-                            super.onPageFinished(view, url)
-                            view?.evaluateJavascript(
-                                """
-                                (function() {
-                                    document.body.style.backgroundColor = '#000';
-                                    document.body.style.margin = '0';
-                                    document.body.style.padding = '0';
-                                    document.body.style.overflow = 'hidden';
-                                    var f = document.querySelector('iframe');
-                                    if (f) {
-                                        f.style.width = '100vw';
-                                        f.style.height = '100vh';
-                                        f.style.border = '0';
-                                    }
-                                })();
-                                """.trimIndent(), null
-                            )
-                        }
-                    }
-                    val html = """
-                        <!DOCTYPE html>
-                        <html>
-                        <head>
-                        <meta charset="utf-8">
-                        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-                        <style>
-                          html, body { margin: 0; padding: 0; width: 100vw; height: 100vh; background: #000; overflow: hidden; }
-                          iframe { width: 100%; height: 100%; border: 0; position: absolute; top: 0; left: 0; }
-                        </style>
-                        </head>
-                        <body>
-                          <iframe src="${movie.videoUrl}" allow="autoplay; fullscreen" allowfullscreen></iframe>
-                        </body>
-                        </html>
-                    """.trimIndent()
-                    loadDataWithBaseURL("https://showhub-server.onrender.com", html, "text/html", "UTF-8", null)
-                    webViewRef = this
+        if (hasError) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+                modifier = Modifier.padding(32.dp)
+            ) {
+                AppIcon(
+                    resId = R.drawable.ic_movie,
+                    tint = accent,
+                    size = 56.dp
+                )
+                Text(
+                    text = errorMessage.ifEmpty { "Не удалось воспроизвести видео" },
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = TextWhite,
+                    textAlign = TextAlign.Center
+                )
+                Text(
+                    text = "Попробуйте выбрать другую озвучку или источник в карточке фильма",
+                    fontSize = 14.sp,
+                    color = TextGray,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Button(
+                    onClick = onBackPress,
+                    colors = ButtonDefaults.colors(
+                        containerColor = accent,
+                        focusedContainerColor = Color.White,
+                        contentColor = Color.Black,
+                        focusedContentColor = Color.Black
+                    ),
+                    shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                    modifier = Modifier.focusRequester(backFocusRequester)
+                ) {
+                    Text(text = "Вернуться назад", fontWeight = FontWeight.Bold)
                 }
-            },
-            modifier = Modifier.fillMaxSize()
-        )
+            }
+        } else {
+            AndroidView(
+                factory = { ctx ->
+                    WebView(ctx).apply {
+                        layoutParams = ViewGroup.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                            ViewGroup.LayoutParams.MATCH_PARENT
+                        )
+                        settings.apply {
+                            javaScriptEnabled = true
+                            domStorageEnabled = true
+                            mediaPlaybackRequiresUserGesture = false
+                            userAgentString = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+                            loadWithOverviewMode = true
+                            useWideViewPort = true
+                            allowFileAccess = true
+                            setSupportZoom(false)
+                            builtInZoomControls = false
+                            displayZoomControls = false
+                        }
+                        webChromeClient = WebChromeClient()
+                        webViewClient = object : WebViewClient() {
+                            override fun onReceivedError(
+                                view: WebView?,
+                                request: android.webkit.WebResourceRequest?,
+                                error: android.webkit.WebResourceError?
+                            ) {
+                                super.onReceivedError(view, request, error)
+                                if (request?.isForMainFrame == true) {
+                                    hasError = true
+                                    errorMessage = "Не удалось загрузить плеер источника"
+                                }
+                            }
+
+                            override fun onReceivedHttpError(
+                                view: WebView?,
+                                request: android.webkit.WebResourceRequest?,
+                                errorResponse: android.webkit.WebResourceResponse?
+                            ) {
+                                super.onReceivedHttpError(view, request, errorResponse)
+                                if (request?.isForMainFrame == true && (errorResponse?.statusCode ?: 0) >= 400) {
+                                    hasError = true
+                                    errorMessage = "Ошибка источника (HTTP ${errorResponse?.statusCode})"
+                                }
+                            }
+
+                            override fun onPageFinished(view: WebView?, url: String?) {
+                                super.onPageFinished(view, url)
+                                view?.evaluateJavascript(
+                                    """
+                                    (function() {
+                                        document.body.style.backgroundColor = '#000';
+                                        document.body.style.margin = '0';
+                                        document.body.style.padding = '0';
+                                        document.body.style.overflow = 'hidden';
+                                        var f = document.querySelector('iframe');
+                                        if (f) {
+                                            f.style.width = '100vw';
+                                            f.style.height = '100vh';
+                                            f.style.border = '0';
+                                        }
+                                    })();
+                                    """.trimIndent(), null
+                                )
+                            }
+                        }
+                        val html = """
+                            <!DOCTYPE html>
+                            <html>
+                            <head>
+                            <meta charset="utf-8">
+                            <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+                            <style>
+                              html, body { margin: 0; padding: 0; width: 100vw; height: 100vh; background: #000; overflow: hidden; }
+                              iframe { width: 100%; height: 100%; border: 0; position: absolute; top: 0; left: 0; }
+                            </style>
+                            </head>
+                            <body>
+                              <iframe src="${movie.videoUrl}" allow="autoplay; fullscreen" allowfullscreen></iframe>
+                            </body>
+                            </html>
+                        """.trimIndent()
+                        loadDataWithBaseURL("https://showhub-server.onrender.com", html, "text/html", "UTF-8", null)
+                        webViewRef = this
+                    }
+                },
+                modifier = Modifier.fillMaxSize()
+            )
+        }
     }
 }
 
@@ -476,42 +570,6 @@ private fun NativeExoPlayerScreen(
     var availableSources by remember { mutableStateOf<List<String>>(listOf("HDrezka")) }
     var availableQualities by remember { mutableStateOf<List<String>>(listOf("1080p", "720p", "480p")) }
 
-    // Proactively discover all actual sources and qualities available for this media/episode
-    LaunchedEffect(movie.id, currentSeason, currentEpisode) {
-        try {
-            val serverDeferred = async(Dispatchers.IO) {
-                ShowHubApiClient.fetchStreams(
-                    movie = currentMovieState,
-                    season = if (currentMovieState.isSeries) currentSeason else null,
-                    episode = if (currentMovieState.isSeries) currentEpisode else null,
-                    audioId = currentAudioId.ifEmpty { null },
-                    source = null
-                )
-            }
-            val rezkaDeferred = async(Dispatchers.IO) {
-                RezkaNativeResolver.resolveStreams(
-                    title = currentMovieState.title,
-                    year = currentMovieState.releaseYear,
-                    isSeries = currentMovieState.isSeries,
-                    season = currentSeason,
-                    episode = currentEpisode,
-                    translatorId = currentAudioId.ifEmpty { null }
-                )
-            }
-            val serverStreams = serverDeferred.await()
-            val rezkaStreams = rezkaDeferred.await()
-            val combined = (serverStreams + rezkaStreams)
-            val extractedSrc = extractSources(combined)
-            if (extractedSrc.isNotEmpty()) {
-                availableSources = extractedSrc
-            }
-            val extractedQual = extractQualities(combined)
-            if (extractedQual.isNotEmpty()) {
-                availableQualities = extractedQual
-            }
-        } catch (_: Exception) {}
-    }
-
     fun switchStream(
         newSeason: Int = currentSeason,
         newEpisode: Int = currentEpisode,
@@ -528,6 +586,18 @@ private fun NativeExoPlayerScreen(
         isLoadingStream = true
         coroutineScope.launch {
             try {
+                var epToPlay = newEpisode
+                if (currentMovieState.isSeries && newAudioId.isNotBlank()) {
+                    try {
+                        val realEps = ShowHubApiClient.fetchEpisodes(currentMovieState, newAudioId)
+                        if (realEps.isNotEmpty() && epToPlay > realEps.size) {
+                            val clamped = realEps.size
+                            translatorNoticeBadge = "В этой озвучке доступно $clamped серий. Включена $clamped серия."
+                            epToPlay = clamped
+                            currentEpisode = clamped
+                        }
+                    } catch (_: Exception) {}
+                }
                 val savedPos = exoPlayer.currentPosition
                 val nativeDeferred = async {
                     if (newSource.equals("HDrezka", ignoreCase = true) || newSource.startsWith("HD", ignoreCase = true) || newSource.equals("Все", ignoreCase = true)) {
@@ -536,7 +606,7 @@ private fun NativeExoPlayerScreen(
                             year = currentMovieState.releaseYear,
                             isSeries = currentMovieState.isSeries,
                             season = newSeason,
-                            episode = newEpisode,
+                            episode = epToPlay,
                             translatorId = newAudioId.ifEmpty { null }
                         )
                     } else {
@@ -547,7 +617,7 @@ private fun NativeExoPlayerScreen(
                     ShowHubApiClient.fetchStreams(
                         movie = currentMovieState,
                         season = if (currentMovieState.isSeries) newSeason else null,
-                        episode = if (currentMovieState.isSeries) newEpisode else null,
+                        episode = if (currentMovieState.isSeries) epToPlay else null,
                         audioId = newAudioId.ifEmpty { null },
                         source = if (newSource.equals("HDrezka", ignoreCase = true)) null else newSource
                     )
@@ -613,6 +683,9 @@ private fun NativeExoPlayerScreen(
                     }
                     exoPlayer.prepare()
                     exoPlayer.play()
+                } else {
+                    val trackName = currentMovieState.audioTracks.firstOrNull { it.id == newAudioId }?.name ?: "выбранная озвучка"
+                    translatorNoticeBadge = "Серия $epToPlay недоступна в «$trackName»"
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -620,6 +693,45 @@ private fun NativeExoPlayerScreen(
                 isLoadingStream = false
             }
         }
+    }
+
+    // Proactively discover all actual sources and qualities available for this media/episode
+    LaunchedEffect(movie.id, currentSeason, currentEpisode) {
+        try {
+            val serverDeferred = async(Dispatchers.IO) {
+                ShowHubApiClient.fetchStreams(
+                    movie = currentMovieState,
+                    season = if (currentMovieState.isSeries) currentSeason else null,
+                    episode = if (currentMovieState.isSeries) currentEpisode else null,
+                    audioId = currentAudioId.ifEmpty { null },
+                    source = null
+                )
+            }
+            val rezkaDeferred = async(Dispatchers.IO) {
+                RezkaNativeResolver.resolveStreams(
+                    title = currentMovieState.title,
+                    year = currentMovieState.releaseYear,
+                    isSeries = currentMovieState.isSeries,
+                    season = currentSeason,
+                    episode = currentEpisode,
+                    translatorId = currentAudioId.ifEmpty { null }
+                )
+            }
+            val serverStreams = serverDeferred.await()
+            val rezkaStreams = rezkaDeferred.await()
+            val combined = (serverStreams + rezkaStreams)
+            val extractedSrc = extractSources(combined)
+            if (extractedSrc.isNotEmpty()) {
+                availableSources = extractedSrc
+            }
+            val extractedQual = extractQualities(combined)
+            if (extractedQual.isNotEmpty()) {
+                availableQualities = extractedQual
+            }
+            if (currentStreamUrl.isBlank() || !isDirectVideoStream(currentStreamUrl)) {
+                switchStream(currentSeason, currentEpisode, currentAudioId, selectedQuality, selectedSource)
+            }
+        } catch (_: Exception) {}
     }
 
     // Monitor playback progress & periodically save to WatchHistoryManager (throttled when controls hidden)

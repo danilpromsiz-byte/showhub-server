@@ -130,7 +130,7 @@ fun HomeScreen(
             row1FocusRequester = filterRow1FocusRequester,
             row2FocusRequester = filterRow2FocusRequester,
             focusUpRequester = topBarSearchFocusRequester,
-            focusDownRequester = targetCardFocusRequester
+            focusDownRequester = null
         )
 
         // 6-COLUMN VERTICAL GRID (2 rows of 6 cards on screen at a time, scrolling down)
@@ -176,9 +176,7 @@ fun HomeScreen(
             ) {
                 itemsIndexed(displayMovies) { index, movie ->
                     val isTarget = index == viewModel.lastFocusedIndex.coerceIn(0, (displayMovies.size - 1).coerceAtLeast(0))
-                    val cardFocusMod = Modifier
-                        .then(if (isTarget) Modifier.focusRequester(targetCardFocusRequester) else Modifier)
-                        .then(if (index < 6) Modifier.focusProperties { up = filterRow2FocusRequester } else Modifier)
+                    val cardFocusMod = if (isTarget) Modifier.focusRequester(targetCardFocusRequester) else Modifier
 
                     MovieCard(
                         movie = movie,

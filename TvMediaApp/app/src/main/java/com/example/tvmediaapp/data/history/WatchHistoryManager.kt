@@ -56,7 +56,7 @@ class WatchHistoryManager(context: Context) {
         val list = getHistory().toMutableList()
         list.removeAll { it.id == movie.id }
         list.add(0, item)
-        saveList(list.take(60))
+        saveList(list.take(200))
 
         if (movie.isSeries) {
             markEpisodeWatched(movie.id, season, episode)

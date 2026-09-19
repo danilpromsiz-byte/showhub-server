@@ -58,6 +58,7 @@ object UpdateManager {
     suspend fun downloadAndInstall(
         activity: Activity,
         apkUrl: String,
+        targetVersionCode: Int = 0,
         onProgress: ((status: String, percent: Int) -> Unit)? = null
     ): Boolean = withContext(Dispatchers.IO) {
         try {
@@ -65,28 +66,28 @@ object UpdateManager {
                 onProgress?.invoke("Подключение к серверу...", 0)
             }
 
-            val url = URL(apkUrl)
-            val conn = url.openConnection() as HttpURLConnection
-            conn.connectTimeout = 20000
-            conn.readTimeout = 60000
-            conn.setRequestProperty("User-Agent", "ShowHubTV-Native/2.6.0")
-            conn.connect()
-
-            val responseCode = conn.responseCode
-            if (responseCode !in 200..299) {
-                withContext(Dispatchers.Main) {
-                    onProgress?.invoke("Ошибка сервера ($responseCode)", -1)
-                }
-                return@withContext false
-            }
-
             val cacheDir = activity.externalCacheDir ?: activity.cacheDir
-            val apkFile = File(cacheDir, "ShowHub-update.apk")
+            val apkFile = File(cacheDir, if (targetVersionCode > 0) "ShowHub-update-v$targetVersionCode.apk" else "ShowHub-update.apk")
 
-            // If a valid APK was already downloaded in the last 20 minutes (> 5 MB), reuse it directly
-            val isCachedValid = apkFile.exists() &&
-                apkFile.length() > 5_000_000L &&
-                (System.currentTimeMillis() - apkFile.lastModified() < 20 * 60 * 1000L)
+            // Clean up any stale update files from older versions to prevent storage bloat and version confusion
+            try {
+                cacheDir.listFiles()?.forEach { file ->
+                    if (file.name.startsWith("ShowHub-update") && file.name != apkFile.name) {
+                        file.delete()
+                    }
+                }
+            } catch (_: Exception) {}
+
+            // Check if existing file is truly the valid target version
+            val isCachedValid = if (apkFile.exists() && apkFile.length() > 5_000_000L) {
+                val archiveInfo = activity.packageManager.getPackageArchiveInfo(apkFile.absolutePath, 0)
+                val code = if (archiveInfo != null) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) archiveInfo.longVersionCode.toInt() else archiveInfo.versionCode
+                } else 0
+                if (targetVersionCode > 0) code == targetVersionCode else code > 0
+            } else {
+                false
+            }
 
             if (isCachedValid) {
                 withContext(Dispatchers.Main) {
@@ -94,11 +95,26 @@ object UpdateManager {
                     onProgress?.invoke("Файл обновления готов ($mb МБ)", 100)
                 }
             } else {
-                val contentLength = conn.contentLength.toLong()
                 if (apkFile.exists()) {
                     try { apkFile.delete() } catch (_: Exception) {}
                 }
 
+                val url = URL(apkUrl)
+                val conn = url.openConnection() as HttpURLConnection
+                conn.connectTimeout = 20000
+                conn.readTimeout = 60000
+                conn.setRequestProperty("User-Agent", "ShowHubTV-Native/2.8.1")
+                conn.connect()
+
+                val responseCode = conn.responseCode
+                if (responseCode !in 200..299) {
+                    withContext(Dispatchers.Main) {
+                        onProgress?.invoke("Ошибка сервера ($responseCode)", -1)
+                    }
+                    return@withContext false
+                }
+
+                val contentLength = conn.contentLength.toLong()
                 var bytesReadTotal = 0L
                 var lastReportTime = 0L
 
@@ -144,6 +160,21 @@ object UpdateManager {
             if (apkFile.length() < 1_000_000L) {
                 withContext(Dispatchers.Main) {
                     onProgress?.invoke("Файл обновления поврежден (${apkFile.length()} байт). Попробуйте снова.", -1)
+                }
+                return@withContext false
+            }
+
+            // Verify downloaded package archive info
+            val archiveInfo = activity.packageManager.getPackageArchiveInfo(apkFile.absolutePath, 0)
+            val downloadedVersion = if (archiveInfo != null) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) archiveInfo.longVersionCode.toInt() else archiveInfo.versionCode
+            } else 0
+
+            if (targetVersionCode > 0 && downloadedVersion < targetVersionCode) {
+                try { apkFile.delete() } catch (_: Exception) {}
+                withContext(Dispatchers.Main) {
+                    onProgress?.invoke("Сервер вернул старую сборку (код $downloadedVersion). Открываем браузер...", -1)
+                    openDownloadUrlInBrowser(activity, apkUrl)
                 }
                 return@withContext false
             }

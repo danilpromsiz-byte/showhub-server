@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
 import androidx.compose.ui.draw.clip
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -102,21 +103,22 @@ class MainActivity : ComponentActivity() {
                 pInfo.versionCode
             }
         } catch (e: Exception) {
-            59
+            BuildConfig.VERSION_CODE
         }
     }
 
     fun getInstalledVersionName(): String {
         return try {
             val pInfo = packageManager.getPackageInfo(packageName, 0)
-            pInfo.versionName ?: "2.8.1"
+            pInfo.versionName ?: BuildConfig.VERSION_NAME
         } catch (e: Exception) {
-            "2.8.1"
+            BuildConfig.VERSION_NAME
         }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         CrashReporter.init(this)
         MediaDiskCache.init(this)
         CoilSetup.init(this)
@@ -179,6 +181,8 @@ fun TvAppNavHost(activity: MainActivity) {
 
     var updateInfo by remember { mutableStateOf<UpdateInfo?>(null) }
     var isDownloadingUpdate by remember { mutableStateOf(false) }
+    var dismissedVersionCode by remember { mutableIntStateOf(0) }
+    var lastInstallerLaunchTime by remember { mutableLongStateOf(0L) }
 
     fun triggerUpdateCheck(isUserClick: Boolean = false) {
         coroutineScope.launch {
@@ -188,7 +192,9 @@ fun TvAppNavHost(activity: MainActivity) {
             val myCode = activity.getInstalledVersionCode()
             val info = UpdateManager.checkUpdate(myCode)
             if (info.hasUpdate && info.versionCode > myCode) {
-                updateInfo = info
+                if (isUserClick || info.versionCode != dismissedVersionCode) {
+                    updateInfo = info
+                }
                 if (isUserClick) {
                     Toast.makeText(activity, "Доступно обновление ShowHub TV v${info.versionName}!", Toast.LENGTH_SHORT).show()
                 }
@@ -214,7 +220,8 @@ fun TvAppNavHost(activity: MainActivity) {
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
-                if (!isDownloadingUpdate && updateInfo == null) {
+                val timeSinceInstaller = System.currentTimeMillis() - lastInstallerLaunchTime
+                if (!isDownloadingUpdate && updateInfo == null && timeSinceInstaller > 45_000L) {
                     triggerUpdateCheck()
                 }
             }
@@ -230,6 +237,7 @@ fun TvAppNavHost(activity: MainActivity) {
 
     // Hardware Back button handling for Android TV remotes
     BackHandler(enabled = isUpdateDialogVisible) {
+        updateInfo?.let { dismissedVersionCode = it.versionCode }
         updateInfo = null
     }
 
@@ -468,6 +476,14 @@ fun TvAppNavHost(activity: MainActivity) {
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier.padding(32.dp)
                 ) {
+                    androidx.compose.foundation.Image(
+                        painter = androidx.compose.ui.res.painterResource(id = R.drawable.ic_showhub_logo),
+                        contentDescription = "ShowHub TV",
+                        modifier = Modifier
+                            .size(56.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
                     Text(
                         text = "Доступно обновление ShowHub TV v${update.versionName}",
                         style = MaterialTheme.typography.headlineMedium,
@@ -521,7 +537,12 @@ fun TvAppNavHost(activity: MainActivity) {
                                 if (!isDownloadingUpdate) {
                                     isDownloadingUpdate = true
                                     coroutineScope.launch {
-                                        val success = UpdateManager.downloadAndInstall(activity, update.downloadUrl) { status, percent ->
+                                        lastInstallerLaunchTime = System.currentTimeMillis()
+                                        val success = UpdateManager.downloadAndInstall(
+                                            activity = activity,
+                                            apkUrl = update.downloadUrl,
+                                            targetVersionCode = update.versionCode
+                                        ) { status, percent ->
                                             updateStatus = status
                                             updatePercent = percent
                                         }
@@ -601,7 +622,10 @@ fun TvAppNavHost(activity: MainActivity) {
 
                         // Button 3: Remind Later
                         Button(
-                            onClick = { updateInfo = null },
+                            onClick = {
+                                dismissedVersionCode = update.versionCode
+                                updateInfo = null
+                            },
                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                             scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                             contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
@@ -657,6 +681,14 @@ fun TvAppNavHost(activity: MainActivity) {
                         .padding(24.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
+                    androidx.compose.foundation.Image(
+                        painter = androidx.compose.ui.res.painterResource(id = R.drawable.ic_showhub_logo),
+                        contentDescription = "ShowHub TV",
+                        modifier = Modifier
+                            .size(52.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                    )
+                    Spacer(modifier = Modifier.height(14.dp))
                     Text(
                         text = "Выход из ShowHub TV",
                         fontSize = 20.sp,

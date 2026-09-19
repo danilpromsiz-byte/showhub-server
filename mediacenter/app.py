@@ -577,13 +577,13 @@ def check_updates() -> Dict[str, Any]:
 
     return {
         "success": True,
-        "version_name": "2.8.1",
-        "version_code": 60,
+        "version_name": "2.8.2",
+        "version_code": 61,
         "force_update": True,
-        "min_version_code": 60,
+        "min_version_code": 61,
         "apk_url": "https://showhub-server.onrender.com/ShowHub.apk",
         "download_url": "https://showhub-server.onrender.com/ShowHub.apk",
-        "changelog": "ShowHub TV v2.8.1: Динамический подсчет серий для каждой озвучки и источника; элегантный дизайн таймлайна плеера; обновлена векторная иконка и баннер приложения для всех экранов; устранена потеря фокуса в главном меню; исправлена рассинхронизация возрастных рейтингов карточки и деталей; быстрый параллельный предзагрузчик календаря серий с кэшированием; диалог подтверждения выхода."
+        "changelog": "ShowHub TV v2.8.2: Предотвращение ухода ТВ в заставку и спящий режим (FLAG_KEEP_SCREEN_ON); обновлена иконка приложения в лаунчере с названием ShowHub; чистый значок паузы без круга; устранена карусель повторных обновлений с валидацией версий APK."
     }
 
 CRASHES_FILE = os.path.join(CURRENT_DIR, "data", "crashes.json")

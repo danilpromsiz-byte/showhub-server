@@ -1455,10 +1455,12 @@ fun SettingsScreen(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(16.dp)
                                 ) {
-                                    AppIcon(
-                                        resId = R.drawable.ic_movie,
-                                        tint = accent,
-                                        size = 32.dp
+                                    androidx.compose.foundation.Image(
+                                        painter = androidx.compose.ui.res.painterResource(id = R.drawable.ic_showhub_logo),
+                                        contentDescription = "ShowHub TV",
+                                        modifier = Modifier
+                                            .size(36.dp)
+                                            .clip(RoundedCornerShape(8.dp))
                                     )
                                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                         Text(

@@ -1013,25 +1013,20 @@ private fun NativeExoPlayerScreen(
             }
         }
 
-        // Center Play / Pause Indicator Badge
+        // Center Play / Pause Indicator Badge (clean, without circle)
         AnimatedVisibility(
             visible = playbackActionBadge != null,
-            enter = fadeIn() + scaleIn(initialScale = 0.75f),
+            enter = fadeIn() + scaleIn(initialScale = 0.8f),
             exit = fadeOut() + scaleOut(targetScale = 1.15f),
             modifier = Modifier.align(Alignment.Center)
         ) {
             Box(
-                modifier = Modifier
-                    .size(80.dp)
-                    .clip(CircleShape)
-                    .background(Color.Black.copy(alpha = 0.78f))
-                    .border(2.dp, Color.White.copy(alpha = 0.85f), CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 AppIcon(
                     resId = if (playbackActionBadge == "play") R.drawable.ic_play_arrow else R.drawable.ic_pause,
-                    tint = Color.White,
-                    size = 46.dp
+                    tint = Color.White.copy(alpha = 0.95f),
+                    size = 64.dp
                 )
             }
         }

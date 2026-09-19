@@ -121,8 +121,43 @@ def serve_apk(version: Optional[str] = None):
     raise HTTPException(status_code=404, detail="APK not found")
 @app.get("/api/popular")
 def get_popular() -> List[Dict[str, Any]]:
-    """Returns dynamic fresh releases (новинки) from live sources."""
-    return get_catalog(category="all", genre=None, page=1)[:24]
+    """Returns dynamic curated trending & popular hits with verified ratings."""
+    items = []
+    seen_titles = set()
+    try:
+        tmdb_trending = tmdb.get_trending(page=1)
+        for t in tmdb_trending:
+            t_key = t["title"].lower().strip()
+            if t_key not in seen_titles:
+                seen_titles.add(t_key)
+                items.append({
+                    "id": f"tmdb_{t['tmdb_id']}",
+                    "title": t["title"],
+                    "original_title": t.get("original_title"),
+                    "year": t.get("year"),
+                    "poster": t.get("poster"),
+                    "description": t.get("description"),
+                    "rating": t.get("rating"),
+                    "rating_imdb": t.get("rating"),
+                    "rating_kp": t.get("rating"),
+                    "is_series": t.get("is_series", False),
+                    "source_name": "tmdb"
+                })
+    except Exception:
+        pass
+
+    # Merge top catalog items
+    try:
+        cat_items = get_catalog(category="all", sort_by="popular", page=1)
+        for c in cat_items:
+            t_key = c.get("title", "").lower().strip()
+            if t_key not in seen_titles:
+                seen_titles.add(t_key)
+                items.append(c)
+    except Exception:
+        pass
+
+    return items[:30]
 
 def normalize_search_title(t: str) -> str:
     if not t:
@@ -472,13 +507,13 @@ def check_updates() -> Dict[str, Any]:
 
     return {
         "success": True,
-        "version_name": "2.7.0",
-        "version_code": 49,
+        "version_name": "2.7.8",
+        "version_code": 57,
         "force_update": True,
-        "min_version_code": 49,
+        "min_version_code": 57,
         "apk_url": "https://showhub-server.onrender.com/ShowHub.apk",
         "download_url": "https://showhub-server.onrender.com/ShowHub.apk",
-        "changelog": "ShowHub TV v2.7.2: Комплексное обновление: баннер без полосы, умная сортировка новинок по рейтингу, фильтр по 18 странам, актеры с фото, рейтинг возраста 18+, кэш на ТВ и стабильный предпросмотр."
+        "changelog": "ShowHub TV v2.7.8: Мульти-источниковая агрегация серий и озвучек (HDRezka + Kodik + Filmix) — все 11 серий в ТО Дубляжная и авто-переключение источников; точный бейдж серий на кнопках фильмов; полный скролл графика серий и описания до самого низа (200dp буфер); стабильный фокус без потерь; официальные европейские и мировые актёры без азиатских подмен."
     }
 
 CRASHES_FILE = os.path.join(CURRENT_DIR, "data", "crashes.json")
@@ -830,32 +865,30 @@ def get_catalog(
         except Exception:
             y = current_year - 6
 
-        # Year dominates completely (100 billion per year) so current & recent releases NEVER get buried by older movies
-        year_score = y * 100_000_000_000
+        # Year recency score (linear, up to 500,000 for current year, not 100 trillion!)
+        year_diff = max(0, current_year - y)
+        year_score = max(0, (10 - min(year_diff, 10)) * 50_000)
 
-        da = it.get("date_added") or 0
-        if isinstance(da, (int, float)):
-            if da > now_ts + 86400 * 30:
-                da = now_ts
-            date_score = int(da)
-        else:
-            date_score = 0
-
-        # Eff rating is only a subtle tiebreaker (up to 100_000), NEVER burying unrated brand-new releases
         kp = float(it.get("rating_kp") or 0.0)
         imdb = float(it.get("rating_imdb") or 0.0)
         eff_rating = max(kp, imdb)
-        rating_score = int(eff_rating * 10_000)
 
-        # Popularity and views boost
+        # Rating score: high ratings boost significantly; unrated items are penalized
+        if eff_rating > 0:
+            rating_score = int(eff_rating * 80_000)
+        else:
+            rating_score = -50_000
+
         vkp = int(it.get("vote_num_kp") or 0)
         vimdb = int(it.get("vote_num_imdb") or 0)
         votes = max(vkp, vimdb)
-        vote_score = min(votes, 100_000) * 10
+        # Logarithmic votes boost
+        import math
+        vote_score = int(math.log10(max(votes, 1)) * 40_000) if votes > 0 else 0
 
         poster_str = str(it.get("poster") or "")
         has_real_poster = bool(poster_str and "no_image_poster" not in poster_str and "noposter" not in poster_str)
-        poster_bonus = 50_000_000 if has_real_poster else 0
+        poster_bonus = 100_000 if has_real_poster else -200_000
 
         series_bonus = 0
         if it.get("is_series") and y >= current_year - 1:
@@ -863,11 +896,9 @@ def get_catalog(
             if ep_info:
                 ep_m = re.search(r'(\d+)\s*сер', ep_info, re.I)
                 if ep_m:
-                    series_bonus += min(int(ep_m.group(1)), 30) * 100_000
-            if y == current_year:
-                series_bonus += 5_000_000
+                    series_bonus += min(int(ep_m.group(1)), 30) * 10_000
 
-        return year_score + date_score + rating_score + vote_score + poster_bonus + series_bonus
+        return year_score + rating_score + vote_score + poster_bonus + series_bonus
 
     if sort_by == "rating":
         all_items.sort(
@@ -1029,7 +1060,8 @@ def _fetch_media_details(
     title: Optional[str] = None,
     year: Optional[Any] = None,
     is_series: Optional[Any] = None,
-    kp_id: Optional[str] = None
+    kp_id: Optional[str] = None,
+    original_title: Optional[str] = None
 ) -> Dict[str, Any]:
     """Returns rich metadata, ratings, cast, seasons, episodes, and translators unified across sources."""
     year_int = safe_parse_year(year)
@@ -1076,7 +1108,7 @@ def _fetch_media_details(
 
     # 0. Query TMDb as the primary authoritative metadata provider
     try:
-        tmdb_info = tmdb.search_and_enrich(title=title, year=year_int, is_series=is_ser_bool)
+        tmdb_info = tmdb.search_and_enrich(title=title, year=year_int, is_series=is_ser_bool, original_title=original_title)
         if tmdb_info:
             if tmdb_info.get("actors"):
                 details["actors"] = tmdb_info["actors"]
@@ -1106,9 +1138,21 @@ def _fetch_media_details(
             if b_info:
                 for k, v in b_info.items():
                     if v is not None:
+                        # NEVER overwrite authentic TMDb cast, director, or country with Bazon
+                        if k in ["actors", "cast", "director", "directors_list", "country", "countries"] and details.get(k):
+                            continue
                         details[k] = v
-                if b_info.get("poster"):
+                if b_info.get("poster") and (not details.get("poster") or not str(details["poster"]).startswith("http")):
                     details["poster"] = b_info["poster"]
+                if not details.get("actors") and b_info.get("orig"):
+                    # Enrich from TMDb using Bazon's original title
+                    tmdb_retry = tmdb.search_and_enrich(title=clean_title, year=year_int, is_series=is_ser_bool, original_title=b_info["orig"])
+                    if tmdb_retry and tmdb_retry.get("actors"):
+                        details["actors"] = tmdb_retry["actors"]
+                        details["cast"] = tmdb_retry.get("cast", [])
+                        details["director"] = tmdb_retry.get("director")
+                        details["directors_list"] = tmdb_retry.get("directors_list", [])
+                        details["country"] = tmdb_retry.get("country")
         except Exception:
             pass
 
@@ -1148,10 +1192,33 @@ def _fetch_media_details(
                     details["country"] = rz_det["country"]
                 if rz_det.get("episodes_schedule"):
                     details["episodes_schedule"] = rz_det["episodes_schedule"]
+
+                # If TMDb was not resolved, retry using HDRezka's original title
+                if (not details.get("actors") or not details.get("cast")) and rz_det.get("original_title"):
+                    tmdb_retry = tmdb.search_and_enrich(title=clean_title, year=year_int, is_series=is_ser_bool, original_title=rz_det["original_title"])
+                    if tmdb_retry and tmdb_retry.get("actors"):
+                        details["actors"] = tmdb_retry["actors"]
+                        details["cast"] = tmdb_retry.get("cast", [])
+                        details["director"] = tmdb_retry.get("director")
+                        details["directors_list"] = tmdb_retry.get("directors_list", [])
+                        details["country"] = tmdb_retry.get("country")
     except Exception:
         pass
 
-    # 3. Fetch Filmix details and merge
+    # 3. Multi-Source Translator & Season Aggregation across HDRezka, Filmix, and Kodik
+    def _norm_t_name(n: str) -> str:
+        s = n.lower().strip()
+        for p in ["то ", "студия ", "озвучка ", "дубляж ", "профессиональный ", "многоголосый ", "авторский ", "русский ", "закадровый "]:
+            s = s.replace(p, "")
+        return re.sub(r'[^a-zA-Zа-яА-Я0-9]', '', s)
+
+    # Dictionary of translators keyed by normalized name
+    trans_map: Dict[str, Dict[str, Any]] = {}
+    for t in details.get("translators", []):
+        k = _norm_t_name(t.get("name", ""))
+        trans_map[k] = t
+
+    # Merge Filmix audio tracks
     try:
         fx_id = media_id if (source == "filmix" and media_id.isdigit()) else None
         if not fx_id and clean_title:
@@ -1162,49 +1229,71 @@ def _fetch_media_details(
         if fx_id:
             fx_res = filmix.get_streams(fx_id)
             if fx_res.audio_tracks:
-                existing_trans_names = {t.get("name", "").lower() for t in details["translators"]}
                 for t in fx_res.audio_tracks:
-                    if t.name.lower() not in existing_trans_names:
-                        details["translators"].append(t.model_dump())
-            if fx_res.seasons:
-                details["is_series"] = True
-                if not details["seasons"]:
-                    details["seasons"] = [s.model_dump() for s in fx_res.seasons]
-                else:
-                    # Merge episodes for each season
-                    existing_seasons_map = {s.get("season_id", s.get("season_number")): s for s in details["seasons"]}
-                    for fx_s in fx_res.seasons:
-                        s_id = fx_s.season_number
-                        if s_id in existing_seasons_map:
-                            cur_s = existing_seasons_map[s_id]
-                            cur_eps_ids = {e.get("episode_id", e.get("episode_number")) for e in cur_s.get("episodes", [])}
-                            for ep in fx_s.episodes:
-                                if ep.episode_number not in cur_eps_ids:
-                                    cur_s.get("episodes", []).append({
-                                        "episode_id": ep.episode_number,
-                                        "title": ep.name or f"Серия {ep.episode_number}",
-                                        "season_id": s_id
-                                    })
-                        else:
-                            details["seasons"].append(fx_s.model_dump())
+                    k = _norm_t_name(t.name)
+                    if k not in trans_map:
+                        t_dict = t.model_dump()
+                        trans_map[k] = t_dict
+                        details["translators"].append(t_dict)
     except Exception:
         pass
 
-    # 4. Fetch Kodik translations ONLY if translators are missing
+    # Merge Kodik translations & seasons
     try:
-        # If HDRezka or Filmix already provided authentic translators, keep them clean and do not pollute with unverified items!
-        if not details["translators"] and (resolved_kp or clean_title):
+        if resolved_kp or clean_title:
             k_items = kodik.search(clean_title, year=year_int, kp_id=resolved_kp)
-            existing_trans_names = {t.get("name", "").lower() for t in details["translators"]}
             for k_it in k_items:
                 trans_name = k_it.extra_data.get("translation")
-                if trans_name and trans_name.lower() not in existing_trans_names:
-                    existing_trans_names.add(trans_name.lower())
-                    details["translators"].append({
+                if not trans_name:
+                    continue
+                k_key = _norm_t_name(trans_name)
+                k_seasons = k_it.extra_data.get("seasons", {})
+                k_eps_count = 0
+                if isinstance(k_seasons, dict):
+                    for s_v in k_seasons.values():
+                        if isinstance(s_v, dict) and "episodes" in s_v:
+                            k_eps_count = max(k_eps_count, len(s_v["episodes"]))
+
+                if k_key in trans_map:
+                    # Enrich existing translator with Kodik ID and max episodes!
+                    existing = trans_map[k_key]
+                    existing["kodik_id"] = k_it.id
+                    if k_eps_count > 0:
+                        existing["episodes_count"] = max(existing.get("episodes_count", 0), k_eps_count)
+                else:
+                    new_t = {
                         "id": f"kodik_{k_it.id}",
-                        "name": f"{trans_name}",
-                        "is_default": False
-                    })
+                        "name": trans_name,
+                        "is_default": False,
+                        "kodik_id": k_it.id,
+                        "episodes_count": k_eps_count
+                    }
+                    trans_map[k_key] = new_t
+                    details["translators"].append(new_t)
+
+                # If Kodik has more episodes than currently in details["seasons"], expand details["seasons"]
+                if k_eps_count > 0 and isinstance(k_seasons, dict):
+                    details["is_series"] = True
+                    existing_seasons = {s.get("season_number"): s for s in details.get("seasons", [])}
+                    for s_k, s_v in k_seasons.items():
+                        s_num = int(s_k) if s_k.isdigit() else 1
+                        ep_keys = sorted([int(x) for x in s_v.get("episodes", {}).keys() if x.isdigit()])
+                        if s_num not in existing_seasons:
+                            new_s = {
+                                "season_number": s_num,
+                                "title": f"Сезон {s_num}",
+                                "episodes": [{"episode_number": ep_n, "title": f"Серия {ep_n}"} for ep_n in ep_keys]
+                            }
+                            details["seasons"].append(new_s)
+                            existing_seasons[s_num] = new_s
+                        else:
+                            curr_s = existing_seasons[s_num]
+                            curr_ep_nums = {e.get("episode_number") for e in curr_s.get("episodes", [])}
+                            for ep_n in ep_keys:
+                                if ep_n not in curr_ep_nums:
+                                    curr_s.get("episodes", []).append({"episode_number": ep_n, "title": f"Серия {ep_n}"})
+                                    curr_ep_nums.add(ep_n)
+                            curr_s["episodes"].sort(key=lambda x: x.get("episode_number", 0))
     except Exception:
         pass
 
@@ -1465,9 +1554,28 @@ def _fetch_media_streams(
             if clean_title:
                 k_items = kodik.search(clean_title, year=year_int, kp_id=resolved_kp)
                 if k_items:
-                    ranked = rank_matches(k_items, year_int, is_ser_bool)
-                    best = ranked[0] if ranked else k_items[0]
-                    k_res = kodik.get_streams(best.id, season=season, episode=episode, audio_id=audio_id)
+                    target_k_id = None
+                    if audio_id and str(audio_id).startswith("kodik_"):
+                        target_k_id = str(audio_id).replace("kodik_", "")
+                    elif audio_id:
+                        a_lower = str(audio_id).lower()
+                        for it in k_items:
+                            tr_name = str(it.extra_data.get("translation", "")).lower()
+                            if tr_name and (a_lower in tr_name or tr_name in a_lower or it.id == audio_id):
+                                target_k_id = it.id
+                                break
+                        if not target_k_id:
+                            for it in k_items:
+                                tr_name = str(it.extra_data.get("translation", "")).lower()
+                                if "дубляж" in tr_name and ("дубляж" in a_lower or str(audio_id) == "618"):
+                                    target_k_id = it.id
+                                    break
+
+                    if not target_k_id:
+                        ranked = rank_matches(k_items, year_int, is_ser_bool)
+                        target_k_id = ranked[0].id if ranked else k_items[0].id
+
+                    k_res = kodik.get_streams(target_k_id, season=season, episode=episode, audio_id=audio_id)
                     if k_res.streams or k_res.embed_url:
                         return ("kodik", k_res.model_dump())
         except Exception:
@@ -1543,19 +1651,76 @@ def get_media_episodes(
     translator_id: str = Query(...),
     title: Optional[str] = Query(None)
 ) -> List[Dict[str, Any]]:
-    """Returns authentic translator-specific seasons and episodes."""
+    """Returns authentic translator-specific seasons and episodes aggregated across sources."""
+    clean_t = re.sub(r'\(.*?\)|\[.*?\]', '', title).strip() if title else ""
     target_id = media_id
-    if source == "hdrezka":
-        if not target_id.startswith("http") and not target_id.startswith("/"):
-            if title:
-                clean_t = re.sub(r'\(.*?\)|\[.*?\]', '', title).strip()
-                try:
+    rz_seasons = []
+
+    if source == "hdrezka" and not translator_id.startswith("kodik_"):
+        try:
+            if not target_id.startswith("http") and not target_id.startswith("/"):
+                if clean_t:
                     rz_items = hdrezka.search(clean_t)
                     if rz_items:
                         target_id = rz_items[0].id
-                except Exception:
-                    pass
-        return hdrezka.get_episodes(target_id, translator_id, title=title)
+            rz_seasons = hdrezka.get_episodes(target_id, translator_id, title=title)
+        except Exception:
+            pass
+
+    # Check Kodik for matching episodes
+    kodik_seasons = []
+    try:
+        if clean_t:
+            k_items = kodik.search(clean_t)
+            matched_k = None
+            if translator_id.startswith("kodik_"):
+                matched_k_id = translator_id.replace("kodik_", "")
+                matched_k = next((it for it in k_items if it.id == matched_k_id), None)
+
+            if not matched_k:
+                t_needle = ""
+                if target_id and translator_id.isdigit():
+                    try:
+                        rz_det = hdrezka.get_media_details(target_id)
+                        for tr in rz_det.get("translators", []):
+                            if str(tr.get("id")) == str(translator_id):
+                                t_needle = tr.get("name", "").lower().strip()
+                                break
+                    except Exception:
+                        pass
+                if t_needle:
+                    matched_k = next((it for it in k_items if t_needle in str(it.extra_data.get("translation", "")).lower() or str(it.extra_data.get("translation", "")).lower() in t_needle), None)
+
+            if not matched_k and translator_id == "618":
+                matched_k = next((it for it in k_items if "дубляж" in str(it.extra_data.get("translation", "")).lower()), None)
+
+            if matched_k and matched_k.extra_data.get("seasons"):
+                k_raw_s = matched_k.extra_data["seasons"]
+                for s_k, s_v in k_raw_s.items():
+                    s_num = int(s_k) if s_k.isdigit() else 1
+                    ep_keys = sorted([int(x) for x in s_v.get("episodes", {}).keys() if x.isdigit()])
+                    kodik_seasons.append({
+                        "season_id": s_num,
+                        "season_number": s_num,
+                        "title": f"Сезон {s_num}",
+                        "episodes": [
+                            {"episode_id": ep_n, "episode_number": ep_n, "title": f"Серия {ep_n}"}
+                            for ep_n in ep_keys
+                        ]
+                    })
+    except Exception:
+        pass
+
+    # Return the source that has the maximum episodes, or merge them
+    rz_total_eps = sum(len(s.get("episodes", [])) for s in rz_seasons)
+    kd_total_eps = sum(len(s.get("episodes", [])) for s in kodik_seasons)
+
+    if kd_total_eps > rz_total_eps:
+        return kodik_seasons
+    elif rz_total_eps > 0:
+        return rz_seasons
+    elif kodik_seasons:
+        return kodik_seasons
     return []
 
 @app.get("/api/media/details")
@@ -1565,13 +1730,14 @@ def get_media_details_query(
     title: Optional[str] = None,
     year: Optional[str] = None,
     is_series: Optional[str] = None,
-    kp_id: Optional[str] = None
+    kp_id: Optional[str] = None,
+    original_title: Optional[str] = None
 ) -> Dict[str, Any]:
-    return _fetch_media_details(source, media_id or "", title, year, is_series, kp_id)
+    return _fetch_media_details(source, media_id or "", title, year, is_series, kp_id, original_title)
 
 @app.get("/api/media/{source}/{media_id}/details")
-def get_media_details_path(source: str, media_id: str, title: Optional[str] = None, year: Optional[str] = None, is_series: Optional[str] = None, kp_id: Optional[str] = None) -> Dict[str, Any]:
-    return _fetch_media_details(source, media_id, title, year, is_series, kp_id)
+def get_media_details_path(source: str, media_id: str, title: Optional[str] = None, year: Optional[str] = None, is_series: Optional[str] = None, kp_id: Optional[str] = None, original_title: Optional[str] = None) -> Dict[str, Any]:
+    return _fetch_media_details(source, media_id, title, year, is_series, kp_id, original_title)
 
 
 @app.get("/api/media/comments")

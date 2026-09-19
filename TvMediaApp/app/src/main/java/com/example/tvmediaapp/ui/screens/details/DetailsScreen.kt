@@ -1742,6 +1742,7 @@ fun DetailsScreen(
                                     }
                                 }
                             }
+                            Spacer(modifier = Modifier.height(160.dp))
                         }
                     }
 
@@ -1948,6 +1949,7 @@ fun DetailsScreen(
                                     Text(text = "Год премьеры: ${currentMovie.releaseYear}", fontSize = 13.sp, color = TextWhite)
                                 }
                             }
+                            Spacer(modifier = Modifier.height(160.dp))
                         }
                     }
 
@@ -2039,7 +2041,7 @@ fun DetailsScreen(
                 }
 
                 // Smooth bottom clearance for TV bezels and overscan
-                Spacer(modifier = Modifier.height(140.dp))
+                Spacer(modifier = Modifier.height(200.dp))
             }
         }
     }

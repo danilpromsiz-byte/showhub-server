@@ -130,7 +130,8 @@ object ShowHubApiClient {
     private suspend fun fetchMediaDetailsFromNetwork(movie: Movie): Movie = withContext(Dispatchers.IO) {
         try {
             val q = URLEncoder.encode(movie.title, "UTF-8")
-            val urlStr = "$SERVER_BASE/api/media/details?source=hdrezka&media_id=${movie.id}&title=$q&year=${movie.releaseYear}&is_series=${if (movie.isSeries) "1" else "0"}"
+            val origQ = URLEncoder.encode(movie.originalTitle, "UTF-8")
+            val urlStr = "$SERVER_BASE/api/media/details?source=hdrezka&media_id=${movie.id}&title=$q&original_title=$origQ&year=${movie.releaseYear}&is_series=${if (movie.isSeries) "1" else "0"}"
             val conn = URL(urlStr).openConnection() as HttpURLConnection
             conn.connectTimeout = 10000
             conn.readTimeout = 15000
@@ -277,11 +278,12 @@ object ShowHubApiClient {
             val encId = URLEncoder.encode(movie.id, "UTF-8")
             val encTrans = URLEncoder.encode(translatorId, "UTF-8")
             val encTitle = URLEncoder.encode(movie.title, "UTF-8")
-            val urlStr = "$SERVER_BASE/api/media/episodes?source=hdrezka&media_id=$encId&translator_id=$encTrans&title=$encTitle"
+            val encOrig = URLEncoder.encode(movie.originalTitle, "UTF-8")
+            val urlStr = "$SERVER_BASE/api/media/episodes?source=hdrezka&media_id=$encId&translator_id=$encTrans&title=$encTitle&original_title=$encOrig"
             val conn = URL(urlStr).openConnection() as HttpURLConnection
             conn.connectTimeout = 8000
             conn.readTimeout = 12000
-            conn.setRequestProperty("User-Agent", "ShowHubTV-Native/2.7.5")
+            conn.setRequestProperty("User-Agent", "ShowHubTV-Native/${com.example.tvmediaapp.BuildConfig.VERSION_NAME}")
             conn.connect()
             if (conn.responseCode == 200) {
                 val body = BufferedReader(InputStreamReader(conn.inputStream, "UTF-8")).use { it.readText() }
@@ -324,9 +326,10 @@ object ShowHubApiClient {
         val embedStreams = mutableListOf<StreamOption>()
         try {
             val q = URLEncoder.encode(movie.title, "UTF-8")
+            val origQ = URLEncoder.encode(movie.originalTitle, "UTF-8")
             val isSeriesStr = if (movie.isSeries) "1" else "0"
             val srcParam = if (source.isNullOrEmpty()) "all" else source.lowercase().trim()
-            val sb = StringBuilder("$SERVER_BASE/api/media/streams?source=$srcParam&media_id=${movie.id}&kp_id=${movie.id}&title=$q&year=${movie.releaseYear}&is_series=$isSeriesStr")
+            val sb = StringBuilder("$SERVER_BASE/api/media/streams?source=$srcParam&media_id=${movie.id}&kp_id=${movie.id}&title=$q&original_title=$origQ&year=${movie.releaseYear}&is_series=$isSeriesStr")
             if (season != null) sb.append("&season=$season")
             if (episode != null) sb.append("&episode=$episode")
             if (!audioId.isNullOrEmpty()) sb.append("&audio_id=").append(URLEncoder.encode(audioId, "UTF-8"))
@@ -334,7 +337,7 @@ object ShowHubApiClient {
             val conn = URL(sb.toString()).openConnection() as HttpURLConnection
             conn.connectTimeout = 15000
             conn.readTimeout = 25000
-            conn.setRequestProperty("User-Agent", "ShowHubTV-Native/2.6.7")
+            conn.setRequestProperty("User-Agent", "ShowHubTV-Native/${com.example.tvmediaapp.BuildConfig.VERSION_NAME}")
             conn.connect()
             if (conn.responseCode == 200) {
                 val body = BufferedReader(InputStreamReader(conn.inputStream, "UTF-8")).use { it.readText() }
@@ -589,7 +592,7 @@ object ShowHubApiClient {
             }
             val actors = if (rawActors.isBlank() || rawActors.equals("null", ignoreCase = true)) "" else rawActors
 
-            val rawEpisodesInfo = extraObj?.optString("episodes_info", "") ?: it.optString("episodes_info", "")
+            val rawEpisodesInfo = it.optString("episodes_info", "").ifEmpty { extraObj?.optString("episodes_info", "") ?: "" }
             val episodesInfo = if (rawEpisodesInfo.isBlank() || rawEpisodesInfo.equals("null", ignoreCase = true)) "" else rawEpisodesInfo
 
             val genresList = mutableListOf<String>()

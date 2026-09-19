@@ -139,6 +139,11 @@ class WatchHistoryManager(context: Context) {
         return prefs.getInt("new_episodes_$seriesId", 0)
     }
 
+    fun getKnownTotalEpisodes(seriesId: String): Int {
+        if (seriesId.isBlank()) return 0
+        return prefs.getInt("known_episodes_$seriesId", 0)
+    }
+
     fun hasNewEpisodes(seriesId: String): Boolean {
         return getNewEpisodesCount(seriesId) > 0
     }

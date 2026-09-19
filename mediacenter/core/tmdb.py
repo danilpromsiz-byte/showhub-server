@@ -60,7 +60,7 @@ class TMDbClient:
         self.api_key = api_key
         self.session = requests.Session()
         self.session.headers.update({
-            "User-Agent": "ShowHubTV-MediaCenter/2.7.7",
+            "User-Agent": "ShowHubTV-MediaCenter/2.7.8",
             "Accept": "application/json"
         })
 
@@ -128,6 +128,19 @@ class TMDbClient:
                     if r_json:
                         results = r_json
                         break
+                
+                # If year constraint returned nothing, retry query without year constraint
+                if year and not results:
+                    if media_type == "multi":
+                        u2 = f"{BASE_URL}/search/multi?api_key={self.api_key}&query={urllib.parse.quote(q)}&language=ru-RU"
+                    else:
+                        u2 = f"{BASE_URL}/search/{media_type}?api_key={self.api_key}&query={urllib.parse.quote(q)}&language=ru-RU"
+                    resp2 = self.session.get(u2, timeout=4)
+                    if resp2.status_code == 200:
+                        r_json2 = resp2.json().get("results", [])
+                        if r_json2:
+                            results = r_json2
+                            break
 
             if not results:
                 return None
@@ -239,5 +252,111 @@ class TMDbClient:
 
         except Exception:
             return None
+
+    def get_trending(self, page: int = 1) -> List[Dict[str, Any]]:
+        """Fetches worldwide trending movies and series for the week in Russian."""
+        try:
+            url = f"{BASE_URL}/trending/all/week?api_key={self.api_key}&language=ru-RU&page={page}"
+            resp = self.session.get(url, timeout=5)
+            if resp.status_code == 200:
+                results = resp.json().get("results", [])
+                out = []
+                for it in results:
+                    media_type = it.get("media_type")
+                    if media_type not in ["movie", "tv"]:
+                        continue
+                    m_id = it.get("id")
+                    title = it.get("title") or it.get("name")
+                    orig_title = it.get("original_title") or it.get("original_name")
+                    r_date = it.get("release_date") or it.get("first_air_date") or ""
+                    year_val = None
+                    if r_date and len(r_date) >= 4 and r_date[:4].isdigit():
+                        year_val = int(r_date[:4])
+                    p_path = it.get("poster_path")
+                    poster = f"{IMG_BASE}/w780{p_path}" if p_path else None
+                    rating = it.get("vote_average")
+                    votes = it.get("vote_count", 0)
+                    is_ser = (media_type == "tv")
+                    out.append({
+                        "tmdb_id": m_id,
+                        "title": title,
+                        "original_title": orig_title,
+                        "description": it.get("overview", ""),
+                        "year": year_val,
+                        "poster": poster,
+                        "rating": rating,
+                        "vote_count": votes,
+                        "is_series": is_ser,
+                        "origin_country": it.get("origin_country", [])
+                    })
+                return out
+        except Exception:
+            pass
+        return []
+
+    def get_popular_movies(self, page: int = 1) -> List[Dict[str, Any]]:
+        """Fetches top popular movies from TMDb in Russian."""
+        try:
+            url = f"{BASE_URL}/movie/popular?api_key={self.api_key}&language=ru-RU&page={page}"
+            resp = self.session.get(url, timeout=5)
+            if resp.status_code == 200:
+                results = resp.json().get("results", [])
+                out = []
+                for it in results:
+                    m_id = it.get("id")
+                    title = it.get("title")
+                    orig_title = it.get("original_title")
+                    r_date = it.get("release_date") or ""
+                    year_val = int(r_date[:4]) if (r_date and len(r_date) >= 4 and r_date[:4].isdigit()) else None
+                    p_path = it.get("poster_path")
+                    poster = f"{IMG_BASE}/w780{p_path}" if p_path else None
+                    out.append({
+                        "tmdb_id": m_id,
+                        "title": title,
+                        "original_title": orig_title,
+                        "description": it.get("overview", ""),
+                        "year": year_val,
+                        "poster": poster,
+                        "rating": it.get("vote_average"),
+                        "vote_count": it.get("vote_count", 0),
+                        "is_series": False
+                    })
+                return out
+        except Exception:
+            pass
+        return []
+
+    def get_popular_series(self, page: int = 1) -> List[Dict[str, Any]]:
+        """Fetches top popular TV series from TMDb in Russian."""
+        try:
+            url = f"{BASE_URL}/tv/popular?api_key={self.api_key}&language=ru-RU&page={page}"
+            resp = self.session.get(url, timeout=5)
+            if resp.status_code == 200:
+                results = resp.json().get("results", [])
+                out = []
+                for it in results:
+                    m_id = it.get("id")
+                    title = it.get("name")
+                    orig_title = it.get("original_name")
+                    r_date = it.get("first_air_date") or ""
+                    year_val = int(r_date[:4]) if (r_date and len(r_date) >= 4 and r_date[:4].isdigit()) else None
+                    p_path = it.get("poster_path")
+                    poster = f"{IMG_BASE}/w780{p_path}" if p_path else None
+                    out.append({
+                        "tmdb_id": m_id,
+                        "title": title,
+                        "original_title": orig_title,
+                        "description": it.get("overview", ""),
+                        "year": year_val,
+                        "poster": poster,
+                        "rating": it.get("vote_average"),
+                        "vote_count": it.get("vote_count", 0),
+                        "is_series": True,
+                        "origin_country": it.get("origin_country", [])
+                    })
+                return out
+        except Exception:
+            pass
+        return []
 
 tmdb = TMDbClient()

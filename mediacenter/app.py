@@ -577,13 +577,13 @@ def check_updates() -> Dict[str, Any]:
 
     return {
         "success": True,
-        "version_name": "2.8.6",
-        "version_code": 65,
+        "version_name": "2.8.7",
+        "version_code": 66,
         "force_update": True,
-        "min_version_code": 65,
+        "min_version_code": 66,
         "apk_url": "https://showhub-server.onrender.com/ShowHub.apk",
         "download_url": "https://showhub-server.onrender.com/ShowHub.apk",
-        "changelog": "ShowHub TV v2.8.6: Точная синхронизация количества серий для каждой озвучки и ограничение списка серий выбранным переводом; удалены ошибочные фрагменты описаний (ЖЕН, КОТ, КРУ, БУД и др.) вместо стран; сквозная универсальная навигация Назад с сохранением карточки фильма и истории переходов; высококонтрастный таймлайн прогресса на кнопках серий (зелёный/янтарный); поддержка воспроизведения 8-й серии «Президент Кёртис 2026» и всех мультсериалов."
+        "changelog": "ShowHub TV v2.8.7: Исправление фейковых озвучек и серий (серии и дорожки фильтруются строго по сезонам); контрастный таймлайн серий в карточке фильма; однократное нажатие Назад для выхода из плеера; хронологический порядок в календаре «Скоро выйдут»; отображение текущего времени при перемотке (напр. 48 м. 34 с.), отображение минут и секунд при быстрой перемотке свыше 60с; таймер меню не сбрасывается во время перемотки; яркая подсветка таймлайна сверху."
     }
 
 CRASHES_FILE = os.path.join(CURRENT_DIR, "data", "crashes.json")
@@ -1457,10 +1457,16 @@ def _fetch_media_details(
     if total_series_eps > 0:
         details["is_series"] = True
     for t in details.get("translators", []):
-        if not t.get("seasons_episodes"):
+        t_se = t.get("seasons_episodes")
+        if not t_se and t.get("source") == "hdrezka" and not t.get("kodik_id"):
             t["seasons_episodes"] = rz_seasons_eps
+        
         ep_cnt = t.get("episodes_count")
-        if ep_cnt is None or ep_cnt <= 0 or (ep_cnt == 1 and total_series_eps > 1):
+        if t.get("seasons_episodes"):
+            se_max = max([int(v) for v in t["seasons_episodes"].values() if str(v).isdigit()], default=0)
+            if se_max > 0:
+                t["episodes_count"] = se_max
+        elif ep_cnt is None or ep_cnt <= 0:
             t["episodes_count"] = total_series_eps
 
     # Source availability metadata for UI Source selector

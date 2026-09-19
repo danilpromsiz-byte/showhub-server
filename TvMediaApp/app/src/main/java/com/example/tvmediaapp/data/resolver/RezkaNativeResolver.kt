@@ -80,8 +80,8 @@ object RezkaNativeResolver {
         val streams = mutableListOf<StreamOption>()
         try {
             // 1. Search HDRezka directly from the Android TV's residential IP
-            val searchUrl = "$baseUrl/search/?do=search&subaction=search&q=" + URLEncoder.encode(cleanTitle, "UTF-8")
-            val searchHtml = httpGet(searchUrl, "$baseUrl/", baseUrl = baseUrl) ?: return emptyList()
+            var searchUrl = "$baseUrl/search/?do=search&subaction=search&q=" + URLEncoder.encode(cleanTitle, "UTF-8")
+            var searchHtml = httpGet(searchUrl, "$baseUrl/", baseUrl = baseUrl) ?: ""
 
             var dataId: String? = null
             var pageUrl: String? = null
@@ -90,44 +90,60 @@ object RezkaNativeResolver {
             data class RezkaCandidate(val id: String, val url: String, val score: Int)
             val candidates = mutableListOf<RezkaCandidate>()
 
-            // Pattern A: Match inside search result items container and score candidates
-            val itemPattern = Pattern.compile("class=\"b-content__inline_item\"[^>]*data-id=\"(\\d+)\"[^>]*data-url=\"([^\"]+)\"([\\s\\S]*?)(?=<div class=\"b-content__inline_item\"|$)")
-            val itemMatcher = itemPattern.matcher(searchHtml)
-            while (itemMatcher.find()) {
-                val id = itemMatcher.group(1) ?: continue
-                val rawLink = itemMatcher.group(2) ?: ""
-                val fullUrl = if (rawLink.startsWith("http")) rawLink else "$baseUrl$rawLink"
-                val snippet = itemMatcher.group(3) ?: ""
-                var score = 10
+            fun parseCandidates(html: String) {
+                val itemPattern = Pattern.compile("class=\"b-content__inline_item\"[^>]*data-id=\"(\\d+)\"[^>]*data-url=\"([^\"]+)\"([\\s\\S]*?)(?=<div class=\"b-content__inline_item\"|$)")
+                val itemMatcher = itemPattern.matcher(html)
+                while (itemMatcher.find()) {
+                    val id = itemMatcher.group(1) ?: continue
+                    val rawLink = itemMatcher.group(2) ?: ""
+                    val fullUrl = if (rawLink.startsWith("http")) rawLink else "$baseUrl$rawLink"
+                    val snippet = itemMatcher.group(3) ?: ""
+                    var score = 10
 
-                // Year matching
-                val yearMatcher = Pattern.compile("\\b(19\\d\\d|20\\d\\d)\\b").matcher(snippet)
-                if (yearMatcher.find()) {
-                    val candYear = yearMatcher.group(1).toIntOrNull()
-                    if (targetYearInt != null && candYear != null) {
-                        val diff = Math.abs(candYear - targetYearInt)
-                        if (diff == 0) score += 100
-                        else if (diff == 1) score += 50
-                        else score -= diff * 10
+                    // Year matching
+                    val yearMatcher = Pattern.compile("\\b(19\\d\\d|20\\d\\d)\\b").matcher(snippet)
+                    if (yearMatcher.find()) {
+                        val candYear = yearMatcher.group(1).toIntOrNull()
+                        if (targetYearInt != null && candYear != null) {
+                            val diff = Math.abs(candYear - targetYearInt)
+                            if (diff == 0) score += 100
+                            else if (diff == 1) score += 50
+                            else score -= diff * 10
+                        }
                     }
-                }
 
-                // Series vs Movie matching
-                val isCandSeries = fullUrl.contains("/series/") || fullUrl.contains("/animation/") || (isSeries && fullUrl.contains("/cartoons/")) || snippet.contains("сезон") || snippet.contains("сери")
-                if (isSeries == isCandSeries) {
-                    score += 60
-                } else {
-                    score -= 30
-                }
+                    // Series vs Movie matching
+                    val isCandSeries = fullUrl.contains("/series/") || fullUrl.contains("/animation/") || (isSeries && fullUrl.contains("/cartoons/")) || snippet.contains("сезон") || snippet.contains("сери")
+                    if (isSeries == isCandSeries) {
+                        score += 60
+                    } else {
+                        score -= 30
+                    }
 
-                candidates.add(RezkaCandidate(id, fullUrl, score))
+                    candidates.add(RezkaCandidate(id, fullUrl, score))
+                }
+            }
+
+            if (searchHtml.isNotEmpty()) {
+                parseCandidates(searchHtml)
+            }
+
+            // Fallback search with ё -> е if no candidates found
+            if (candidates.isEmpty() && (cleanTitle.contains("ё") || cleanTitle.contains("Ё"))) {
+                val altTitle = cleanTitle.replace("ё", "е").replace("Ё", "Е")
+                val altSearchUrl = "$baseUrl/search/?do=search&subaction=search&q=" + URLEncoder.encode(altTitle, "UTF-8")
+                val altHtml = httpGet(altSearchUrl, "$baseUrl/", baseUrl = baseUrl) ?: ""
+                if (altHtml.isNotEmpty()) {
+                    searchHtml = altHtml
+                    parseCandidates(altHtml)
+                }
             }
 
             if (candidates.isNotEmpty()) {
                 val best = candidates.maxByOrNull { it.score }!!
                 dataId = best.id
                 pageUrl = best.url
-            } else {
+            } else if (searchHtml.isNotEmpty()) {
                 // Pattern B: general data-id and data-url
                 val genMatcher = Pattern.compile("data-id=\"(\\d+)\"\\s+data-url=\"([^\"]+)\"").matcher(searchHtml)
                 if (genMatcher.find()) {
@@ -200,6 +216,8 @@ object RezkaNativeResolver {
             val headers = mapOf(
                 "X-Requested-With" to "XMLHttpRequest",
                 "Referer" to pageUrl,
+                "Origin" to baseUrl,
+                "Accept" to "application/json, text/javascript, */*; q=0.01",
                 "Content-Type" to "application/x-www-form-urlencoded"
             )
 
@@ -403,11 +421,12 @@ object RezkaNativeResolver {
             }
 
             val elapsed = System.currentTimeMillis() - startT
+            val redirTarget = if (targetUrl.contains("/ajax/")) "$baseUrl/" else targetUrl
             val passUrl = "$baseUrl$basePrefix/.within.website/x/cmd/anubis/api/pass-challenge" +
                     "?id=" + URLEncoder.encode(challengeId, "UTF-8") +
                     "&response=" + URLEncoder.encode(foundHash, "UTF-8") +
                     "&nonce=" + nonce +
-                    "&redir=" + URLEncoder.encode(targetUrl, "UTF-8") +
+                    "&redir=" + URLEncoder.encode(redirTarget, "UTF-8") +
                     "&elapsedTime=" + elapsed
 
             // Send clearance request - disable auto redirect so Set-Cookie is never stripped!

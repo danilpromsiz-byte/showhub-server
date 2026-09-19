@@ -598,6 +598,30 @@ fun buildCalendarGroups(movies: List<Movie>, historyManager: WatchHistoryManager
             }
         }
 
+        // Chronologically sort upcoming episodes (earliest release date and lowest episode number first)
+        upcomingSched.sortWith(compareBy<EpisodeScheduleItem> {
+            parseDateCal(it.date)?.timeInMillis ?: Long.MAX_VALUE
+        }.thenBy {
+            val epMatch = Regex("""(?:(\d+)\s+сезон)?.*?(\d+)\s+серия""").find(it.episode)
+            val sNum = epMatch?.groupValues?.get(1)?.takeIf { v -> v.isNotBlank() }?.toIntOrNull() ?: 1
+            val epNum = epMatch?.groupValues?.get(2)?.takeIf { v -> v.isNotBlank() }?.toIntOrNull() ?: 0
+            sNum * 10000 + epNum
+        })
+
+        todaySched.sortWith(compareBy<EpisodeScheduleItem> {
+            val epMatch = Regex("""(?:(\d+)\s+сезон)?.*?(\d+)\s+серия""").find(it.episode)
+            val sNum = epMatch?.groupValues?.get(1)?.takeIf { v -> v.isNotBlank() }?.toIntOrNull() ?: 1
+            val epNum = epMatch?.groupValues?.get(2)?.takeIf { v -> v.isNotBlank() }?.toIntOrNull() ?: 0
+            sNum * 10000 + epNum
+        })
+
+        tomorrowSched.sortWith(compareBy<EpisodeScheduleItem> {
+            val epMatch = Regex("""(?:(\d+)\s+сезон)?.*?(\d+)\s+серия""").find(it.episode)
+            val sNum = epMatch?.groupValues?.get(1)?.takeIf { v -> v.isNotBlank() }?.toIntOrNull() ?: 1
+            val epNum = epMatch?.groupValues?.get(2)?.takeIf { v -> v.isNotBlank() }?.toIntOrNull() ?: 0
+            sNum * 10000 + epNum
+        })
+
         // Smart aggregation for upcoming: if > 2 upcoming, aggregate; else individual
         if (upcomingSched.size > 2) {
             val nextUp = upcomingSched.first()
@@ -639,7 +663,15 @@ fun buildCalendarGroups(movies: List<Movie>, historyManager: WatchHistoryManager
         groups.add(CalendarDayGroup("Завтра", tomorrowEntries.take(15)))
     }
     if (upcomingEntries.isNotEmpty()) {
-        groups.add(CalendarDayGroup("Скоро выйдут", upcomingEntries.take(20)))
+        val sortedUpcoming = upcomingEntries.sortedWith(compareBy<CalendarEpisodeEntry> {
+            parseDateCal(it.scheduleItem.date)?.timeInMillis ?: Long.MAX_VALUE
+        }.thenBy {
+            val epMatch = Regex("""(?:(\d+)\s+сезон)?.*?(\d+)\s+серия""").find(it.scheduleItem.episode)
+            val sNum = epMatch?.groupValues?.get(1)?.takeIf { v -> v.isNotBlank() }?.toIntOrNull() ?: 1
+            val epNum = epMatch?.groupValues?.get(2)?.takeIf { v -> v.isNotBlank() }?.toIntOrNull() ?: 0
+            sNum * 10000 + epNum
+        })
+        groups.add(CalendarDayGroup("Скоро выйдут", sortedUpcoming.take(20)))
     }
     if (recentEntries.isNotEmpty()) {
         groups.add(CalendarDayGroup("Недавно вышли / Доступны", recentEntries.take(25)))

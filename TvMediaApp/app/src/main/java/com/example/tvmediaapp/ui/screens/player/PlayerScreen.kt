@@ -184,16 +184,6 @@ private fun EmbedWebViewPlayerScreen(
     }
 
     BackHandler {
-        if (hasError) {
-            onBackPress()
-            return@BackHandler
-        }
-        webViewRef?.let { wv ->
-            if (wv.canGoBack()) {
-                wv.goBack()
-                return@BackHandler
-            }
-        }
         onBackPress()
     }
 
@@ -345,6 +335,29 @@ private fun EmbedWebViewPlayerScreen(
     }
 }
 
+private fun formatTimeRu(ms: Long): String {
+    val totalSec = (ms / 1000).coerceAtLeast(0L)
+    val h = totalSec / 3600
+    val m = (totalSec % 3600) / 60
+    val s = totalSec % 60
+    return if (h > 0) {
+        "$h ч. $m м. ${"%02d".format(s)} с."
+    } else {
+        "$m м. ${"%02d".format(s)} с."
+    }
+}
+
+private fun formatDeltaSecondsRu(deltaSec: Int): String {
+    val sign = if (deltaSec > 0) "+" else if (deltaSec < 0) "-" else ""
+    val absSec = kotlin.math.abs(deltaSec)
+    return if (absSec >= 60) {
+        val m = absSec / 60
+        val s = absSec % 60
+        "$sign$m м. ${"%02d".format(s)} с."
+    } else {
+        "$sign${absSec}с"
+    }
+}
 
 @Composable
 private fun NativeExoPlayerScreen(
@@ -385,6 +398,7 @@ private fun NativeExoPlayerScreen(
     var seekSpeedLevel by remember { mutableIntStateOf(0) }
     val seekSteps = remember { listOf(10000L, 15000L, 30000L, 60000L, 120000L) }
     var seekDeltaBadge by remember { mutableStateOf<String?>(null) }
+    var lastUserInteractionTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
 
     LaunchedEffect(seekDeltaBadge) {
         if (seekDeltaBadge != null) {
@@ -598,11 +612,12 @@ private fun NativeExoPlayerScreen(
                     try {
                         val realSeasons = ShowHubApiClient.fetchEpisodes(currentMovieState, newAudioId, source = newSource)
                         if (realSeasons.isNotEmpty()) {
-                            val curTotal = currentMovieState.seasons.sumOf { it.episodes.size }
-                            val newTotal = realSeasons.sumOf { it.episodes.size }
-                            if (newTotal >= curTotal && newTotal > 0) {
-                                currentMovieState = currentMovieState.copy(seasons = realSeasons)
+                            val epCount = realSeasons.sumOf { it.episodes.size }
+                            val sMap = realSeasons.associate { it.seasonNumber to it.episodes.size }
+                            val updatedTracks = currentMovieState.audioTracks.map {
+                                if (it.id == newAudioId) it.copy(episodesCount = epCount, seasonsEpisodes = sMap) else it
                             }
+                            currentMovieState = currentMovieState.copy(seasons = realSeasons, audioTracks = updatedTracks)
                         }
                     } catch (_: Exception) {}
                 }
@@ -764,11 +779,13 @@ private fun NativeExoPlayerScreen(
         }
     }
 
-    // Auto-hide TV controls after 6 seconds when not in drawer
-    LaunchedEffect(isControlsVisible, activeDrawer) {
+    // Auto-hide TV controls after 6 seconds of user inactivity when not in drawer
+    LaunchedEffect(isControlsVisible, activeDrawer, lastUserInteractionTime) {
         if (isControlsVisible && activeDrawer == null) {
             delay(6000)
-            isControlsVisible = false
+            if (System.currentTimeMillis() - lastUserInteractionTime >= 5800L) {
+                isControlsVisible = false
+            }
         }
     }
 
@@ -782,12 +799,10 @@ private fun NativeExoPlayerScreen(
         }
     }
 
-    // Handle Hardware Back button - two-step: first close drawer/controls, second exit movie
+    // Handle Hardware Back button - exit immediately unless a drawer is open
     BackHandler {
         if (activeDrawer != null) {
             activeDrawer = null
-        } else if (isControlsVisible) {
-            isControlsVisible = false
         } else {
             onBackPress()
         }
@@ -878,15 +893,12 @@ private fun NativeExoPlayerScreen(
                             activeDrawer = null
                             return@onKeyEvent true
                         }
-                        if (isControlsVisible) {
-                            isControlsVisible = false
-                            return@onKeyEvent true
-                        }
                         onBackPress()
                         return@onKeyEvent true
                     }
                 }
                 if (nativeEvent.action == KeyEvent.ACTION_DOWN) {
+                    lastUserInteractionTime = System.currentTimeMillis()
                     if (!isControlsVisible) {
                         when (nativeEvent.keyCode) {
                             KeyEvent.KEYCODE_DPAD_LEFT -> {
@@ -899,7 +911,7 @@ private fun NativeExoPlayerScreen(
                                 val target = (cur - 10000L).coerceAtLeast(0L)
                                 exoPlayer.seekTo(target)
                                 currentPosition = target
-                                quickSeekBadgeText = "${accumulatedSeekSeconds}с"
+                                quickSeekBadgeText = formatDeltaSecondsRu(accumulatedSeekSeconds)
                                 quickSeekBadgeJob?.cancel()
                                 quickSeekBadgeJob = coroutineScope.launch {
                                     delay(1500)
@@ -919,7 +931,7 @@ private fun NativeExoPlayerScreen(
                                 val target = (cur + 10000L).coerceAtMost(dur)
                                 exoPlayer.seekTo(target)
                                 currentPosition = target
-                                quickSeekBadgeText = "+${accumulatedSeekSeconds}с"
+                                quickSeekBadgeText = formatDeltaSecondsRu(accumulatedSeekSeconds)
                                 quickSeekBadgeJob?.cancel()
                                 quickSeekBadgeJob = coroutineScope.launch {
                                     delay(1500)
@@ -1371,20 +1383,32 @@ private fun NativeExoPlayerScreen(
                                 }
                             }
 
+                            val curTrack = currentMovieState.audioTracks.firstOrNull { it.id == currentAudioId }
+                            val maxEpForTrack = curTrack?.seasonsEpisodes?.get(currentSeason)
+                            val validDrawerEpisodes = remember(activeSeason.episodes, currentAudioId, currentMovieState.audioTracks) {
+                                if (maxEpForTrack != null && maxEpForTrack > 0) {
+                                    activeSeason.episodes.filter { it.episodeNumber <= maxEpForTrack }
+                                } else if (curTrack?.seasonsEpisodes?.isNotEmpty() == true) {
+                                    emptyList()
+                                } else {
+                                    activeSeason.episodes
+                                }
+                            }
+
                             Text(
-                                text = "Серии сезона $currentSeason:",
+                                text = "Серии сезона $currentSeason (${validDrawerEpisodes.size}):",
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = TextWhite
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             val activeEpFocusRequester = remember { FocusRequester() }
-                            val activeIndex = remember(activeSeason.episodes, currentEpisode) {
-                                val idx = activeSeason.episodes.indexOfFirst { it.episodeNumber == currentEpisode }
+                            val activeIndex = remember(validDrawerEpisodes, currentEpisode) {
+                                val idx = validDrawerEpisodes.indexOfFirst { it.episodeNumber == currentEpisode }
                                 if (idx >= 0) idx else 0
                             }
                             val drawerEpisodesListState = rememberTvLazyListState()
-                            LaunchedEffect(activeDrawer, currentEpisode, activeSeason) {
+                            LaunchedEffect(activeDrawer, currentEpisode, activeSeason, validDrawerEpisodes) {
                                 if (activeDrawer == "episodes") {
                                     try {
                                         if (activeIndex >= 0) {
@@ -1400,7 +1424,7 @@ private fun NativeExoPlayerScreen(
                                 contentPadding = PaddingValues(start = 8.dp, end = 80.dp),
                                 pivotOffsets = PivotOffsets(parentFraction = 0.5f)
                             ) {
-                                items(activeSeason.episodes) { ep ->
+                                items(validDrawerEpisodes) { ep ->
                                     val isSel = ep.episodeNumber == currentEpisode
                                     val isWatched = historyManager.isEpisodeWatched(currentMovieState.id, currentSeason, ep.episodeNumber)
                                     val epFocusMod = if (isSel) Modifier.focusRequester(activeEpFocusRequester) else Modifier
@@ -1461,11 +1485,22 @@ private fun NativeExoPlayerScreen(
                     // Inline Series Episodes Strip
                     if (currentMovieState.isSeries) {
                         val activeSeason = currentMovieState.seasons.firstOrNull { it.seasonNumber == currentSeason } ?: currentMovieState.seasons.firstOrNull()
-                        val episodeList = activeSeason?.episodes ?: emptyList()
+                        val curTrack = currentMovieState.audioTracks.firstOrNull { it.id == currentAudioId }
+                        val maxEpForTrack = curTrack?.seasonsEpisodes?.get(currentSeason)
+                        val episodeList = remember(activeSeason, currentAudioId, currentMovieState.audioTracks) {
+                            val eps = activeSeason?.episodes ?: emptyList()
+                            if (maxEpForTrack != null && maxEpForTrack > 0) {
+                                eps.filter { it.episodeNumber <= maxEpForTrack }
+                            } else if (curTrack?.seasonsEpisodes?.isNotEmpty() == true) {
+                                emptyList()
+                            } else {
+                                eps
+                            }
+                        }
                         if (episodeList.isNotEmpty()) {
                             Column(modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp)) {
                                 Text(
-                                    text = "Серии сезона $currentSeason:",
+                                    text = "Серии сезона $currentSeason (${episodeList.size}):",
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.SemiBold,
                                     color = TextGray
@@ -1556,20 +1591,26 @@ private fun NativeExoPlayerScreen(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(if (isTimelineFocused) 22.dp else 12.dp)
+                            .height(if (isTimelineFocused) 26.dp else 14.dp)
                             .focusRequester(timelineFocusRequester)
                             .onFocusChanged { isTimelineFocused = it.isFocused }
                             .focusable()
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (isTimelineFocused) accent.copy(alpha = 0.16f) else Color.Transparent)
+                            .border(
+                                width = if (isTimelineFocused) 2.dp else 0.dp,
+                                color = if (isTimelineFocused) accent else Color.Transparent,
+                                shape = RoundedCornerShape(8.dp)
+                            )
+                            .padding(horizontal = 6.dp)
                             .focusProperties {
                                 down = playPauseFocusRequester
-                                if (currentMovieState.isSeries && currentMovieState.seasons.isNotEmpty()) {
-                                    up = episodesRowFocusRequester
-                                }
                                 left = FocusRequester.Cancel
                                 right = FocusRequester.Cancel
                             }
                             .onKeyEvent { keyEvent ->
                                 if (keyEvent.nativeKeyEvent.action == KeyEvent.ACTION_DOWN) {
+                                    lastUserInteractionTime = System.currentTimeMillis()
                                     when (keyEvent.nativeKeyEvent.keyCode) {
                                         KeyEvent.KEYCODE_DPAD_LEFT -> {
                                             val now = System.currentTimeMillis()
@@ -1583,7 +1624,7 @@ private fun NativeExoPlayerScreen(
                                             val newPos = (exoPlayer.currentPosition - step).coerceAtLeast(0L)
                                             exoPlayer.seekTo(newPos)
                                             currentPosition = newPos
-                                            seekDeltaBadge = "-${step / 1000}с"
+                                            seekDeltaBadge = formatTimeRu(newPos)
                                             true
                                         }
                                         KeyEvent.KEYCODE_DPAD_RIGHT -> {
@@ -1599,7 +1640,7 @@ private fun NativeExoPlayerScreen(
                                             val newPos = (exoPlayer.currentPosition + step).coerceAtMost(maxPos)
                                             exoPlayer.seekTo(newPos)
                                             currentPosition = newPos
-                                            seekDeltaBadge = "+${step / 1000}с"
+                                            seekDeltaBadge = formatTimeRu(newPos)
                                             true
                                         }
                                         KeyEvent.KEYCODE_DPAD_CENTER,

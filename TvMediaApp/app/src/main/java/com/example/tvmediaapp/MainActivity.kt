@@ -185,19 +185,21 @@ fun TvAppNavHost(activity: MainActivity) {
         episode: Int = activeEpisode,
         audioId: String = activeAudioId
     ) {
-        backStack.add(
-            NavState(
-                screen = currentScreen,
-                movie = selectedMovie,
-                searchQuery = searchInitialQuery,
-                searchIsActor = searchIsActor,
-                videoUrl = activeVideoUrl,
-                positionMs = startPositionMs,
-                season = activeSeason,
-                episode = activeEpisode,
-                audioId = activeAudioId
-            )
+        val currentState = NavState(
+            screen = currentScreen,
+            movie = selectedMovie,
+            searchQuery = searchInitialQuery,
+            searchIsActor = searchIsActor,
+            videoUrl = activeVideoUrl,
+            positionMs = startPositionMs,
+            season = activeSeason,
+            episode = activeEpisode,
+            audioId = activeAudioId
         )
+        // Deduplicate: avoid pushing redundant identical screen/movie to backstack
+        if (backStack.isEmpty() || backStack.last().screen != currentScreen || backStack.last().movie?.id != selectedMovie?.id) {
+            backStack.add(currentState)
+        }
         currentScreen = newScreen
         selectedMovie = movie
         searchInitialQuery = searchQuery
@@ -210,6 +212,10 @@ fun TvAppNavHost(activity: MainActivity) {
     }
 
     fun navigateBack() {
+        // Pop any trailing redundant states matching the current view
+        while (backStack.isNotEmpty() && backStack.last().screen == currentScreen && backStack.last().movie?.id == selectedMovie?.id) {
+            backStack.removeAt(backStack.size - 1)
+        }
         if (backStack.isNotEmpty()) {
             val prev = backStack.removeAt(backStack.size - 1)
             currentScreen = prev.screen

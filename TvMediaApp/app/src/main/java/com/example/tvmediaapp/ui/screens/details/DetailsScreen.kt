@@ -1363,7 +1363,6 @@ fun DetailsScreen(
                                     .focusRequester(descriptionTabFocusRequester)
                                     .focusProperties {
                                         up = favoriteButtonFocusRequester
-                                        down = if (displayDirectors.isNotEmpty()) firstDirectorFocusRequester else firstCastFocusRequester
                                     }
                             }
                             2 -> if (currentMovie.isSeries) {
@@ -1372,7 +1371,6 @@ fun DetailsScreen(
                                     .focusRequester(descriptionTabFocusRequester)
                                     .focusProperties {
                                         up = favoriteButtonFocusRequester
-                                        down = if (displayDirectors.isNotEmpty()) firstDirectorFocusRequester else firstCastFocusRequester
                                     }
                             } else {
                                 Modifier.height(26.dp).focusProperties { up = favoriteButtonFocusRequester }
@@ -1447,8 +1445,8 @@ fun DetailsScreen(
                     }
                     list
                 }
-                val filteredAudioTracks = remember(currentMovie.audioTracks, selectedSourceFilter) {
-                    if (selectedSourceFilter == "Все" || selectedSourceFilter.startsWith("Все")) {
+                val filteredAudioTracks = remember(currentMovie.audioTracks, selectedSourceFilter, selectedSeason) {
+                    val sourceFiltered = if (selectedSourceFilter == "Все" || selectedSourceFilter.startsWith("Все")) {
                         currentMovie.audioTracks
                     } else {
                         val sKey = selectedSourceFilter.lowercase()
@@ -1462,6 +1460,24 @@ fun DetailsScreen(
                             }
                         }
                         if (matched.isNotEmpty()) matched else currentMovie.audioTracks
+                    }
+                    if (currentMovie.isSeries) {
+                        val seasonFiltered = sourceFiltered.filter { track ->
+                            if (track.seasonsEpisodes.isEmpty()) {
+                                true
+                            } else {
+                                (track.seasonsEpisodes[selectedSeason] ?: 0) > 0
+                            }
+                        }
+                        if (seasonFiltered.isNotEmpty()) seasonFiltered else sourceFiltered
+                    } else {
+                        sourceFiltered
+                    }
+                }
+
+                LaunchedEffect(filteredAudioTracks, selectedSeason) {
+                    if (filteredAudioTracks.isNotEmpty() && filteredAudioTracks.none { it.id == selectedAudioId }) {
+                        selectedAudioId = filteredAudioTracks.first().id
                     }
                 }
 
@@ -1669,6 +1685,8 @@ fun DetailsScreen(
                                     val maxEpForTrack = curTrack?.seasonsEpisodes?.get(selectedSeason)
                                     if (maxEpForTrack != null && maxEpForTrack > 0) {
                                         activeSeason.episodes.filter { it.episodeNumber <= maxEpForTrack }
+                                    } else if (curTrack?.seasonsEpisodes?.isNotEmpty() == true) {
+                                        emptyList()
                                     } else {
                                         activeSeason.episodes
                                     }
@@ -1689,6 +1707,7 @@ fun DetailsScreen(
 
                             TvLazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 items(activeEpisodes) { ep ->
+                                    val hVer = com.example.tvmediaapp.data.history.WatchHistoryManager.historyVersion
                                     val isSelected = ep.episodeNumber == selectedEpisode
                                     val isWatched = historyManager.isEpisodeWatched(currentMovie.id, selectedSeason, ep.episodeNumber, currentMovie.title)
                                     val epProgress = historyManager.getEpisodeProgress(currentMovie.id, selectedSeason, ep.episodeNumber, currentMovie.title)
@@ -1743,24 +1762,24 @@ fun DetailsScreen(
                                             }
 
                                             // High-contrast full-width progress timeline bar for watched or partially watched episodes
-                                            if (epProgress > 0 || isWatched) {
-                                                val progressPct = if (isWatched) 1.0f else (epProgress.coerceIn(5, 100) / 100f)
-                                                Box(
-                                                    modifier = Modifier
-                                                        .fillMaxWidth()
-                                                        .height(4.dp)
-                                                        .align(Alignment.BottomCenter)
-                                                        .clip(RoundedCornerShape(bottomStart = 6.dp, bottomEnd = 6.dp))
-                                                        .background(Color.Black.copy(alpha = 0.65f))
-                                                ) {
+                                            val progressPct = if (isWatched || epProgress >= 85) 1.0f else if (epProgress > 0) (epProgress.coerceIn(5, 100) / 100f) else 0f
+                                            Box(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .height(4.5.dp)
+                                                    .align(Alignment.BottomCenter)
+                                                    .clip(RoundedCornerShape(bottomStart = 6.dp, bottomEnd = 6.dp))
+                                                    .background(Color.Black.copy(alpha = 0.65f))
+                                            ) {
+                                                if (progressPct > 0f) {
                                                     Box(
                                                         modifier = Modifier
                                                             .fillMaxHeight()
                                                             .fillMaxWidth(progressPct)
                                                             .background(
                                                                 if (isSelected) Color(0xFF0F172A)
-                                                                else if (isWatched) Color(0xFF22C55E)
-                                                                else Color(0xFFFFD54F)
+                                                                else if (isWatched || epProgress >= 85) Color(0xFF22C55E)
+                                                                else Color(0xFFFFB300)
                                                             )
                                                     )
                                                 }
@@ -2030,7 +2049,6 @@ fun DetailsScreen(
                                                     .focusRequester(firstDirectorFocusRequester)
                                                     .focusProperties {
                                                         up = descriptionTabFocusRequester
-                                                        if (displayCast.isNotEmpty()) down = firstCastFocusRequester
                                                     }
                                             } else Modifier
                                             Card(

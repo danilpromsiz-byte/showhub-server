@@ -127,6 +127,23 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 _categories.value = processedData
                 _isLoading.value = false
+                prefetchVisibleMovieDetails(processedData)
+            }
+        }
+    }
+
+    private fun prefetchVisibleMovieDetails(data: List<MovieCategory>) {
+        val topMovies = data.firstOrNull()?.movies?.take(24) ?: return
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            for (movie in topMovies) {
+                try {
+                    val cached = com.example.tvmediaapp.data.cache.MediaDiskCache.getCachedDetails(movie.id, movie.title, movie.releaseYear)
+                    if (cached == null) {
+                        val detailed = com.example.tvmediaapp.data.api.ShowHubApiClient.fetchMediaDetails(movie)
+                        com.example.tvmediaapp.data.cache.MediaDiskCache.putCachedDetails(detailed)
+                        kotlinx.coroutines.delay(120)
+                    }
+                } catch (_: Exception) {}
             }
         }
     }

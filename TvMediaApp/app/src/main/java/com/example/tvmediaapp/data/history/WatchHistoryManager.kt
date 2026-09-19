@@ -59,7 +59,10 @@ class WatchHistoryManager(context: Context) {
         saveList(list.take(200))
 
         if (movie.isSeries) {
-            markEpisodeWatched(movie.id, season, episode)
+            saveEpisodeProgress(movie.id, season, episode, positionMs, durationMs)
+            if (percentage >= 85) {
+                markEpisodeWatched(movie.id, season, episode)
+            }
             // Auto-add started series to favorites so user tracks new episodes
             try {
                 val mainPrefs = appContext.getSharedPreferences("showhub_prefs", Context.MODE_PRIVATE)
@@ -70,6 +73,23 @@ class WatchHistoryManager(context: Context) {
                 }
             } catch (_: Exception) {}
         }
+    }
+
+    fun saveEpisodeProgress(seriesId: String, season: Int, episode: Int, positionMs: Long, durationMs: Long) {
+        if (seriesId.isBlank() || durationMs <= 0L || positionMs <= 3000L) return
+        val percentage = ((positionMs * 100) / durationMs).toInt().coerceIn(0, 100)
+        val key = "ep_pct_${seriesId}_s${season}e${episode}"
+        prefs.edit().putInt(key, percentage).apply()
+        if (percentage >= 85) {
+            markEpisodeWatched(seriesId, season, episode)
+        }
+    }
+
+    fun getEpisodeProgress(seriesId: String, season: Int, episode: Int): Int {
+        if (seriesId.isBlank()) return 0
+        if (isEpisodeWatched(seriesId, season, episode)) return 100
+        val key = "ep_pct_${seriesId}_s${season}e${episode}"
+        return prefs.getInt(key, 0)
     }
 
     fun markEpisodeWatched(seriesId: String, season: Int, episode: Int) {

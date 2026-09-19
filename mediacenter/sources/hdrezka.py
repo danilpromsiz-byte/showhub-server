@@ -411,10 +411,26 @@ class HDRezkaSource(BaseSource):
         except Exception:
             return None
 
-    def get_episodes(self, media_id: str, translator_id: str) -> List[Dict[str, Any]]:
+    def get_episodes(self, media_id: str, translator_id: str, title: Optional[str] = None) -> List[Dict[str, Any]]:
         """Fetches authentic translator-specific seasons and episodes via HDRezka CDN AJAX."""
         media_str = str(media_id).strip()
         base = self._get_base()
+        data_id = None
+        page_url = None
+
+        if not media_str.startswith("http") and not media_str.startswith("/") and title:
+            clean_t = re.sub(r'\(.*?\)|\[.*?\]', '', title).strip()
+            if ":" in clean_t:
+                clean_t = clean_t.split(":")[0].strip()
+            if " - " in clean_t:
+                clean_t = clean_t.split(" - ")[0].strip()
+            try:
+                rz_items = self.search(clean_t)
+                if rz_items:
+                    media_str = rz_items[0].id
+            except Exception:
+                pass
+
         if media_str.isdigit():
             data_id = media_str
             page_url = f"{base}/"

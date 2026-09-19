@@ -11,8 +11,8 @@ android {
         applicationId = "com.showhub.tv"
         minSdk = 21
         targetSdk = 34
-        versionCode = 55
-        versionName = "2.7.6"
+        versionCode = 56
+        versionName = "2.7.7"
 
         vectorDrawables {
             useSupportLibrary = true

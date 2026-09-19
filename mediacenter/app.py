@@ -39,6 +39,7 @@ from mediacenter.sources.filmix import FilmixSource
 from mediacenter.sources.videocdn import VideoCDNSource
 from mediacenter.sources.kodik import KodikSource
 from mediacenter.sources.base import MediaItem, StreamResult
+from mediacenter.core.tmdb import tmdb
 
 app = FastAPI(title="MediaCenter TV Aggregator", version="1.0.0")
 
@@ -1073,6 +1074,31 @@ def _fetch_media_details(
         except Exception:
             pass
 
+    # 0. Query TMDb as the primary authoritative metadata provider
+    try:
+        tmdb_info = tmdb.search_and_enrich(title=title, year=year_int, is_series=is_ser_bool)
+        if tmdb_info:
+            if tmdb_info.get("actors"):
+                details["actors"] = tmdb_info["actors"]
+            if tmdb_info.get("cast"):
+                details["cast"] = tmdb_info["cast"]
+            if tmdb_info.get("director"):
+                details["director"] = tmdb_info["director"]
+            if tmdb_info.get("directors_list"):
+                details["directors_list"] = tmdb_info["directors_list"]
+            if tmdb_info.get("country"):
+                details["country"] = tmdb_info["country"]
+            if tmdb_info.get("countries"):
+                details["countries"] = tmdb_info["countries"]
+            if not details.get("description") and tmdb_info.get("description"):
+                details["description"] = tmdb_info["description"]
+            if not details.get("poster") and tmdb_info.get("poster"):
+                details["poster"] = tmdb_info["poster"]
+            if not details.get("rating_imdb") and tmdb_info.get("rating"):
+                details["rating_imdb"] = tmdb_info["rating"]
+    except Exception:
+        pass
+
     # 1. Fetch Bazon details (ratings, synopsis, cast, genres)
     if resolved_kp:
         try:
@@ -1211,61 +1237,40 @@ def _fetch_media_details(
             except Exception:
                 pass
 
-    # 4c. Fallback to Kodik actors/directors/genres/country ONLY with strict country & type validation
-    if (not details.get("actors") or not details.get("director")) and (resolved_kp or clean_title):
+    # 4c. Fallback to Kodik actors/directors/genres/country ONLY for confirmed anime/doramas or if source is kodik!
+    cur_genres = [str(g).lower() for g in details.get("genres", [])]
+    is_anime_or_dorama = (source == "kodik") or any("аним" in g or "дорам" in g for g in cur_genres)
+    if is_anime_or_dorama and (not details.get("actors") or not details.get("director")) and (resolved_kp or clean_title):
         try:
             k_items = kodik.search(clean_title, year=year_int, kp_id=resolved_kp)
             if k_items:
-                cur_country = str(details.get("country") or "").lower()
-                cur_genres = [str(g).lower() for g in details.get("genres", [])]
-                is_western = any(c in cur_country for c in ["италь", "итали", "франц", "испан", "герман", "великобрит", "сша", "росси", "канада", "австрали"])
-                is_doc = any(d in " ".join(cur_genres) for d in ["документ", "научн", "биографи"]) or ("эпоха льда" in clean_title.lower())
-                matched_it = None
-                for cand in k_items:
-                    c_yr = cand.year
-                    c_country = str(cand.extra_data.get("country") or "").lower()
-                    c_type = str(cand.extra_data.get("type") or "").lower()
-                    c_genres = [str(g).lower() for g in cand.extra_data.get("genres") or []]
-
-                    # Prevent matching movies with large year discrepancies
-                    if year_int and c_yr and abs(c_yr - year_int) > 1:
-                        continue
-                    # Prevent matching Western/Russian films with Asian anime or Asian dramas (dorama)
-                    if is_western and any(a in c_country for a in ["япон", "китай", "коре", "тайван", "гонконг"]):
-                        continue
-                    if is_western and ("anime" in c_type or "dorama" in c_type):
-                        continue
-                    # Prevent matching documentary with fiction dramas / anime
-                    if is_doc and ("anime" in c_type or "dorama" in c_type or any(a in c_country for a in ["китай", "коре", "япон"])):
-                        continue
-                    matched_it = cand
-                    break
-
-                if matched_it:
-                    if not details.get("actors") and matched_it.extra_data.get("actors"):
-                        details["actors"] = matched_it.extra_data["actors"]
-                    if not details.get("director") and matched_it.extra_data.get("director"):
-                        details["director"] = matched_it.extra_data["director"]
-                    if not details.get("country") and matched_it.extra_data.get("country"):
-                        details["country"] = matched_it.extra_data["country"]
-                    if not details.get("genres") and matched_it.extra_data.get("genres"):
-                        details["genres"] = matched_it.extra_data["genres"]
-                    if not details.get("description") and matched_it.description:
-                        details["description"] = matched_it.description
+                matched_it = k_items[0]
+                if not details.get("actors") and matched_it.extra_data.get("actors"):
+                    details["actors"] = matched_it.extra_data["actors"]
+                if not details.get("director") and matched_it.extra_data.get("director"):
+                    details["director"] = matched_it.extra_data["director"]
+                if not details.get("country") and matched_it.extra_data.get("country"):
+                    details["country"] = matched_it.extra_data["country"]
+                if not details.get("genres") and matched_it.extra_data.get("genres"):
+                    details["genres"] = matched_it.extra_data["genres"]
+                if not details.get("description") and matched_it.description:
+                    details["description"] = matched_it.description
         except Exception:
             pass
 
-    # Special handling for Italian comedy "Добро пожаловать в деревню" (Benvenuti in campagna, 2026)
-    if "добро пожаловать в деревню" in clean_title.lower() or ("авеллино" in str(details.get("director") or "").lower()):
-        if not details.get("actors") or "саори" in str(details.get("actors")).lower():
-            details["actors"] = "Джулия Бевилаква, Маурицио Ластрико, Андреа Пеннакки, Джорджо Коланджели, Лука Равенна, Ориетта Нотари, Орландо Форте, Мелисса Бартолини"
-            details["country"] = "Италия"
-
-    # 5. Populate Actors with Photos (up to 10 principal cast members with Wikipedia photos)
+    # 5. Populate Actors with Photos (preserve TMDb cast if available, else Wikipedia photos)
     actors_list = []
-    raw_actors = details.get("actors") or ""
-    if raw_actors:
-        names = [n.strip() for n in re.split(r'[,;•\n/]', str(raw_actors)) if n.strip()]
+    if details.get("cast"):
+        for idx, c_item in enumerate(details["cast"][:12]):
+            actors_list.append({
+                "id": f"act_{idx+1}",
+                "name": c_item.get("name", ""),
+                "role": c_item.get("character", "В главных ролях") or "В главных ролях",
+                "photo": c_item.get("photo", "")
+            })
+    elif details.get("actors"):
+        raw_actors = str(details.get("actors") or "")
+        names = [n.strip() for n in re.split(r'[,;•\n/]', raw_actors) if n.strip()]
         for idx, a_name in enumerate(names[:10]):
             photo = resolve_actor_photo(a_name)
             actors_list.append({
@@ -1276,11 +1281,19 @@ def _fetch_media_details(
             })
     details["actors_list"] = actors_list
 
-    # 5b. Populate Directors with Photos
+    # 5b. Populate Directors with Photos (preserve TMDb directors if available, else Wikipedia photos)
     directors_list = []
-    raw_director = details.get("director") or ""
-    if raw_director:
-        d_names = [n.strip() for n in re.split(r'[,;•\n/]', str(raw_director)) if n.strip()]
+    if details.get("directors_list"):
+        for idx, d_item in enumerate(details["directors_list"][:5]):
+            directors_list.append({
+                "id": f"dir_{idx+1}",
+                "name": d_item.get("name", ""),
+                "role": d_item.get("job", "Режиссёр") or "Режиссёр",
+                "photo": d_item.get("photo", "")
+            })
+    elif details.get("director"):
+        raw_director = str(details.get("director") or "")
+        d_names = [n.strip() for n in re.split(r'[,;•\n/]', raw_director) if n.strip()]
         for idx, d_name in enumerate(d_names[:5]):
             photo = resolve_actor_photo(d_name)
             directors_list.append({
@@ -1542,7 +1555,7 @@ def get_media_episodes(
                         target_id = rz_items[0].id
                 except Exception:
                     pass
-        return hdrezka.get_episodes(target_id, translator_id)
+        return hdrezka.get_episodes(target_id, translator_id, title=title)
     return []
 
 @app.get("/api/media/details")

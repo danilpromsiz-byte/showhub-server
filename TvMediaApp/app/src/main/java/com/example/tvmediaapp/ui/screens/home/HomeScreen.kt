@@ -79,18 +79,21 @@ fun HomeScreen(
     val filterRow2FocusRequester = remember { FocusRequester() }
     val targetCardFocusRequester = remember { FocusRequester() }
 
-    // Automatically restore focus to the last selected/focused card on launch or return
-    LaunchedEffect(displayMovies) {
-        if (displayMovies.isNotEmpty()) {
+    var hasRestoredFocus by remember { mutableStateOf(false) }
+
+    // Automatically restore focus to the last selected/focused card once on initial screen appearance
+    LaunchedEffect(displayMovies.isNotEmpty()) {
+        if (displayMovies.isNotEmpty() && !hasRestoredFocus) {
             val targetIdx = viewModel.lastFocusedIndex.coerceIn(0, displayMovies.size - 1)
             if (targetIdx > 0) {
                 try {
                     viewModel.gridState.scrollToItem(targetIdx)
                 } catch (_: Exception) {}
             }
-            delay(200)
+            delay(150)
             try {
                 targetCardFocusRequester.requestFocus()
+                hasRestoredFocus = true
             } catch (_: Exception) {}
         }
     }

@@ -293,9 +293,9 @@ fun DetailsScreen(
         }
     }
 
-    // Video preview in details screen (starts after 1.0s, silent clip from 22/12 min)
+    // Video preview in details screen (starts after 2.2s delay, ensuring text metadata is fully rendered first)
     LaunchedEffect(currentMovie.id, streamOptions.isNotEmpty()) {
-        delay(1000)
+        delay(2200)
         if (detailsPreviewPlayer == null) {
             var streamUrl: String? = pickSafePreviewStream(streamOptions)
             if (streamUrl.isNullOrEmpty()) {
@@ -1389,15 +1389,13 @@ fun DetailsScreen(
                                                 coroutineScope.launch {
                                                     try {
                                                         val realSeasons = ShowHubApiClient.fetchEpisodes(currentMovie, track.id)
-                                                        val targetSeasons = if (realSeasons.isNotEmpty()) realSeasons else currentMovie.seasons
                                                         if (realSeasons.isNotEmpty()) {
                                                             currentMovie = currentMovie.copy(seasons = realSeasons)
-                                                        }
-                                                        val activeS = targetSeasons.firstOrNull { it.seasonNumber == selectedSeason } ?: targetSeasons.firstOrNull()
-                                                        val maxEp = activeS?.episodes?.maxOfOrNull { it.episodeNumber } ?: 1
-                                                        if (selectedEpisode > maxEp) {
-                                                            selectedEpisode = maxEp
-                                                            streamStatus = "В озвучке «${track.name}» доступно $maxEp серий (выбрана $maxEp серия)"
+                                                            val validSeason = realSeasons.firstOrNull { it.seasonNumber == selectedSeason } ?: realSeasons.first()
+                                                            selectedSeason = validSeason.seasonNumber
+                                                            val maxEp = validSeason.episodes.maxOfOrNull { it.episodeNumber } ?: 1
+                                                            selectedEpisode = selectedEpisode.coerceIn(1, maxEp)
+                                                            streamStatus = "Озвучка: «${track.name}» (доступно $maxEp сер.)"
                                                         }
                                                     } catch (_: Exception) {
                                                     }
@@ -1474,6 +1472,7 @@ fun DetailsScreen(
                                 items(activeSeason.episodes) { ep ->
                                     val isSelected = ep.episodeNumber == selectedEpisode
                                     val isWatched = historyManager.isEpisodeWatched(currentMovie.id, selectedSeason, ep.episodeNumber)
+                                    val epProgress = historyManager.getEpisodeProgress(currentMovie.id, selectedSeason, ep.episodeNumber)
                                     Button(
                                         onClick = {
                                             selectedEpisode = ep.episodeNumber
@@ -1496,26 +1495,52 @@ fun DetailsScreen(
                                         ),
                                         shape = ButtonDefaults.shape(RoundedCornerShape(6.dp)),
                                         scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
-                                        contentPadding = PaddingValues(horizontal = 7.dp, vertical = 0.dp),
-                                        modifier = Modifier.height(24.dp)
+                                        contentPadding = PaddingValues(0.dp),
+                                        modifier = Modifier.height(26.dp)
                                     ) {
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(3.dp)
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .padding(horizontal = 7.dp),
+                                            contentAlignment = Alignment.Center
                                         ) {
-                                            if (isWatched) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(3.dp)
+                                            ) {
+                                                if (isWatched || epProgress >= 85) {
+                                                    Text(
+                                                        text = "✓",
+                                                        fontSize = 10.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = if (isSelected) Color.Black else Color(0xFF4ADE80)
+                                                    )
+                                                }
                                                 Text(
-                                                    text = "✓",
+                                                    text = ep.title,
                                                     fontSize = 10.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = if (isSelected) Color.Black else Color(0xFF4ADE80)
+                                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                                                 )
                                             }
-                                            Text(
-                                                text = ep.title,
-                                                fontSize = 10.sp,
-                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                                            )
+
+                                            // Progress timeline bar for partially watched episodes (e.g. 50%)
+                                            if (epProgress in 5..84 && !isWatched) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .height(2.5.dp)
+                                                        .align(Alignment.BottomCenter)
+                                                        .clip(RoundedCornerShape(1.dp))
+                                                        .background(Color.White.copy(alpha = 0.2f))
+                                                ) {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .fillMaxHeight()
+                                                            .fillMaxWidth(epProgress / 100f)
+                                                            .background(if (isSelected) Color.Black else accent)
+                                                    )
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -1654,11 +1679,22 @@ fun DetailsScreen(
                                     val statusBg = if (isAired) Color(0xFF1B5E20).copy(alpha = 0.85f) else Color(0xFF0D47A1).copy(alpha = 0.85f)
                                     val statusFg = if (isAired) Color(0xFF81C784) else Color(0xFF90CAF9)
 
+                                    var isRowFocused by remember { mutableStateOf(false) }
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .clip(RoundedCornerShape(6.dp))
-                                            .background(Color.White.copy(alpha = 0.03f))
+                                            .background(
+                                                if (isRowFocused) accent.copy(alpha = 0.22f)
+                                                else Color.White.copy(alpha = 0.03f)
+                                            )
+                                            .border(
+                                                width = 1.dp,
+                                                color = if (isRowFocused) accent else Color.White.copy(alpha = 0.06f),
+                                                shape = RoundedCornerShape(6.dp)
+                                            )
+                                            .focusable()
+                                            .onFocusChanged { isRowFocused = it.isFocused }
                                             .padding(horizontal = 12.dp, vertical = 8.dp),
                                         horizontalArrangement = Arrangement.SpaceBetween,
                                         verticalAlignment = Alignment.CenterVertically
@@ -1668,13 +1704,13 @@ fun DetailsScreen(
                                                 text = item.episode,
                                                 fontSize = 13.sp,
                                                 fontWeight = FontWeight.Bold,
-                                                color = TextWhite
+                                                color = if (isRowFocused) Color.White else TextWhite
                                             )
                                             if (item.title.isNotBlank() && item.title != item.episode) {
                                                 Text(
                                                     text = item.title,
                                                     fontSize = 11.sp,
-                                                    color = TextGray
+                                                    color = if (isRowFocused) TextWhite.copy(alpha = 0.85f) else TextGray
                                                 )
                                             }
                                         }
@@ -1686,7 +1722,7 @@ fun DetailsScreen(
                                                 Text(
                                                     text = item.date,
                                                     fontSize = 12.sp,
-                                                    color = TextGray
+                                                    color = if (isRowFocused) TextWhite.copy(alpha = 0.9f) else TextGray
                                                 )
                                             }
                                             Box(
@@ -1711,16 +1747,19 @@ fun DetailsScreen(
 
                     activeTabTitle.startsWith("Описание") -> {
                         // TAB: ОПИСАНИЕ И ДЕТАЛИ (С возможностью скролла пультом)
+                        var isSynopsisFocused by remember { mutableStateOf(false) }
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(8.dp))
-                                .background(Color.White.copy(alpha = 0.05f))
+                                .background(if (isSynopsisFocused) accent.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.05f))
                                 .border(
                                     width = 1.dp,
-                                    color = Color.White.copy(alpha = 0.1f),
+                                    color = if (isSynopsisFocused) accent else Color.White.copy(alpha = 0.1f),
                                     shape = RoundedCornerShape(8.dp)
                                 )
+                                .focusable()
+                                .onFocusChanged { isSynopsisFocused = it.isFocused }
                                 .padding(16.dp),
                             verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
@@ -2000,7 +2039,7 @@ fun DetailsScreen(
                 }
 
                 // Smooth bottom clearance for TV bezels and overscan
-                Spacer(modifier = Modifier.height(64.dp))
+                Spacer(modifier = Modifier.height(140.dp))
             }
         }
     }

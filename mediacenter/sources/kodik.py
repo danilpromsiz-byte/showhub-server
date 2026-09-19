@@ -5,6 +5,8 @@ Provides fast HLS streams and direct video playlists without authorization requi
 """
 import urllib.parse
 import requests
+import re
+import time
 from typing import List, Optional
 from .base import BaseSource, MediaItem, StreamResult, VideoStream, CanaryReport
 
@@ -262,15 +264,15 @@ class KodikSource(BaseSource):
                             
                             md = res.get("material_data") or {}
                             actors_list = md.get("actors") or []
-                            act_joined = " ".join(actors_list).lower()
-                            parts = [p.lower() for p in q_actor.strip().split() if len(p) > 1]
-                            if len(parts) >= 2:
-                                matched_count = sum(1 for p in parts if p in act_joined)
-                                if matched_count < 2 and (q_actor.lower() not in act_joined):
-                                    continue
-                            elif len(parts) == 1:
-                                if parts[0] not in act_joined:
-                                    continue
+                            # Extract all lowercase word tokens from all actors in this movie
+                            actor_tokens = set()
+                            for act in actors_list:
+                                for w in re.findall(r'[\w\'-]+', act.lower()):
+                                    actor_tokens.add(w)
+
+                            query_words = [p.lower() for p in re.findall(r'[\w\'-]+', q_actor) if p]
+                            if not query_words or not all(qw in actor_tokens for qw in query_words):
+                                continue
 
                             seen_links.add(link)
                             title = res.get("title", actor_name)

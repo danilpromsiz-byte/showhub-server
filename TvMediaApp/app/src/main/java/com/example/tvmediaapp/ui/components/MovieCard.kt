@@ -377,17 +377,53 @@ fun MovieCard(
                     ) {
                         // Left: Series / Episodes Info or New Episodes Alert
                         if (movie.isSeries) {
-                            val epText = when {
-                                movie.episodesInfo.isNotBlank() -> movie.episodesInfo
-                                movie.seasons.isNotEmpty() -> "${movie.seasons.sumOf { it.episodes.size }} сер."
-                                else -> "Сериал"
+                            val parsedInfo = remember(movie.id, movie.episodesInfo, movie.seasons.size) {
+                                val raw = movie.episodesInfo.trim()
+                                var sNum = 1
+                                var epNum = 1
+                                var totalEps: Int? = null
+                                var badgeLabel = "Сериал"
+
+                                if (raw.isNotBlank()) {
+                                    val sMatch = Regex("""(\d+)\s*(?:сезон|сез)""", RegexOption.IGNORE_CASE).find(raw)
+                                    if (sMatch != null) {
+                                        sNum = sMatch.groupValues[1].toIntOrNull() ?: 1
+                                    }
+                                    val ratioMatch = Regex("""(\d+)\s*/\s*(\d+)""", RegexOption.IGNORE_CASE).find(raw)
+                                    if (ratioMatch != null) {
+                                        epNum = ratioMatch.groupValues[1].toIntOrNull() ?: 1
+                                        totalEps = ratioMatch.groupValues[2].toIntOrNull()
+                                    } else {
+                                        val epMatch = Regex("""(\d+)\s*(?:сери|сер)""", RegexOption.IGNORE_CASE).find(raw)
+                                        if (epMatch != null) {
+                                            epNum = epMatch.groupValues[1].toIntOrNull() ?: 1
+                                        } else {
+                                            val anyNum = Regex("""\b(\d+)\b""").findAll(raw).mapNotNull { it.groupValues[1].toIntOrNull() }.toList()
+                                            if (anyNum.size >= 2) {
+                                                epNum = anyNum.last()
+                                            } else if (anyNum.size == 1) {
+                                                epNum = anyNum.first()
+                                            }
+                                        }
+                                    }
+
+                                    badgeLabel = when {
+                                        raw.contains("завершен", ignoreCase = true) || raw.contains("все серии", ignoreCase = true) -> "Все серии"
+                                        totalEps != null -> "$epNum/$totalEps сер."
+                                        epNum > 0 -> "$epNum сер."
+                                        else -> raw
+                                    }
+                                } else if (movie.seasons.isNotEmpty()) {
+                                    val total = movie.seasons.sumOf { it.episodes.size }
+                                    epNum = total
+                                    badgeLabel = "$total сер."
+                                }
+                                Triple(sNum, epNum, badgeLabel)
                             }
-                            val latestEpNum = remember(movie.id, movie.episodesInfo) {
-                                val match = Regex("""(\d+)""").find(movie.episodesInfo)
-                                match?.groupValues?.get(1)?.toIntOrNull() ?: 1
-                            }
-                            val isLatestUnwatched = remember(movie.id, latestEpNum) {
-                                !historyManager.isEpisodeWatched(movie.id, 1, latestEpNum)
+
+                            val (seasonNum, epNum, epText) = parsedInfo
+                            val isLatestUnwatched = remember(movie.id, seasonNum, epNum) {
+                                !historyManager.isEpisodeWatched(movie.id, seasonNum, epNum)
                             }
 
                             if (newEpisodesCount > 0) {
@@ -406,12 +442,13 @@ fun MovieCard(
                                     )
                                 }
                             } else {
-                                val badgeBg = if (isLatestUnwatched && movie.episodesInfo.isNotBlank()) {
+                                val hasRealEps = epText != "Сериал"
+                                val badgeBg = if (isLatestUnwatched && hasRealEps) {
                                     accent.copy(alpha = 0.92f)
                                 } else {
                                     Color.Black.copy(alpha = 0.85f)
                                 }
-                                val badgeFg = if (isLatestUnwatched && movie.episodesInfo.isNotBlank() && (accent == Color(0xFF00E5FF) || accent == Color(0xFFFFD600) || accent == Color(0xFF00E676) || accent == Color(0xFFAEEA00))) {
+                                val badgeFg = if (isLatestUnwatched && hasRealEps && (accent == Color(0xFF00E5FF) || accent == Color(0xFFFFD600) || accent == Color(0xFF00E676) || accent == Color(0xFFAEEA00))) {
                                     Color.Black
                                 } else {
                                     Color.White

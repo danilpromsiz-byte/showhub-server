@@ -428,12 +428,12 @@ fun MovieCard(
                             !historyManager.isEpisodeWatched(movie.id, seasonNum, epNum)
                         }
 
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.TopStart)
-                                .padding(5.dp)
-                        ) {
-                            if (newEpisodesCount > 0) {
+                        if (newEpisodesCount > 0) {
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.TopStart)
+                                    .padding(5.dp)
+                            ) {
                                 Box(
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(4.dp))
@@ -446,34 +446,6 @@ fun MovieCard(
                                         fontWeight = FontWeight.Bold,
                                         color = Color.White,
                                         maxLines = 1
-                                    )
-                                }
-                            } else {
-                                val hasRealEps = epText != "Сериал"
-                                val badgeBg = if (isLatestUnwatched && hasRealEps) {
-                                    accent.copy(alpha = 0.92f)
-                                } else {
-                                    Color.Black.copy(alpha = 0.85f)
-                                }
-                                val badgeFg = if (isLatestUnwatched && hasRealEps && (accent == Color(0xFF00E5FF) || accent == Color(0xFFFFD600) || accent == Color(0xFF00E676) || accent == Color(0xFFAEEA00))) {
-                                    Color.Black
-                                } else {
-                                    Color.White
-                                }
-
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(4.dp))
-                                        .background(badgeBg)
-                                        .padding(horizontal = 4.dp, vertical = 2.dp)
-                                ) {
-                                    Text(
-                                        text = epText,
-                                        fontSize = 9.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = badgeFg,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
                                     )
                                 }
                             }

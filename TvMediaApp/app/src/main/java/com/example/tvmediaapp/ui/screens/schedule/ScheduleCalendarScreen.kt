@@ -64,6 +64,9 @@ import com.example.tvmediaapp.ui.theme.LocalFocusColor
 import com.example.tvmediaapp.ui.theme.TextGray
 import com.example.tvmediaapp.ui.theme.TextWhite
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -101,12 +104,13 @@ fun ScheduleCalendarScreen(
             val historyItems = historyManager.getHistory()
             val candidateMovies = mutableListOf<Movie>()
 
-            // 1. Gather movies from history and trackedMovies
+            // 1. Gather movies from history and trackedMovies with disk cache check
             val seenIds = mutableSetOf<String>()
             for (m in trackedMovies) {
                 if (m.isSeries && !seenIds.contains(m.id)) {
                     seenIds.add(m.id)
-                    candidateMovies.add(m)
+                    val cached = MediaDiskCache.getCachedDetails(m.id, m.title, m.releaseYear)
+                    candidateMovies.add(cached ?: m)
                 }
             }
             for (h in historyItems) {
@@ -133,75 +137,39 @@ fun ScheduleCalendarScreen(
                 }
             }
 
-            // 2. Fetch rich details with schedule for candidate series if missing
-            val fullSeries = candidateMovies.map { m ->
-                if (m.episodesSchedule.isNotEmpty()) {
-                    m
-                } else {
-                    try {
-                        ShowHubApiClient.fetchMediaDetails(m)
-                    } catch (_: Exception) {
-                        m
+            // Immediately display cached or existing schedule without waiting for network!
+            val initialGroups = buildCalendarGroups(candidateMovies)
+            if (initialGroups.isNotEmpty()) {
+                calendarGroups = initialGroups
+                isLoading = false
+            }
+
+            // Concurrently fetch missing details for series that don't have schedule yet
+            val missing = candidateMovies.filter { it.episodesSchedule.isEmpty() && it.seasons.isEmpty() }
+            if (missing.isNotEmpty()) {
+                val updatedMovies = candidateMovies.toMutableList()
+                val fetched = coroutineScope {
+                    missing.map { m ->
+                        async(Dispatchers.IO) {
+                            try {
+                                ShowHubApiClient.fetchMediaDetails(m)
+                            } catch (_: Exception) {
+                                m
+                            }
+                        }
+                    }.awaitAll()
+                }
+
+                for (item in fetched) {
+                    val idx = updatedMovies.indexOfFirst { it.id == item.id }
+                    if (idx != -1) {
+                        updatedMovies[idx] = item
                     }
                 }
+
+                calendarGroups = buildCalendarGroups(updatedMovies)
             }
 
-            // 3. Group by schedule status and date
-            val todayEntries = mutableListOf<CalendarEpisodeEntry>()
-            val tomorrowEntries = mutableListOf<CalendarEpisodeEntry>()
-            val upcomingEntries = mutableListOf<CalendarEpisodeEntry>()
-            val recentEntries = mutableListOf<CalendarEpisodeEntry>()
-
-            for (m in fullSeries) {
-                val sched = m.episodesSchedule
-                if (sched.isNotEmpty()) {
-                    for (item in sched) {
-                        val entry = CalendarEpisodeEntry(m, item)
-                        val dLower = (item.date + " " + item.status).lowercase()
-                        when {
-                            dLower.contains("сегодня") -> todayEntries.add(entry)
-                            dLower.contains("завтра") -> tomorrowEntries.add(entry)
-                            dLower.contains("ожидается") || anyFutureMonth(dLower) -> upcomingEntries.add(entry)
-                            else -> recentEntries.add(entry)
-                        }
-                    }
-                } else if (m.seasons.isNotEmpty()) {
-                    // Fallback from seasons
-                    val lastSeason = m.seasons.lastOrNull()
-                    if (lastSeason != null) {
-                        val lastEps = lastSeason.episodes.takeLast(3)
-                        for (ep in lastEps) {
-                            recentEntries.add(
-                                CalendarEpisodeEntry(
-                                    movie = m,
-                                    scheduleItem = EpisodeScheduleItem(
-                                        episode = "${lastSeason.seasonNumber} сезон ${ep.episodeNumber} серия",
-                                        title = ep.title,
-                                        date = "Недавно",
-                                        status = "Вышла"
-                                    )
-                                )
-                            )
-                        }
-                    }
-                }
-            }
-
-            val groups = mutableListOf<CalendarDayGroup>()
-            if (todayEntries.isNotEmpty()) {
-                groups.add(CalendarDayGroup("Сегодня", todayEntries.take(15)))
-            }
-            if (tomorrowEntries.isNotEmpty()) {
-                groups.add(CalendarDayGroup("Завтра", tomorrowEntries.take(15)))
-            }
-            if (upcomingEntries.isNotEmpty()) {
-                groups.add(CalendarDayGroup("Скоро выйдут", upcomingEntries.take(20)))
-            }
-            if (recentEntries.isNotEmpty()) {
-                groups.add(CalendarDayGroup("Недавно вышли", recentEntries.take(25)))
-            }
-
-            calendarGroups = groups
             isLoading = false
         }
     }
@@ -441,4 +409,60 @@ fun CalendarEpisodeCard(
 fun anyFutureMonth(s: String): Boolean {
     val months = listOf("январ", "феврал", "март", "апрел", "ма", "июн", "июл", "август", "сентябр", "октябр", "ноябр", "декабр")
     return months.any { s.contains(it) }
+}
+
+fun buildCalendarGroups(movies: List<Movie>): List<CalendarDayGroup> {
+    val todayEntries = mutableListOf<CalendarEpisodeEntry>()
+    val tomorrowEntries = mutableListOf<CalendarEpisodeEntry>()
+    val upcomingEntries = mutableListOf<CalendarEpisodeEntry>()
+    val recentEntries = mutableListOf<CalendarEpisodeEntry>()
+
+    for (m in movies) {
+        val sched = m.episodesSchedule
+        if (sched.isNotEmpty()) {
+            for (item in sched) {
+                val entry = CalendarEpisodeEntry(m, item)
+                val dLower = (item.date + " " + item.status).lowercase()
+                when {
+                    dLower.contains("сегодня") -> todayEntries.add(entry)
+                    dLower.contains("завтра") -> tomorrowEntries.add(entry)
+                    dLower.contains("ожидается") || anyFutureMonth(dLower) -> upcomingEntries.add(entry)
+                    else -> recentEntries.add(entry)
+                }
+            }
+        } else if (m.seasons.isNotEmpty()) {
+            val lastSeason = m.seasons.lastOrNull()
+            if (lastSeason != null) {
+                val lastEps = lastSeason.episodes.takeLast(3)
+                for (ep in lastEps) {
+                    recentEntries.add(
+                        CalendarEpisodeEntry(
+                            movie = m,
+                            scheduleItem = EpisodeScheduleItem(
+                                episode = "${lastSeason.seasonNumber} сезон ${ep.episodeNumber} серия",
+                                title = ep.title,
+                                date = "Недавно",
+                                status = "Вышла"
+                            )
+                        )
+                    )
+                }
+            }
+        }
+    }
+
+    val groups = mutableListOf<CalendarDayGroup>()
+    if (todayEntries.isNotEmpty()) {
+        groups.add(CalendarDayGroup("Сегодня", todayEntries.take(15)))
+    }
+    if (tomorrowEntries.isNotEmpty()) {
+        groups.add(CalendarDayGroup("Завтра", tomorrowEntries.take(15)))
+    }
+    if (upcomingEntries.isNotEmpty()) {
+        groups.add(CalendarDayGroup("Скоро выйдут", upcomingEntries.take(20)))
+    }
+    if (recentEntries.isNotEmpty()) {
+        groups.add(CalendarDayGroup("Недавно вышли", recentEntries.take(25)))
+    }
+    return groups
 }

@@ -1564,28 +1564,31 @@ private fun NativeExoPlayerScreen(
                             },
                         contentAlignment = Alignment.CenterStart
                     ) {
-                        // 1. Background full track
+                        // 1. Unplayed background track
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(if (isTimelineFocused) 8.dp else 5.dp)
-                                .background(Color.White.copy(alpha = 0.2f), shape = RoundedCornerShape(4.dp))
+                                .height(if (isTimelineFocused) 7.dp else 4.dp)
+                                .background(Color.White.copy(alpha = 0.15f), shape = RoundedCornerShape(4.dp))
                         )
                         // 2. Buffered / Caching track
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth(bufferedFraction)
-                                .height(if (isTimelineFocused) 8.dp else 5.dp)
-                                .background(Color.White.copy(alpha = 0.45f), shape = RoundedCornerShape(4.dp))
+                                .height(if (isTimelineFocused) 7.dp else 4.dp)
+                                .background(Color.White.copy(alpha = 0.35f), shape = RoundedCornerShape(4.dp))
                         )
                         // 3. Played progress track
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth(progressFraction)
-                                .height(if (isTimelineFocused) 8.dp else 5.dp)
+                                .height(if (isTimelineFocused) 7.dp else 4.dp)
                                 .background(
                                     brush = Brush.horizontalGradient(
-                                        colors = listOf(accent, Color(0xFF8E24AA))
+                                        colors = listOf(
+                                            accent.copy(alpha = 0.75f),
+                                            accent
+                                        )
                                     ),
                                     shape = RoundedCornerShape(4.dp)
                                 )

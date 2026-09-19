@@ -246,11 +246,12 @@ object ShowHubApiClient {
                     }
                 }
 
+                val apiAge = obj.optString("age_limit", "").trim().takeIf { it.isNotBlank() && !it.equals("null", ignoreCase = true) }
                 val ageRating = classifyAgeRating(
                     title = movie.title,
                     desc = obj.optString("description", movie.description),
                     genres = movie.genres,
-                    rawAge = obj.optString("age_limit", movie.ageRating)
+                    rawAge = apiAge ?: movie.ageRating
                 )
                 val rawPoster = obj.optString("poster", "")
                 val updatedPoster = if (rawPoster.startsWith("http") && !rawPoster.contains("no_image") && !rawPoster.contains("noposter")) rawPoster else movie.posterUrl
@@ -531,6 +532,25 @@ object ShowHubApiClient {
     fun classifyAgeRating(title: String, desc: String, genres: List<String>, rawAge: String): String {
         val cleanRaw = rawAge.trim().uppercase()
         if (cleanRaw in listOf("18+", "18", "R", "NC-17", "R-18", "X")) return "18+"
+        if (cleanRaw in listOf("16+", "16", "TV-MA")) return "16+"
+        if (cleanRaw in listOf("12+", "12", "PG-13", "TV-14")) return "12+"
+        if (cleanRaw in listOf("6+", "6", "PG", "TV-PG", "TV-Y7")) return "6+"
+        if (cleanRaw in listOf("0+", "0", "G", "TV-G", "TV-Y")) return "0+"
+
+        val digits = cleanRaw.filter { it.isDigit() }
+        if (digits.isNotEmpty() && !cleanRaw.contains("YEAR") && !cleanRaw.contains("MIN") && !cleanRaw.contains("СЕЗОН")) {
+            val num = digits.toIntOrNull()
+            if (num != null && num in 0..21) {
+                return when {
+                    num >= 18 -> "18+"
+                    num >= 16 -> "16+"
+                    num >= 12 -> "12+"
+                    num >= 6 -> "6+"
+                    else -> "0+"
+                }
+            }
+        }
+
         val fullTxt = "$title $desc ${genres.joinToString(" ")}".lowercase()
         val r18 = listOf(
             "18+", "18 плюс", "парфюмер", "история одного убийцы", "убийц", "убийств", "маньяк",

@@ -6,6 +6,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -55,6 +57,7 @@ import com.example.tvmediaapp.ui.screens.history.HistoryScreen
 import com.example.tvmediaapp.ui.screens.home.HomeScreen
 import com.example.tvmediaapp.ui.screens.home.HomeViewModel
 import com.example.tvmediaapp.ui.screens.player.PlayerScreen
+import com.example.tvmediaapp.ui.theme.LocalAccentColor
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -106,9 +109,9 @@ class MainActivity : ComponentActivity() {
     fun getInstalledVersionName(): String {
         return try {
             val pInfo = packageManager.getPackageInfo(packageName, 0)
-            pInfo.versionName ?: "2.8.0"
+            pInfo.versionName ?: "2.8.1"
         } catch (e: Exception) {
-            "2.8.0"
+            "2.8.1"
         }
     }
 
@@ -223,13 +226,18 @@ fun TvAppNavHost(activity: MainActivity) {
     }
 
     val isUpdateDialogVisible = updateInfo?.let { it.versionCode > activity.getInstalledVersionCode() } == true
+    var showExitDialog by remember { mutableStateOf(false) }
 
     // Hardware Back button handling for Android TV remotes
     BackHandler(enabled = isUpdateDialogVisible) {
         updateInfo = null
     }
 
-    BackHandler(enabled = !isUpdateDialogVisible && currentScreen != Screen.HOME) {
+    BackHandler(enabled = showExitDialog) {
+        showExitDialog = false
+    }
+
+    BackHandler(enabled = !isUpdateDialogVisible && !showExitDialog) {
         when (currentScreen) {
             Screen.PLAYER -> currentScreen = Screen.DETAILS
             Screen.DETAILS -> {
@@ -245,7 +253,9 @@ fun TvAppNavHost(activity: MainActivity) {
             Screen.HISTORY -> currentScreen = Screen.HOME
             Screen.SCHEDULE -> currentScreen = Screen.HOME
             Screen.SETTINGS -> currentScreen = Screen.HOME
-            Screen.HOME -> activity.finish()
+            Screen.HOME -> {
+                showExitDialog = true
+            }
         }
     }
 
@@ -254,7 +264,7 @@ fun TvAppNavHost(activity: MainActivity) {
             .fillMaxSize()
             .background(LocalBackgroundColor.current)
             .focusProperties {
-                canFocus = !isUpdateDialogVisible
+                canFocus = !isUpdateDialogVisible && !showExitDialog
             }
     ) {
         when (currentScreen) {
@@ -614,6 +624,109 @@ fun TvAppNavHost(activity: MainActivity) {
                             Text(
                                 text = "Напомнить позже",
                                 fontSize = 13.sp
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // EXIT CONFIRMATION MODAL DIALOG
+        if (showExitDialog) {
+            val accent = LocalAccentColor.current
+            val exitFocusRequester = remember { FocusRequester() }
+            val cancelFocusRequester = remember { FocusRequester() }
+
+            LaunchedEffect(Unit) {
+                delay(100)
+                try { cancelFocusRequester.requestFocus() } catch (_: Exception) {}
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.85f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    modifier = Modifier
+                        .width(440.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Color(0xFF1E293B))
+                        .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(16.dp))
+                        .padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "Выход из ShowHub TV",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text(
+                        text = "Вы действительно хотите закрыть приложение?",
+                        fontSize = 14.sp,
+                        color = Color.LightGray,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(24.dp))
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Button(
+                            onClick = {
+                                showExitDialog = false
+                            },
+                            shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
+                            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 0.dp),
+                            colors = ButtonDefaults.colors(
+                                containerColor = accent,
+                                focusedContainerColor = Color.White,
+                                contentColor = Color.Black,
+                                focusedContentColor = Color.Black
+                            ),
+                            modifier = Modifier
+                                .height(36.dp)
+                                .focusRequester(cancelFocusRequester)
+                                .focusProperties {
+                                    right = exitFocusRequester
+                                }
+                        ) {
+                            Text(
+                                text = "Остаться",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        Button(
+                            onClick = {
+                                showExitDialog = false
+                                activity.finish()
+                            },
+                            shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
+                            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 0.dp),
+                            colors = ButtonDefaults.colors(
+                                containerColor = Color.White.copy(alpha = 0.12f),
+                                focusedContainerColor = Color(0xFFE53935),
+                                contentColor = Color.White,
+                                focusedContentColor = Color.White
+                            ),
+                            modifier = Modifier
+                                .height(36.dp)
+                                .focusRequester(exitFocusRequester)
+                                .focusProperties {
+                                    left = cancelFocusRequester
+                                }
+                        ) {
+                            Text(
+                                text = "Выйти",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold
                             )
                         }
                     }

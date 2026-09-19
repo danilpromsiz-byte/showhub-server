@@ -68,4 +68,42 @@ object EpisodeNotificationManager {
             notificationManager.notify(movie.id.hashCode(), notification)
         } catch (_: Exception) {}
     }
+
+    fun notifyTodayEpisode(context: Context, movie: Movie, episodeDetails: String) {
+        try {
+            val prefs = context.getSharedPreferences("showhub_schedule_notifs", Context.MODE_PRIVATE)
+            val todayStr = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())
+            val key = "today_${movie.id}_$todayStr"
+            if (prefs.getBoolean(key, false)) return
+            prefs.edit().putBoolean(key, true).apply()
+
+            ensureChannel(context)
+            val intent = Intent(context, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                putExtra("extra_movie_id", movie.id)
+            }
+            val pendingIntent = PendingIntent.getActivity(
+                context,
+                (movie.id + "_today").hashCode(),
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+
+            val title = "Сегодня новая серия!"
+            val message = "Сериал «${movie.title}»: сегодня выходит $episodeDetails"
+
+            val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+                .setSmallIcon(R.drawable.ic_movie)
+                .setContentTitle(title)
+                .setContentText(message)
+                .setStyle(NotificationCompat.BigTextStyle().bigText(message))
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setAutoCancel(true)
+                .setContentIntent(pendingIntent)
+                .build()
+
+            val notificationManager = NotificationManagerCompat.from(context)
+            notificationManager.notify((movie.id + "_today").hashCode(), notification)
+        } catch (_: Exception) {}
+    }
 }

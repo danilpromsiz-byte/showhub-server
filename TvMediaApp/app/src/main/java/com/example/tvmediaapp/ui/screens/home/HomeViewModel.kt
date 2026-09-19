@@ -150,6 +150,8 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         prefetchJob = viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             val historyManager = WatchHistoryManager(getApplication())
             val startedSeriesIds = historyManager.getHistory().filter { it.isSeries }.map { it.id }.toSet()
+            val batchUpdates = mutableMapOf<String, Movie>()
+            var lastBatchFlush = System.currentTimeMillis()
 
             for (movie in allMovies) {
                 if (!isActive) break
@@ -178,17 +180,52 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                         }
                     }
 
-                    // In-place UI update: Replace shallow movie with fully enriched movie in _categories!
-                    if (detailed.ratingKp > 0 || detailed.country.isNotBlank() || detailed.episodesInfo.isNotBlank()) {
+                    // Requirement 10: Check if an episode airs TODAY
+                    if (detailed.isSeries && detailed.episodesSchedule.isNotEmpty()) {
+                        val todayItem = detailed.episodesSchedule.firstOrNull {
+                            val s = (it.date + " " + it.status).lowercase()
+                            s.contains("сегодня")
+                        }
+                        if (todayItem != null) {
+                            com.example.tvmediaapp.data.notifications.EpisodeNotificationManager.notifyTodayEpisode(
+                                getApplication(),
+                                detailed,
+                                todayItem.episode + if (todayItem.title.isNotBlank()) " — ${todayItem.title}" else ""
+                            )
+                        }
+                    }
+
+                    // Buffer enrichment
+                    if (detailed.ratingKp > 0 || detailed.country.isNotBlank() || detailed.episodesInfo.isNotBlank() || detailed.ageRating.isNotBlank()) {
+                        batchUpdates[detailed.id] = detailed
+                    }
+
+                    // Flush batch periodically without thrashing UI
+                    val now = System.currentTimeMillis()
+                    if (batchUpdates.isNotEmpty() && (now - lastBatchFlush >= 2500 || batchUpdates.size >= 12)) {
+                        val toApply = batchUpdates.toMap()
+                        batchUpdates.clear()
+                        lastBatchFlush = now
                         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
                             _categories.value = _categories.value.map { cat ->
-                                cat.copy(movies = cat.movies.map { if (it.id == detailed.id) detailed else it })
+                                cat.copy(movies = cat.movies.map { m -> toApply[m.id] ?: m })
                             }
                         }
                     }
 
-                    kotlinx.coroutines.delay(100)
+                    kotlinx.coroutines.delay(120)
                 } catch (_: Exception) {}
+            }
+
+            // Final flush
+            if (batchUpdates.isNotEmpty()) {
+                val toApply = batchUpdates.toMap()
+                batchUpdates.clear()
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                    _categories.value = _categories.value.map { cat ->
+                        cat.copy(movies = cat.movies.map { m -> toApply[m.id] ?: m })
+                    }
+                }
             }
         }
     }

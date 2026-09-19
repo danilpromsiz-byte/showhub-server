@@ -85,21 +85,18 @@ fun HomeScreen(
     val filterRow2FocusRequester = remember { FocusRequester() }
     val targetCardFocusRequester = remember { FocusRequester() }
 
-    var hasRestoredFocus by remember { mutableStateOf(false) }
-
-    // Automatically restore focus to the last selected/focused card once on initial screen appearance
+    // Automatically restore focus to the last selected/focused card
     LaunchedEffect(displayMovies.isNotEmpty()) {
-        if (displayMovies.isNotEmpty() && !hasRestoredFocus) {
-            val targetIdx = viewModel.lastFocusedIndex.coerceIn(0, displayMovies.size - 1)
+        if (displayMovies.isNotEmpty()) {
+            val targetIdx = viewModel.lastFocusedIndex.coerceIn(0, (displayMovies.size - 1).coerceAtLeast(0))
             if (targetIdx > 0) {
                 try {
                     viewModel.gridState.scrollToItem(targetIdx)
                 } catch (_: Exception) {}
             }
-            delay(150)
+            delay(100)
             try {
                 targetCardFocusRequester.requestFocus()
-                hasRestoredFocus = true
             } catch (_: Exception) {}
         }
     }
@@ -186,27 +183,7 @@ fun HomeScreen(
             ) {
                 itemsIndexed(displayMovies, key = { _, movie -> movie.id }) { index, movie ->
                     val isTarget = index == viewModel.lastFocusedIndex.coerceIn(0, (displayMovies.size - 1).coerceAtLeast(0))
-                    val isLeftmost = index % 6 == 0
-                    val isRightmost = index % 6 == 5
-
-                    val edgeNavMod = Modifier.onKeyEvent { keyEvent ->
-                        if (keyEvent.type == KeyEventType.KeyDown) {
-                            if (isLeftmost && (keyEvent.key == Key.DirectionLeft || keyEvent.key.keyCode == 21L)) {
-                                try {
-                                    topBarSearchFocusRequester.requestFocus()
-                                    return@onKeyEvent true
-                                } catch (_: Exception) {}
-                            } else if (isRightmost && (keyEvent.key == Key.DirectionRight || keyEvent.key.keyCode == 22L)) {
-                                try {
-                                    topBarSearchFocusRequester.requestFocus()
-                                    return@onKeyEvent true
-                                } catch (_: Exception) {}
-                            }
-                        }
-                        false
-                    }
-
-                    val cardFocusMod = (if (isTarget) Modifier.focusRequester(targetCardFocusRequester) else Modifier).then(edgeNavMod)
+                    val cardFocusMod = if (isTarget) Modifier.focusRequester(targetCardFocusRequester) else Modifier
 
                     MovieCard(
                         movie = movie,

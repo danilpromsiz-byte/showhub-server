@@ -11,8 +11,8 @@ val BackgroundDark = Color(0xFF07090E) // ShowHub Obsidian Space Black
 val SurfaceDark = Color(0xFF0D121C) // ShowHub Deep Card Surface
 val SurfaceVariantDark = Color(0xFF141B28) // ShowHub Card Elevation
 val PureBlack = Color(0xFF000000) // OLED Pure True Black
-val PureBlackSurface = Color(0xFF070707)
-val PureBlackSurfaceVariant = Color(0xFF0F0F0F)
+val PureBlackSurface = Color(0xFF000000)
+val PureBlackSurfaceVariant = Color(0xFF050505)
 val ChipBackground = Color(0xFF1E2638)
 val ChipSelectedBackground = Color(0xFF00E5FF)
 
@@ -34,3 +34,5 @@ val ThemeAmber = Color(0xFFFFB300)
 val ThemeRuby = Color(0xFFE50914)
 val ThemeAmethyst = Color(0xFFA855F7)
 val ThemeSapphire = Color(0xFF3B82F6)
+val ThemeLime = Color(0xFFAEEA00)
+val ThemeMagenta = Color(0xFFFF007F)

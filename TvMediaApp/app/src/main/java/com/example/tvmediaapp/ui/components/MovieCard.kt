@@ -377,6 +377,19 @@ fun MovieCard(
                     ) {
                         // Left: Series / Episodes Info or New Episodes Alert
                         if (movie.isSeries) {
+                            val epText = when {
+                                movie.episodesInfo.isNotBlank() -> movie.episodesInfo
+                                movie.seasons.isNotEmpty() -> "${movie.seasons.sumOf { it.episodes.size }} сер."
+                                else -> "Сериал"
+                            }
+                            val latestEpNum = remember(movie.id, movie.episodesInfo) {
+                                val match = Regex("""(\d+)""").find(movie.episodesInfo)
+                                match?.groupValues?.get(1)?.toIntOrNull() ?: 1
+                            }
+                            val isLatestUnwatched = remember(movie.id, latestEpNum) {
+                                !historyManager.isEpisodeWatched(movie.id, 1, latestEpNum)
+                            }
+
                             if (newEpisodesCount > 0) {
                                 Box(
                                     modifier = Modifier
@@ -393,19 +406,29 @@ fun MovieCard(
                                     )
                                 }
                             } else {
-                                val epText = if (movie.episodesInfo.isNotBlank()) movie.episodesInfo else "Сериал"
+                                val badgeBg = if (isLatestUnwatched && movie.episodesInfo.isNotBlank()) {
+                                    accent.copy(alpha = 0.92f)
+                                } else {
+                                    Color.Black.copy(alpha = 0.85f)
+                                }
+                                val badgeFg = if (isLatestUnwatched && movie.episodesInfo.isNotBlank() && (accent == Color(0xFF00E5FF) || accent == Color(0xFFFFD600) || accent == Color(0xFF00E676) || accent == Color(0xFFAEEA00))) {
+                                    Color.Black
+                                } else {
+                                    Color.White
+                                }
+
                                 Box(
                                     modifier = Modifier
                                         .weight(1f, fill = false)
                                         .clip(RoundedCornerShape(4.dp))
-                                        .background(Color.Black.copy(alpha = 0.85f))
+                                        .background(badgeBg)
                                         .padding(horizontal = 4.dp, vertical = 2.dp)
                                 ) {
                                     Text(
                                         text = epText,
                                         fontSize = 9.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = Color.White,
+                                        color = badgeFg,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
@@ -490,7 +513,7 @@ fun MovieCard(
                     }
 
                     // Bottom-left: Country flag + Max Non-Premium Quality badge
-                    val countryBadge = com.example.tvmediaapp.data.models.getCountryBadge(movie.country)
+                    val countryBadge = com.example.tvmediaapp.data.models.getCountryBadge(movie.country, movie.genres, movie.title)
                     val badgeQuality = movie.maxQuality.ifEmpty { "1080p" }
                     val badgeText = if (countryBadge.isNotBlank()) "$countryBadge • $badgeQuality" else badgeQuality
                     Box(
@@ -566,7 +589,7 @@ fun MovieCard(
                 val typeStr = if (movie.isSeries) {
                     if (movie.episodesInfo.isNotBlank()) movie.episodesInfo else "Сериал"
                 } else "Фильм"
-                val countryBadge = com.example.tvmediaapp.data.models.getCountryBadge(movie.country)
+                val countryBadge = com.example.tvmediaapp.data.models.getCountryBadge(movie.country, movie.genres, movie.title)
                 val flagPrefix = if (countryBadge.isNotBlank()) "$countryBadge  " else ""
                 val subText = if (cleanYear.isNotEmpty()) "$flagPrefix$cleanYear • $typeStr" else "$flagPrefix$typeStr"
                 Text(

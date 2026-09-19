@@ -86,13 +86,13 @@ enum class SettingsTab(val title: String) {
 }
 
 val THEME_OPTIONS = listOf(
-    Pair("yellow", "Cinema Yellow (Золото IMDb)"),
-    Pair("cyan", "Cyan Neon (Бирюза)"),
-    Pair("emerald", "Emerald (Изумруд)"),
-    Pair("amber", "Amber (Янтарь)"),
-    Pair("ruby", "Ruby (Рубин)"),
-    Pair("amethyst", "Amethyst (Аметист)"),
-    Pair("sapphire", "Sapphire (Сапфир)")
+    Pair("yellow", "Cinema Gold"),
+    Pair("cyan", "Cyan Neon"),
+    Pair("emerald", "Emerald"),
+    Pair("amber", "Amber"),
+    Pair("ruby", "Ruby"),
+    Pair("amethyst", "Amethyst"),
+    Pair("sapphire", "Sapphire")
 )
 
 fun getThemeColor(themeKey: String): Color = when (themeKey) {
@@ -107,12 +107,33 @@ fun getThemeColor(themeKey: String): Color = when (themeKey) {
 }
 
 val FOCUS_COLOR_OPTIONS = listOf(
-    Pair("white", "Белый (По умолчанию)"),
+    Pair("white", "Белый"),
     Pair("accent", "В цвет темы"),
-    Pair("yellow", "Желтый (Cinema)"),
-    Pair("cyan", "Бирюзовый"),
-    Pair("emerald", "Изумрудный")
+    Pair("cyan", "Cyan Neon"),
+    Pair("yellow", "Cinema Gold"),
+    Pair("emerald", "Emerald"),
+    Pair("amber", "Amber"),
+    Pair("ruby", "Ruby"),
+    Pair("amethyst", "Amethyst"),
+    Pair("sapphire", "Sapphire"),
+    Pair("lime", "Electric Lime"),
+    Pair("magenta", "Hot Magenta")
 )
+
+fun getFocusColorPreview(focusKey: String, accent: Color): Color = when (focusKey) {
+    "accent" -> accent
+    "white" -> Color.White
+    "cyan" -> Color(0xFF00E5FF)
+    "yellow" -> Color(0xFFFFB800)
+    "emerald" -> Color(0xFF00E676)
+    "amber" -> Color(0xFFFF9100)
+    "ruby" -> Color(0xFFFF1744)
+    "amethyst" -> Color(0xFFD500F9)
+    "sapphire" -> Color(0xFF2979FF)
+    "lime" -> Color(0xFFAEEA00)
+    "magenta" -> Color(0xFFFF007F)
+    else -> Color.White
+}
 
 val PREVIEW_START_OPTIONS = listOf(
     Pair(5, "5 мин"),
@@ -361,11 +382,23 @@ fun SettingsScreen(
                                 fontSize = 13.sp,
                                 color = TextGray
                             )
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            val upToTabsMod = Modifier.onPreviewKeyEvent { event ->
+                                if (event.nativeKeyEvent.action == KeyEvent.ACTION_DOWN &&
+                                    event.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_UP) {
+                                    try {
+                                        tabsFocusRequester.requestFocus()
+                                        true
+                                    } catch (_: Exception) {
+                                        false
+                                    }
+                                } else false
+                            }
+
+                            TvLazyRow(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 modifier = Modifier.padding(top = 4.dp)
                             ) {
-                                THEME_OPTIONS.forEachIndexed { index, (themeKey, themeTitle) ->
+                                itemsIndexed(THEME_OPTIONS) { index, (themeKey, themeTitle) ->
                                     val isCur = themeKey == selectedTheme
                                     val tColor = getThemeColor(themeKey)
                                     val firstThemeMod = if (index == 0) Modifier.focusRequester(tabContentFocusRequester) else Modifier
@@ -387,7 +420,7 @@ fun SettingsScreen(
                                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                                         scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
-                                        modifier = Modifier.height(28.dp).then(firstThemeMod)
+                                        modifier = Modifier.height(28.dp).then(firstThemeMod).then(upToTabsMod)
                                     ) {
                                         Row(
                                             verticalAlignment = Alignment.CenterVertically,
@@ -455,32 +488,50 @@ fun SettingsScreen(
                                 fontWeight = FontWeight.SemiBold,
                                 color = TextWhite
                             )
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            TvLazyRow(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 modifier = Modifier.padding(top = 4.dp)
                             ) {
-                                FOCUS_COLOR_OPTIONS.forEach { (fKey, fTitle) ->
+                                items(FOCUS_COLOR_OPTIONS) { (fKey, fTitle) ->
                                     val isCur = fKey == ThemeManager.currentFocusColorKey
+                                    val fPreviewColor = getFocusColorPreview(fKey, accent)
                                     Button(
                                         onClick = {
                                             ThemeManager.setFocusColor(fKey)
                                         },
                                         colors = ButtonDefaults.colors(
-                                            containerColor = if (isCur) accent.copy(alpha = 0.85f) else ChipBackground,
+                                            containerColor = if (isCur) accent.copy(alpha = 0.28f) else ChipBackground,
                                             focusedContainerColor = LocalFocusColor.current,
-                                            contentColor = if (isCur) Color.Black else TextWhite,
+                                            contentColor = if (isCur) accent else TextWhite,
                                             focusedContentColor = Color.Black
                                         ),
                                         border = ButtonDefaults.border(
-                                            border = Border.None,
-                                            focusedBorder = Border.None
+                                            border = Border(BorderStroke(1.5.dp, if (isCur) accent else Color.White.copy(alpha = 0.12f))),
+                                            focusedBorder = Border(BorderStroke(2.dp, accent))
                                         ),
                                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                                         scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
                                         modifier = Modifier.height(28.dp)
                                     ) {
-                                        Text(text = fTitle, fontSize = 11.sp, fontWeight = if (isCur) FontWeight.Bold else FontWeight.Normal, lineHeight = 13.sp)
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(8.dp)
+                                                    .clip(CircleShape)
+                                                    .background(fPreviewColor)
+                                            )
+                                            Text(
+                                                text = fTitle,
+                                                fontSize = 11.sp,
+                                                fontWeight = if (isCur) FontWeight.Bold else FontWeight.Medium,
+                                                lineHeight = 13.sp,
+                                                color = if (isCur) accent else TextWhite
+                                            )
+                                        }
                                     }
                                 }
                             }

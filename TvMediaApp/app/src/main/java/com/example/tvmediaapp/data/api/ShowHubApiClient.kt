@@ -209,6 +209,22 @@ object ShowHubApiClient {
                     }
                 }
 
+                val scheduleList = mutableListOf<com.example.tvmediaapp.data.models.EpisodeScheduleItem>()
+                val schedArr = obj.optJSONArray("episodes_schedule")
+                if (schedArr != null) {
+                    for (sIdx in 0 until schedArr.length()) {
+                        val sObj = schedArr.getJSONObject(sIdx)
+                        scheduleList.add(
+                            com.example.tvmediaapp.data.models.EpisodeScheduleItem(
+                                episode = sObj.optString("episode", ""),
+                                title = sObj.optString("title", ""),
+                                date = sObj.optString("date", ""),
+                                status = sObj.optString("status", "")
+                            )
+                        )
+                    }
+                }
+
                 val ageRating = classifyAgeRating(
                     title = movie.title,
                     desc = obj.optString("description", movie.description),
@@ -242,6 +258,7 @@ object ShowHubApiClient {
                     audioTracks = if (audioList.isNotEmpty()) audioList else movie.audioTracks,
                     cast = if (castList.isNotEmpty()) castList else movie.cast,
                     directorsList = if (dirList.isNotEmpty()) dirList else movie.directorsList,
+                    episodesSchedule = if (scheduleList.isNotEmpty()) scheduleList else movie.episodesSchedule,
                     ageRating = ageRating
                 )
             }
@@ -259,7 +276,8 @@ object ShowHubApiClient {
         try {
             val encId = URLEncoder.encode(movie.id, "UTF-8")
             val encTrans = URLEncoder.encode(translatorId, "UTF-8")
-            val urlStr = "$SERVER_BASE/api/media/episodes?source=hdrezka&media_id=$encId&translator_id=$encTrans"
+            val encTitle = URLEncoder.encode(movie.title, "UTF-8")
+            val urlStr = "$SERVER_BASE/api/media/episodes?source=hdrezka&media_id=$encId&translator_id=$encTrans&title=$encTitle"
             val conn = URL(urlStr).openConnection() as HttpURLConnection
             conn.connectTimeout = 8000
             conn.readTimeout = 12000

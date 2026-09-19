@@ -50,9 +50,15 @@ object ThemeManager {
         get() = when (currentFocusColorKey) {
             "accent" -> currentAccentColor
             "white" -> Color.White
-            "yellow" -> ThemeYellow
             "cyan" -> ThemeCyan
+            "yellow" -> ThemeYellow
             "emerald" -> ThemeEmerald
+            "amber" -> ThemeAmber
+            "ruby" -> ThemeRuby
+            "amethyst" -> ThemeAmethyst
+            "sapphire" -> ThemeSapphire
+            "lime" -> ThemeLime
+            "magenta" -> ThemeMagenta
             else -> Color.White
         }
 

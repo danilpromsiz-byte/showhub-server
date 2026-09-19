@@ -37,10 +37,19 @@ object MediaDiskCache {
         return dir
     }
 
-    fun getCachedDetails(movieId: String): Movie? {
+    private fun getTitleKey(title: String, year: String?): String {
+        val clean = (title + "_" + (year ?: "")).lowercase().replace(Regex("[^a-zа-я0-9]"), "_")
+        return "t_${clean.take(80)}"
+    }
+
+    fun getCachedDetails(movieId: String, title: String? = null, year: String? = null): Movie? {
         return try {
             val safeId = movieId.replace(Regex("[^a-zA-Z0-9_-]"), "_")
-            val file = File(getDetailsDir(), "$safeId.json")
+            var file = File(getDetailsDir(), "$safeId.json")
+            if (!file.exists() && !title.isNullOrBlank()) {
+                val tKey = getTitleKey(title, year)
+                file = File(getDetailsDir(), "$tKey.json")
+            }
             if (!file.exists()) return null
             if (System.currentTimeMillis() - file.lastModified() > MAX_AGE_MS) {
                 file.delete()
@@ -58,9 +67,13 @@ object MediaDiskCache {
     fun putCachedDetails(movie: Movie) {
         try {
             val safeId = movie.id.replace(Regex("[^a-zA-Z0-9_-]"), "_")
-            val file = File(getDetailsDir(), "$safeId.json")
             val json = serializeMovie(movie)
-            file.writeText(json.toString())
+            val jsonStr = json.toString()
+            File(getDetailsDir(), "$safeId.json").writeText(jsonStr)
+            if (movie.title.isNotBlank()) {
+                val tKey = getTitleKey(movie.title, movie.releaseYear)
+                File(getDetailsDir(), "$tKey.json").writeText(jsonStr)
+            }
         } catch (e: Exception) {
             Log.w(TAG, "Failed to write cached details for ${movie.id}: ${e.message}")
         }
@@ -182,6 +195,18 @@ object MediaDiskCache {
                     }
                 )
             }
+            val schArr = JSONArray()
+            movie.episodesSchedule.forEach { s ->
+                schArr.put(
+                    JSONObject().apply {
+                        put("episode", s.episode)
+                        put("title", s.title)
+                        put("date", s.date)
+                        put("status", s.status)
+                    }
+                )
+            }
+            put("episodesSchedule", schArr)
             put("cast", cArr)
         }
     }
@@ -252,6 +277,22 @@ object MediaDiskCache {
             }
         }
 
+        val schedule = mutableListOf<com.example.tvmediaapp.data.models.EpisodeScheduleItem>()
+        val schArr = obj.optJSONArray("episodesSchedule")
+        if (schArr != null) {
+            for (i in 0 until schArr.length()) {
+                val so = schArr.getJSONObject(i)
+                schedule.add(
+                    com.example.tvmediaapp.data.models.EpisodeScheduleItem(
+                        episode = so.optString("episode", ""),
+                        title = so.optString("title", ""),
+                        date = so.optString("date", ""),
+                        status = so.optString("status", "")
+                    )
+                )
+            }
+        }
+
         return Movie(
             id = obj.optString("id", ""),
             title = obj.optString("title", ""),
@@ -273,6 +314,7 @@ object MediaDiskCache {
             seasons = seasons,
             audioTracks = audioTracks,
             cast = cast,
+            episodesSchedule = schedule,
             ageRating = obj.optString("ageRating", "12+")
         )
     }

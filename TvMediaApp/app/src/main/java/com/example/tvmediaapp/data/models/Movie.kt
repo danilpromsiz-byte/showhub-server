@@ -31,6 +31,13 @@ data class PersonInfo(
     val photoUrl: String = ""
 )
 
+data class EpisodeScheduleItem(
+    val episode: String = "",
+    val title: String = "",
+    val date: String = "",
+    val status: String = ""
+)
+
 data class Movie(
     val id: String,
     val title: String,
@@ -55,14 +62,15 @@ data class Movie(
     val audioTracks: List<AudioTrackInfo> = emptyList(),
     val cast: List<PersonInfo> = emptyList(),
     val directorsList: List<PersonInfo> = emptyList(),
+    val episodesSchedule: List<EpisodeScheduleItem> = emptyList(),
     val ageRating: String = "",
     val maxQuality: String = "1080p",
     val isFavorite: Boolean = false
 )
 
-fun getCountryBadge(country: String): String {
+fun getCountryBadge(country: String, genres: List<String> = emptyList(), title: String = ""): String {
     val c = country.lowercase().trim()
-    return when {
+    val fromCountry = when {
         c.contains("росси") || c.contains("ссср") || c.contains("russia") -> "🇷🇺 RU"
         c.contains("сша") || c.contains("америк") || c.contains("usa") -> "🇺🇸 US"
         c.contains("коре") || c.contains("korea") -> "🇰🇷 KR"
@@ -87,40 +95,35 @@ fun getCountryBadge(country: String): String {
         c.contains("польш") || c.contains("poland") -> "🇵🇱 PL"
         c.contains("ирланд") || c.contains("ireland") -> "🇮🇪 IE"
         c.contains("нидерланд") || c.contains("netherlands") || c.contains("голланди") -> "🇳🇱 NL"
-        country.isNotBlank() -> country.take(3).uppercase()
+        c.contains("бельги") || c.contains("belgium") -> "🇧🇪 BE"
+        c.contains("швейцар") || c.contains("switzerland") -> "🇨🇭 CH"
+        c.contains("австри") || c.contains("austria") -> "🇦🇹 AT"
+        c.contains("чехи") || c.contains("czech") -> "🇨🇿 CZ"
+        c.contains("украин") || c.contains("ukraine") -> "🇺🇦 UA"
+        c.contains("казах") || c.contains("kazakhstan") -> "🇰🇿 KZ"
+        c.contains("беларус") || c.contains("belarus") -> "🇧🇾 BY"
+        country.isNotBlank() && country.length >= 2 -> country.take(3).uppercase()
+        else -> ""
+    }
+    if (fromCountry.isNotBlank()) return fromCountry
+
+    val gStr = genres.joinToString(" ").lowercase()
+    val tStr = title.lowercase()
+    return when {
+        gStr.contains("аним") || tStr.contains("титан") || tStr.contains("клинок") || tStr.contains("магическ") || tStr.contains("перекур") -> "🇯🇵 JP"
+        gStr.contains("дорама") -> "🇰🇷 KR"
+        gStr.contains("турецк") -> "🇹🇷 TR"
+        gStr.contains("индийск") -> "🇮🇳 IN"
+        tStr.contains("богатыр") || tStr.contains("чебурашка") -> "🇷🇺 RU"
         else -> ""
     }
 }
 
-fun getCountryFlagEmoji(country: String): String {
-    val c = country.lowercase().trim()
-    return when {
-        c.contains("росси") || c.contains("ссср") || c.contains("russia") -> "🇷🇺"
-        c.contains("сша") || c.contains("америк") || c.contains("usa") -> "🇺🇸"
-        c.contains("коре") || c.contains("korea") -> "🇰🇷"
-        c.contains("турц") || c.contains("turkey") -> "🇹🇷"
-        c.contains("япон") || c.contains("japan") -> "🇯🇵"
-        c.contains("кита") || c.contains("china") -> "🇨🇳"
-        c.contains("великобрит") || c.contains("англи") || c.contains("uk") -> "🇬🇧"
-        c.contains("франц") || c.contains("france") -> "🇫🇷"
-        c.contains("герман") || c.contains("germany") -> "🇩🇪"
-        c.contains("итал") || c.contains("italy") -> "🇮🇹"
-        c.contains("испан") || c.contains("spain") -> "🇪🇸"
-        c.contains("инди") || c.contains("india") -> "🇮🇳"
-        c.contains("канад") || c.contains("canada") -> "🇨🇦"
-        c.contains("австрал") || c.contains("australia") -> "🇦🇺"
-        c.contains("таиланд") || c.contains("тайланд") || c.contains("thailand") -> "🇹🇭"
-        c.contains("швеци") || c.contains("sweden") -> "🇸🇪"
-        c.contains("мексик") || c.contains("mexico") -> "🇲🇽"
-        c.contains("бразил") || c.contains("brazil") -> "🇧🇷"
-        c.contains("норвег") || c.contains("norway") -> "🇳🇴"
-        c.contains("дани") || c.contains("denmark") -> "🇩🇰"
-        c.contains("финлянд") || c.contains("finland") -> "🇫🇮"
-        c.contains("польш") || c.contains("poland") -> "🇵🇱"
-        c.contains("ирланд") || c.contains("ireland") -> "🇮🇪"
-        c.contains("нидерланд") || c.contains("netherlands") || c.contains("голланди") -> "🇳🇱"
-        else -> ""
-    }
+fun getCountryFlagEmoji(country: String, genres: List<String> = emptyList(), title: String = ""): String {
+    val badge = getCountryBadge(country, genres, title)
+    return if (badge.length >= 2 && badge[0].isSurrogate()) {
+        badge.take(2)
+    } else ""
 }
 
 data class MovieCategory(

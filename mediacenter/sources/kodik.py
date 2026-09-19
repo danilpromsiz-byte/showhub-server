@@ -178,6 +178,15 @@ class KodikSource(BaseSource):
                         kp_id = res.get("kinopoisk_id") or md.get("kinopoisk_id")
                         imdb_id = res.get("imdb_id") or md.get("imdb_id")
                         is_ser = "serial" in str(res.get("type", ""))
+                        last_ep = res.get("last_episode")
+                        total_ep = md.get("episodes_total") or res.get("episodes_count")
+                        ep_info = None
+                        if is_ser and last_ep:
+                            if total_ep and str(total_ep).isdigit() and int(total_ep) > 0:
+                                ep_info = f"{last_ep}/{total_ep} сер."
+                            else:
+                                ep_info = f"{last_ep} сер."
+
                         genres_list = md.get("genres") or ([genre] if genre and genre != "all" else [])
                         countries_list = md.get("countries") or ([params.get("countries")] if params.get("countries") else [])
                         actors_list = md.get("actors") or []
@@ -197,6 +206,7 @@ class KodikSource(BaseSource):
                             kinopoisk_id=str(kp_id) if kp_id else None,
                             imdb_id=str(imdb_id) if imdb_id else None,
                             is_series=is_ser,
+                            episodes_info=ep_info,
                             extra_data={
                                 "country": countries_list[0] if countries_list else (country or ""),
                                 "countries": countries_list,
@@ -206,7 +216,8 @@ class KodikSource(BaseSource):
                                 "directors": ", ".join(directors_list) if directors_list else "",
                                 "director": directors_list[0] if directors_list else "",
                                 "translation": trans,
-                                "type": res.get("type")
+                                "type": res.get("type"),
+                                "episodes_info": ep_info
                             }
                         ))
                     break
@@ -215,127 +226,205 @@ class KodikSource(BaseSource):
         return items
 
     def search_by_actor(self, actor_name: str, limit: int = 40) -> List[MediaItem]:
-        """Queries Kodik API by actor name to retrieve complete filmography."""
+        """Queries Kodik API by actor name to retrieve complete filmography with strict filtering."""
         items = []
         token = self.TOKENS[0]
-        params = {
-            "token": token,
-            "actors": actor_name,
-            "limit": str(limit),
-            "with_material_data": "true"
-        }
-        for endpoint in ["https://kodik-api.com/list", "https://bd.kodikres.com/list"]:
-            try:
-                url = f"{endpoint}?{urllib.parse.urlencode(params)}"
-                resp = requests.get(url, headers=self.headers, timeout=5)
-                if resp.status_code == 200:
-                    data = resp.json()
-                    results = data.get("results", [])
-                    for res in results:
-                        title = res.get("title", actor_name)
-                        link = res.get("link", "")
-                        r_year = res.get("year")
-                        trans = res.get("translation", {}).get("title", "")
-                        md = res.get("material_data") or {}
-                        poster = md.get("poster_url")
-                        genres_list = md.get("genres") or []
-                        countries_list = md.get("countries") or []
-                        actors_list = md.get("actors") or []
-                        directors_list = md.get("directors") or []
-                        kp_id = res.get("kinopoisk_id") or md.get("kinopoisk_id")
-                        imdb_id = res.get("imdb_id") or md.get("imdb_id")
-                        kp_rating = md.get("kinopoisk_rating")
-                        imdb_rating = md.get("imdb_rating")
-                        is_ser = res.get("type", "").endswith("-serial") or ("сезон" in title.lower()) or ("сериал" in title.lower())
-                        items.append(MediaItem(
-                            id=str(res.get("id", link)),
-                            source_name=self.name,
-                            title=title,
-                            year=r_year,
-                            poster=poster,
-                            description=md.get("description") or (f"В ролях: {actor_name}. Перевод: {trans}" if trans else ""),
-                            rating_kp=float(kp_rating) if kp_rating else None,
-                            rating_imdb=float(imdb_rating) if imdb_rating else None,
-                            kinopoisk_id=str(kp_id) if kp_id else None,
-                            imdb_id=str(imdb_id) if imdb_id else None,
-                            is_series=is_ser,
-                            extra_data={
-                                "country": countries_list[0] if countries_list else "",
-                                "countries": countries_list,
-                                "genre": genres_list[0] if genres_list else "",
-                                "genres": genres_list,
-                                "actors": ", ".join(actors_list) if actors_list else actor_name,
-                                "directors": ", ".join(directors_list) if directors_list else "",
-                                "director": directors_list[0] if directors_list else "",
-                                "translation": trans,
-                                "type": res.get("type")
-                            }
-                        ))
-                    break
-            except Exception:
-                continue
+        queries = [actor_name]
+        try:
+            w_url = f"https://www.wikidata.org/w/api.php?action=wbsearchentities&search={urllib.parse.quote(actor_name)}&language=ru&format=json"
+            w_res = requests.get(w_url, headers={"User-Agent": "ShowHubTV-MediaCenter/2.7 (mailto:support@showhub.tv)"}, timeout=2).json()
+            for s_it in w_res.get("search", [])[:2]:
+                lbl = s_it.get("label")
+                if lbl and lbl not in queries:
+                    queries.append(lbl)
+        except Exception:
+            pass
+
+        seen_links = set()
+        for q_actor in queries:
+            params = {
+                "token": token,
+                "actors": q_actor,
+                "limit": str(limit),
+                "with_material_data": "true"
+            }
+            for endpoint in ["https://kodik-api.com/list", "https://bd.kodikres.com/list"]:
+                try:
+                    url = f"{endpoint}?{urllib.parse.urlencode(params)}"
+                    resp = requests.get(url, headers=self.headers, timeout=5)
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        results = data.get("results", [])
+                        for res in results:
+                            link = res.get("link", "")
+                            if link in seen_links:
+                                continue
+                            
+                            md = res.get("material_data") or {}
+                            actors_list = md.get("actors") or []
+                            act_joined = " ".join(actors_list).lower()
+                            parts = [p.lower() for p in q_actor.strip().split() if len(p) > 1]
+                            if len(parts) >= 2:
+                                matched_count = sum(1 for p in parts if p in act_joined)
+                                if matched_count < 2 and (q_actor.lower() not in act_joined):
+                                    continue
+                            elif len(parts) == 1:
+                                if parts[0] not in act_joined:
+                                    continue
+
+                            seen_links.add(link)
+                            title = res.get("title", actor_name)
+                            r_year = res.get("year")
+                            trans = res.get("translation", {}).get("title", "")
+                            poster = md.get("poster_url")
+                            genres_list = md.get("genres") or []
+                            countries_list = md.get("countries") or []
+                            directors_list = md.get("directors") or []
+                            kp_id = res.get("kinopoisk_id") or md.get("kinopoisk_id")
+                            imdb_id = res.get("imdb_id") or md.get("imdb_id")
+                            kp_rating = md.get("kinopoisk_rating")
+                            imdb_rating = md.get("imdb_rating")
+                            is_ser = res.get("type", "").endswith("-serial") or ("сезон" in title.lower()) or ("сериал" in title.lower())
+                            
+                            last_ep = res.get("last_episode")
+                            total_ep = md.get("episodes_total") or res.get("episodes_count")
+                            ep_info = None
+                            if is_ser and last_ep:
+                                if total_ep and str(total_ep).isdigit() and int(total_ep) > 0:
+                                    ep_info = f"{last_ep}/{total_ep} сер."
+                                else:
+                                    ep_info = f"{last_ep} сер."
+
+                            items.append(MediaItem(
+                                id=str(res.get("id", link)),
+                                source_name=self.name,
+                                title=title,
+                                year=r_year,
+                                poster=poster,
+                                description=md.get("description") or (f"В ролях: {actor_name}. Перевод: {trans}" if trans else ""),
+                                rating_kp=float(kp_rating) if kp_rating else None,
+                                rating_imdb=float(imdb_rating) if imdb_rating else None,
+                                kinopoisk_id=str(kp_id) if kp_id else None,
+                                imdb_id=str(imdb_id) if imdb_id else None,
+                                is_series=is_ser,
+                                episodes_info=ep_info,
+                                extra_data={
+                                    "country": countries_list[0] if countries_list else "",
+                                    "countries": countries_list,
+                                    "genre": genres_list[0] if genres_list else "",
+                                    "genres": genres_list,
+                                    "actors": ", ".join(actors_list) if actors_list else actor_name,
+                                    "directors": ", ".join(directors_list) if directors_list else "",
+                                    "director": directors_list[0] if directors_list else "",
+                                    "translation": trans,
+                                    "type": res.get("type"),
+                                    "episodes_info": ep_info
+                                }
+                            ))
+                        break
+                except Exception:
+                    continue
         return items
 
     def search_by_director(self, director_name: str, limit: int = 40) -> List[MediaItem]:
         """Queries Kodik API by director name to retrieve their works."""
         items = []
         token = self.TOKENS[0]
-        params = {
-            "token": token,
-            "directors": director_name,
-            "limit": str(limit),
-            "with_material_data": "true"
-        }
-        for endpoint in ["https://kodik-api.com/list", "https://bd.kodikres.com/list"]:
-            try:
-                url = f"{endpoint}?{urllib.parse.urlencode(params)}"
-                resp = requests.get(url, headers=self.headers, timeout=5)
-                if resp.status_code == 200:
-                    data = resp.json()
-                    results = data.get("results", [])
-                    for res in results:
-                        title = res.get("title", director_name)
-                        link = res.get("link", "")
-                        r_year = res.get("year")
-                        trans = res.get("translation", {}).get("title", "")
-                        md = res.get("material_data") or {}
-                        poster = md.get("poster_url")
-                        genres_list = md.get("genres") or []
-                        countries_list = md.get("countries") or []
-                        actors_list = md.get("actors") or []
-                        directors_list = md.get("directors") or []
-                        kp_id = res.get("kinopoisk_id") or md.get("kinopoisk_id")
-                        imdb_id = res.get("imdb_id") or md.get("imdb_id")
-                        kp_rating = md.get("kinopoisk_rating")
-                        imdb_rating = md.get("imdb_rating")
-                        is_ser = res.get("type", "").endswith("-serial") or ("сезон" in title.lower()) or ("сериал" in title.lower())
-                        items.append(MediaItem(
-                            id=str(res.get("id", link)),
-                            source_name=self.name,
-                            title=title,
-                            year=r_year,
-                            poster=poster,
-                            description=md.get("description") or (f"Режиссер: {director_name}. Перевод: {trans}" if trans else ""),
-                            rating_kp=float(kp_rating) if kp_rating else None,
-                            rating_imdb=float(imdb_rating) if imdb_rating else None,
-                            kinopoisk_id=str(kp_id) if kp_id else None,
-                            imdb_id=str(imdb_id) if imdb_id else None,
-                            is_series=is_ser,
-                            extra_data={
-                                "country": countries_list[0] if countries_list else "",
-                                "countries": countries_list,
-                                "genre": genres_list[0] if genres_list else "",
-                                "genres": genres_list,
-                                "actors": ", ".join(actors_list) if actors_list else "",
-                                "directors": ", ".join(directors_list) if directors_list else director_name,
-                                "director": directors_list[0] if directors_list else director_name,
-                                "translation": trans,
-                                "type": res.get("type")
-                            }
-                        ))
-                    break
-            except Exception:
-                continue
+        queries = [director_name]
+        try:
+            w_url = f"https://www.wikidata.org/w/api.php?action=wbsearchentities&search={urllib.parse.quote(director_name)}&language=ru&format=json"
+            w_res = requests.get(w_url, headers={"User-Agent": "ShowHubTV-MediaCenter/2.7 (mailto:support@showhub.tv)"}, timeout=2).json()
+            for s_it in w_res.get("search", [])[:2]:
+                lbl = s_it.get("label")
+                if lbl and lbl not in queries:
+                    queries.append(lbl)
+        except Exception:
+            pass
+
+        seen_links = set()
+        for q_dir in queries:
+            params = {
+                "token": token,
+                "directors": q_dir,
+                "limit": str(limit),
+                "with_material_data": "true"
+            }
+            for endpoint in ["https://kodik-api.com/list", "https://bd.kodikres.com/list"]:
+                try:
+                    url = f"{endpoint}?{urllib.parse.urlencode(params)}"
+                    resp = requests.get(url, headers=self.headers, timeout=5)
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        results = data.get("results", [])
+                        for res in results:
+                            link = res.get("link", "")
+                            if link in seen_links:
+                                continue
+
+                            md = res.get("material_data") or {}
+                            directors_list = md.get("directors") or []
+                            dir_joined = " ".join(directors_list).lower()
+                            parts = [p.lower() for p in q_dir.strip().split() if len(p) > 1]
+                            if len(parts) >= 2:
+                                matched_count = sum(1 for p in parts if p in dir_joined)
+                                if matched_count < 2 and (q_dir.lower() not in dir_joined):
+                                    continue
+                            elif len(parts) == 1:
+                                if parts[0] not in dir_joined:
+                                    continue
+
+                            seen_links.add(link)
+                            title = res.get("title", director_name)
+                            r_year = res.get("year")
+                            trans = res.get("translation", {}).get("title", "")
+                            poster = md.get("poster_url")
+                            genres_list = md.get("genres") or []
+                            countries_list = md.get("countries") or []
+                            actors_list = md.get("actors") or []
+                            kp_id = res.get("kinopoisk_id") or md.get("kinopoisk_id")
+                            imdb_id = res.get("imdb_id") or md.get("imdb_id")
+                            kp_rating = md.get("kinopoisk_rating")
+                            imdb_rating = md.get("imdb_rating")
+                            is_ser = res.get("type", "").endswith("-serial") or ("сезон" in title.lower()) or ("сериал" in title.lower())
+                            
+                            last_ep = res.get("last_episode")
+                            total_ep = md.get("episodes_total") or res.get("episodes_count")
+                            ep_info = None
+                            if is_ser and last_ep:
+                                if total_ep and str(total_ep).isdigit() and int(total_ep) > 0:
+                                    ep_info = f"{last_ep}/{total_ep} сер."
+                                else:
+                                    ep_info = f"{last_ep} сер."
+
+                            items.append(MediaItem(
+                                id=str(res.get("id", link)),
+                                source_name=self.name,
+                                title=title,
+                                year=r_year,
+                                poster=poster,
+                                description=md.get("description") or (f"Режиссер: {director_name}. Перевод: {trans}" if trans else ""),
+                                rating_kp=float(kp_rating) if kp_rating else None,
+                                rating_imdb=float(imdb_rating) if imdb_rating else None,
+                                kinopoisk_id=str(kp_id) if kp_id else None,
+                                imdb_id=str(imdb_id) if imdb_id else None,
+                                is_series=is_ser,
+                                episodes_info=ep_info,
+                                extra_data={
+                                    "country": countries_list[0] if countries_list else "",
+                                    "countries": countries_list,
+                                    "genre": genres_list[0] if genres_list else "",
+                                    "genres": genres_list,
+                                    "actors": ", ".join(actors_list) if actors_list else "",
+                                    "directors": ", ".join(directors_list) if directors_list else director_name,
+                                    "director": directors_list[0] if directors_list else director_name,
+                                    "translation": trans,
+                                    "type": res.get("type"),
+                                    "episodes_info": ep_info
+                                }
+                            ))
+                        break
+                except Exception:
+                    continue
         return items
 
     def get_streams(self, media_id: str, season: Optional[int] = None, episode: Optional[int] = None, audio_id: Optional[str] = None) -> StreamResult:

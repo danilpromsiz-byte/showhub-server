@@ -123,7 +123,12 @@ fun DetailsScreen(
     }
 
     val prefs = remember { context.getSharedPreferences("showhub_prefs", Context.MODE_PRIVATE) }
-    var currentMovie by remember { mutableStateOf(movie) }
+    val rightPaneScrollState = rememberScrollState()
+    var currentMovie by remember {
+        mutableStateOf(
+            com.example.tvmediaapp.data.cache.MediaDiskCache.getCachedDetails(movie.id, movie.title, movie.releaseYear) ?: movie
+        )
+    }
     var selectedSeason by remember { mutableStateOf(savedHistory?.season ?: 1) }
     var selectedEpisode by remember { mutableStateOf(savedHistory?.episode ?: 1) }
     var selectedAudioId by remember { mutableStateOf(savedHistory?.audioId ?: "") }
@@ -241,6 +246,7 @@ fun DetailsScreen(
     LaunchedEffect(movie.id) {
         val detailed = ShowHubApiClient.fetchMediaDetails(movie)
         currentMovie = detailed
+        com.example.tvmediaapp.data.cache.MediaDiskCache.putCachedDetails(detailed)
         if (detailed.seasons.isNotEmpty() && savedHistory == null) {
             selectedSeason = detailed.seasons.first().seasonNumber
         }
@@ -739,7 +745,7 @@ fun DetailsScreen(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxHeight()
-                    .verticalScroll(rememberScrollState())
+                    .verticalScroll(rightPaneScrollState)
             ) {
                 val titleWithYear = buildString {
                     append(currentMovie.title)
@@ -871,6 +877,15 @@ fun DetailsScreen(
                 Spacer(modifier = Modifier.height(10.dp))
 
                 // Action Buttons - Row 1 (Playback Actions)
+                val scrollUpMod = Modifier.onPreviewKeyEvent { evt ->
+                    if (evt.nativeKeyEvent.action == KeyEvent.ACTION_DOWN && evt.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_UP) {
+                        if (rightPaneScrollState.value > 0) {
+                            coroutineScope.launch { rightPaneScrollState.animateScrollTo(0) }
+                            true
+                        } else false
+                    } else false
+                }
+
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalAlignment = Alignment.CenterVertically
@@ -914,6 +929,7 @@ fun DetailsScreen(
                                     right = fromStartButtonFocusRequester
                                     down = favoriteButtonFocusRequester
                                 }
+                                .then(scrollUpMod)
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -956,6 +972,7 @@ fun DetailsScreen(
                                     right = trailerButtonFocusRequester
                                     down = favoriteButtonFocusRequester
                                 }
+                                .then(scrollUpMod)
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -989,7 +1006,7 @@ fun DetailsScreen(
                             ),
                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                             scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
-                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                             modifier = Modifier
                                 .height(28.dp)
                                 .focusRequester(playButtonFocusRequester)
@@ -998,6 +1015,7 @@ fun DetailsScreen(
                                     right = trailerButtonFocusRequester
                                     down = favoriteButtonFocusRequester
                                 }
+                                .then(scrollUpMod)
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -1288,16 +1306,22 @@ fun DetailsScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Detail Section Tabs: «Плеер и серии», «Описание и детали», «Отзывы (N)»
+                // Detail Section Tabs: «Плеер и серии», «График серий», «Описание и детали», «Отзывы (N)»
+                val tabs = remember(currentMovie.isSeries, currentMovie.episodesSchedule.size, comments.size) {
+                    val list = mutableListOf("Плеер и серии")
+                    if (currentMovie.isSeries) {
+                        list.add("График серий" + if (currentMovie.episodesSchedule.isNotEmpty()) " (${currentMovie.episodesSchedule.size})" else "")
+                    }
+                    list.add("Описание и детали")
+                    list.add("Отзывы" + if (comments.isNotEmpty()) " (${comments.size})" else "")
+                    list
+                }
+                val activeTabTitle = tabs.getOrNull(selectedDetailTab) ?: tabs.firstOrNull() ?: "Плеер и серии"
+
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    val tabs = listOf(
-                        "Плеер и серии",
-                        "Описание и детали",
-                        "Отзывы" + if (comments.isNotEmpty()) " (${comments.size})" else ""
-                    )
                     tabs.forEachIndexed { index, tabTitle ->
                         val isSelected = selectedDetailTab == index
                         val tabMod = if (index == 0) {
@@ -1343,8 +1367,8 @@ fun DetailsScreen(
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                when (selectedDetailTab) {
-                    0 -> {
+                when {
+                    activeTabTitle.startsWith("Плеер") -> {
                         // TAB 0: ПЛЕЕР И СЕРИИ
                         // Translators
                         if (currentMovie.audioTracks.isNotEmpty()) {
@@ -1371,20 +1395,13 @@ fun DetailsScreen(
                                                         }
                                                         val activeS = targetSeasons.firstOrNull { it.seasonNumber == selectedSeason } ?: targetSeasons.firstOrNull()
                                                         val maxEp = activeS?.episodes?.maxOfOrNull { it.episodeNumber } ?: 1
-                                                        val targetEp = if (selectedEpisode > maxEp) {
-                                                            streamStatus = "В озвучке «${track.name}» доступно $maxEp серий (включена $maxEp серия)"
-                                                            maxEp
-                                                        } else {
-                                                            selectedEpisode
+                                                        if (selectedEpisode > maxEp) {
+                                                            selectedEpisode = maxEp
+                                                            streamStatus = "В озвучке «${track.name}» доступно $maxEp серий (выбрана $maxEp серия)"
                                                         }
-                                                        selectedEpisode = targetEp
-                                                        startPlayback(targetSeason = activeS?.seasonNumber ?: selectedSeason, targetEpisode = targetEp, targetAudioId = track.id)
                                                     } catch (_: Exception) {
-                                                        startPlayback(targetSeason = selectedSeason, targetEpisode = selectedEpisode, targetAudioId = track.id)
                                                     }
                                                 }
-                                            } else {
-                                                startPlayback(targetSeason = selectedSeason, targetEpisode = selectedEpisode, targetAudioId = track.id)
                                             }
                                         },
                                         colors = ButtonDefaults.colors(
@@ -1582,8 +1599,118 @@ fun DetailsScreen(
                         }
                     }
 
-                    1 -> {
-                        // TAB 1: ОПИСАНИЕ И ДЕТАЛИ (С возможностью скролла пультом)
+                    activeTabTitle.startsWith("График") -> {
+                        // TAB: ГРАФИК ВЫХОДА СЕРИЙ
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Color.White.copy(alpha = 0.05f))
+                                .border(
+                                    width = 1.dp,
+                                    color = Color.White.copy(alpha = 0.1f),
+                                    shape = RoundedCornerShape(8.dp)
+                                )
+                                .padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Text(
+                                text = "График выхода серий:",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = accent
+                            )
+                            val scheduleItems = remember(currentMovie.episodesSchedule, currentMovie.seasons) {
+                                if (currentMovie.episodesSchedule.isNotEmpty()) {
+                                    currentMovie.episodesSchedule
+                                } else {
+                                    val list = mutableListOf<com.example.tvmediaapp.data.models.EpisodeScheduleItem>()
+                                    currentMovie.seasons.forEach { s ->
+                                        s.episodes.forEach { ep ->
+                                            list.add(
+                                                com.example.tvmediaapp.data.models.EpisodeScheduleItem(
+                                                    episode = "${s.seasonNumber} сезон ${ep.episodeNumber} серия",
+                                                    title = ep.title,
+                                                    date = "Вышла",
+                                                    status = "Доступна"
+                                                )
+                                            )
+                                        }
+                                    }
+                                    list
+                                }
+                            }
+
+                            if (scheduleItems.isEmpty()) {
+                                Text(
+                                    text = "График выхода серий формируется...",
+                                    fontSize = 13.sp,
+                                    color = TextGray
+                                )
+                            } else {
+                                scheduleItems.forEach { item ->
+                                    val itemLower = (item.status + " " + item.date).lowercase()
+                                    val isAired = itemLower.contains("вышла") || itemLower.contains("доступна") || itemLower.contains("вчера") || itemLower.contains("сегодня")
+                                    val statusBg = if (isAired) Color(0xFF1B5E20).copy(alpha = 0.85f) else Color(0xFF0D47A1).copy(alpha = 0.85f)
+                                    val statusFg = if (isAired) Color(0xFF81C784) else Color(0xFF90CAF9)
+
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(Color.White.copy(alpha = 0.03f))
+                                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = item.episode,
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = TextWhite
+                                            )
+                                            if (item.title.isNotBlank() && item.title != item.episode) {
+                                                Text(
+                                                    text = item.title,
+                                                    fontSize = 11.sp,
+                                                    color = TextGray
+                                                )
+                                            }
+                                        }
+                                        Row(
+                                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            if (item.date.isNotBlank()) {
+                                                Text(
+                                                    text = item.date,
+                                                    fontSize = 12.sp,
+                                                    color = TextGray
+                                                )
+                                            }
+                                            Box(
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(4.dp))
+                                                    .background(statusBg)
+                                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                                            ) {
+                                                Text(
+                                                    text = item.status.ifBlank { if (isAired) "Вышла" else "Ожидается" },
+                                                    fontSize = 10.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = statusFg
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    activeTabTitle.startsWith("Описание") -> {
+                        // TAB: ОПИСАНИЕ И ДЕТАЛИ (С возможностью скролла пультом)
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -1785,8 +1912,8 @@ fun DetailsScreen(
                         }
                     }
 
-                    2 -> {
-                        // TAB 2: ОТЗЫВЫ ЗРИТЕЛЕЙ (С фокусом на каждом отзыве и скроллом)
+                    else -> {
+                        // TAB: ОТЗЫВЫ ЗРИТЕЛЕЙ (С фокусом на каждом отзыве и скроллом)
                         if (isLoadingComments) {
                             Box(
                                 modifier = Modifier

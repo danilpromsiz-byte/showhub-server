@@ -485,18 +485,45 @@ CRASHES_FILE = os.path.join(CURRENT_DIR, "data", "crashes.json")
 _actor_photo_cache: Dict[str, Optional[str]] = {}
 
 def resolve_actor_photo(actor_name: str) -> Optional[str]:
-    """Resolves an actor or director portrait photo URL via multi-lingual Wikipedia (RU, EN, IT) with relevance verification."""
+    """Resolves an actor or director portrait photo URL via multi-lingual Wikidata & Wikipedia with strict occupation validation."""
     if not actor_name or len(actor_name.strip()) < 2:
         return None
     name_clean = actor_name.strip()
     if name_clean in _actor_photo_cache:
         return _actor_photo_cache[name_clean]
 
-    headers = {"User-Agent": "ShowHubTV-MediaCenter/2.7.5 (https://showhub.tv)"}
-    parts = name_clean.split()
-    last_name = parts[-1].lower() if parts else name_clean.lower()
-    first_name = parts[0].lower() if len(parts) > 1 else ""
+    headers = {"User-Agent": "ShowHubMediaCenter/2.7.6 (mailto:support@showhub.tv)"}
 
+    # 1. Query Wikidata (authoritative entity matching across languages)
+    for lang in ["ru", "en"]:
+        try:
+            w_url = f"https://www.wikidata.org/w/api.php?action=wbsearchentities&search={urllib.parse.quote(name_clean)}&language={lang}&format=json"
+            resp = requests.get(w_url, headers=headers, timeout=3)
+            if resp.status_code == 200:
+                s_list = resp.json().get("search", [])
+                for s_it in s_list[:3]:
+                    desc = str(s_it.get("description") or "").lower()
+                    is_actor = any(w in desc for w in ["actor", "actress", "актёр", "актрис", "director", "режиссёр", "voice", "seiyuu", "сэйю", "filmmaker", "comedian", "комик", "entertainer", "theatre", "театр"])
+                    is_bad = any(w in desc for w in ["basketball", "football", "politician", "badminton", "swimmer", "physicist", "family", "dynasty", "noble", "municipality", "commune", "river", "mountain"])
+                    if is_actor and not is_bad:
+                        ent_id = s_it.get("id")
+                        if ent_id:
+                            e_url = f"https://www.wikidata.org/w/api.php?action=wbgetentities&ids={ent_id}&props=claims&format=json"
+                            e_resp = requests.get(e_url, headers=headers, timeout=3)
+                            if e_resp.status_code == 200:
+                                entity = e_resp.json().get("entities", {}).get(ent_id, {})
+                                p18_claims = entity.get("claims", {}).get("P18", [])
+                                if p18_claims:
+                                    img_val = p18_claims[0].get("mainsnak", {}).get("datavalue", {}).get("value")
+                                    if img_val:
+                                        pic_url = f"https://commons.wikimedia.org/wiki/Special:FilePath/{urllib.parse.quote(img_val)}?width=320"
+                                        _actor_photo_cache[name_clean] = pic_url
+                                        return pic_url
+        except Exception:
+            pass
+
+    # 2. Fallback to Wikipedia (RU, EN, IT) with strict occupation & name validation
+    norm_name = re.sub(r'[^a-zA-Zа-яА-Я0-9]', '', name_clean.lower())
     for lang in ["ru", "en", "it"]:
         try:
             url = f"https://{lang}.wikipedia.org/w/api.php?action=query&list=search&srsearch={urllib.parse.quote(name_clean)}&format=json"
@@ -505,16 +532,27 @@ def resolve_actor_photo(actor_name: str) -> Optional[str]:
                 sr = resp.json().get("query", {}).get("search", [])
                 for item in sr[:3]:
                     title = item.get("title", "")
-                    # Ensure article is genuinely about this person
-                    t_low = title.lower()
-                    if last_name in t_low or (first_name and first_name in t_low):
+                    t_norm = re.sub(r'[^a-zA-Zа-яА-Я0-9]', '', title.lower())
+                    snippet = item.get("snippet", "").lower()
+
+                    is_match = (norm_name in t_norm) or (t_norm in norm_name)
+                    if not is_match:
+                        parts = name_clean.lower().split()
+                        if len(parts) >= 2 and parts[0] in title.lower() and parts[-1] in title.lower():
+                            is_match = True
+                    if not is_match:
+                        continue
+
+                    is_actor = any(w in snippet for w in ["актёр", "актрис", "actor", "actress", "director", "режисс", "film", "кино", "cinema", "theatre", "театр", "drama", "voice", "сериал", "singer"])
+                    is_bad = any(w in snippet for w in ["basketball", "football", "politician", "badminton", "nobility", "river"])
+                    if is_actor and not is_bad:
                         u2 = f"https://{lang}.wikipedia.org/w/api.php?action=query&titles={urllib.parse.quote(title)}&prop=pageimages&format=json&pithumbsize=320"
                         r2 = requests.get(u2, headers=headers, timeout=3)
                         if r2.status_code == 200:
                             pages = r2.json().get("query", {}).get("pages", {})
                             for p in pages.values():
                                 src = p.get("thumbnail", {}).get("source")
-                                if src and not any(bad in src.lower() for bad in ["dumas", "icon", "flag", "question", "stub", "placeholder"]):
+                                if src and not any(bad in src.lower() for bad in ["flag", "stub", "placeholder", "disambig"]):
                                     _actor_photo_cache[name_clean] = src
                                     return src
         except Exception:
@@ -654,6 +692,17 @@ def get_catalog(
                     seen_titles.add(t_key)
                     seen_ids.add(it.id)
                     all_items.append(it.model_dump())
+                elif t_key in seen_titles:
+                    existing = next((x for x in all_items if x.get("title", "").lower().strip() == t_key), None)
+                    if existing:
+                        if (not existing.get("rating_kp") or existing.get("rating_kp") == 0) and it.rating_kp:
+                            existing["rating_kp"] = it.rating_kp
+                        if (not existing.get("rating_imdb") or existing.get("rating_imdb") == 0) and it.rating_imdb:
+                            existing["rating_imdb"] = it.rating_imdb
+                        if not existing.get("country") and it.extra_data.get("country"):
+                            existing["country"] = it.extra_data.get("country")
+                        if not existing.get("episodes_info") and it.episodes_info:
+                            existing["episodes_info"] = it.episodes_info
         except Exception:
             pass
 
@@ -864,6 +913,51 @@ def get_catalog(
                     it["country"] = sp_c[1]
                     if not it.get("countries"):
                         it["countries"] = [sp_c[1]]
+
+        # Comprehensive fallback country inference from text and genres
+        if not it.get("country"):
+            full_text = f"{it.get('description', '')} {it.get('title', '')} {' '.join(it.get('genres') or [])}".lower()
+            if any(k in full_text for k in ["япони", "японс", "аниме", "anime"]):
+                it["country"] = "Япония"
+            elif any(k in full_text for k in ["коре", "дорам", "dorama"]):
+                it["country"] = "Корея Южная"
+            elif any(k in full_text for k in ["китай", "китайс", "донгхуа", "donghua"]):
+                it["country"] = "Китай"
+            elif any(k in full_text for k in ["сша", "америк", "usa"]):
+                it["country"] = "США"
+            elif any(k in full_text for k in ["росси", "российс", "ссср"]):
+                it["country"] = "Россия"
+            elif any(k in full_text for k in ["великобритан", "британ", "англи", "uk"]):
+                it["country"] = "Великобритания"
+            elif any(k in full_text for k in ["франци", "француз"]):
+                it["country"] = "Франция"
+            elif any(k in full_text for k in ["итали", "итальян"]):
+                it["country"] = "Италия"
+            elif any(k in full_text for k in ["испани", "испанс"]):
+                it["country"] = "Испания"
+            elif any(k in full_text for k in ["германи", "немец"]):
+                it["country"] = "Германия"
+            elif any(k in full_text for k in ["инди", "индийс"]):
+                it["country"] = "Индия"
+            elif any(k in full_text for k in ["турци", "турец"]):
+                it["country"] = "Турция"
+            elif any(k in full_text for k in ["таиланд", "тайланд", "тайс"]):
+                it["country"] = "Таиланд"
+            elif any(k in full_text for k in ["швеци", "швед"]):
+                it["country"] = "Швеция"
+            elif any(k in full_text for k in ["мексик"]):
+                it["country"] = "Мексика"
+            elif any(k in full_text for k in ["канад"]):
+                it["country"] = "Канада"
+            elif any(k in full_text for k in ["австрали"]):
+                it["country"] = "Австралия"
+
+        if it.get("country") and not it.get("countries"):
+            it["countries"] = [it["country"]]
+
+        # Promote episodes_info
+        if not it.get("episodes_info"):
+            it["episodes_info"] = extra.get("episodes_info") or ""
         if not it.get("countries") and extra.get("countries"):
             it["countries"] = extra.get("countries")
         if not it.get("genres") and extra.get("genres"):
@@ -1123,18 +1217,26 @@ def _fetch_media_details(
             k_items = kodik.search(clean_title, year=year_int, kp_id=resolved_kp)
             if k_items:
                 cur_country = str(details.get("country") or "").lower()
-                is_western = any(c in cur_country for c in ["италь", "итали", "франц", "испан", "герман", "великобрит", "сша", "росси"])
+                cur_genres = [str(g).lower() for g in details.get("genres", [])]
+                is_western = any(c in cur_country for c in ["италь", "итали", "франц", "испан", "герман", "великобрит", "сша", "росси", "канада", "австрали"])
+                is_doc = any(d in " ".join(cur_genres) for d in ["документ", "научн", "биографи"]) or ("эпоха льда" in clean_title.lower())
                 matched_it = None
                 for cand in k_items:
                     c_yr = cand.year
                     c_country = str(cand.extra_data.get("country") or "").lower()
-                    c_type = str(cand.extra_data.get("type") or "")
-                    
+                    c_type = str(cand.extra_data.get("type") or "").lower()
+                    c_genres = [str(g).lower() for g in cand.extra_data.get("genres") or []]
+
                     # Prevent matching movies with large year discrepancies
                     if year_int and c_yr and abs(c_yr - year_int) > 1:
                         continue
-                    # Prevent matching Italian/Western films with Japanese anime
-                    if is_western and ("япон" in c_country or "anime" in c_type):
+                    # Prevent matching Western/Russian films with Asian anime or Asian dramas (dorama)
+                    if is_western and any(a in c_country for a in ["япон", "китай", "коре", "тайван", "гонконг"]):
+                        continue
+                    if is_western and ("anime" in c_type or "dorama" in c_type):
+                        continue
+                    # Prevent matching documentary with fiction dramas / anime
+                    if is_doc and ("anime" in c_type or "dorama" in c_type or any(a in c_country for a in ["китай", "коре", "япон"])):
                         continue
                     matched_it = cand
                     break
@@ -1292,7 +1394,8 @@ def _fetch_media_streams(
                 rz_streams = hdrezka.get_streams(rz_id, season=season, episode=episode, audio_id=audio_id)
                 if rz_streams.streams:
                     return ("hdrezka", rz_streams.model_dump())
-                if audio_id:
+                # Only fall back to default audio if no specific audio was requested
+                if not audio_id:
                     rz_streams_fallback = hdrezka.get_streams(rz_id, season=season, episode=episode, audio_id=None)
                     if rz_streams_fallback.streams:
                         return ("hdrezka", rz_streams_fallback.model_dump())
@@ -1424,11 +1527,22 @@ def _fetch_media_streams(
 def get_media_episodes(
     source: str = Query("hdrezka"),
     media_id: str = Query(...),
-    translator_id: str = Query(...)
+    translator_id: str = Query(...),
+    title: Optional[str] = Query(None)
 ) -> List[Dict[str, Any]]:
     """Returns authentic translator-specific seasons and episodes."""
+    target_id = media_id
     if source == "hdrezka":
-        return hdrezka.get_episodes(media_id, translator_id)
+        if not target_id.startswith("http") and not target_id.startswith("/"):
+            if title:
+                clean_t = re.sub(r'\(.*?\)|\[.*?\]', '', title).strip()
+                try:
+                    rz_items = hdrezka.search(clean_t)
+                    if rz_items:
+                        target_id = rz_items[0].id
+                except Exception:
+                    pass
+        return hdrezka.get_episodes(target_id, translator_id)
     return []
 
 @app.get("/api/media/details")

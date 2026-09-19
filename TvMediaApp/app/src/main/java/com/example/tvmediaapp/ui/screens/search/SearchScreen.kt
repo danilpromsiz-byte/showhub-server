@@ -78,6 +78,7 @@ fun SearchScreen(
     onMovieSelect: (Movie) -> Unit,
     onBackClick: () -> Unit,
     initialMovies: List<Movie> = emptyList(),
+    initialQuery: String = "",
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -105,7 +106,7 @@ fun SearchScreen(
     }
 
     var recentQueries by remember { mutableStateOf(loadHistory()) }
-    var query by remember { mutableStateOf("") }
+    var query by remember { mutableStateOf(initialQuery) }
     var results by remember { mutableStateOf(initialMovies) }
     var isSearching by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
@@ -135,6 +136,12 @@ fun SearchScreen(
                 it.title.contains(q, ignoreCase = true) || it.originalTitle.contains(q, ignoreCase = true)
             }
             isSearching = false
+        }
+    }
+
+    LaunchedEffect(initialQuery) {
+        if (initialQuery.isNotBlank()) {
+            performSearch(initialQuery)
         }
     }
 
@@ -323,13 +330,13 @@ fun SearchScreen(
                         Button(
                             onClick = { performSearch(histQuery) },
                             colors = ButtonDefaults.colors(
-                                containerColor = if (isSelected) accent.copy(alpha = 0.25f) else ChipBackground,
+                                containerColor = if (isSelected) accent.copy(alpha = 0.85f) else ChipBackground,
                                 focusedContainerColor = Color.White,
-                                contentColor = if (isSelected) accent else TextWhite,
+                                contentColor = if (isSelected) Color.Black else TextWhite,
                                 focusedContentColor = Color.Black
                             ),
                             border = ButtonDefaults.border(
-                                border = if (isSelected) Border(BorderStroke(1.5.dp, accent)) else Border.None,
+                                border = Border.None,
                                 focusedBorder = Border.None
                             ),
                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),

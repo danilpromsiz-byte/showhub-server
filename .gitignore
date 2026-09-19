@@ -23,4 +23,5 @@ TvMediaApp/**/*.iml
 **/__pycache__/
 **/*.pyc
 **/*.log
+/mediacenter/data/
 

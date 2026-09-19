@@ -26,6 +26,14 @@ class CatalogRepository(context: Context? = null) {
         return memoryFavorites.contains(movieId)
     }
 
+    fun addFavorite(movieId: String) {
+        if (movieId.isBlank()) return
+        if (!memoryFavorites.contains(movieId)) {
+            memoryFavorites.add(movieId)
+            prefs?.edit()?.putStringSet("favorite_ids", memoryFavorites)?.apply()
+        }
+    }
+
     fun toggleFavorite(movie: Movie): Boolean {
         val newStatus = if (memoryFavorites.contains(movie.id)) {
             memoryFavorites.remove(movie.id)

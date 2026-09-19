@@ -60,6 +60,11 @@ import com.example.tvmediaapp.ui.theme.TextWhite
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.runtime.LaunchedEffect
 import kotlinx.coroutines.delay
 
@@ -217,7 +222,7 @@ fun HistoryScreen(
             }
         } else {
             TvLazyVerticalGrid(
-                columns = TvGridCells.Adaptive(170.dp),
+                columns = TvGridCells.Fixed(6),
                 contentPadding = PaddingValues(bottom = 32.dp),
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -237,10 +242,23 @@ fun HistoryScreen(
                     )
 
                     val cardFocusMod = Modifier
-                        .width(170.dp)
+                        .fillMaxWidth()
                         .aspectRatio(2f / 3f)
                         .then(if (index == 0) Modifier.focusRequester(firstCardFocusRequester) else Modifier)
-                        .then(if (index < 6) Modifier.focusProperties { up = backButtonFocusRequester } else Modifier)
+                        .then(
+                            if (index < 6) {
+                                Modifier.onPreviewKeyEvent { keyEvent ->
+                                    if (keyEvent.type == KeyEventType.KeyDown && keyEvent.key == Key.DirectionUp) {
+                                        backButtonFocusRequester.requestFocus()
+                                        true
+                                    } else {
+                                        false
+                                    }
+                                }
+                            } else {
+                                Modifier
+                            }
+                        )
 
                     StandardCardContainer(
                         imageCard = { interactionSource ->

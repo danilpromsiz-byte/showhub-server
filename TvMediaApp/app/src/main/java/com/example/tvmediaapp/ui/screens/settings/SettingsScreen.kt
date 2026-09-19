@@ -235,14 +235,14 @@ fun SettingsScreen(
                 Button(
                     onClick = { activeTab = tab },
                     colors = ButtonDefaults.colors(
-                        containerColor = if (isSelected) accent.copy(alpha = 0.75f) else ChipBackground,
+                        containerColor = if (isSelected) accent.copy(alpha = 0.85f) else ChipBackground,
                         focusedContainerColor = Color.White,
                         contentColor = if (isSelected) Color.Black else TextWhite,
                         focusedContentColor = Color.Black
                     ),
                     border = ButtonDefaults.border(
-                        border = if (isSelected) Border(BorderStroke(2.dp, accent)) else Border.None,
-                        focusedBorder = if (isSelected) Border(BorderStroke(2.5.dp, accent)) else Border.None
+                        border = Border.None,
+                        focusedBorder = Border.None
                     ),
                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                     scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
@@ -342,11 +342,11 @@ fun SettingsScreen(
                                 fontSize = 13.sp,
                                 color = TextGray
                             )
-                            TvLazyRow(
+                            Row(
                                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                                 modifier = Modifier.padding(top = 4.dp)
                             ) {
-                                itemsIndexed(THEME_OPTIONS) { index, (themeKey, themeTitle) ->
+                                THEME_OPTIONS.forEachIndexed { index, (themeKey, themeTitle) ->
                                     val isCur = themeKey == selectedTheme
                                     val focusMod = if (index == 0) firstControlModifier else Modifier
                                     Button(
@@ -355,14 +355,14 @@ fun SettingsScreen(
                                             ThemeManager.setTheme(themeKey)
                                         },
                                         colors = ButtonDefaults.colors(
-                                            containerColor = if (isCur) accent.copy(alpha = 0.75f) else ChipBackground,
+                                            containerColor = if (isCur) accent.copy(alpha = 0.85f) else ChipBackground,
                                             focusedContainerColor = Color.White,
                                             contentColor = if (isCur) Color.Black else TextWhite,
                                             focusedContentColor = Color.Black
                                         ),
                                         border = ButtonDefaults.border(
-                                            border = if (isCur) Border(BorderStroke(2.dp, accent)) else Border.None,
-                                            focusedBorder = if (isCur) Border(BorderStroke(2.5.dp, accent)) else Border.None
+                                            border = Border.None,
+                                            focusedBorder = Border.None
                                         ),
                                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                                         scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
@@ -386,14 +386,14 @@ fun SettingsScreen(
                                         ThemeManager.setPureBlack(newState)
                                     },
                                     colors = ButtonDefaults.colors(
-                                        containerColor = if (ThemeManager.isPureBlackEnabled) accent.copy(alpha = 0.75f) else ChipBackground,
+                                        containerColor = if (ThemeManager.isPureBlackEnabled) accent.copy(alpha = 0.85f) else ChipBackground,
                                         focusedContainerColor = Color.White,
                                         contentColor = if (ThemeManager.isPureBlackEnabled) Color.Black else TextWhite,
                                         focusedContentColor = Color.Black
                                     ),
                                     border = ButtonDefaults.border(
-                                        border = if (ThemeManager.isPureBlackEnabled) Border(BorderStroke(2.dp, accent)) else Border.None,
-                                        focusedBorder = if (ThemeManager.isPureBlackEnabled) Border(BorderStroke(2.5.dp, accent)) else Border.None
+                                        border = Border.None,
+                                        focusedBorder = Border.None
                                     ),
                                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                                     scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
@@ -424,11 +424,11 @@ fun SettingsScreen(
                                 fontSize = 13.sp,
                                 color = TextGray
                             )
-                            TvLazyRow(
+                            Row(
                                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                                 modifier = Modifier.padding(top = 4.dp)
                             ) {
-                                items(PLAYER_OPTIONS) { (playerKey, playerTitle) ->
+                                PLAYER_OPTIONS.forEach { (playerKey, playerTitle) ->
                                     val isCur = playerKey == selectedPlayer
                                     Button(
                                         onClick = {
@@ -436,14 +436,14 @@ fun SettingsScreen(
                                             prefs.edit().putString("pref_player", playerKey).apply()
                                         },
                                         colors = ButtonDefaults.colors(
-                                            containerColor = if (isCur) accent.copy(alpha = 0.75f) else ChipBackground,
+                                            containerColor = if (isCur) accent.copy(alpha = 0.85f) else ChipBackground,
                                             focusedContainerColor = Color.White,
                                             contentColor = if (isCur) Color.Black else TextWhite,
                                             focusedContentColor = Color.Black
                                         ),
                                         border = ButtonDefaults.border(
-                                            border = if (isCur) Border(BorderStroke(2.dp, accent)) else Border.None,
-                                            focusedBorder = if (isCur) Border(BorderStroke(2.5.dp, accent)) else Border.None
+                                            border = Border.None,
+                                            focusedBorder = Border.None
                                         ),
                                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                                         scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
@@ -469,11 +469,11 @@ fun SettingsScreen(
                                 fontSize = 13.sp,
                                 color = TextGray
                             )
-                            TvLazyRow(
+                            Row(
                                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                                 modifier = Modifier.padding(top = 4.dp)
                             ) {
-                                items(QUALITY_OPTIONS) { (qKey, qTitle) ->
+                                QUALITY_OPTIONS.forEach { (qKey, qTitle) ->
                                     val isCur = qKey == selectedQuality
                                     Button(
                                         onClick = {
@@ -481,14 +481,14 @@ fun SettingsScreen(
                                             prefs.edit().putString("pref_quality", qKey).apply()
                                         },
                                         colors = ButtonDefaults.colors(
-                                            containerColor = if (isCur) accent.copy(alpha = 0.75f) else ChipBackground,
+                                            containerColor = if (isCur) accent.copy(alpha = 0.85f) else ChipBackground,
                                             focusedContainerColor = Color.White,
                                             contentColor = if (isCur) Color.Black else TextWhite,
                                             focusedContentColor = Color.Black
                                         ),
                                         border = ButtonDefaults.border(
-                                            border = if (isCur) Border(BorderStroke(2.dp, accent)) else Border.None,
-                                            focusedBorder = if (isCur) Border(BorderStroke(2.5.dp, accent)) else Border.None
+                                            border = Border.None,
+                                            focusedBorder = Border.None
                                         ),
                                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                                         scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
@@ -509,11 +509,11 @@ fun SettingsScreen(
                                 fontWeight = FontWeight.Bold,
                                 color = TextWhite
                             )
-                            TvLazyRow(
+                            Row(
                                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                                 modifier = Modifier.padding(top = 4.dp)
                             ) {
-                                items(VOICE_OPTIONS) { voice ->
+                                VOICE_OPTIONS.forEach { voice ->
                                     val isCur = voice == selectedVoice
                                     Button(
                                         onClick = {
@@ -521,14 +521,14 @@ fun SettingsScreen(
                                             prefs.edit().putString("pref_voice", voice).apply()
                                         },
                                         colors = ButtonDefaults.colors(
-                                            containerColor = if (isCur) accent.copy(alpha = 0.75f) else ChipBackground,
+                                            containerColor = if (isCur) accent.copy(alpha = 0.85f) else ChipBackground,
                                             focusedContainerColor = Color.White,
                                             contentColor = if (isCur) Color.Black else TextWhite,
                                             focusedContentColor = Color.Black
                                         ),
                                         border = ButtonDefaults.border(
-                                            border = if (isCur) Border(BorderStroke(2.dp, accent)) else Border.None,
-                                            focusedBorder = if (isCur) Border(BorderStroke(2.5.dp, accent)) else Border.None
+                                            border = Border.None,
+                                            focusedBorder = Border.None
                                         ),
                                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                                         scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
@@ -742,11 +742,11 @@ fun SettingsScreen(
                                 color = TextGray
                             )
 
-                            TvLazyRow(
+                            Row(
                                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                                 modifier = Modifier.padding(top = 4.dp)
                             ) {
-                                items(TORRSERVE_HOST_OPTIONS) { (hostVal, hostTitle) ->
+                                TORRSERVE_HOST_OPTIONS.forEach { (hostVal, hostTitle) ->
                                     val isCur = hostVal == torrServeHost
                                     Button(
                                         onClick = {
@@ -755,14 +755,14 @@ fun SettingsScreen(
                                             torrPingResult = null
                                         },
                                         colors = ButtonDefaults.colors(
-                                            containerColor = if (isCur) accent.copy(alpha = 0.75f) else ChipBackground,
+                                            containerColor = if (isCur) accent.copy(alpha = 0.85f) else ChipBackground,
                                             focusedContainerColor = Color.White,
                                             contentColor = if (isCur) Color.Black else TextWhite,
                                             focusedContentColor = Color.Black
                                         ),
                                         border = ButtonDefaults.border(
-                                            border = if (isCur) Border(BorderStroke(2.dp, accent)) else Border.None,
-                                            focusedBorder = if (isCur) Border(BorderStroke(2.5.dp, accent)) else Border.None
+                                            border = Border.None,
+                                            focusedBorder = Border.None
                                         ),
                                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                                         scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
@@ -942,23 +942,23 @@ fun SettingsScreen(
 
                             // Categories
                             val categories = listOf("Воспроизведение", "Поиск", "Торренты", "Качество", "Интерфейс", "Общее")
-                            TvLazyRow(
+                            Row(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                itemsIndexed(categories) { index, cat ->
+                                categories.forEachIndexed { index, cat ->
                                     val isCur = cat == bugReportCategory
                                     val focusMod = if (index == 0) firstControlModifier else Modifier
                                     Button(
                                         onClick = { bugReportCategory = cat },
                                         colors = ButtonDefaults.colors(
-                                            containerColor = if (isCur) accent.copy(alpha = 0.75f) else ChipBackground,
+                                            containerColor = if (isCur) accent.copy(alpha = 0.85f) else ChipBackground,
                                             focusedContainerColor = Color.White,
                                             contentColor = if (isCur) Color.Black else TextWhite,
                                             focusedContentColor = Color.Black
                                         ),
                                         border = ButtonDefaults.border(
-                                            border = if (isCur) Border(BorderStroke(2.dp, accent)) else Border.None,
-                                            focusedBorder = if (isCur) Border(BorderStroke(2.5.dp, accent)) else Border.None
+                                            border = Border.None,
+                                            focusedBorder = Border.None
                                         ),
                                         shape = ButtonDefaults.shape(RoundedCornerShape(6.dp)),
                                         scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),

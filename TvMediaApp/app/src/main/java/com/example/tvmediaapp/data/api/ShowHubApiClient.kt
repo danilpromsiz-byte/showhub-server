@@ -1,12 +1,16 @@
 package com.example.tvmediaapp.data.api
 
+import com.example.tvmediaapp.data.cache.MediaDiskCache
 import com.example.tvmediaapp.data.models.AudioTrackInfo
 import com.example.tvmediaapp.data.models.CommentItem
 import com.example.tvmediaapp.data.models.EpisodeInfo
 import com.example.tvmediaapp.data.models.Movie
+import com.example.tvmediaapp.data.models.PersonInfo
 import com.example.tvmediaapp.data.models.SeasonInfo
 import com.example.tvmediaapp.data.models.StreamOption
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
@@ -103,13 +107,30 @@ object ShowHubApiClient {
     }
 
     suspend fun fetchMediaDetails(movie: Movie): Movie = withContext(Dispatchers.IO) {
+        val cached = MediaDiskCache.getCachedDetails(movie.id)
+        if (cached != null && (cached.seasons.isNotEmpty() || cached.audioTracks.isNotEmpty() || cached.cast.isNotEmpty())) {
+            // Instant 0 ms load from TV disk cache!
+            CoroutineScope(Dispatchers.IO).launch {
+                try {
+                    val refreshed = fetchMediaDetailsFromNetwork(movie)
+                    MediaDiskCache.putCachedDetails(refreshed)
+                } catch (_: Exception) {}
+            }
+            return@withContext cached
+        }
+        val result = fetchMediaDetailsFromNetwork(movie)
+        MediaDiskCache.putCachedDetails(result)
+        result
+    }
+
+    private suspend fun fetchMediaDetailsFromNetwork(movie: Movie): Movie = withContext(Dispatchers.IO) {
         try {
             val q = URLEncoder.encode(movie.title, "UTF-8")
             val urlStr = "$SERVER_BASE/api/media/details?source=hdrezka&media_id=${movie.id}&title=$q&year=${movie.releaseYear}&is_series=${if (movie.isSeries) "1" else "0"}"
             val conn = URL(urlStr).openConnection() as HttpURLConnection
             conn.connectTimeout = 10000
             conn.readTimeout = 15000
-            conn.setRequestProperty("User-Agent", "ShowHubTV-Native/2.3.0")
+            conn.setRequestProperty("User-Agent", "ShowHubTV-Native/2.7.2")
             conn.connect()
             if (conn.responseCode == 200) {
                 val body = BufferedReader(InputStreamReader(conn.inputStream, "UTF-8")).use { it.readText() }
@@ -152,6 +173,23 @@ object ShowHubApiClient {
                     }
                 }
 
+                val castList = mutableListOf<PersonInfo>()
+                val cArr = obj.optJSONArray("actors_list") ?: obj.optJSONArray("cast")
+                if (cArr != null) {
+                    for (cIdx in 0 until cArr.length()) {
+                        val cObj = cArr.getJSONObject(cIdx)
+                        castList.add(
+                            PersonInfo(
+                                id = cObj.optString("id", cIdx.toString()),
+                                name = cObj.optString("name", ""),
+                                role = cObj.optString("role", "\u0410\u043a\u0442\u0435\u0440"),
+                                photoUrl = cObj.optString("photo", cObj.optString("photoUrl", ""))
+                            )
+                        )
+                    }
+                }
+
+                val ageRating = obj.optString("age_limit", movie.ageRating).ifEmpty { movie.ageRating }
                 val rawPoster = obj.optString("poster", "")
                 val updatedPoster = if (rawPoster.startsWith("http") && !rawPoster.contains("no_image") && !rawPoster.contains("noposter")) rawPoster else movie.posterUrl
 
@@ -176,7 +214,9 @@ object ShowHubApiClient {
                     actors = actors,
                     description = desc,
                     seasons = if (seasonsList.isNotEmpty()) seasonsList else movie.seasons,
-                    audioTracks = if (audioList.isNotEmpty()) audioList else movie.audioTracks
+                    audioTracks = if (audioList.isNotEmpty()) audioList else movie.audioTracks,
+                    cast = if (castList.isNotEmpty()) castList else movie.cast,
+                    ageRating = ageRating
                 )
             }
         } catch (e: Exception) {
@@ -192,6 +232,10 @@ object ShowHubApiClient {
         audioId: String? = null,
         source: String? = null
     ): List<StreamOption> = withContext(Dispatchers.IO) {
+        val cached = MediaDiskCache.getCachedStreams(movie.id, season, episode, audioId)
+        if (!cached.isNullOrEmpty()) {
+            return@withContext cached
+        }
         val directStreams = mutableListOf<StreamOption>()
         val embedStreams = mutableListOf<StreamOption>()
         try {
@@ -274,6 +318,9 @@ object ShowHubApiClient {
         val result = mutableListOf<StreamOption>()
         result.addAll(directStreams)
         result.addAll(embedStreams)
+        if (result.isNotEmpty()) {
+            MediaDiskCache.putCachedStreams(movie.id, season, episode, audioId, result)
+        }
         result
     }
 
@@ -412,6 +459,16 @@ object ShowHubApiClient {
                 if (gStr.isNotEmpty()) genresList.addAll(gStr.split(",").map { s -> s.trim() })
             }
 
+            val rawAge = it.optString("age_limit", extraObj?.optString("age_limit", "") ?: "").ifEmpty {
+                val fullTxt = "$title $desc $genresList".lowercase()
+                when {
+                    fullTxt.contains("18+") || fullTxt.contains("18 плюс") || fullTxt.contains("эротик") || fullTxt.contains("ужасы") -> "18+"
+                    fullTxt.contains("16+") || fullTxt.contains("16 плюс") || fullTxt.contains("боевик") -> "16+"
+                    fullTxt.contains("мультфильм") || fullTxt.contains("детский") || fullTxt.contains("0+") -> "6+"
+                    else -> "12+"
+                }
+            }
+
             outList.add(
                 Movie(
                     id = id,
@@ -431,7 +488,8 @@ object ShowHubApiClient {
                     episodesInfo = episodesInfo,
                     genres = if (genresList.isNotEmpty()) genresList else listOf("\u041a\u0438\u043d\u043e"),
                     videoUrl = "",
-                    isSeries = isSeries
+                    isSeries = isSeries,
+                    ageRating = rawAge
                 )
             )
         }

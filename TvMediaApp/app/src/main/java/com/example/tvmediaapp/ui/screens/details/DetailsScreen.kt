@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -50,6 +51,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -57,6 +59,8 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.exoplayer.DefaultLoadControl
+import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.AspectRatioFrameLayout
@@ -101,6 +105,7 @@ fun DetailsScreen(
     onBackClick: () -> Unit,
     onToggleFavorite: (Movie) -> Unit,
     isFavorite: Boolean,
+    onSearchClick: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -124,6 +129,20 @@ fun DetailsScreen(
     var selectedDetailTab by remember { mutableIntStateOf(0) }
     var comments by remember { mutableStateOf<List<CommentItem>>(emptyList()) }
     var isLoadingComments by remember { mutableStateOf(false) }
+
+    val displayCast = remember(currentMovie.cast, currentMovie.actors) {
+        if (currentMovie.cast.isNotEmpty()) {
+            currentMovie.cast
+        } else if (currentMovie.actors.isNotBlank()) {
+            currentMovie.actors.split(",", "•", ";")
+                .map { it.trim() }
+                .filter { it.isNotEmpty() && !it.equals("null", ignoreCase = true) }
+                .take(12)
+                .map { com.example.tvmediaapp.data.models.PersonInfo(name = it) }
+        } else {
+            emptyList()
+        }
+    }
 
     fun matchStreamQuality(stream: StreamOption, target: String): Boolean {
         if (!isDirectVideoStream(stream.url)) return false
@@ -283,9 +302,22 @@ fun DetailsScreen(
                         .setAllowCrossProtocolRedirects(true)
                     val mediaSourceFactory = DefaultMediaSourceFactory(httpDataSourceFactory)
 
+                    val loadControl = DefaultLoadControl.Builder()
+                        .setBufferDurationsMs(
+                            /* minBufferMs = */ 3000,
+                            /* maxBufferMs = */ 6000,
+                            /* bufferForPlaybackMs = */ 1000,
+                            /* bufferForPlaybackAfterRebufferMs = */ 1500
+                        )
+                        .setBackBuffer(2000, true)
+                        .build()
+                    val renderersFactory = DefaultRenderersFactory(context)
+                        .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF)
+
                     var hasSeeked = false
-                    val player = ExoPlayer.Builder(context)
+                    val player = ExoPlayer.Builder(context, renderersFactory)
                         .setMediaSourceFactory(mediaSourceFactory)
+                        .setLoadControl(loadControl)
                         .build().apply {
                             val targetSeekMs = if (currentMovie.isSeries) 12 * 60 * 1000L else 22 * 60 * 1000L
                             setMediaItem(MediaItem.fromUri(streamUrl))
@@ -344,6 +376,7 @@ fun DetailsScreen(
         onDispose {
             isDetailsPreviewPlaying = false
             detailsPreviewPlayer?.stop()
+            detailsPreviewPlayer?.clearMediaItems()
             detailsPreviewPlayer?.release()
             detailsPreviewPlayer = null
         }
@@ -361,6 +394,7 @@ fun DetailsScreen(
 
         // Stop background preview before entering player
         detailsPreviewPlayer?.stop()
+        detailsPreviewPlayer?.clearMediaItems()
         detailsPreviewPlayer?.release()
         detailsPreviewPlayer = null
         isDetailsPreviewPlaying = false
@@ -543,37 +577,66 @@ fun DetailsScreen(
 
                     Spacer(modifier = Modifier.height(14.dp))
 
-                    // Ratings Row
+                    // Ratings Row (Age limit, KP, IMDb)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceEvenly
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(KpOrange)
-                                .padding(horizontal = 10.dp, vertical = 4.dp)
-                        ) {
-                            Text(
-                                text = "КП ${currentMovie.ratingKp}",
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White
-                            )
+                        if (currentMovie.ageRating.isNotBlank()) {
+                            val cleanAge = currentMovie.ageRating.trim()
+                            val (ageBg, ageFg) = when {
+                                cleanAge.contains("18") -> Color(0xFFD32F2F) to Color.White
+                                cleanAge.contains("16") -> Color(0xFFF57C00) to Color.White
+                                cleanAge.contains("12") -> Color(0xFF1976D2) to Color.White
+                                cleanAge.contains("6") || cleanAge.contains("0") -> Color(0xFF388E3C) to Color.White
+                                else -> Color.Black.copy(alpha = 0.85f) to Color.White
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(ageBg)
+                                    .padding(horizontal = 10.dp, vertical = 4.dp)
+                            ) {
+                                Text(
+                                    text = cleanAge,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = ageFg
+                                )
+                            }
                         }
 
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(ImdbGold)
-                                .padding(horizontal = 10.dp, vertical = 4.dp)
-                        ) {
-                            Text(
-                                text = "IMDb ${currentMovie.ratingImdb}",
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.Black
-                            )
+                        if (currentMovie.ratingKp > 0) {
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(KpOrange)
+                                    .padding(horizontal = 10.dp, vertical = 4.dp)
+                            ) {
+                                Text(
+                                    text = "КП ${currentMovie.ratingKp}",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                            }
+                        }
+
+                        if (currentMovie.ratingImdb > 0) {
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(ImdbGold)
+                                    .padding(horizontal = 10.dp, vertical = 4.dp)
+                            ) {
+                                Text(
+                                    text = "IMDb ${currentMovie.ratingImdb}",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.Black
+                                )
+                            }
                         }
                     }
 
@@ -745,14 +808,14 @@ fun DetailsScreen(
                                 prefs.edit().putString("pref_quality", q).apply()
                             },
                             colors = ButtonDefaults.colors(
-                                containerColor = if (isSelected) accent.copy(alpha = 0.75f) else ChipBackground,
+                                containerColor = if (isSelected) accent.copy(alpha = 0.85f) else ChipBackground,
                                 focusedContainerColor = Color.White,
                                 contentColor = if (isSelected) Color.Black else TextWhite,
                                 focusedContentColor = Color.Black
                             ),
                             border = ButtonDefaults.border(
-                                border = if (isSelected) Border(BorderStroke(2.dp, accent)) else Border.None,
-                                focusedBorder = if (isSelected) Border(BorderStroke(2.5.dp, accent)) else Border.None
+                                border = Border.None,
+                                focusedBorder = Border.None
                             ),
                             shape = ButtonDefaults.shape(RoundedCornerShape(6.dp)),
                             scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
@@ -1087,13 +1150,13 @@ fun DetailsScreen(
                     Button(
                         onClick = { onToggleFavorite(currentMovie) },
                         colors = ButtonDefaults.colors(
-                            containerColor = if (isFavorite) FavoriteGold.copy(alpha = 0.25f) else Color.White.copy(alpha = 0.12f),
+                            containerColor = if (isFavorite) FavoriteGold.copy(alpha = 0.85f) else Color.White.copy(alpha = 0.12f),
                             focusedContainerColor = Color.White,
-                            contentColor = if (isFavorite) FavoriteGold else TextWhite,
+                            contentColor = if (isFavorite) Color.Black else TextWhite,
                             focusedContentColor = Color.Black
                         ),
                         border = ButtonDefaults.border(
-                            border = if (isFavorite) Border(BorderStroke(1.5.dp, FavoriteGold)) else Border.None,
+                            border = Border.None,
                             focusedBorder = Border.None
                         ),
                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
@@ -1218,14 +1281,14 @@ fun DetailsScreen(
                         Button(
                             onClick = { selectedDetailTab = index },
                             colors = ButtonDefaults.colors(
-                                containerColor = if (isSelected) accent.copy(alpha = 0.75f) else ChipBackground,
+                                containerColor = if (isSelected) accent.copy(alpha = 0.85f) else ChipBackground,
                                 focusedContainerColor = Color.White,
                                 contentColor = if (isSelected) Color.Black else TextWhite,
                                 focusedContentColor = Color.Black
                             ),
                             border = ButtonDefaults.border(
-                                border = if (isSelected) Border(BorderStroke(2.dp, accent)) else Border.None,
-                                focusedBorder = if (isSelected) Border(BorderStroke(2.5.dp, accent)) else Border.None
+                                border = Border.None,
+                                focusedBorder = Border.None
                             ),
                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                             scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
@@ -1264,14 +1327,14 @@ fun DetailsScreen(
                                             startPlayback(targetSeason = selectedSeason, targetEpisode = selectedEpisode, targetAudioId = track.id)
                                         },
                                         colors = ButtonDefaults.colors(
-                                            containerColor = if (isSelected) accent.copy(alpha = 0.75f) else ChipBackground,
+                                            containerColor = if (isSelected) accent.copy(alpha = 0.85f) else ChipBackground,
                                             focusedContainerColor = Color.White,
                                             contentColor = if (isSelected) Color.Black else TextWhite,
                                             focusedContentColor = Color.Black
                                         ),
                                         border = ButtonDefaults.border(
-                                            border = if (isSelected) Border(BorderStroke(2.dp, accent)) else Border.None,
-                                            focusedBorder = if (isSelected) Border(BorderStroke(2.5.dp, accent)) else Border.None
+                                            border = Border.None,
+                                            focusedBorder = Border.None
                                         ),
                                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                                         scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
@@ -1299,14 +1362,14 @@ fun DetailsScreen(
                                             selectedEpisode = 1
                                         },
                                         colors = ButtonDefaults.colors(
-                                            containerColor = if (isSelected) accent.copy(alpha = 0.75f) else ChipBackground,
+                                            containerColor = if (isSelected) accent.copy(alpha = 0.85f) else ChipBackground,
                                             focusedContainerColor = Color.White,
                                             contentColor = if (isSelected) Color.Black else TextWhite,
                                             focusedContentColor = Color.Black
                                         ),
                                         border = ButtonDefaults.border(
-                                            border = if (isSelected) Border(BorderStroke(2.dp, accent)) else Border.None,
-                                            focusedBorder = if (isSelected) Border(BorderStroke(2.5.dp, accent)) else Border.None
+                                            border = Border.None,
+                                            focusedBorder = Border.None
                                         ),
                                         shape = ButtonDefaults.shape(RoundedCornerShape(6.dp)),
                                         scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
@@ -1344,14 +1407,14 @@ fun DetailsScreen(
                                             startPlayback(targetSeason = selectedSeason, targetEpisode = ep.episodeNumber, startPos = 0L)
                                         },
                                         colors = ButtonDefaults.colors(
-                                            containerColor = if (isSelected) accent.copy(alpha = 0.75f) else ChipBackground,
+                                            containerColor = if (isSelected) accent.copy(alpha = 0.85f) else ChipBackground,
                                             focusedContainerColor = Color.White,
                                             contentColor = if (isSelected) Color.Black else TextWhite,
                                             focusedContentColor = Color.Black
                                         ),
                                         border = ButtonDefaults.border(
-                                            border = if (isSelected) Border(BorderStroke(2.dp, accent)) else Border.None,
-                                            focusedBorder = if (isSelected) Border(BorderStroke(2.5.dp, accent)) else Border.None
+                                            border = Border.None,
+                                            focusedBorder = Border.None
                                         ),
                                         shape = ButtonDefaults.shape(RoundedCornerShape(6.dp)),
                                         scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
@@ -1374,6 +1437,81 @@ fun DetailsScreen(
                                                 text = ep.title,
                                                 fontSize = 10.sp,
                                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Tab 0: Cast Strip
+                        if (displayCast.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(14.dp))
+                            Text(
+                                text = "В главных ролях (нажмите для поиска фильмов):",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextWhite
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            TvLazyRow(
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                contentPadding = PaddingValues(vertical = 4.dp)
+                            ) {
+                                items(displayCast) { actor ->
+                                    var isActorFocused by remember { mutableStateOf(false) }
+                                    Card(
+                                        onClick = { onSearchClick(actor.name) },
+                                        colors = CardDefaults.colors(
+                                            containerColor = Color.White.copy(alpha = 0.08f),
+                                            focusedContainerColor = Color.White.copy(alpha = 0.22f)
+                                        ),
+                                        border = CardDefaults.border(
+                                            border = Border.None,
+                                            focusedBorder = Border(BorderStroke(2.dp, accent))
+                                        ),
+                                        shape = CardDefaults.shape(RoundedCornerShape(8.dp)),
+                                        scale = CardDefaults.scale(scale = 1.0f, focusedScale = 1.05f),
+                                        modifier = Modifier
+                                            .width(86.dp)
+                                            .onFocusChanged { isActorFocused = it.isFocused }
+                                    ) {
+                                        Column(
+                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                            modifier = Modifier.padding(6.dp)
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(54.dp)
+                                                    .clip(RoundedCornerShape(27.dp))
+                                                    .background(Color.White.copy(alpha = 0.1f))
+                                                    .border(1.5.dp, if (isActorFocused) accent else Color.Transparent, RoundedCornerShape(27.dp)),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                if (actor.photoUrl.isNotBlank()) {
+                                                    AsyncImage(
+                                                        model = actor.photoUrl,
+                                                        contentDescription = actor.name,
+                                                        contentScale = ContentScale.Crop,
+                                                        modifier = Modifier.fillMaxSize()
+                                                    )
+                                                } else {
+                                                    AppIcon(
+                                                        resId = R.drawable.ic_person,
+                                                        tint = TextGray,
+                                                        size = 28.dp
+                                                    )
+                                                }
+                                            }
+                                            Spacer(modifier = Modifier.height(4.dp))
+                                            Text(
+                                                text = actor.name,
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Medium,
+                                                color = TextWhite,
+                                                maxLines = 2,
+                                                overflow = TextOverflow.Ellipsis,
+                                                textAlign = TextAlign.Center
                                             )
                                         }
                                     }
@@ -1415,9 +1553,78 @@ fun DetailsScreen(
                                 lineHeight = 22.sp,
                                 color = TextWhite
                             )
-                            Spacer(modifier = Modifier.height(6.dp))
-                            if (currentMovie.actors.isNotBlank()) {
-                                Text(text = "В главных ролях: ${currentMovie.actors}", fontSize = 13.sp, color = TextWhite.copy(alpha = 0.9f))
+                            if (displayCast.isNotEmpty()) {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = "В главных ролях (нажмите для поиска фильмов):",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = accent
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                TvLazyRow(
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                    contentPadding = PaddingValues(vertical = 4.dp)
+                                ) {
+                                    items(displayCast) { actor ->
+                                        var isActorFocused by remember { mutableStateOf(false) }
+                                        Card(
+                                            onClick = { onSearchClick(actor.name) },
+                                            colors = CardDefaults.colors(
+                                                containerColor = Color.White.copy(alpha = 0.08f),
+                                                focusedContainerColor = Color.White.copy(alpha = 0.22f)
+                                            ),
+                                            border = CardDefaults.border(
+                                                border = Border.None,
+                                                focusedBorder = Border(BorderStroke(2.dp, accent))
+                                            ),
+                                            shape = CardDefaults.shape(RoundedCornerShape(8.dp)),
+                                            scale = CardDefaults.scale(scale = 1.0f, focusedScale = 1.05f),
+                                            modifier = Modifier
+                                                .width(86.dp)
+                                                .onFocusChanged { isActorFocused = it.isFocused }
+                                        ) {
+                                            Column(
+                                                horizontalAlignment = Alignment.CenterHorizontally,
+                                                modifier = Modifier.padding(6.dp)
+                                            ) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(54.dp)
+                                                        .clip(RoundedCornerShape(27.dp))
+                                                        .background(Color.White.copy(alpha = 0.1f))
+                                                        .border(1.5.dp, if (isActorFocused) accent else Color.Transparent, RoundedCornerShape(27.dp)),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    if (actor.photoUrl.isNotBlank()) {
+                                                        AsyncImage(
+                                                            model = actor.photoUrl,
+                                                            contentDescription = actor.name,
+                                                            contentScale = ContentScale.Crop,
+                                                            modifier = Modifier.fillMaxSize()
+                                                        )
+                                                    } else {
+                                                        AppIcon(
+                                                            resId = R.drawable.ic_person,
+                                                            tint = TextGray,
+                                                            size = 28.dp
+                                                        )
+                                                    }
+                                                }
+                                                Spacer(modifier = Modifier.height(4.dp))
+                                                Text(
+                                                    text = actor.name,
+                                                    fontSize = 10.sp,
+                                                    fontWeight = FontWeight.Medium,
+                                                    color = TextWhite,
+                                                    maxLines = 2,
+                                                    overflow = TextOverflow.Ellipsis,
+                                                    textAlign = TextAlign.Center
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
                             }
                             if (currentMovie.director.isNotEmpty()) {
                                 Text(text = "Режиссёр: ${currentMovie.director}", fontSize = 13.sp, color = TextGray)

@@ -11,6 +11,9 @@ import json
 import re
 import threading
 import logging
+import urllib.parse
+import urllib.request
+import requests
 from typing import List, Dict, Any, Optional, Tuple
 from concurrent.futures import ThreadPoolExecutor
 
@@ -368,8 +371,72 @@ def check_updates() -> Dict[str, Any]:
         "min_version_code": 49,
         "apk_url": "https://showhub-server.onrender.com/ShowHub.apk",
         "download_url": "https://showhub-server.onrender.com/ShowHub.apk",
-        "changelog": "ShowHub TV v2.7.0: Решение проблемы замедления видео при длительном воспроизведении, сохранение выбранной озвучки, отображение только реальных источников, счетчик пользователей в настройках и единый стиль фокуса кнопок."
+        "changelog": "ShowHub TV v2.7.2: Комплексное обновление: баннер без полосы, умная сортировка новинок по рейтингу, фильтр по 18 странам, актеры с фото, рейтинг возраста 18+, кэш на ТВ и стабильный предпросмотр."
     }
+
+CRASHES_FILE = os.path.join(CURRENT_DIR, "data", "crashes.json")
+
+_actor_photo_cache: Dict[str, Optional[str]] = {}
+
+def resolve_actor_photo(actor_name: str) -> Optional[str]:
+    """Resolves an actor or director portrait photo URL via Wikipedia's public API."""
+    if not actor_name or len(actor_name.strip()) < 2:
+        return None
+    name_clean = actor_name.strip()
+    if name_clean in _actor_photo_cache:
+        return _actor_photo_cache[name_clean]
+
+    try:
+        url = f"https://ru.wikipedia.org/w/api.php?action=query&list=search&srsearch={urllib.parse.quote(name_clean)}&format=json"
+        headers = {"User-Agent": "ShowHubTV-MediaCenter/2.7.2 (https://showhub.tv)"}
+        resp = requests.get(url, headers=headers, timeout=3)
+        if resp.status_code == 200:
+            sr = resp.json().get("query", {}).get("search", [])
+            if sr:
+                title = sr[0].get("title")
+                u2 = f"https://ru.wikipedia.org/w/api.php?action=query&titles={urllib.parse.quote(title)}&prop=pageimages&format=json&pithumbsize=320"
+                r2 = requests.get(u2, headers=headers, timeout=3)
+                if r2.status_code == 200:
+                    pages = r2.json().get("query", {}).get("pages", {})
+                    for p in pages.values():
+                        src = p.get("thumbnail", {}).get("source")
+                        if src:
+                            _actor_photo_cache[name_clean] = src
+                            return src
+    except Exception:
+        pass
+
+    _actor_photo_cache[name_clean] = None
+    return None
+
+@app.post("/api/analytics/crash")
+def report_crash(crash_data: Dict[str, Any]):
+    try:
+        os.makedirs(os.path.join(CURRENT_DIR, "data"), exist_ok=True)
+        crashes = []
+        if os.path.exists(CRASHES_FILE):
+            with open(CRASHES_FILE, "r", encoding="utf-8") as f:
+                crashes = json.load(f)
+        crash_data["server_timestamp"] = int(time.time())
+        crashes.append(crash_data)
+        crashes = crashes[-100:]
+        with open(CRASHES_FILE, "w", encoding="utf-8") as f:
+            json.dump(crashes, f, ensure_ascii=False, indent=2)
+        return {"success": True, "count": len(crashes)}
+    except Exception as e:
+        logger.error(f"Failed to record crash: {e}")
+        return {"success": False, "error": str(e)}
+
+@app.get("/api/analytics/crashes")
+def get_crashes(limit: int = 50):
+    try:
+        if os.path.exists(CRASHES_FILE):
+            with open(CRASHES_FILE, "r", encoding="utf-8") as f:
+                crashes = json.load(f)
+            return crashes[-limit:]
+    except Exception:
+        pass
+    return []
 
 @app.get("/api/catalog/stats")
 def get_catalog_stats() -> Dict[str, Any]:
@@ -463,10 +530,21 @@ def get_catalog(
         except Exception:
             pass
 
+        # 4. Fetch from Kodik catalog and merge (crucial for country-specific cinema, anime, and doramas)
+        try:
+            k_items = kodik.get_catalog(category=eff_category, genre=genre, country=country, page=p, limit=50)
+            for it in k_items:
+                t_key = it.title.lower().strip()
+                if t_key not in seen_titles and it.id not in seen_ids:
+                    seen_titles.add(t_key)
+                    seen_ids.add(it.id)
+                    all_items.append(it.model_dump())
+        except Exception:
+            pass
+
     # 3. Apply Strict Genre Filtering
     if genre and genre != "all":
         g_clean = genre.lower().strip()
-        # Stem base for Russian morphology (e.g. "боевик" -> "боевик", "комедия" -> "комед")
         stem = g_clean
         if g_clean.endswith(("ия", "ии", "ые", "ий", "ка", "ки")):
             stem = g_clean[:-2]
@@ -476,28 +554,53 @@ def get_catalog(
         def match_genre(it):
             meta_genre = str(it.get("extra_data", {}).get("genre") or "").lower()
             desc = str(it.get("description") or "").lower()
-            return (stem in meta_genre) or (stem in desc) or (g_clean in meta_genre) or (g_clean in desc)
+            genres_arr = [str(x).lower() for x in (it.get("genres") or [])]
+            return (stem in meta_genre) or (stem in desc) or (g_clean in meta_genre) or (g_clean in desc) or any(stem in x for x in genres_arr)
 
         all_items = [it for it in all_items if match_genre(it)]
 
-    # 4. Apply Country Filtering
+    # 4. Apply Country Filtering (All 18 countries)
     if country and country != "all":
         c_clean = country.lower().strip()
-        # Common aliases
         aliases = [c_clean]
         if "коре" in c_clean:
-            aliases.extend(["корея", "южная корея", "korea"])
+            aliases.extend(["корея", "южная корея", "korea", "корей"])
         elif "сша" in c_clean:
             aliases.extend(["сша", "usa", "америк"])
         elif "росси" in c_clean:
-            aliases.extend(["россия", "ссср", "russia"])
-        elif "великобрит" in c_clean:
-            aliases.extend(["великобритания", "англия", "uk"])
+            aliases.extend(["россия", "ссср", "russia", "россий"])
+        elif "великобрит" in c_clean or "англи" in c_clean:
+            aliases.extend(["великобритания", "англия", "uk", "британ"])
+        elif "япон" in c_clean:
+            aliases.extend(["япония", "japan", "япон"])
+        elif "турц" in c_clean:
+            aliases.extend(["турция", "turkey", "турец"])
+        elif "кита" in c_clean:
+            aliases.extend(["китай", "china", "китай"])
+        elif "инди" in c_clean:
+            aliases.extend(["индия", "india", "индий"])
+        elif "франц" in c_clean:
+            aliases.extend(["франция", "france", "француз"])
+        elif "герман" in c_clean:
+            aliases.extend(["германия", "germany", "немец"])
+        elif "италь" in c_clean or "итали" in c_clean:
+            aliases.extend(["италия", "italy", "итальян"])
+        elif "испан" in c_clean:
+            aliases.extend(["испания", "spain", "испан"])
+        elif "канад" in c_clean:
+            aliases.extend(["канада", "canada", "канад"])
+        elif "австрал" in c_clean:
+            aliases.extend(["австралия", "australia"])
+        elif "таиланд" in c_clean or "тайланд" in c_clean:
+            aliases.extend(["таиланд", "тайланд", "thailand"])
+        elif "швеци" in c_clean:
+            aliases.extend(["швеция", "sweden"])
 
         def match_country(it):
             meta_c = str(it.get("extra_data", {}).get("country") or "").lower()
             desc = str(it.get("description") or "").lower()
-            return any(a in meta_c or a in desc for a in aliases)
+            direct_c = str(it.get("country") or "").lower()
+            return any(a in meta_c or a in desc or a in direct_c for a in aliases)
 
         all_items = [it for it in all_items if match_country(it)]
 
@@ -534,37 +637,44 @@ def get_catalog(
             if (it.get("rating_kp") or 0) >= min_rating or (it.get("rating_imdb") or 0) >= min_rating
         ]
 
-    # 8. Apply Sorting
+    # 8. Apply Sorting (Smart Freshness Ranking prioritizing ratings & popularity)
     now = datetime.datetime.now()
     now_ts = int(now.timestamp())
     current_year = now.year
 
     def compute_freshness(it):
-        # Strict release year hierarchy: 2026 > 2025 > 2024 > 2023 > 2022
         raw_y = it.get("year")
         try:
             y = int(raw_y) if raw_y else (current_year - 6)
         except Exception:
             y = current_year - 6
 
-        # Each year is worth 1,000,000,000 points - strictly dominates
         year_score = y * 1_000_000_000
 
-        # Receipt date timestamp (typically ~1.7e9, within reasonable bounds)
         da = it.get("date_added") or 0
         if isinstance(da, (int, float)):
-            if da > now_ts + 86400 * 30:  # Future timestamp sanity check
+            if da > now_ts + 86400 * 30:
                 da = now_ts
             date_score = int(da)
         else:
             date_score = 0
 
-        # Real poster bonus: items with valid covers are boosted over missing/placeholder covers
+        # Smart rating boost: movies with high ratings (KP/IMDb) are strongly elevated
+        kp = float(it.get("rating_kp") or 0.0)
+        imdb = float(it.get("rating_imdb") or 0.0)
+        eff_rating = max(kp, imdb)
+        rating_score = int(eff_rating * 100_000_000)
+
+        # Popularity and views boost
+        vkp = int(it.get("vote_num_kp") or 0)
+        vimdb = int(it.get("vote_num_imdb") or 0)
+        votes = max(vkp, vimdb)
+        vote_score = min(votes, 1_000_000) * 100
+
         poster_str = str(it.get("poster") or "")
         has_real_poster = bool(poster_str and "no_image_poster" not in poster_str and "noposter" not in poster_str)
         poster_bonus = 50_000_000 if has_real_poster else 0
 
-        # Moderate bonus for fresh series episodes ONLY for current or previous year
         series_bonus = 0
         if it.get("is_series") and y >= current_year - 1:
             ep_info = str(it.get("episodes_info") or "")
@@ -575,7 +685,7 @@ def get_catalog(
             if y == current_year:
                 series_bonus += 5_000_000
 
-        return year_score + date_score + poster_bonus + series_bonus
+        return year_score + date_score + rating_score + vote_score + poster_bonus + series_bonus
 
     if sort_by == "rating":
         all_items.sort(
@@ -591,7 +701,10 @@ def get_catalog(
         )
     else:  # "newest" / default fresh releases
         all_items.sort(key=compute_freshness, reverse=True)
-    if not all_items:
+
+    # Never dump fallback initial_catalog when a custom filter (country, genre, year) is active!
+    has_custom_filter = bool((country and country != "all") or (genre and genre != "all") or (year and year != "all"))
+    if not all_items and not has_custom_filter:
         try:
             init_cat_path = os.path.join(CURRENT_DIR, "static", "initial_catalog.json")
             if os.path.exists(init_cat_path):
@@ -606,6 +719,18 @@ def get_catalog(
             real_p = resolve_real_poster(it.get("title", ""), it.get("year"), it.get("kinopoisk_id"))
             if real_p:
                 it["poster"] = real_p
+
+        # Assign age_limit for badge display in catalog
+        if not it.get("age_limit"):
+            txt = f"{it.get('title','')} {it.get('description','')} {str(it.get('extra_data',{}))}".lower()
+            if any(w in txt for w in ["18+", "18 плюс", "эротик", "ужасы", "триллер", "криминал"]):
+                it["age_limit"] = "18+"
+            elif any(w in txt for w in ["16+", "16 плюс", "боевик", "детектив"]):
+                it["age_limit"] = "16+"
+            elif any(w in txt for w in ["мультфильм", "детский", "семейный", "сказка"]):
+                it["age_limit"] = "6+"
+            else:
+                it["age_limit"] = "12+"
 
     _catalog_cache[cache_key] = (now_ts, all_items)
     return all_items
@@ -793,9 +918,10 @@ def _fetch_media_details(
     except Exception:
         pass
 
-    # 4. Fetch Kodik translations and merge
+    # 4. Fetch Kodik translations ONLY if translators are missing
     try:
-        if clean_title:
+        # If HDRezka or Filmix already provided authentic translators, keep them clean and do not pollute with unverified items!
+        if not details["translators"] and (resolved_kp or clean_title):
             k_items = kodik.search(clean_title, year=year_int, kp_id=resolved_kp)
             existing_trans_names = {t.get("name", "").lower() for t in details["translators"]}
             for k_it in k_items:
@@ -809,6 +935,32 @@ def _fetch_media_details(
                     })
     except Exception:
         pass
+
+    # 5. Populate Actors with Photos (up to 10 principal cast members with Wikipedia photos)
+    actors_list = []
+    raw_actors = details.get("actors") or ""
+    if raw_actors:
+        names = [n.strip() for n in re.split(r'[,;•\n/]', str(raw_actors)) if n.strip()]
+        for idx, a_name in enumerate(names[:10]):
+            photo = resolve_actor_photo(a_name)
+            actors_list.append({
+                "id": f"act_{idx+1}",
+                "name": a_name,
+                "role": "В главных ролях",
+                "photo": photo or ""
+            })
+    details["actors_list"] = actors_list
+
+    # 6. Determine Age Rating
+    age_limit = "12+"
+    text_corpus = f"{details.get('title','')} {details.get('description','')} {' '.join(details.get('genres') or [])}".lower()
+    if any(w in text_corpus for w in ["18+", "18 плюс", "эротик", "ужасы", "триллер", "криминал"]):
+        age_limit = "18+"
+    elif any(w in text_corpus for w in ["16+", "16 плюс", "боевик", "детектив"]):
+        age_limit = "16+"
+    elif any(w in text_corpus for w in ["мультфильм", "детский", "семейный", "сказка", "0+"]):
+        age_limit = "6+"
+    details["age_limit"] = age_limit
 
     return details
 

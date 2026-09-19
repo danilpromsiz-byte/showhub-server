@@ -23,7 +23,8 @@ data class HistoryItem(
 )
 
 class WatchHistoryManager(context: Context) {
-    private val prefs: SharedPreferences = context.getSharedPreferences("showhub_watch_history", Context.MODE_PRIVATE)
+    private val appContext: Context = context.applicationContext
+    private val prefs: SharedPreferences = appContext.getSharedPreferences("showhub_watch_history", Context.MODE_PRIVATE)
 
     fun saveProgress(
         movie: Movie,
@@ -59,6 +60,15 @@ class WatchHistoryManager(context: Context) {
 
         if (movie.isSeries) {
             markEpisodeWatched(movie.id, season, episode)
+            // Auto-add started series to favorites so user tracks new episodes
+            try {
+                val mainPrefs = appContext.getSharedPreferences("showhub_prefs", Context.MODE_PRIVATE)
+                val currentFavs = mainPrefs.getStringSet("favorite_ids", emptySet())?.toMutableSet() ?: mutableSetOf()
+                if (!currentFavs.contains(movie.id)) {
+                    currentFavs.add(movie.id)
+                    mainPrefs.edit().putStringSet("favorite_ids", currentFavs).apply()
+                }
+            } catch (_: Exception) {}
         }
     }
 

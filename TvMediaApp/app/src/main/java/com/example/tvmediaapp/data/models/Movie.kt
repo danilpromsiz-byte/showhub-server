@@ -24,6 +24,13 @@ data class AudioTrackInfo(
     val name: String
 )
 
+data class PersonInfo(
+    val id: String = "",
+    val name: String = "",
+    val role: String = "Актер",
+    val photoUrl: String = ""
+)
+
 data class Movie(
     val id: String,
     val title: String,
@@ -46,6 +53,8 @@ data class Movie(
     val isSeries: Boolean = false,
     val seasons: List<SeasonInfo> = emptyList(),
     val audioTracks: List<AudioTrackInfo> = emptyList(),
+    val cast: List<PersonInfo> = emptyList(),
+    val ageRating: String = "",
     val isFavorite: Boolean = false
 )
 

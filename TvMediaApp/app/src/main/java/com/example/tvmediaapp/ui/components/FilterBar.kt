@@ -82,16 +82,26 @@ val YEAR_OPTIONS = listOf(
     Pair("before_2000", "До 2000")
 )
 
-// 5. Country
+// 5. Country (Expanded to 18 popular countries)
 val COUNTRY_OPTIONS = listOf(
     Pair("all", "Все страны"),
-    Pair("США", "США"),
     Pair("Россия", "Россия"),
-    Pair("Великобритания", "Великобритания"),
+    Pair("США", "США"),
     Pair("Корея", "Южная Корея"),
-    Pair("Франция", "Франция"),
+    Pair("Турция", "Турция"),
     Pair("Япония", "Япония"),
-    Pair("Китай", "Китай")
+    Pair("Китай", "Китай"),
+    Pair("Великобритания", "Великобритания"),
+    Pair("Франция", "Франция"),
+    Pair("Германия", "Германия"),
+    Pair("Италия", "Италия"),
+    Pair("Испания", "Испания"),
+    Pair("Индия", "Индия"),
+    Pair("СССР", "СССР"),
+    Pair("Канада", "Канада"),
+    Pair("Австралия", "Австралия"),
+    Pair("Таиланд", "Таиланд"),
+    Pair("Швеция", "Швеция")
 )
 
 enum class FilterCategory {
@@ -148,14 +158,14 @@ fun FilterBar(
                 Button(
                     onClick = { onTypeSelected(typeKey) },
                     colors = ButtonDefaults.colors(
-                        containerColor = if (isSelected) accent.copy(alpha = 0.75f) else ChipBackground,
+                        containerColor = if (isSelected) accent.copy(alpha = 0.85f) else ChipBackground,
                         focusedContainerColor = Color.White,
                         contentColor = if (isSelected) Color.Black else TextWhite,
                         focusedContentColor = Color.Black
                     ),
                     border = ButtonDefaults.border(
-                        border = if (isSelected) Border(BorderStroke(2.dp, accent)) else Border.None,
-                        focusedBorder = if (isSelected) Border(BorderStroke(2.5.dp, accent)) else Border.None
+                        border = Border.None,
+                        focusedBorder = Border.None
                     ),
                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                     scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
@@ -214,28 +224,21 @@ fun FilterBar(
                     onClick = { activeCategory = category },
                     colors = ButtonDefaults.colors(
                         containerColor = when {
-                            isCategoryActive -> accent.copy(alpha = 0.75f)
-                            hasCustomFilter -> accent.copy(alpha = 0.25f)
+                            isCategoryActive -> accent.copy(alpha = 0.85f)
+                            hasCustomFilter -> accent.copy(alpha = 0.35f)
                             else -> ChipBackground.copy(alpha = 0.6f)
                         },
                         focusedContainerColor = Color.White,
                         contentColor = when {
                             isCategoryActive -> Color.Black
-                            hasCustomFilter -> accent
+                            hasCustomFilter -> Color.White
                             else -> TextGray
                         },
                         focusedContentColor = Color.Black
                     ),
                     border = ButtonDefaults.border(
-                        border = when {
-                            isCategoryActive -> Border(BorderStroke(2.dp, accent))
-                            hasCustomFilter -> Border(BorderStroke(1.5.dp, accent))
-                            else -> Border.None
-                        },
-                        focusedBorder = when {
-                            isCategoryActive || hasCustomFilter -> Border(BorderStroke(2.5.dp, accent))
-                            else -> Border.None
-                        }
+                        border = Border.None,
+                        focusedBorder = Border.None
                     ),
                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                     scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
@@ -268,13 +271,13 @@ fun FilterBar(
                         activeCategory = FilterCategory.GENRES
                     },
                     colors = ButtonDefaults.colors(
-                        containerColor = if (hasAnyFilter) Color(0xFFE53935).copy(alpha = 0.2f) else Color.White.copy(alpha = 0.08f),
+                        containerColor = if (hasAnyFilter) Color(0xFFE53935).copy(alpha = 0.25f) else Color.White.copy(alpha = 0.08f),
                         focusedContainerColor = Color.White,
                         contentColor = if (hasAnyFilter) Color(0xFFFF8A80) else TextGray,
                         focusedContentColor = Color(0xFFE53935)
                     ),
                     border = ButtonDefaults.border(
-                        border = if (hasAnyFilter) Border(BorderStroke(1.dp, Color(0xFFE53935).copy(alpha = 0.5f))) else Border.None,
+                        border = Border.None,
                         focusedBorder = Border.None
                     ),
                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
@@ -313,14 +316,14 @@ fun FilterBar(
                         Button(
                             onClick = { onGenreSelected(genre) },
                             colors = ButtonDefaults.colors(
-                                containerColor = if (isSelected) accent.copy(alpha = 0.75f) else ChipBackground,
+                                containerColor = if (isSelected) accent.copy(alpha = 0.85f) else ChipBackground,
                                 focusedContainerColor = Color.White,
                                 contentColor = if (isSelected) Color.Black else TextWhite,
                                 focusedContentColor = Color.Black
                             ),
                             border = ButtonDefaults.border(
-                                border = if (isSelected) Border(BorderStroke(2.dp, accent)) else Border.None,
-                                focusedBorder = if (isSelected) Border(BorderStroke(2.5.dp, accent)) else Border.None
+                                border = Border.None,
+                                focusedBorder = Border.None
                             ),
                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                             scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
@@ -346,14 +349,14 @@ fun FilterBar(
                         Button(
                             onClick = { onSortSelected(sortKey) },
                             colors = ButtonDefaults.colors(
-                                containerColor = if (isSelected) accent.copy(alpha = 0.75f) else ChipBackground,
+                                containerColor = if (isSelected) accent.copy(alpha = 0.85f) else ChipBackground,
                                 focusedContainerColor = Color.White,
                                 contentColor = if (isSelected) Color.Black else TextWhite,
                                 focusedContentColor = Color.Black
                             ),
                             border = ButtonDefaults.border(
-                                border = if (isSelected) Border(BorderStroke(2.dp, accent)) else Border.None,
-                                focusedBorder = if (isSelected) Border(BorderStroke(2.5.dp, accent)) else Border.None
+                                border = Border.None,
+                                focusedBorder = Border.None
                             ),
                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                             scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
@@ -379,14 +382,14 @@ fun FilterBar(
                         Button(
                             onClick = { onYearSelected(yearKey) },
                             colors = ButtonDefaults.colors(
-                                containerColor = if (isSelected) accent.copy(alpha = 0.75f) else ChipBackground,
+                                containerColor = if (isSelected) accent.copy(alpha = 0.85f) else ChipBackground,
                                 focusedContainerColor = Color.White,
                                 contentColor = if (isSelected) Color.Black else TextWhite,
                                 focusedContentColor = Color.Black
                             ),
                             border = ButtonDefaults.border(
-                                border = if (isSelected) Border(BorderStroke(2.dp, accent)) else Border.None,
-                                focusedBorder = if (isSelected) Border(BorderStroke(2.5.dp, accent)) else Border.None
+                                border = Border.None,
+                                focusedBorder = Border.None
                             ),
                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                             scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
@@ -410,16 +413,21 @@ fun FilterBar(
                         val isSelected = countryKey == selectedCountry
                         val firstMod = if (index == 0 && row2FocusRequester != null) Modifier.focusRequester(row2FocusRequester) else Modifier
                         Button(
-                            onClick = { onCountrySelected(countryKey) },
+                            onClick = {
+                                onCountrySelected(countryKey)
+                                if (countryKey == "all") {
+                                    activeCategory = FilterCategory.GENRES
+                                }
+                            },
                             colors = ButtonDefaults.colors(
-                                containerColor = if (isSelected) accent.copy(alpha = 0.75f) else ChipBackground,
+                                containerColor = if (isSelected) accent.copy(alpha = 0.85f) else ChipBackground,
                                 focusedContainerColor = Color.White,
                                 contentColor = if (isSelected) Color.Black else TextWhite,
                                 focusedContentColor = Color.Black
                             ),
                             border = ButtonDefaults.border(
-                                border = if (isSelected) Border(BorderStroke(2.dp, accent)) else Border.None,
-                                focusedBorder = if (isSelected) Border(BorderStroke(2.5.dp, accent)) else Border.None
+                                border = Border.None,
+                                focusedBorder = Border.None
                             ),
                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                             scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),

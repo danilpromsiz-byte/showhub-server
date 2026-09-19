@@ -226,7 +226,7 @@ fun FeaturedMovieBanner(
                         contentColor = Color.Black,
                         focusedContentColor = Color.Black
                     ),
-                    border = ButtonDefaults.border(border = Border(BorderStroke(1.5.dp, accent)), focusedBorder = Border.None),
+                    border = ButtonDefaults.border(border = Border.None, focusedBorder = Border.None),
                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                     scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                     modifier = Modifier.height(38.dp)
@@ -263,13 +263,13 @@ fun FeaturedMovieBanner(
                 Button(
                     onClick = { onToggleFavorite(movie) },
                     colors = ButtonDefaults.colors(
-                        containerColor = if (isFavorite) FavoriteGold.copy(alpha = 0.25f) else Color.White.copy(alpha = 0.10f),
+                        containerColor = if (isFavorite) FavoriteGold.copy(alpha = 0.85f) else Color.White.copy(alpha = 0.10f),
                         focusedContainerColor = Color.White,
-                        contentColor = if (isFavorite) FavoriteGold else TextWhite,
+                        contentColor = if (isFavorite) Color.Black else TextWhite,
                         focusedContentColor = Color.Black
                     ),
                     border = ButtonDefaults.border(
-                        border = if (isFavorite) Border(BorderStroke(1.5.dp, FavoriteGold)) else Border.None,
+                        border = Border.None,
                         focusedBorder = Border.None
                     ),
                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),

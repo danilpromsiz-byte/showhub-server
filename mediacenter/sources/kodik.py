@@ -13,6 +13,7 @@ class KodikSource(BaseSource):
     display_name = "Kodik"
     source_type = "balancer"
 
+    API_ENDPOINT = "https://kodik-api.com/search"
     API_ENDPOINTS = [
         "https://kodik-api.com/search",
         "https://bd.kodikres.com/search",
@@ -71,6 +72,98 @@ class KodikSource(BaseSource):
                                 }
                             ))
                         break
+            except Exception:
+                continue
+        return items
+
+    def get_catalog(self, category: Optional[str] = None, genre: Optional[str] = None, country: Optional[str] = None, page: int = 1, limit: int = 50) -> List[MediaItem]:
+        items = []
+        token = self.TOKENS[0]
+        params = {
+            "token": token,
+            "limit": str(limit),
+            "with_episodes": "true"
+        }
+        if country and country != "all":
+            c_norm = country
+            clow = country.lower()
+            if "коре" in clow:
+                c_norm = "Корея Южная"
+            elif "сша" in clow:
+                c_norm = "США"
+            elif "росси" in clow:
+                c_norm = "Россия"
+            elif "япон" in clow:
+                c_norm = "Япония"
+            elif "турц" in clow:
+                c_norm = "Турция"
+            elif "кита" in clow:
+                c_norm = "Китай"
+            elif "инди" in clow:
+                c_norm = "Индия"
+            elif "франц" in clow:
+                c_norm = "Франция"
+            elif "герман" in clow:
+                c_norm = "Германия"
+            elif "италь" in clow or "итали" in clow:
+                c_norm = "Италия"
+            elif "испан" in clow:
+                c_norm = "Испания"
+            elif "великобрит" in clow or "англи" in clow:
+                c_norm = "Великобритания"
+            elif "канад" in clow:
+                c_norm = "Канада"
+            elif "австрал" in clow:
+                c_norm = "Австралия"
+            elif "таиланд" in clow:
+                c_norm = "Таиланд"
+            elif "швеци" in clow:
+                c_norm = "Швеция"
+            params["countries"] = c_norm
+
+        if genre and genre != "all":
+            params["genres"] = genre.lower().strip()
+
+        if category == "series":
+            params["types"] = "serial,anime-serial"
+        elif category == "anime":
+            params["types"] = "anime,anime-serial"
+        elif category == "movies":
+            params["types"] = "movie,foreign-movie,soviet-movie,russian-movie"
+
+        for endpoint in ["https://kodik-api.com/list", "https://bd.kodikres.com/list"]:
+            try:
+                url = f"{endpoint}?{urllib.parse.urlencode(params)}"
+                resp = requests.get(url, headers=self.headers, timeout=5)
+                if resp.status_code == 200:
+                    results = resp.json().get("results", [])
+                    for res in results:
+                        title = res.get("title") or res.get("title_orig") or ""
+                        r_year = res.get("year")
+                        trans = res.get("translation", {}).get("title", "")
+                        poster = None
+                        screenshots = res.get("screenshots", [])
+                        if screenshots and len(screenshots) > 0:
+                            poster = screenshots[0]
+                        kp_id = res.get("kinopoisk_id")
+                        imdb_id = res.get("imdb_id")
+                        is_ser = "serial" in str(res.get("type", ""))
+                        items.append(MediaItem(
+                            id=str(res.get("id")),
+                            source_name=self.name,
+                            title=title,
+                            year=r_year,
+                            poster=poster,
+                            kinopoisk_id=str(kp_id) if kp_id else None,
+                            imdb_id=str(imdb_id) if imdb_id else None,
+                            is_series=is_ser,
+                            extra_data={
+                                "country": country or "",
+                                "translation": trans,
+                                "type": res.get("type")
+                            }
+                        ))
+                    break
             except Exception:
                 continue
         return items

@@ -42,12 +42,14 @@ import androidx.tv.material3.ButtonDefaults
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import com.example.tvmediaapp.data.cache.MediaDiskCache
 import com.example.tvmediaapp.data.image.CoilSetup
 import com.example.tvmediaapp.data.models.Movie
 import com.example.tvmediaapp.data.updater.UpdateInfo
 import com.example.tvmediaapp.data.updater.UpdateManager
 import com.example.tvmediaapp.ui.screens.details.DetailsScreen
 import com.example.tvmediaapp.data.history.SessionManager
+import com.example.tvmediaapp.util.CrashReporter
 import com.example.tvmediaapp.ui.screens.favorites.FavoritesScreen
 import com.example.tvmediaapp.ui.screens.history.HistoryScreen
 import com.example.tvmediaapp.ui.screens.home.HomeScreen
@@ -110,6 +112,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        CrashReporter.init(this)
+        MediaDiskCache.init(this)
         CoilSetup.init(this)
         ThemeManager.init(this)
 
@@ -144,6 +148,7 @@ fun TvAppNavHost(activity: MainActivity) {
     var activeSeason by remember { mutableIntStateOf(restoredSession?.season ?: 1) }
     var activeEpisode by remember { mutableIntStateOf(restoredSession?.episode ?: 1) }
     var activeAudioId by remember { mutableStateOf(restoredSession?.audioId ?: "") }
+    var searchInitialQuery by remember { mutableStateOf("") }
 
     // Persist session when in DETAILS or PLAYER, clear when at HOME
     LaunchedEffect(currentScreen, selectedMovie, activeVideoUrl, startPositionMs, activeSeason, activeEpisode, activeAudioId) {
@@ -228,7 +233,10 @@ fun TvAppNavHost(activity: MainActivity) {
                 SessionManager.clearSession(activity)
                 currentScreen = Screen.HOME
             }
-            Screen.SEARCH -> currentScreen = Screen.HOME
+            Screen.SEARCH -> {
+                searchInitialQuery = ""
+                currentScreen = Screen.HOME
+            }
             Screen.FAVORITES -> currentScreen = Screen.HOME
             Screen.HISTORY -> currentScreen = Screen.HOME
             Screen.SETTINGS -> currentScreen = Screen.HOME
@@ -256,6 +264,7 @@ fun TvAppNavHost(activity: MainActivity) {
                         currentScreen = Screen.DETAILS
                     },
                     onSearchClick = {
+                        searchInitialQuery = ""
                         currentScreen = Screen.SEARCH
                     },
                     onFavoritesClick = {
@@ -279,7 +288,10 @@ fun TvAppNavHost(activity: MainActivity) {
                     appVersion = activity.getInstalledVersionName(),
                     versionCode = activity.getInstalledVersionCode(),
                     onBackClick = { currentScreen = Screen.HOME },
-                    onSearchClick = { currentScreen = Screen.SEARCH },
+                    onSearchClick = {
+                        searchInitialQuery = ""
+                        currentScreen = Screen.SEARCH
+                    },
                     onFavoritesClick = { currentScreen = Screen.FAVORITES },
                     onHistoryClick = { currentScreen = Screen.HISTORY },
                     onCheckUpdateClick = { triggerUpdateCheck(isUserClick = true) },
@@ -294,9 +306,11 @@ fun TvAppNavHost(activity: MainActivity) {
                         currentScreen = Screen.DETAILS
                     },
                     onBackClick = {
+                        searchInitialQuery = ""
                         currentScreen = Screen.HOME
                     },
-                    initialMovies = homeViewModel.getAllMovies()
+                    initialMovies = homeViewModel.getAllMovies(),
+                    initialQuery = searchInitialQuery
                 )
             }
 
@@ -353,7 +367,11 @@ fun TvAppNavHost(activity: MainActivity) {
                         onToggleFavorite = {
                             homeViewModel.toggleFavorite(it)
                         },
-                        isFavorite = isFav
+                        isFavorite = isFav,
+                        onSearchClick = { actorName ->
+                            searchInitialQuery = actorName
+                            currentScreen = Screen.SEARCH
+                        }
                     )
                 } ?: run {
                     currentScreen = Screen.HOME

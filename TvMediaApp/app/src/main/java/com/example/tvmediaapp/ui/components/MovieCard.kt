@@ -50,6 +50,8 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.exoplayer.DefaultLoadControl
+import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.AspectRatioFrameLayout
@@ -148,9 +150,22 @@ fun MovieCard(
                             .setAllowCrossProtocolRedirects(true)
                         val mediaSourceFactory = DefaultMediaSourceFactory(httpDataSourceFactory)
 
+                        val loadControl = DefaultLoadControl.Builder()
+                            .setBufferDurationsMs(
+                                /* minBufferMs = */ 3000,
+                                /* maxBufferMs = */ 6000,
+                                /* bufferForPlaybackMs = */ 1000,
+                                /* bufferForPlaybackAfterRebufferMs = */ 1500
+                            )
+                            .setBackBuffer(2000, true)
+                            .build()
+                        val renderersFactory = DefaultRenderersFactory(context)
+                            .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF)
+
                         var hasSeeked = false
-                        val player = ExoPlayer.Builder(context)
+                        val player = ExoPlayer.Builder(context, renderersFactory)
                             .setMediaSourceFactory(mediaSourceFactory)
+                            .setLoadControl(loadControl)
                             .build().apply {
                                 val targetSeekMs = if (movie.isSeries) 12 * 60 * 1000L else 22 * 60 * 1000L
                                 setMediaItem(MediaItem.fromUri(streamUrl))
@@ -201,6 +216,7 @@ fun MovieCard(
             isPreviewPlaying = false
             previewPlayer?.let { player ->
                 player.stop()
+                player.clearMediaItems()
                 player.release()
             }
             previewPlayer = null
@@ -227,6 +243,7 @@ fun MovieCard(
             isPreviewPlaying = false
             previewPlayer?.let { player ->
                 player.stop()
+                player.clearMediaItems()
                 player.release()
             }
             previewPlayer = null
@@ -373,11 +390,34 @@ fun MovieCard(
                             Spacer(modifier = Modifier.width(1.dp))
                         }
 
-                        // Right: Rating Badge (KP or IMDb or general rating)
+                        // Right: Rating Badges (Age limit + KP or IMDb or general rating)
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(3.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
+                            if (movie.ageRating.isNotBlank()) {
+                                val cleanAge = movie.ageRating.trim()
+                                val (ageBg, ageFg) = when {
+                                    cleanAge.contains("18") -> Color(0xFFD32F2F) to Color.White
+                                    cleanAge.contains("16") -> Color(0xFFF57C00) to Color.White
+                                    cleanAge.contains("12") -> Color(0xFF1976D2) to Color.White
+                                    cleanAge.contains("6") || cleanAge.contains("0") -> Color(0xFF388E3C) to Color.White
+                                    else -> Color.Black.copy(alpha = 0.85f) to Color.White
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(ageBg.copy(alpha = 0.92f))
+                                        .padding(horizontal = 4.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = cleanAge,
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = ageFg
+                                    )
+                                }
+                            }
                             if (movie.ratingKp > 0) {
                                 Box(
                                     modifier = Modifier

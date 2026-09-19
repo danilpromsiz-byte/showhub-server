@@ -81,6 +81,7 @@ fun SearchScreen(
     onBackClick: () -> Unit,
     initialMovies: List<Movie> = emptyList(),
     initialQuery: String = "",
+    isActorSearch: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -125,7 +126,7 @@ fun SearchScreen(
         } catch (_: Exception) {}
     }
 
-    fun performSearch(q: String) {
+    fun performSearch(q: String, byActor: Boolean = isActorSearch) {
         query = q
         if (q.trim().isEmpty()) {
             results = initialMovies
@@ -135,7 +136,7 @@ fun SearchScreen(
         recentQueries = loadHistory()
         isSearching = true
         coroutineScope.launch {
-            val res = ShowHubApiClient.searchMovies(q)
+            val res = if (byActor) ShowHubApiClient.searchByActor(q) else ShowHubApiClient.searchMovies(q)
             results = if (res.isNotEmpty()) res else initialMovies.filter {
                 it.title.contains(q, ignoreCase = true) ||
                 it.originalTitle.contains(q, ignoreCase = true) ||
@@ -148,7 +149,7 @@ fun SearchScreen(
 
     LaunchedEffect(initialQuery) {
         if (initialQuery.isNotBlank()) {
-            performSearch(initialQuery)
+            performSearch(initialQuery, byActor = isActorSearch)
         }
     }
 

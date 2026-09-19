@@ -187,6 +187,7 @@ fun SettingsScreen(
     onSearchClick: () -> Unit,
     onFavoritesClick: () -> Unit,
     onHistoryClick: () -> Unit,
+    onScheduleClick: (() -> Unit)? = null,
     onCheckUpdateClick: (() -> Unit)? = null,
     hasUpdateAvailable: Boolean = false,
     modifier: Modifier = Modifier
@@ -253,6 +254,7 @@ fun SettingsScreen(
             onSearchClick = onSearchClick,
             onFavoritesClick = onFavoritesClick,
             onHistoryClick = onHistoryClick,
+            onScheduleClick = onScheduleClick,
             onSettingsClick = null,
             onCheckUpdateClick = onCheckUpdateClick,
             hasUpdateAvailable = hasUpdateAvailable,

@@ -53,6 +53,46 @@ ISO_COUNTRY_MAP = {
     "CL": "Чили"
 }
 
+def _normalize_title_words(s: str) -> set:
+    if not s:
+        return set()
+    cleaned = re.sub(r'[^\w\s]', ' ', s.lower())
+    return {w for w in cleaned.split() if len(w) > 1}
+
+def _calc_title_match(cand: dict, target_title: str, target_orig: Optional[str] = None) -> float:
+    t_words = _normalize_title_words(target_title)
+    orig_words = _normalize_title_words(target_orig) if target_orig else set()
+
+    cand_titles = [
+        cand.get("title") or "",
+        cand.get("name") or "",
+        cand.get("original_title") or "",
+        cand.get("original_name") or ""
+    ]
+    max_score = 0.0
+    for ct in cand_titles:
+        if not ct:
+            continue
+        c_words = _normalize_title_words(ct)
+        if not c_words:
+            continue
+        if t_words:
+            inter = len(t_words & c_words)
+            score = inter / max(len(t_words), len(c_words))
+            if score > max_score:
+                max_score = score
+        if orig_words:
+            inter = len(orig_words & c_words)
+            score = inter / max(len(orig_words), len(c_words))
+            if score > max_score:
+                max_score = score
+        # Substring bonus
+        if target_title and (target_title.lower() in ct.lower() or ct.lower() in target_title.lower()):
+            max_score = max(max_score, 0.7)
+        if target_orig and (target_orig.lower() in ct.lower() or ct.lower() in target_orig.lower()):
+            max_score = max(max_score, 0.75)
+    return max_score
+
 _cache: Dict[str, Any] = {}
 
 class TMDbClient:
@@ -60,7 +100,7 @@ class TMDbClient:
         self.api_key = api_key
         self.session = requests.Session()
         self.session.headers.update({
-            "User-Agent": "ShowHubTV-MediaCenter/2.7.8",
+            "User-Agent": "ShowHubTV-MediaCenter/2.7.9",
             "Accept": "application/json"
         })
 
@@ -145,23 +185,36 @@ class TMDbClient:
             if not results:
                 return None
 
-            # Pick best match
+            # Pick best match using title similarity and year proximity
             matched = None
+            best_score = -1.0
+            search_title = queries[0] if queries else (title or "")
+
             for cand in results:
                 c_type = cand.get("media_type") or media_type
                 if c_type not in ["movie", "tv"]:
                     continue
                 date_str = cand.get("release_date") or cand.get("first_air_date") or ""
                 cand_year = int(date_str[:4]) if len(date_str) >= 4 and date_str[:4].isdigit() else None
-                if year and cand_year and abs(year - cand_year) > 2:
-                    continue
-                matched = (cand, c_type)
-                break
 
-            if not matched and results:
-                c_type = results[0].get("media_type") or media_type
-                if c_type in ["movie", "tv"]:
-                    matched = (results[0], c_type)
+                t_score = _calc_title_match(cand, search_title, original_title)
+                # Reject completely mismatched titles (e.g. random Asian anime for a Western movie)
+                if t_score < 0.22:
+                    continue
+
+                total_score = t_score * 100.0
+                if year and cand_year:
+                    diff = abs(year - cand_year)
+                    if diff == 0:
+                        total_score += 40.0
+                    elif diff == 1:
+                        total_score += 20.0
+                    elif diff > 2:
+                        continue  # Year mismatch too large
+
+                if total_score > best_score:
+                    best_score = total_score
+                    matched = (cand, c_type)
 
             if not matched:
                 return None
@@ -358,5 +411,81 @@ class TMDbClient:
         except Exception:
             pass
         return []
+
+    def search_actor_filmography(self, actor_name: str) -> List[Dict[str, Any]]:
+        """Searches for an actor on TMDb and returns their real filmography sorted by popularity."""
+        if not actor_name or len(actor_name.strip()) < 2:
+            return []
+        try:
+            q_enc = urllib.parse.quote(actor_name.strip())
+            p_url = f"{BASE_URL}/search/person?api_key={self.api_key}&query={q_enc}&language=ru-RU"
+            p_resp = self.session.get(p_url, timeout=5)
+            if p_resp.status_code != 200:
+                return []
+            p_results = p_resp.json().get("results", [])
+            if not p_results:
+                return []
+
+            person_id = p_results[0].get("id")
+            if not person_id:
+                return []
+
+            c_url = f"{BASE_URL}/person/{person_id}/combined_credits?api_key={self.api_key}&language=ru-RU"
+            c_resp = self.session.get(c_url, timeout=6)
+            if c_resp.status_code != 200:
+                return []
+
+            raw_cast = c_resp.json().get("cast", [])
+            sorted_cast = sorted(
+                raw_cast,
+                key=lambda x: (x.get("vote_count", 0) * 10 + x.get("popularity", 0)),
+                reverse=True
+            )
+
+            filmography = []
+            seen_ids = set()
+            for item in sorted_cast:
+                m_id = item.get("id")
+                if not m_id or m_id in seen_ids:
+                    continue
+                seen_ids.add(m_id)
+
+                title = item.get("title") or item.get("name")
+                if not title:
+                    continue
+                orig_title = item.get("original_title") or item.get("original_name")
+                r_date = item.get("release_date") or item.get("first_air_date") or ""
+                year_val = int(r_date[:4]) if (r_date and len(r_date) >= 4 and r_date[:4].isdigit()) else None
+                p_path = item.get("poster_path")
+                poster = f"{IMG_BASE}/w780{p_path}" if p_path else None
+                is_ser = item.get("media_type") == "tv"
+
+                char = item.get("character", "")
+                desc = item.get("overview", "")
+                if char:
+                    role_desc = f"В роли: {char}"
+                    desc = f"{role_desc}. {desc}" if desc else role_desc
+
+                filmography.append({
+                    "id": f"tmdb_{m_id}",
+                    "source_name": "tmdb",
+                    "title": title,
+                    "original_title": orig_title,
+                    "year": year_val,
+                    "poster": poster,
+                    "description": desc,
+                    "rating_imdb": item.get("vote_average"),
+                    "rating_kp": item.get("vote_average"),
+                    "is_series": is_ser,
+                    "actors": actor_name,
+                    "extra_data": {
+                        "character": char,
+                        "person_id": person_id,
+                        "person_name": p_results[0].get("name", actor_name)
+                    }
+                })
+            return filmography
+        except Exception:
+            return []
 
 tmdb = TMDbClient()

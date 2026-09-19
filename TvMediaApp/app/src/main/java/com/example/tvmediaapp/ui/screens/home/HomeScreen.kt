@@ -27,6 +27,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -55,6 +60,7 @@ fun HomeScreen(
     onSearchClick: () -> Unit,
     onFavoritesClick: () -> Unit,
     onHistoryClick: () -> Unit,
+    onScheduleClick: (() -> Unit)? = null,
     onSettingsClick: (() -> Unit)? = null,
     onCheckUpdateClick: (() -> Unit)? = null,
     hasUpdateAvailable: Boolean = false,
@@ -108,6 +114,7 @@ fun HomeScreen(
             onSearchClick = onSearchClick,
             onFavoritesClick = onFavoritesClick,
             onHistoryClick = onHistoryClick,
+            onScheduleClick = onScheduleClick,
             onSettingsClick = onSettingsClick,
             onCheckUpdateClick = onCheckUpdateClick,
             hasUpdateAvailable = hasUpdateAvailable,
@@ -133,7 +140,7 @@ fun HomeScreen(
             row1FocusRequester = filterRow1FocusRequester,
             row2FocusRequester = filterRow2FocusRequester,
             focusUpRequester = topBarSearchFocusRequester,
-            focusDownRequester = targetCardFocusRequester
+            focusDownRequester = null
         )
 
         // 6-COLUMN VERTICAL GRID (2 rows of 6 cards on screen at a time, scrolling down)
@@ -179,7 +186,27 @@ fun HomeScreen(
             ) {
                 itemsIndexed(displayMovies, key = { _, movie -> movie.id }) { index, movie ->
                     val isTarget = index == viewModel.lastFocusedIndex.coerceIn(0, (displayMovies.size - 1).coerceAtLeast(0))
-                    val cardFocusMod = if (isTarget) Modifier.focusRequester(targetCardFocusRequester) else Modifier
+                    val isLeftmost = index % 6 == 0
+                    val isRightmost = index % 6 == 5
+
+                    val edgeNavMod = Modifier.onKeyEvent { keyEvent ->
+                        if (keyEvent.type == KeyEventType.KeyDown) {
+                            if (isLeftmost && (keyEvent.key == Key.DirectionLeft || keyEvent.key.keyCode == 21L)) {
+                                try {
+                                    topBarSearchFocusRequester.requestFocus()
+                                    return@onKeyEvent true
+                                } catch (_: Exception) {}
+                            } else if (isRightmost && (keyEvent.key == Key.DirectionRight || keyEvent.key.keyCode == 22L)) {
+                                try {
+                                    topBarSearchFocusRequester.requestFocus()
+                                    return@onKeyEvent true
+                                } catch (_: Exception) {}
+                            }
+                        }
+                        false
+                    }
+
+                    val cardFocusMod = (if (isTarget) Modifier.focusRequester(targetCardFocusRequester) else Modifier).then(edgeNavMod)
 
                     MovieCard(
                         movie = movie,

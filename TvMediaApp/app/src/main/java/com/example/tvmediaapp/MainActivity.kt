@@ -61,6 +61,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
+import com.example.tvmediaapp.ui.screens.schedule.ScheduleCalendarScreen
 import com.example.tvmediaapp.ui.screens.search.SearchScreen
 import com.example.tvmediaapp.ui.screens.settings.SettingsScreen
 import com.example.tvmediaapp.ui.theme.LocalBackgroundColor
@@ -77,6 +78,7 @@ enum class Screen {
     SEARCH,
     FAVORITES,
     HISTORY,
+    SCHEDULE,
     SETTINGS,
     PLAYER
 }
@@ -97,16 +99,16 @@ class MainActivity : ComponentActivity() {
                 pInfo.versionCode
             }
         } catch (e: Exception) {
-            45
+            58
         }
     }
 
     fun getInstalledVersionName(): String {
         return try {
             val pInfo = packageManager.getPackageInfo(packageName, 0)
-            pInfo.versionName ?: "2.6.6"
+            pInfo.versionName ?: "2.7.9"
         } catch (e: Exception) {
-            "2.6.6"
+            "2.7.9"
         }
     }
 
@@ -149,6 +151,7 @@ fun TvAppNavHost(activity: MainActivity) {
     var activeEpisode by remember { mutableIntStateOf(restoredSession?.episode ?: 1) }
     var activeAudioId by remember { mutableStateOf(restoredSession?.audioId ?: "") }
     var searchInitialQuery by remember { mutableStateOf("") }
+    var searchIsActor by remember { mutableStateOf(false) }
 
     // Persist session when in DETAILS or PLAYER, clear when at HOME
     LaunchedEffect(currentScreen, selectedMovie, activeVideoUrl, startPositionMs, activeSeason, activeEpisode, activeAudioId) {
@@ -235,10 +238,12 @@ fun TvAppNavHost(activity: MainActivity) {
             }
             Screen.SEARCH -> {
                 searchInitialQuery = ""
+                searchIsActor = false
                 currentScreen = Screen.HOME
             }
             Screen.FAVORITES -> currentScreen = Screen.HOME
             Screen.HISTORY -> currentScreen = Screen.HOME
+            Screen.SCHEDULE -> currentScreen = Screen.HOME
             Screen.SETTINGS -> currentScreen = Screen.HOME
             Screen.HOME -> activity.finish()
         }
@@ -265,6 +270,7 @@ fun TvAppNavHost(activity: MainActivity) {
                     },
                     onSearchClick = {
                         searchInitialQuery = ""
+                        searchIsActor = false
                         currentScreen = Screen.SEARCH
                     },
                     onFavoritesClick = {
@@ -272,6 +278,9 @@ fun TvAppNavHost(activity: MainActivity) {
                     },
                     onHistoryClick = {
                         currentScreen = Screen.HISTORY
+                    },
+                    onScheduleClick = {
+                        currentScreen = Screen.SCHEDULE
                     },
                     onSettingsClick = {
                         currentScreen = Screen.SETTINGS
@@ -290,10 +299,12 @@ fun TvAppNavHost(activity: MainActivity) {
                     onBackClick = { currentScreen = Screen.HOME },
                     onSearchClick = {
                         searchInitialQuery = ""
+                        searchIsActor = false
                         currentScreen = Screen.SEARCH
                     },
                     onFavoritesClick = { currentScreen = Screen.FAVORITES },
                     onHistoryClick = { currentScreen = Screen.HISTORY },
+                    onScheduleClick = { currentScreen = Screen.SCHEDULE },
                     onCheckUpdateClick = { triggerUpdateCheck(isUserClick = true) },
                     hasUpdateAvailable = (updateInfo != null && updateInfo!!.versionCode > activity.getInstalledVersionCode())
                 )
@@ -307,10 +318,12 @@ fun TvAppNavHost(activity: MainActivity) {
                     },
                     onBackClick = {
                         searchInitialQuery = ""
+                        searchIsActor = false
                         currentScreen = Screen.HOME
                     },
                     initialMovies = homeViewModel.getAllMovies(),
-                    initialQuery = searchInitialQuery
+                    initialQuery = searchInitialQuery,
+                    isActorSearch = searchIsActor
                 )
             }
 
@@ -346,6 +359,19 @@ fun TvAppNavHost(activity: MainActivity) {
                 )
             }
 
+            Screen.SCHEDULE -> {
+                ScheduleCalendarScreen(
+                    onMovieSelect = { movie ->
+                        selectedMovie = movie
+                        currentScreen = Screen.DETAILS
+                    },
+                    onBackClick = {
+                        currentScreen = Screen.HOME
+                    },
+                    trackedMovies = homeViewModel.getAllMovies()
+                )
+            }
+
             Screen.DETAILS -> {
                 selectedMovie?.let { movie ->
                     val isFav = homeViewModel.isFavorite(movie.id)
@@ -362,6 +388,7 @@ fun TvAppNavHost(activity: MainActivity) {
                         },
                         onBackClick = {
                             SessionManager.clearSession(activity)
+                            selectedMovie?.id?.let { homeViewModel.refreshMovieFromCache(it) }
                             currentScreen = Screen.HOME
                         },
                         onToggleFavorite = {
@@ -370,6 +397,7 @@ fun TvAppNavHost(activity: MainActivity) {
                         isFavorite = isFav,
                         onSearchClick = { actorName ->
                             searchInitialQuery = actorName
+                            searchIsActor = true
                             currentScreen = Screen.SEARCH
                         }
                     )

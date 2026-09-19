@@ -633,12 +633,20 @@ fun MovieCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 val cleanYear = movie.releaseYear.replace("null", "").trim()
-                val typeStr = if (movie.isSeries) {
-                    if (movie.episodesInfo.isNotBlank()) movie.episodesInfo else "Сериал"
-                } else "Фильм"
-                val countryBadge = com.example.tvmediaapp.data.models.getCountryBadge(movie.country, movie.genres, movie.title)
-                val flagPrefix = if (countryBadge.isNotBlank()) "$countryBadge  " else ""
-                val subText = if (cleanYear.isNotEmpty()) "$flagPrefix$cleanYear • $typeStr" else "$flagPrefix$typeStr"
+                val seriesOrMovieInfo = if (movie.isSeries) {
+                    val hist = historyManager.getProgress(movie.id)
+                    if (hist != null && hist.episode > 0) {
+                        "${hist.season} сезон ${hist.episode} сер."
+                    } else if (movie.episodesInfo.isNotBlank()) {
+                        movie.episodesInfo
+                    } else {
+                        "Сериал"
+                    }
+                } else {
+                    if (movie.genres.isNotEmpty()) "Фильм • ${movie.genres.first()}" else "Фильм"
+                }
+
+                val subText = if (cleanYear.isNotEmpty()) "$cleanYear • $seriesOrMovieInfo" else seriesOrMovieInfo
                 Text(
                     text = subText,
                     style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),

@@ -1,0 +1,72 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="512dp"
+    android:height="512dp"
+    android:viewportWidth="512"
+    android:viewportHeight="512">
+
+    <!-- Outer Squircle Outer Glow / Bezel -->
+    <path
+        android:pathData="M 120 16 H 392 A 104 104 0 0 1 496 120 V 392 A 104 104 0 0 1 392 496 H 120 A 104 104 0 0 1 16 392 V 120 A 104 104 0 0 1 120 16 Z"
+        android:fillColor="#1C242B" />
+
+    <!-- Main Solid Black Squircle Body -->
+    <path
+        android:pathData="M 122 24 H 390 A 98 98 0 0 1 488 122 V 390 A 98 98 0 0 1 390 488 H 122 A 98 98 0 0 1 24 122 V 122 A 98 98 0 0 1 122 24 Z"
+        android:fillColor="#040608" />
+
+    <!-- Subtle Inner Rim Highlight -->
+    <path
+        android:pathData="M 124 28 H 388 A 94 94 0 0 1 482 122 V 390 A 94 94 0 0 1 388 484 H 124 A 94 94 0 0 1 28 122 V 122 A 94 94 0 0 1 124 28 Z"
+        android:strokeWidth="2"
+        android:strokeColor="#2E3A46"
+        android:fillColor="#00000000" />
+
+    <!-- Center Play Triangle (Metallic Chrome Outer Bevel) -->
+    <!-- Vertices: Left-Top (195, 160), Left-Bottom (195, 352), Right-Apex (360, 256) with smooth rounded corners -->
+    <path
+        android:pathData="M 215,160 C 190,145 175,155 175,182 L 175,330 C 175,357 190,367 215,352 L 342,278 C 365,265 365,247 342,234 Z"
+        android:strokeWidth="18"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round">
+        <aapt:attr name="android:strokeColor">
+            <gradient
+                android:startX="170"
+                android:startY="150"
+                android:endX="360"
+                android:endY="360"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#FFFFFF" />
+                <item android:offset="0.25" android:color="#D8E2EC" />
+                <item android:offset="0.5" android:color="#8A9BA8" />
+                <item android:offset="0.75" android:color="#EAF0F6" />
+                <item android:offset="1.0" android:color="#A0B2C0" />
+            </gradient>
+        </aapt:attr>
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="180"
+                android:startY="170"
+                android:endX="350"
+                android:endY="340"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#243342" />
+                <item android:offset="0.4" android:color="#141D26" />
+                <item android:offset="1.0" android:color="#0D131A" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Chrome Inner Accent Highlight -->
+    <path
+        android:pathData="M 210,172 L 187,185 L 187,327 L 210,340 L 332,268 C 344,261 344,251 332,244 Z"
+        android:strokeWidth="3"
+        android:strokeColor="#70FFFFFF"
+        android:fillColor="#00000000" />
+
+    <!-- Glass Specular Reflection on Upper Play Area -->
+    <path
+        android:pathData="M 188,185 L 320,248 C 310,240 280,210 215,190 Z"
+        android:fillColor="#22FFFFFF" />
+
+</vector>

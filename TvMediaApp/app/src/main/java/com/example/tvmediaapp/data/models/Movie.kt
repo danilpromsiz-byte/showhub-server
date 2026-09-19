@@ -21,7 +21,9 @@ data class SeasonInfo(
 
 data class AudioTrackInfo(
     val id: String,
-    val name: String
+    val name: String,
+    val episodesCount: Int = 0,
+    val source: String = "hdrezka"
 )
 
 data class PersonInfo(
@@ -36,6 +38,12 @@ data class EpisodeScheduleItem(
     val title: String = "",
     val date: String = "",
     val status: String = ""
+)
+
+data class SourceInfo(
+    val id: String,
+    val name: String,
+    val episodesCount: Int = 0
 )
 
 data class Movie(
@@ -60,6 +68,7 @@ data class Movie(
     val isSeries: Boolean = false,
     val seasons: List<SeasonInfo> = emptyList(),
     val audioTracks: List<AudioTrackInfo> = emptyList(),
+    val sources: List<SourceInfo> = emptyList(),
     val cast: List<PersonInfo> = emptyList(),
     val directorsList: List<PersonInfo> = emptyList(),
     val episodesSchedule: List<EpisodeScheduleItem> = emptyList(),

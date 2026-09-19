@@ -88,12 +88,13 @@ object ShowHubApiClient {
         movies
     }
 
-    suspend fun searchMovies(query: String): List<Movie> = withContext(Dispatchers.IO) {
+    suspend fun searchMovies(query: String, type: String? = null): List<Movie> = withContext(Dispatchers.IO) {
         val movies = mutableListOf<Movie>()
         if (query.trim().isEmpty()) return@withContext movies
         try {
             val q = URLEncoder.encode(query.trim(), "UTF-8")
-            val url = URL("$SERVER_BASE/api/search?q=$q")
+            val typeParam = if (!type.isNullOrBlank()) "&type=" + URLEncoder.encode(type, "UTF-8") else ""
+            val url = URL("$SERVER_BASE/api/search?q=$q$typeParam")
             val conn = url.openConnection() as HttpURLConnection
             conn.connectTimeout = 12000
             conn.readTimeout = 18000
@@ -109,6 +110,8 @@ object ShowHubApiClient {
         }
         movies
     }
+
+    suspend fun searchByActor(actorName: String): List<Movie> = searchMovies(actorName, type = "actor")
 
     suspend fun fetchMediaDetails(movie: Movie): Movie = withContext(Dispatchers.IO) {
         val cached = MediaDiskCache.getCachedDetails(movie.id)
@@ -170,10 +173,12 @@ object ShowHubApiClient {
                         if (trObj != null) {
                             val id = trObj.optString("id", tIdx.toString())
                             val name = trObj.optString("name", "")
-                            if (name.isNotEmpty()) audioList.add(AudioTrackInfo(id, name))
+                            val epsCount = trObj.optInt("episodes_count", 0)
+                            val src = trObj.optString("source", if (id.startsWith("kodik")) "kodik" else "hdrezka")
+                            if (name.isNotEmpty()) audioList.add(AudioTrackInfo(id, name, epsCount, src))
                         } else {
                             val name = trArr.optString(tIdx, "")
-                            if (name.isNotEmpty()) audioList.add(AudioTrackInfo(tIdx.toString(), name))
+                            if (name.isNotEmpty()) audioList.add(AudioTrackInfo(tIdx.toString(), name, 0, "hdrezka"))
                         }
                     }
                 }
@@ -226,6 +231,21 @@ object ShowHubApiClient {
                     }
                 }
 
+                val sourcesList = mutableListOf<com.example.tvmediaapp.data.models.SourceInfo>()
+                val srcArr = obj.optJSONArray("sources_info")
+                if (srcArr != null) {
+                    for (sIdx in 0 until srcArr.length()) {
+                        val sObj = srcArr.getJSONObject(sIdx)
+                        sourcesList.add(
+                            com.example.tvmediaapp.data.models.SourceInfo(
+                                id = sObj.optString("source", ""),
+                                name = sObj.optString("name", ""),
+                                episodesCount = sObj.optInt("episodes_count", 0)
+                            )
+                        )
+                    }
+                }
+
                 val ageRating = classifyAgeRating(
                     title = movie.title,
                     desc = obj.optString("description", movie.description),
@@ -257,6 +277,7 @@ object ShowHubApiClient {
                     description = desc,
                     seasons = if (seasonsList.isNotEmpty()) seasonsList else movie.seasons,
                     audioTracks = if (audioList.isNotEmpty()) audioList else movie.audioTracks,
+                    sources = if (sourcesList.isNotEmpty()) sourcesList else movie.sources,
                     cast = if (castList.isNotEmpty()) castList else movie.cast,
                     directorsList = if (dirList.isNotEmpty()) dirList else movie.directorsList,
                     episodesSchedule = if (scheduleList.isNotEmpty()) scheduleList else movie.episodesSchedule,
@@ -271,7 +292,8 @@ object ShowHubApiClient {
 
     suspend fun fetchEpisodes(
         movie: Movie,
-        translatorId: String
+        translatorId: String,
+        source: String? = null
     ): List<SeasonInfo> = withContext(Dispatchers.IO) {
         if (translatorId.isBlank()) return@withContext emptyList()
         try {
@@ -279,7 +301,8 @@ object ShowHubApiClient {
             val encTrans = URLEncoder.encode(translatorId, "UTF-8")
             val encTitle = URLEncoder.encode(movie.title, "UTF-8")
             val encOrig = URLEncoder.encode(movie.originalTitle, "UTF-8")
-            val urlStr = "$SERVER_BASE/api/media/episodes?source=hdrezka&media_id=$encId&translator_id=$encTrans&title=$encTitle&original_title=$encOrig"
+            val srcParam = if (!source.isNullOrBlank()) source.lowercase().trim() else if (translatorId.startsWith("kodik_")) "kodik" else "hdrezka"
+            val urlStr = "$SERVER_BASE/api/media/episodes?source=$srcParam&media_id=$encId&translator_id=$encTrans&title=$encTitle&original_title=$encOrig"
             val conn = URL(urlStr).openConnection() as HttpURLConnection
             conn.connectTimeout = 8000
             conn.readTimeout = 12000

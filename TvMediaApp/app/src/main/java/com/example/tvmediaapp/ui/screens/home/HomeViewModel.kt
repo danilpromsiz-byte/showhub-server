@@ -10,6 +10,7 @@ import com.example.tvmediaapp.data.repository.CatalogRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 class HomeViewModel(application: Application) : AndroidViewModel(application) {
@@ -132,17 +133,61 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    private var prefetchJob: kotlinx.coroutines.Job? = null
+
+    fun refreshMovieFromCache(movieId: String) {
+        val cached = com.example.tvmediaapp.data.cache.MediaDiskCache.getCachedDetails(movieId) ?: return
+        _categories.value = _categories.value.map { cat ->
+            cat.copy(movies = cat.movies.map { if (it.id == movieId) cached else it })
+        }
+    }
+
     private fun prefetchVisibleMovieDetails(data: List<MovieCategory>) {
-        val topMovies = data.firstOrNull()?.movies?.take(24) ?: return
-        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-            for (movie in topMovies) {
+        prefetchJob?.cancel()
+        val allMovies = data.flatMap { it.movies }.distinctBy { it.id }
+        if (allMovies.isEmpty()) return
+
+        prefetchJob = viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            val historyManager = WatchHistoryManager(getApplication())
+            val startedSeriesIds = historyManager.getHistory().filter { it.isSeries }.map { it.id }.toSet()
+
+            for (movie in allMovies) {
+                if (!isActive) break
                 try {
                     val cached = com.example.tvmediaapp.data.cache.MediaDiskCache.getCachedDetails(movie.id, movie.title, movie.releaseYear)
-                    if (cached == null) {
-                        val detailed = com.example.tvmediaapp.data.api.ShowHubApiClient.fetchMediaDetails(movie)
-                        com.example.tvmediaapp.data.cache.MediaDiskCache.putCachedDetails(detailed)
-                        kotlinx.coroutines.delay(120)
+                    val detailed = if (cached != null && (cached.ratingKp > 0 || cached.country.isNotBlank())) {
+                        cached
+                    } else {
+                        val fetched = com.example.tvmediaapp.data.api.ShowHubApiClient.fetchMediaDetails(movie)
+                        com.example.tvmediaapp.data.cache.MediaDiskCache.putCachedDetails(fetched)
+                        fetched
                     }
+
+                    // Check if newly released episodes appeared for started series
+                    if (detailed.isSeries && detailed.id in startedSeriesIds) {
+                        val totalEps = if (detailed.seasons.isNotEmpty()) detailed.seasons.sumOf { it.episodes.size } else 0
+                        if (totalEps > 0) {
+                            val newCount = historyManager.updateKnownTotalEpisodes(detailed.id, totalEps)
+                            if (newCount > 0) {
+                                com.example.tvmediaapp.data.notifications.EpisodeNotificationManager.notifyNewEpisodes(
+                                    getApplication(),
+                                    detailed,
+                                    newCount
+                                )
+                            }
+                        }
+                    }
+
+                    // In-place UI update: Replace shallow movie with fully enriched movie in _categories!
+                    if (detailed.ratingKp > 0 || detailed.country.isNotBlank() || detailed.episodesInfo.isNotBlank()) {
+                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                            _categories.value = _categories.value.map { cat ->
+                                cat.copy(movies = cat.movies.map { if (it.id == detailed.id) detailed else it })
+                            }
+                        }
+                    }
+
+                    kotlinx.coroutines.delay(100)
                 } catch (_: Exception) {}
             }
         }

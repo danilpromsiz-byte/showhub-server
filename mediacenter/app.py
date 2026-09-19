@@ -128,7 +128,7 @@ def get_popular() -> List[Dict[str, Any]]:
         tmdb_trending = tmdb.get_trending(page=1)
         for t in tmdb_trending:
             t_key = t["title"].lower().strip()
-            if t_key not in seen_titles:
+            if t_key not in seen_titles and t.get("poster"):
                 seen_titles.add(t_key)
                 items.append({
                     "id": f"tmdb_{t['tmdb_id']}",
@@ -146,6 +146,50 @@ def get_popular() -> List[Dict[str, Any]]:
     except Exception:
         pass
 
+    try:
+        pop_m = tmdb.get_popular_movies(page=1)
+        for m in pop_m:
+            t_key = m["title"].lower().strip()
+            if t_key not in seen_titles and m.get("poster"):
+                seen_titles.add(t_key)
+                items.append({
+                    "id": f"tmdb_{m['tmdb_id']}",
+                    "title": m["title"],
+                    "original_title": m.get("original_title"),
+                    "year": m.get("year"),
+                    "poster": m.get("poster"),
+                    "description": m.get("description"),
+                    "rating": m.get("rating"),
+                    "rating_imdb": m.get("rating"),
+                    "rating_kp": m.get("rating"),
+                    "is_series": False,
+                    "source_name": "tmdb"
+                })
+    except Exception:
+        pass
+
+    try:
+        pop_s = tmdb.get_popular_series(page=1)
+        for s in pop_s:
+            t_key = s["title"].lower().strip()
+            if t_key not in seen_titles and s.get("poster"):
+                seen_titles.add(t_key)
+                items.append({
+                    "id": f"tmdb_{s['tmdb_id']}",
+                    "title": s["title"],
+                    "original_title": s.get("original_title"),
+                    "year": s.get("year"),
+                    "poster": s.get("poster"),
+                    "description": s.get("description"),
+                    "rating": s.get("rating"),
+                    "rating_imdb": s.get("rating"),
+                    "rating_kp": s.get("rating"),
+                    "is_series": True,
+                    "source_name": "tmdb"
+                })
+    except Exception:
+        pass
+
     # Merge top catalog items
     try:
         cat_items = get_catalog(category="all", sort_by="popular", page=1)
@@ -157,7 +201,7 @@ def get_popular() -> List[Dict[str, Any]]:
     except Exception:
         pass
 
-    return items[:30]
+    return items[:40]
 
 def normalize_search_title(t: str) -> str:
     if not t:
@@ -303,8 +347,34 @@ def find_best_match(items: list, target_year: Optional[Any] = None, target_is_se
     return ranked[0] if ranked else None
 
 @app.get("/api/search")
-def search_media(q: str = Query(..., min_length=1)) -> List[Dict[str, Any]]:
-    """Searches across all sources in parallel with robust title/year deduplication."""
+def search_media(q: str = Query(..., min_length=1), type: Optional[str] = Query(None)) -> List[Dict[str, Any]]:
+    """Searches across all sources in parallel with robust title/year deduplication, with dedicated actor filmography support."""
+    # Check if this is an actor filmography search
+    if type == "actor" or q.startswith("actor:"):
+        actor_name = q.replace("actor:", "").strip()
+        actor_films = []
+        try:
+            actor_films = tmdb.search_actor_filmography(actor_name)
+        except Exception:
+            pass
+
+        try:
+            k_actor_items = kodik.search_by_actor(actor_name)
+            for kit in k_actor_items:
+                actor_films.append(kit.model_dump())
+        except Exception:
+            pass
+
+        if actor_films:
+            seen_k = set()
+            deduped = []
+            for f in actor_films:
+                k = (normalize_search_title(f.get("title", "")), f.get("year") or 0)
+                if k not in seen_k:
+                    seen_k.add(k)
+                    deduped.append(f)
+            return deduped[:60]
+
     all_items = []
     with ThreadPoolExecutor(max_workers=8) as executor:
         f_bazon = executor.submit(bazon.search, q)
@@ -507,13 +577,13 @@ def check_updates() -> Dict[str, Any]:
 
     return {
         "success": True,
-        "version_name": "2.7.8",
-        "version_code": 57,
+        "version_name": "2.7.9",
+        "version_code": 58,
         "force_update": True,
-        "min_version_code": 57,
+        "min_version_code": 58,
         "apk_url": "https://showhub-server.onrender.com/ShowHub.apk",
         "download_url": "https://showhub-server.onrender.com/ShowHub.apk",
-        "changelog": "ShowHub TV v2.7.8: Мульти-источниковая агрегация серий и озвучек (HDRezka + Kodik + Filmix) — все 11 серий в ТО Дубляжная и авто-переключение источников; точный бейдж серий на кнопках фильмов; полный скролл графика серий и описания до самого низа (200dp буфер); стабильный фокус без потерь; официальные европейские и мировые актёры без азиатских подмен."
+        "changelog": "ShowHub TV v2.7.9: Векторный четкий логотип; ультра-плавный спиннер загрузки; отображение сезонов и серий вместо повтора страны; полный скролл графика серий; фоновый предзагрузчик метаданных без открытия карточки; поиск фильмографии по клику на актёра; экран «Календарь серий» по дням; устранено ограничение серий при смене озвучки; выбор ресурса (Kodik/HDRezka); фильтр мусора в новинках; защита актёров европейского кино."
     }
 
 CRASHES_FILE = os.path.join(CURRENT_DIR, "data", "crashes.json")
@@ -877,7 +947,7 @@ def get_catalog(
         if eff_rating > 0:
             rating_score = int(eff_rating * 80_000)
         else:
-            rating_score = -50_000
+            rating_score = -400_000
 
         vkp = int(it.get("vote_num_kp") or 0)
         vimdb = int(it.get("vote_num_imdb") or 0)
@@ -1182,14 +1252,25 @@ def _fetch_media_details(
                 if not details["rating_imdb"] and rz_det.get("rating_imdb"):
                     details["rating_imdb"] = rz_det["rating_imdb"]
                     details["vote_num_imdb"] = rz_det.get("vote_num_imdb")
-                if not details["director"] and rz_det.get("director"):
-                    details["director"] = rz_det["director"]
-                if not details["actors"] and rz_det.get("actors"):
-                    details["actors"] = rz_det["actors"]
+                rz_country = rz_det.get("country") or ""
+                tmdb_country = str(details.get("country") or "")
+                is_asian_mismatch = any(a in tmdb_country.lower() for a in ["китай", "япони", "коре"]) and not any(a in rz_country.lower() for a in ["китай", "япони", "коре"]) if rz_country else False
+
+                if not details["director"] or is_asian_mismatch:
+                    if rz_det.get("director"):
+                        details["director"] = rz_det["director"]
+                        if is_asian_mismatch:
+                            details["directors_list"] = []
+                if not details["actors"] or is_asian_mismatch:
+                    if rz_det.get("actors"):
+                        details["actors"] = rz_det["actors"]
+                        if is_asian_mismatch:
+                            details["cast"] = []
                 if not details["genres"] and rz_det.get("genres"):
                     details["genres"] = rz_det["genres"]
-                if not details["country"] and rz_det.get("country"):
-                    details["country"] = rz_det["country"]
+                if not details["country"] or is_asian_mismatch:
+                    if rz_country:
+                        details["country"] = rz_country
                 if rz_det.get("episodes_schedule"):
                     details["episodes_schedule"] = rz_det["episodes_schedule"]
 
@@ -1212,7 +1293,14 @@ def _fetch_media_details(
             s = s.replace(p, "")
         return re.sub(r'[^a-zA-Zа-яА-Я0-9]', '', s)
 
-    # Dictionary of translators keyed by normalized name
+    rz_max_eps = max((len(s.get("episodes", [])) for s in details.get("seasons", [])), default=0)
+    # Tag existing HDRezka translators
+    for t in details.get("translators", []):
+        if not t.get("source"):
+            t["source"] = "hdrezka"
+        if not t.get("episodes_count") or t["episodes_count"] == 0:
+            t["episodes_count"] = rz_max_eps
+
     trans_map: Dict[str, Dict[str, Any]] = {}
     for t in details.get("translators", []):
         k = _norm_t_name(t.get("name", ""))
@@ -1233,12 +1321,14 @@ def _fetch_media_details(
                     k = _norm_t_name(t.name)
                     if k not in trans_map:
                         t_dict = t.model_dump()
+                        t_dict["source"] = "filmix"
                         trans_map[k] = t_dict
                         details["translators"].append(t_dict)
     except Exception:
         pass
 
     # Merge Kodik translations & seasons
+    kd_max_eps = 0
     try:
         if resolved_kp or clean_title:
             k_items = kodik.search(clean_title, year=year_int, kp_id=resolved_kp)
@@ -1253,23 +1343,25 @@ def _fetch_media_details(
                     for s_v in k_seasons.values():
                         if isinstance(s_v, dict) and "episodes" in s_v:
                             k_eps_count = max(k_eps_count, len(s_v["episodes"]))
+                kd_max_eps = max(kd_max_eps, k_eps_count)
+
+                k_trans_obj = {
+                    "id": f"kodik_{k_it.id}",
+                    "name": f"{trans_name} (Kodik)" if k_key in trans_map else trans_name,
+                    "is_default": False,
+                    "kodik_id": k_it.id,
+                    "source": "kodik",
+                    "episodes_count": k_eps_count
+                }
 
                 if k_key in trans_map:
-                    # Enrich existing translator with Kodik ID and max episodes!
                     existing = trans_map[k_key]
                     existing["kodik_id"] = k_it.id
-                    if k_eps_count > 0:
-                        existing["episodes_count"] = max(existing.get("episodes_count", 0), k_eps_count)
+                    if k_eps_count > 0 and k_eps_count != existing.get("episodes_count", 0):
+                        details["translators"].append(k_trans_obj)
                 else:
-                    new_t = {
-                        "id": f"kodik_{k_it.id}",
-                        "name": trans_name,
-                        "is_default": False,
-                        "kodik_id": k_it.id,
-                        "episodes_count": k_eps_count
-                    }
-                    trans_map[k_key] = new_t
-                    details["translators"].append(new_t)
+                    trans_map[k_key] = k_trans_obj
+                    details["translators"].append(k_trans_obj)
 
                 # If Kodik has more episodes than currently in details["seasons"], expand details["seasons"]
                 if k_eps_count > 0 and isinstance(k_seasons, dict):
@@ -1296,6 +1388,14 @@ def _fetch_media_details(
                             curr_s["episodes"].sort(key=lambda x: x.get("episode_number", 0))
     except Exception:
         pass
+
+    # Source availability metadata for UI Source selector
+    sources_info = []
+    if kd_max_eps > 0:
+        sources_info.append({"source": "kodik", "name": "Kodik", "episodes_count": kd_max_eps})
+    if rz_max_eps > 0:
+        sources_info.append({"source": "hdrezka", "name": "HDRezka", "episodes_count": rz_max_eps})
+    details["sources_info"] = sources_info
 
     # 4b. Enrich missing ratings from Kodik and Shikimori (especially for anime and fresh titles)
     if (not details.get("rating_kp") or details.get("rating_kp") == 0.0) or (not details.get("rating_imdb") or details.get("rating_imdb") == 0.0):
@@ -1711,7 +1811,16 @@ def get_media_episodes(
     except Exception:
         pass
 
-    # Return the source that has the maximum episodes, or merge them
+    # Source-aware return: if specific source requested, honor it
+    if source == "kodik" or translator_id.startswith("kodik_"):
+        if kodik_seasons:
+            return kodik_seasons
+
+    if source == "hdrezka" and not translator_id.startswith("kodik_"):
+        if rz_seasons:
+            return rz_seasons
+
+    # Fallback/default: Return the source that has the maximum episodes
     rz_total_eps = sum(len(s.get("episodes", [])) for s in rz_seasons)
     kd_total_eps = sum(len(s.get("episodes", [])) for s in kodik_seasons)
 

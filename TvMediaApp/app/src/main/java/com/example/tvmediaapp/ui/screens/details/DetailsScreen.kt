@@ -1367,11 +1367,112 @@ fun DetailsScreen(
 
                 Spacer(modifier = Modifier.height(10.dp))
 
+                var selectedSourceFilter by remember { mutableStateOf("Все") }
+                val availableSources = remember(currentMovie) {
+                    val list = mutableListOf<String>()
+                    list.add("Все")
+                    if (currentMovie.sources.isNotEmpty()) {
+                        currentMovie.sources.forEach { s ->
+                            val label = if (s.episodesCount > 0) "${s.name} (${s.episodesCount} сер.)" else s.name
+                            list.add(label)
+                        }
+                    } else {
+                        val srcNames = currentMovie.audioTracks.map { it.source }.distinct()
+                        if (srcNames.contains("kodik")) list.add("Kodik")
+                        if (srcNames.contains("hdrezka")) list.add("HDRezka")
+                        if (srcNames.contains("filmix")) list.add("Filmix")
+                    }
+                    list
+                }
+                val filteredAudioTracks = remember(currentMovie.audioTracks, selectedSourceFilter) {
+                    if (selectedSourceFilter == "Все" || selectedSourceFilter.startsWith("Все")) {
+                        currentMovie.audioTracks
+                    } else {
+                        val sKey = selectedSourceFilter.lowercase()
+                        val matched = currentMovie.audioTracks.filter { track ->
+                            val trackSrc = track.source.lowercase()
+                            when {
+                                sKey.contains("kodik") -> trackSrc.contains("kodik") || track.id.startsWith("kodik_")
+                                sKey.contains("rezka") -> trackSrc.contains("rezka") || (!track.id.startsWith("kodik_") && !trackSrc.contains("filmix"))
+                                sKey.contains("filmix") -> trackSrc.contains("filmix")
+                                else -> true
+                            }
+                        }
+                        if (matched.isNotEmpty()) matched else currentMovie.audioTracks
+                    }
+                }
+
                 when {
                     activeTabTitle.startsWith("Плеер") -> {
                         // TAB 0: ПЛЕЕР И СЕРИИ
+                        // Resource / Source selector
+                        if (availableSources.size > 2) {
+                            Text(
+                                text = "Ресурс / Источник:",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextWhite
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            TvLazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                items(availableSources) { srcLabel ->
+                                    val isSrcSelected = selectedSourceFilter == srcLabel
+                                    Button(
+                                        onClick = {
+                                            selectedSourceFilter = srcLabel
+                                            val newTracks = if (srcLabel.startsWith("Все")) currentMovie.audioTracks else {
+                                                val sKey = srcLabel.lowercase()
+                                                currentMovie.audioTracks.filter { track ->
+                                                    val trackSrc = track.source.lowercase()
+                                                    when {
+                                                        sKey.contains("kodik") -> trackSrc.contains("kodik") || track.id.startsWith("kodik_")
+                                                        sKey.contains("rezka") -> trackSrc.contains("rezka") || (!track.id.startsWith("kodik_") && !trackSrc.contains("filmix"))
+                                                        sKey.contains("filmix") -> trackSrc.contains("filmix")
+                                                        else -> true
+                                                    }
+                                                }
+                                            }
+                                            val targetTrack = newTracks.firstOrNull { it.id == selectedAudioId } ?: newTracks.firstOrNull()
+                                            if (targetTrack != null) {
+                                                selectedAudioId = targetTrack.id
+                                                if (currentMovie.isSeries) {
+                                                    coroutineScope.launch {
+                                                        try {
+                                                            val realSeasons = ShowHubApiClient.fetchEpisodes(currentMovie, targetTrack.id, targetTrack.source)
+                                                            if (realSeasons.isNotEmpty()) {
+                                                                currentMovie = currentMovie.copy(seasons = realSeasons)
+                                                                val validSeason = realSeasons.firstOrNull { it.seasonNumber == selectedSeason } ?: realSeasons.first()
+                                                                selectedSeason = validSeason.seasonNumber
+                                                                val maxEp = validSeason.episodes.maxOfOrNull { it.episodeNumber } ?: 1
+                                                                selectedEpisode = selectedEpisode.coerceIn(1, maxEp)
+                                                                streamStatus = "Ресурс: $srcLabel | Озвучка: «${targetTrack.name}» ($maxEp сер.)"
+                                                            }
+                                                        } catch (_: Exception) {}
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        colors = ButtonDefaults.colors(
+                                            containerColor = if (isSrcSelected) accent.copy(alpha = 0.85f) else ChipBackground,
+                                            focusedContainerColor = Color.White,
+                                            contentColor = if (isSrcSelected) Color.Black else TextWhite,
+                                            focusedContentColor = Color.Black
+                                        ),
+                                        border = ButtonDefaults.border(Border.None, Border.None),
+                                        shape = ButtonDefaults.shape(RoundedCornerShape(6.dp)),
+                                        scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
+                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                                        modifier = Modifier.height(24.dp)
+                                    ) {
+                                        Text(text = srcLabel, fontSize = 10.sp, fontWeight = if (isSrcSelected) FontWeight.Bold else FontWeight.Normal)
+                                    }
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
+
                         // Translators
-                        if (currentMovie.audioTracks.isNotEmpty()) {
+                        if (filteredAudioTracks.isNotEmpty()) {
                             Text(
                                 text = "Озвучка / Перевод:",
                                 fontSize = 13.sp,
@@ -1380,7 +1481,7 @@ fun DetailsScreen(
                             )
                             Spacer(modifier = Modifier.height(6.dp))
                             TvLazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                items(currentMovie.audioTracks) { track ->
+                                items(filteredAudioTracks) { track ->
                                     val isSelected = track.id == selectedAudioId
                                     Button(
                                         onClick = {
@@ -1388,7 +1489,7 @@ fun DetailsScreen(
                                             if (currentMovie.isSeries) {
                                                 coroutineScope.launch {
                                                     try {
-                                                        val realSeasons = ShowHubApiClient.fetchEpisodes(currentMovie, track.id)
+                                                        val realSeasons = ShowHubApiClient.fetchEpisodes(currentMovie, track.id, track.source)
                                                         if (realSeasons.isNotEmpty()) {
                                                             currentMovie = currentMovie.copy(seasons = realSeasons)
                                                             val validSeason = realSeasons.firstOrNull { it.seasonNumber == selectedSeason } ?: realSeasons.first()
@@ -1417,7 +1518,8 @@ fun DetailsScreen(
                                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                                         modifier = Modifier.height(26.dp)
                                     ) {
-                                        Text(text = track.name, fontSize = 11.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
+                                        val countSuffix = if (track.episodesCount > 0) " (${track.episodesCount} сер.)" else ""
+                                        Text(text = "${track.name}$countSuffix", fontSize = 11.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
                                     }
                                 }
                             }
@@ -1742,8 +1844,8 @@ fun DetailsScreen(
                                     }
                                 }
                             }
-                            Spacer(modifier = Modifier.height(160.dp))
                         }
+                        Spacer(modifier = Modifier.height(140.dp))
                     }
 
                     activeTabTitle.startsWith("Описание") -> {
@@ -1949,8 +2051,8 @@ fun DetailsScreen(
                                     Text(text = "Год премьеры: ${currentMovie.releaseYear}", fontSize = 13.sp, color = TextWhite)
                                 }
                             }
-                            Spacer(modifier = Modifier.height(160.dp))
                         }
+                        Spacer(modifier = Modifier.height(140.dp))
                     }
 
                     else -> {

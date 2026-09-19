@@ -589,12 +589,16 @@ private fun NativeExoPlayerScreen(
                 var epToPlay = newEpisode
                 if (currentMovieState.isSeries && newAudioId.isNotBlank()) {
                     try {
-                        val realEps = ShowHubApiClient.fetchEpisodes(currentMovieState, newAudioId)
-                        if (realEps.isNotEmpty() && epToPlay > realEps.size) {
-                            val clamped = realEps.size
-                            translatorNoticeBadge = "В этой озвучке доступно $clamped серий. Включена $clamped серия."
-                            epToPlay = clamped
-                            currentEpisode = clamped
+                        val realSeasons = ShowHubApiClient.fetchEpisodes(currentMovieState, newAudioId, source = newSource)
+                        if (realSeasons.isNotEmpty()) {
+                            val activeSeason = realSeasons.firstOrNull { it.seasonNumber == newSeason } ?: realSeasons.first()
+                            val maxEpInSeason = activeSeason.episodes.maxOfOrNull { it.episodeNumber } ?: activeSeason.episodes.size
+                            if (maxEpInSeason > 0 && epToPlay > maxEpInSeason) {
+                                val clamped = maxEpInSeason
+                                translatorNoticeBadge = "В этой озвучке доступно $clamped сер. Включена $clamped серия."
+                                epToPlay = clamped
+                                currentEpisode = clamped
+                            }
                         }
                     } catch (_: Exception) {}
                 }

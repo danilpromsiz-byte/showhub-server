@@ -49,6 +49,7 @@ fun TvTopBar(
     onSearchClick: () -> Unit,
     onFavoritesClick: () -> Unit,
     onHistoryClick: () -> Unit,
+    onScheduleClick: (() -> Unit)? = null,
     onSettingsClick: (() -> Unit)? = null,
     onCheckUpdateClick: (() -> Unit)? = null,
     hasUpdateAvailable: Boolean = false,
@@ -211,6 +212,48 @@ fun TvTopBar(
                 }
             }
 
+            // Calendar / Schedule
+            if (onScheduleClick != null) {
+                val isSched = currentScreenName == "schedule"
+                var isSchedFocused by remember { mutableStateOf(false) }
+                val schedIconColor = if (isSchedFocused || isSched) Color.Black else TextWhite
+                Button(
+                    onClick = onScheduleClick,
+                    colors = ButtonDefaults.colors(
+                        containerColor = if (isSched) accent.copy(alpha = 0.85f) else Color.White.copy(alpha = 0.08f),
+                        focusedContainerColor = focusColor,
+                        contentColor = if (isSched) Color.Black else TextWhite,
+                        focusedContentColor = Color.Black
+                    ),
+                    border = ButtonDefaults.border(Border.None, Border.None),
+                    shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                    modifier = Modifier
+                        .height(28.dp)
+                        .then(downMod)
+                        .onFocusChanged { isSchedFocused = it.isFocused }
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(5.dp)
+                    ) {
+                        AppIcon(
+                            resId = com.example.tvmediaapp.R.drawable.ic_calendar,
+                            tint = schedIconColor,
+                            size = 13.dp
+                        )
+                        Text(
+                            text = "Календарь",
+                            color = schedIconColor,
+                            fontWeight = if (isSched) FontWeight.Bold else FontWeight.SemiBold,
+                            fontSize = 11.sp,
+                            lineHeight = 13.sp
+                        )
+                    }
+                }
+            }
+
             // Settings
             if (onSettingsClick != null) {
                 val isSettings = currentScreenName == "settings"
@@ -313,14 +356,13 @@ fun ShowHubLogo(
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier
     ) {
-        // Official ShowHub TV Icon Emblem
+        // Official ShowHub TV Icon Emblem (Razor-sharp Vector)
         Image(
-            painter = painterResource(id = R.drawable.ic_launcher),
+            painter = painterResource(id = R.drawable.ic_showhub_logo),
             contentDescription = "ShowHub TV",
             modifier = Modifier
                 .size(32.dp)
                 .clip(RoundedCornerShape(8.dp))
-                .border(1.dp, Color.White.copy(alpha = 0.22f), RoundedCornerShape(8.dp))
         )
 
         Spacer(modifier = Modifier.width(9.dp))

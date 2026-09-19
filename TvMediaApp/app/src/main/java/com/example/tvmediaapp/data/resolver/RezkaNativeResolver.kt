@@ -113,7 +113,7 @@ object RezkaNativeResolver {
                 }
 
                 // Series vs Movie matching
-                val isCandSeries = fullUrl.contains("/series/") || fullUrl.contains("/animation/") || snippet.contains("сезон") || snippet.contains("сери")
+                val isCandSeries = fullUrl.contains("/series/") || fullUrl.contains("/animation/") || (isSeries && fullUrl.contains("/cartoons/")) || snippet.contains("сезон") || snippet.contains("сери")
                 if (isSeries == isCandSeries) {
                     score += 60
                 } else {
@@ -152,23 +152,38 @@ object RezkaNativeResolver {
 
             // 2. Fetch media page to establish session cookies & discover translator ID
             val pageHtml = httpGet(pageUrl, "$baseUrl/", baseUrl = baseUrl) ?: ""
-            var transId = translatorId
-            if (transId.isNullOrEmpty()) {
-                val trMatcher = Pattern.compile("data-translator_id=\"(\\d+)\"").matcher(pageHtml)
-                if (trMatcher.find()) {
-                    transId = trMatcher.group(1) ?: "56"
+            
+            // Extract the real default or active translator on this specific page
+            val pageDefaultTransId = run {
+                val activeTrMatcher = Pattern.compile("<li[^>]*class=\"[^\"]*active[^\"]*\"[^>]*data-translator_id=\"(\\d+)\"").matcher(pageHtml)
+                if (activeTrMatcher.find()) {
+                    activeTrMatcher.group(1) ?: "56"
                 } else {
-                    val initMatcher = Pattern.compile("initCDN(?:Movies|Series)Events\\(\\s*\\d+\\s*,\\s*(\\d+)").matcher(pageHtml)
-                    if (initMatcher.find()) {
-                        transId = initMatcher.group(1) ?: "56"
+                    val anyTrMatcher = Pattern.compile("data-translator_id=\"(\\d+)\"").matcher(pageHtml)
+                    if (anyTrMatcher.find()) {
+                        anyTrMatcher.group(1) ?: "56"
                     } else {
-                        transId = "56"
+                        val initMatcher = Pattern.compile("initCDN(?:Movies|Series)Events\\(\\s*\\d+\\s*,\\s*(\\d+)").matcher(pageHtml)
+                        if (initMatcher.find()) {
+                            initMatcher.group(1) ?: "56"
+                        } else {
+                            "56"
+                        }
                     }
                 }
             }
 
-            // Determine if the content is a series (by requested flag or page URL)
-            val actualIsSeries = isSeries || pageUrl.contains("/series/") || pageUrl.contains("/animation/")
+            var transId = translatorId?.takeIf { it.all { ch -> ch.isDigit() } }
+            if (transId.isNullOrEmpty()) {
+                transId = pageDefaultTransId
+            }
+
+            // Determine if the content is a series (by requested flag, cartoon/series page URL, or HTML series markers)
+            val actualIsSeries = isSeries || episode > 1 || season > 1 ||
+                pageUrl.contains("/series/") || pageUrl.contains("/animation/") || pageUrl.contains("/cartoons/") ||
+                pageHtml.contains("initCDNSeriesEvents") ||
+                pageHtml.contains("b-simple_episodes__list") ||
+                pageHtml.contains("id=\"simple-seasons-tabs\"")
 
             // 3. Request CDN streams via AJAX
             val tNow = System.currentTimeMillis()
@@ -222,11 +237,13 @@ object RezkaNativeResolver {
                 parseStreams(streamStr, isFallback = false)
             }
 
-            // Fallback: If translator did not voice this season/episode, retry with default translator "56"
-            if (streams.isEmpty() && transId != "56") {
+            // Fallback: If translator did not voice this season/episode, retry with default translators
+            val fallbackIds = listOf(pageDefaultTransId, "56").distinct().filter { it != transId }
+            for (fbId in fallbackIds) {
+                if (streams.isNotEmpty()) break
                 val fbPostData = StringBuilder()
                     .append("id=").append(dataId)
-                    .append("&translator_id=56")
+                    .append("&translator_id=").append(fbId)
                     .append("&action=").append(if (actualIsSeries) "get_stream" else "get_movie")
                 if (actualIsSeries) {
                     fbPostData.append("&season=").append(season).append("&episode=").append(episode)

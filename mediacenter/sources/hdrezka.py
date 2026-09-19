@@ -160,10 +160,14 @@ class HDRezkaSource(BaseSource):
         if desc and "," in desc:
             sp = [p.strip() for p in desc.split(",") if p.strip()]
             if len(sp) >= 2 and not any(ch.isdigit() for ch in sp[1]):
-                extra_info["country"] = sp[1]
-                extra_info["countries"] = [sp[1]]
+                c_cand = sp[1]
+                if len(c_cand) <= 25 and len(c_cand.split()) <= 2 and not any(p in c_cand for p in [".", "!", "?", ";", ":", "—", "»", "«"]):
+                    extra_info["country"] = c_cand
+                    extra_info["countries"] = [c_cand]
             if len(sp) >= 3:
-                extra_info["genres"] = sp[2:]
+                valid_genres = [g for g in sp[2:] if len(g) <= 30 and len(g.split()) <= 3 and not any(p in g for p in [".", "!", "?", ";", ":"])]
+                if valid_genres:
+                    extra_info["genres"] = valid_genres
 
         return MediaItem(
             id=item_id,

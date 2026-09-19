@@ -25,6 +25,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -86,6 +87,18 @@ enum class Screen {
     SETTINGS,
     PLAYER
 }
+
+data class NavState(
+    val screen: Screen,
+    val movie: Movie? = null,
+    val searchQuery: String = "",
+    val searchIsActor: Boolean = false,
+    val videoUrl: String = "",
+    val positionMs: Long = 0L,
+    val season: Int = 1,
+    val episode: Int = 1,
+    val audioId: String = ""
+)
 
 class MainActivity : ComponentActivity() {
     fun getInstalledVersionCode(): Int {
@@ -157,6 +170,72 @@ fun TvAppNavHost(activity: MainActivity) {
     var activeAudioId by remember { mutableStateOf(restoredSession?.audioId ?: "") }
     var searchInitialQuery by remember { mutableStateOf("") }
     var searchIsActor by remember { mutableStateOf(false) }
+    var showExitDialog by remember { mutableStateOf(false) }
+
+    val backStack = remember { mutableStateListOf<NavState>() }
+
+    fun navigateTo(
+        newScreen: Screen,
+        movie: Movie? = selectedMovie,
+        searchQuery: String = searchInitialQuery,
+        searchIsActorVal: Boolean = searchIsActor,
+        videoUrl: String = activeVideoUrl,
+        positionMs: Long = startPositionMs,
+        season: Int = activeSeason,
+        episode: Int = activeEpisode,
+        audioId: String = activeAudioId
+    ) {
+        backStack.add(
+            NavState(
+                screen = currentScreen,
+                movie = selectedMovie,
+                searchQuery = searchInitialQuery,
+                searchIsActor = searchIsActor,
+                videoUrl = activeVideoUrl,
+                positionMs = startPositionMs,
+                season = activeSeason,
+                episode = activeEpisode,
+                audioId = activeAudioId
+            )
+        )
+        currentScreen = newScreen
+        selectedMovie = movie
+        searchInitialQuery = searchQuery
+        searchIsActor = searchIsActorVal
+        activeVideoUrl = videoUrl
+        startPositionMs = positionMs
+        activeSeason = season
+        activeEpisode = episode
+        activeAudioId = audioId
+    }
+
+    fun navigateBack() {
+        if (backStack.isNotEmpty()) {
+            val prev = backStack.removeAt(backStack.size - 1)
+            currentScreen = prev.screen
+            selectedMovie = prev.movie
+            searchInitialQuery = prev.searchQuery
+            searchIsActor = prev.searchIsActor
+            activeVideoUrl = prev.videoUrl
+            startPositionMs = prev.positionMs
+            activeSeason = prev.season
+            activeEpisode = prev.episode
+            activeAudioId = prev.audioId
+            if (prev.screen == Screen.HOME) {
+                SessionManager.clearSession(activity)
+                homeViewModel.refreshCatalog()
+            }
+        } else {
+            if (currentScreen != Screen.HOME) {
+                currentScreen = Screen.HOME
+                selectedMovie = null
+                SessionManager.clearSession(activity)
+                homeViewModel.refreshCatalog()
+            } else {
+                showExitDialog = true
+            }
+        }
+    }
 
     // Persist session when in DETAILS or PLAYER, clear when at HOME
     LaunchedEffect(currentScreen, selectedMovie, activeVideoUrl, startPositionMs, activeSeason, activeEpisode, activeAudioId) {
@@ -233,7 +312,6 @@ fun TvAppNavHost(activity: MainActivity) {
     }
 
     val isUpdateDialogVisible = updateInfo?.let { it.versionCode > activity.getInstalledVersionCode() } == true
-    var showExitDialog by remember { mutableStateOf(false) }
 
     // Hardware Back button handling for Android TV remotes
     BackHandler(enabled = isUpdateDialogVisible) {
@@ -246,25 +324,7 @@ fun TvAppNavHost(activity: MainActivity) {
     }
 
     BackHandler(enabled = !isUpdateDialogVisible && !showExitDialog) {
-        when (currentScreen) {
-            Screen.PLAYER -> currentScreen = Screen.DETAILS
-            Screen.DETAILS -> {
-                SessionManager.clearSession(activity)
-                currentScreen = Screen.HOME
-            }
-            Screen.SEARCH -> {
-                searchInitialQuery = ""
-                searchIsActor = false
-                currentScreen = Screen.HOME
-            }
-            Screen.FAVORITES -> currentScreen = Screen.HOME
-            Screen.HISTORY -> currentScreen = Screen.HOME
-            Screen.SCHEDULE -> currentScreen = Screen.HOME
-            Screen.SETTINGS -> currentScreen = Screen.HOME
-            Screen.HOME -> {
-                showExitDialog = true
-            }
-        }
+        navigateBack()
     }
 
     Box(
@@ -283,29 +343,25 @@ fun TvAppNavHost(activity: MainActivity) {
             Screen.HOME -> {
                 HomeScreen(
                     onMovieSelect = { movie ->
-                        selectedMovie = movie
-                        currentScreen = Screen.DETAILS
+                        navigateTo(Screen.DETAILS, movie = movie)
                     },
                     onWatchClick = { movie ->
-                        selectedMovie = movie
-                        currentScreen = Screen.DETAILS
+                        navigateTo(Screen.DETAILS, movie = movie)
                     },
                     onSearchClick = {
-                        searchInitialQuery = ""
-                        searchIsActor = false
-                        currentScreen = Screen.SEARCH
+                        navigateTo(Screen.SEARCH, searchQuery = "", searchIsActorVal = false)
                     },
                     onFavoritesClick = {
-                        currentScreen = Screen.FAVORITES
+                        navigateTo(Screen.FAVORITES)
                     },
                     onHistoryClick = {
-                        currentScreen = Screen.HISTORY
+                        navigateTo(Screen.HISTORY)
                     },
                     onScheduleClick = {
-                        currentScreen = Screen.SCHEDULE
+                        navigateTo(Screen.SCHEDULE)
                     },
                     onSettingsClick = {
-                        currentScreen = Screen.SETTINGS
+                        navigateTo(Screen.SETTINGS)
                     },
                     onCheckUpdateClick = { triggerUpdateCheck(isUserClick = true) },
                     hasUpdateAvailable = (updateInfo != null && updateInfo!!.versionCode > activity.getInstalledVersionCode()),
@@ -318,15 +374,13 @@ fun TvAppNavHost(activity: MainActivity) {
                 SettingsScreen(
                     appVersion = activity.getInstalledVersionName(),
                     versionCode = activity.getInstalledVersionCode(),
-                    onBackClick = { currentScreen = Screen.HOME },
+                    onBackClick = { navigateBack() },
                     onSearchClick = {
-                        searchInitialQuery = ""
-                        searchIsActor = false
-                        currentScreen = Screen.SEARCH
+                        navigateTo(Screen.SEARCH, searchQuery = "", searchIsActorVal = false)
                     },
-                    onFavoritesClick = { currentScreen = Screen.FAVORITES },
-                    onHistoryClick = { currentScreen = Screen.HISTORY },
-                    onScheduleClick = { currentScreen = Screen.SCHEDULE },
+                    onFavoritesClick = { navigateTo(Screen.FAVORITES) },
+                    onHistoryClick = { navigateTo(Screen.HISTORY) },
+                    onScheduleClick = { navigateTo(Screen.SCHEDULE) },
                     onCheckUpdateClick = { triggerUpdateCheck(isUserClick = true) },
                     hasUpdateAvailable = (updateInfo != null && updateInfo!!.versionCode > activity.getInstalledVersionCode())
                 )
@@ -335,13 +389,10 @@ fun TvAppNavHost(activity: MainActivity) {
             Screen.SEARCH -> {
                 SearchScreen(
                     onMovieSelect = { movie ->
-                        selectedMovie = movie
-                        currentScreen = Screen.DETAILS
+                        navigateTo(Screen.DETAILS, movie = movie)
                     },
                     onBackClick = {
-                        searchInitialQuery = ""
-                        searchIsActor = false
-                        currentScreen = Screen.HOME
+                        navigateBack()
                     },
                     initialMovies = homeViewModel.getAllMovies(),
                     initialQuery = searchInitialQuery,
@@ -352,11 +403,10 @@ fun TvAppNavHost(activity: MainActivity) {
             Screen.FAVORITES -> {
                 FavoritesScreen(
                     onMovieSelect = { movie ->
-                        selectedMovie = movie
-                        currentScreen = Screen.DETAILS
+                        navigateTo(Screen.DETAILS, movie = movie)
                     },
                     onBackClick = {
-                        currentScreen = Screen.HOME
+                        navigateBack()
                     },
                     viewModel = homeViewModel
                 )
@@ -365,18 +415,13 @@ fun TvAppNavHost(activity: MainActivity) {
             Screen.HISTORY -> {
                 HistoryScreen(
                     onMovieSelect = { movie ->
-                        selectedMovie = movie
-                        currentScreen = Screen.DETAILS
+                        navigateTo(Screen.DETAILS, movie = movie)
                     },
                     onResumePlay = { movie, pos, s, ep ->
-                        selectedMovie = movie
-                        startPositionMs = pos
-                        activeSeason = s
-                        activeEpisode = ep
-                        currentScreen = Screen.DETAILS
+                        navigateTo(Screen.DETAILS, movie = movie, positionMs = pos, season = s, episode = ep)
                     },
                     onBackClick = {
-                        currentScreen = Screen.HOME
+                        navigateBack()
                     }
                 )
             }
@@ -384,11 +429,10 @@ fun TvAppNavHost(activity: MainActivity) {
             Screen.SCHEDULE -> {
                 ScheduleCalendarScreen(
                     onMovieSelect = { movie ->
-                        selectedMovie = movie
-                        currentScreen = Screen.DETAILS
+                        navigateTo(Screen.DETAILS, movie = movie)
                     },
                     onBackClick = {
-                        currentScreen = Screen.HOME
+                        navigateBack()
                     },
                     trackedMovies = homeViewModel.getFavoriteMovies().filter { it.isSeries }
                 )
@@ -400,27 +444,25 @@ fun TvAppNavHost(activity: MainActivity) {
                     DetailsScreen(
                         movie = movie,
                         onPlayClick = { detailedMovie, streamUrl, startPos, season, episode, audioId ->
-                            selectedMovie = detailedMovie
-                            activeVideoUrl = streamUrl
-                            startPositionMs = startPos
-                            activeSeason = season
-                            activeEpisode = episode
-                            activeAudioId = audioId
-                            currentScreen = Screen.PLAYER
+                            navigateTo(
+                                Screen.PLAYER,
+                                movie = detailedMovie,
+                                videoUrl = streamUrl,
+                                positionMs = startPos,
+                                season = season,
+                                episode = episode,
+                                audioId = audioId
+                            )
                         },
                         onBackClick = {
-                            SessionManager.clearSession(activity)
-                            selectedMovie?.id?.let { homeViewModel.refreshMovieFromCache(it) }
-                            currentScreen = Screen.HOME
+                            navigateBack()
                         },
                         onToggleFavorite = {
                             homeViewModel.toggleFavorite(it)
                         },
                         isFavorite = isFav,
                         onSearchClick = { actorName ->
-                            searchInitialQuery = actorName
-                            searchIsActor = true
-                            currentScreen = Screen.SEARCH
+                            navigateTo(Screen.SEARCH, searchQuery = actorName, searchIsActorVal = true)
                         }
                     )
                 } ?: run {
@@ -438,7 +480,7 @@ fun TvAppNavHost(activity: MainActivity) {
                         episode = activeEpisode,
                         audioId = activeAudioId,
                         onBackPress = {
-                            currentScreen = Screen.DETAILS
+                            navigateBack()
                         }
                     )
                 } ?: run {

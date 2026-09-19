@@ -58,10 +58,10 @@ class WatchHistoryManager(context: Context) {
         list.add(0, item)
         saveList(list.take(200))
 
-        if (movie.isSeries) {
-            saveEpisodeProgress(movie.id, season, episode, positionMs, durationMs)
+        if (movie.isSeries || season > 1 || episode > 1) {
+            saveEpisodeProgress(movie.id, season, episode, positionMs, durationMs, movie.title)
             if (percentage >= 85) {
-                markEpisodeWatched(movie.id, season, episode)
+                markEpisodeWatched(movie.id, season, episode, movie.title)
             }
             // Auto-add started series to favorites so user tracks new episodes
             try {
@@ -75,13 +75,20 @@ class WatchHistoryManager(context: Context) {
         }
     }
 
-    fun saveEpisodeProgress(seriesId: String, season: Int, episode: Int, positionMs: Long, durationMs: Long) {
-        if (seriesId.isBlank() || durationMs <= 0L || positionMs <= 3000L) return
+    fun saveEpisodeProgress(seriesId: String, season: Int, episode: Int, positionMs: Long, durationMs: Long, title: String? = null) {
+        if (durationMs <= 0L || positionMs <= 3000L) return
         val percentage = ((positionMs * 100) / durationMs).toInt().coerceIn(0, 100)
-        val key = "ep_pct_${seriesId}_s${season}e${episode}"
-        prefs.edit().putInt(key, percentage).apply()
+        if (seriesId.isNotBlank()) {
+            val key = "ep_pct_${seriesId}_s${season}e${episode}"
+            prefs.edit().putInt(key, percentage).apply()
+        }
+        if (!title.isNullOrBlank()) {
+            val cleanT = title.trim().lowercase().replace(Regex("[^a-zа-я0-9]"), "_")
+            val key = "ep_pct_t_${cleanT}_s${season}e${episode}"
+            prefs.edit().putInt(key, percentage).apply()
+        }
         if (percentage >= 85) {
-            markEpisodeWatched(seriesId, season, episode)
+            markEpisodeWatched(seriesId, season, episode, title)
         }
     }
 
@@ -93,6 +100,11 @@ class WatchHistoryManager(context: Context) {
             if (p > 0) return p
         }
         if (!title.isNullOrBlank()) {
+            val cleanT = title.trim().lowercase().replace(Regex("[^a-zа-я0-9]"), "_")
+            val tKey = "ep_pct_t_${cleanT}_s${season}e${episode}"
+            val tp = prefs.getInt(tKey, 0)
+            if (tp > 0) return tp
+
             val histItem = getHistory().firstOrNull { it.title.equals(title, ignoreCase = true) }
             if (histItem != null && histItem.id != seriesId) {
                 val key = "ep_pct_${histItem.id}_s${season}e${episode}"
@@ -111,6 +123,12 @@ class WatchHistoryManager(context: Context) {
             prefs.edit().putStringSet(key, existing).apply()
         }
         if (!title.isNullOrBlank()) {
+            val cleanT = title.trim().lowercase().replace(Regex("[^a-zа-я0-9]"), "_")
+            val tKey = "watched_episodes_t_$cleanT"
+            val tSet = prefs.getStringSet(tKey, emptySet())?.toMutableSet() ?: mutableSetOf()
+            tSet.add("s${season}e${episode}")
+            prefs.edit().putStringSet(tKey, tSet).apply()
+
             val histItem = getHistory().firstOrNull { it.title.equals(title, ignoreCase = true) }
             if (histItem != null && histItem.id != seriesId) {
                 val key = "watched_episodes_${histItem.id}"
@@ -128,6 +146,11 @@ class WatchHistoryManager(context: Context) {
             if (watched.contains("s${season}e${episode}")) return true
         }
         if (!title.isNullOrBlank()) {
+            val cleanT = title.trim().lowercase().replace(Regex("[^a-zа-я0-9]"), "_")
+            val tKey = "watched_episodes_t_$cleanT"
+            val tWatched = prefs.getStringSet(tKey, emptySet()) ?: emptySet()
+            if (tWatched.contains("s${season}e${episode}")) return true
+
             val histItem = getHistory().firstOrNull { it.title.equals(title, ignoreCase = true) }
             if (histItem != null && histItem.id != seriesId) {
                 val key = "watched_episodes_${histItem.id}"

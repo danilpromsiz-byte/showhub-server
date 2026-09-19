@@ -276,11 +276,12 @@ fun DetailsScreen(
     // Pre-fetch streams in background: query native Rezka and server in parallel
     LaunchedEffect(currentMovie.id, selectedSeason, selectedEpisode, selectedAudioId) {
         try {
+            val isContentSeries = currentMovie.isSeries || currentMovie.seasons.isNotEmpty() || selectedSeason > 1 || selectedEpisode > 1
             val nativeDeferred = async {
                 RezkaNativeResolver.resolveStreams(
                     title = currentMovie.title,
                     year = currentMovie.releaseYear,
-                    isSeries = currentMovie.isSeries,
+                    isSeries = isContentSeries,
                     season = selectedSeason,
                     episode = selectedEpisode,
                     translatorId = selectedAudioId.ifEmpty { null }
@@ -288,9 +289,9 @@ fun DetailsScreen(
             }
             val serverDeferred = async {
                 ShowHubApiClient.fetchStreams(
-                    movie = currentMovie,
-                    season = if (currentMovie.isSeries) selectedSeason else null,
-                    episode = if (currentMovie.isSeries) selectedEpisode else null,
+                    movie = currentMovie.copy(isSeries = isContentSeries),
+                    season = if (isContentSeries) selectedSeason else null,
+                    episode = if (isContentSeries) selectedEpisode else null,
                     audioId = selectedAudioId
                 )
             }
@@ -438,12 +439,13 @@ fun DetailsScreen(
         isDetailsPreviewPlaying = false
 
         coroutineScope.launch {
+            val isContentSeries = currentMovie.isSeries || currentMovie.seasons.isNotEmpty() || targetSeason > 1 || targetEpisode > 1
             // Priority 1: Query Rezka directly on TV (residential IP) and server concurrently
             val nativeDeferred = async {
                 RezkaNativeResolver.resolveStreams(
                     title = currentMovie.title,
                     year = currentMovie.releaseYear,
-                    isSeries = currentMovie.isSeries,
+                    isSeries = isContentSeries,
                     season = targetSeason,
                     episode = targetEpisode,
                     translatorId = targetAudioId.ifEmpty { null }
@@ -451,9 +453,9 @@ fun DetailsScreen(
             }
             val serverDeferred = async {
                 ShowHubApiClient.fetchStreams(
-                    movie = currentMovie,
-                    season = if (currentMovie.isSeries) targetSeason else null,
-                    episode = if (currentMovie.isSeries) targetEpisode else null,
+                    movie = currentMovie.copy(isSeries = isContentSeries),
+                    season = if (isContentSeries) targetSeason else null,
+                    episode = if (isContentSeries) targetEpisode else null,
                     audioId = targetAudioId
                 )
             }
@@ -1658,8 +1660,27 @@ fun DetailsScreen(
                             Spacer(modifier = Modifier.height(8.dp))
 
                             val activeSeason = currentMovie.seasons.firstOrNull { it.seasonNumber == selectedSeason } ?: currentMovie.seasons.first()
+                            val activeEpisodes = remember(activeSeason, selectedAudioId, currentMovie.audioTracks, translatorSeasonsCache[selectedAudioId]) {
+                                val cachedEps = translatorSeasonsCache[selectedAudioId]?.firstOrNull { it.seasonNumber == selectedSeason }?.episodes
+                                if (cachedEps != null && cachedEps.isNotEmpty()) {
+                                    cachedEps
+                                } else {
+                                    val curTrack = currentMovie.audioTracks.firstOrNull { it.id == selectedAudioId }
+                                    val maxEpForTrack = curTrack?.seasonsEpisodes?.get(selectedSeason)
+                                    if (maxEpForTrack != null && maxEpForTrack > 0) {
+                                        activeSeason.episodes.filter { it.episodeNumber <= maxEpForTrack }
+                                    } else {
+                                        activeSeason.episodes
+                                    }
+                                }
+                            }
+                            LaunchedEffect(activeEpisodes.size) {
+                                if (selectedEpisode > activeEpisodes.size && activeEpisodes.isNotEmpty()) {
+                                    selectedEpisode = activeEpisodes.size
+                                }
+                            }
                             Text(
-                                text = "Серии (${activeSeason.episodes.size}):",
+                                text = "Серии (${activeEpisodes.size}):",
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = TextWhite
@@ -1667,7 +1688,7 @@ fun DetailsScreen(
                             Spacer(modifier = Modifier.height(5.dp))
 
                             TvLazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                items(activeSeason.episodes) { ep ->
+                                items(activeEpisodes) { ep ->
                                     val isSelected = ep.episodeNumber == selectedEpisode
                                     val isWatched = historyManager.isEpisodeWatched(currentMovie.id, selectedSeason, ep.episodeNumber, currentMovie.title)
                                     val epProgress = historyManager.getEpisodeProgress(currentMovie.id, selectedSeason, ep.episodeNumber, currentMovie.title)
@@ -1694,24 +1715,24 @@ fun DetailsScreen(
                                         shape = ButtonDefaults.shape(RoundedCornerShape(6.dp)),
                                         scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                                         contentPadding = PaddingValues(0.dp),
-                                        modifier = Modifier.height(26.dp)
+                                        modifier = Modifier.height(28.dp)
                                     ) {
                                         Box(
-                                            modifier = Modifier
-                                                .fillMaxSize()
-                                                .padding(horizontal = 7.dp),
-                                            contentAlignment = Alignment.Center
+                                            modifier = Modifier.fillMaxSize()
                                         ) {
                                             Row(
+                                                modifier = Modifier
+                                                    .align(Alignment.Center)
+                                                    .padding(horizontal = 8.dp, vertical = 2.dp),
                                                 verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.spacedBy(3.dp)
+                                                horizontalArrangement = Arrangement.spacedBy(4.dp)
                                             ) {
                                                 if (isWatched || epProgress >= 85) {
                                                     Text(
                                                         text = "✓",
-                                                        fontSize = 10.sp,
-                                                        fontWeight = FontWeight.Bold,
-                                                        color = if (isSelected) Color.Black else Color(0xFF4ADE80)
+                                                        fontSize = 11.sp,
+                                                        fontWeight = FontWeight.ExtraBold,
+                                                        color = if (isSelected) Color.Black else Color(0xFF22C55E)
                                                     )
                                                 }
                                                 Text(
@@ -1721,22 +1742,26 @@ fun DetailsScreen(
                                                 )
                                             }
 
-                                            // Progress timeline bar for watched or partially watched episodes
+                                            // High-contrast full-width progress timeline bar for watched or partially watched episodes
                                             if (epProgress > 0 || isWatched) {
                                                 val progressPct = if (isWatched) 1.0f else (epProgress.coerceIn(5, 100) / 100f)
                                                 Box(
                                                     modifier = Modifier
                                                         .fillMaxWidth()
-                                                        .height(3.dp)
+                                                        .height(4.dp)
                                                         .align(Alignment.BottomCenter)
                                                         .clip(RoundedCornerShape(bottomStart = 6.dp, bottomEnd = 6.dp))
-                                                        .background(Color.White.copy(alpha = 0.25f))
+                                                        .background(Color.Black.copy(alpha = 0.65f))
                                                 ) {
                                                     Box(
                                                         modifier = Modifier
                                                             .fillMaxHeight()
                                                             .fillMaxWidth(progressPct)
-                                                            .background(if (isSelected) Color.Black else (if (isWatched) Color(0xFF4ADE80) else accent))
+                                                            .background(
+                                                                if (isSelected) Color(0xFF0F172A)
+                                                                else if (isWatched) Color(0xFF22C55E)
+                                                                else Color(0xFFFFD54F)
+                                                            )
                                                     )
                                                 }
                                             }

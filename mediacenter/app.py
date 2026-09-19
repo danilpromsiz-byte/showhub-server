@@ -577,13 +577,13 @@ def check_updates() -> Dict[str, Any]:
 
     return {
         "success": True,
-        "version_name": "2.8.5",
-        "version_code": 64,
+        "version_name": "2.8.6",
+        "version_code": 65,
         "force_update": True,
-        "min_version_code": 64,
+        "min_version_code": 65,
         "apk_url": "https://showhub-server.onrender.com/ShowHub.apk",
         "download_url": "https://showhub-server.onrender.com/ShowHub.apk",
-        "changelog": "ShowHub TV v2.8.5: Синхронизировано количество серий на кнопках озвучек (фоновый парсинг сезонов HDRezka); активный цвет карточки фильма теперь полностью соответствует выбранному в настройках; сохранение избранного для всех фильмов из любых разделов; сохранение только подтверждённых запросов в поиске (без фрагментов и актёров); отображение таймлайна прогресса на кнопках серий; прямой фокус на актёров и режиссёров в описании без лишнего скролла; стабильная навигация фокуса между фильмами и верхним меню; точный расчёт непросмотренных серий в календаре."
+        "changelog": "ShowHub TV v2.8.6: Точная синхронизация количества серий для каждой озвучки и ограничение списка серий выбранным переводом; удалены ошибочные фрагменты описаний (ЖЕН, КОТ, КРУ, БУД и др.) вместо стран; сквозная универсальная навигация Назад с сохранением карточки фильма и истории переходов; высококонтрастный таймлайн прогресса на кнопках серий (зелёный/янтарный); поддержка воспроизведения 8-й серии «Президент Кёртис 2026» и всех мультсериалов."
     }
 
 CRASHES_FILE = os.path.join(CURRENT_DIR, "data", "crashes.json")
@@ -1615,6 +1615,8 @@ def _fetch_media_streams(
     """
     year_int = safe_parse_year(year)
     is_ser_bool = bool(int(is_series)) if str(is_series).isdigit() else (bool(is_series) if is_series is not None else None)
+    if episode and str(episode).isdigit() and int(episode) > 1:
+        is_ser_bool = True
 
     resolved: Dict[str, Any] = {}
     resolved_kp = kp_id
@@ -1677,11 +1679,12 @@ def _fetch_media_streams(
                         if it.id not in candidate_rz_ids:
                             candidate_rz_ids.append(it.id)
             for rz_id in candidate_rz_ids[:3]:
-                rz_streams = hdrezka.get_streams(rz_id, season=season, episode=episode, audio_id=audio_id)
+                rz_audio_id = audio_id if (audio_id and str(audio_id).isdigit()) else None
+                rz_streams = hdrezka.get_streams(rz_id, season=season, episode=episode, audio_id=rz_audio_id)
                 if rz_streams.streams:
                     return ("hdrezka", rz_streams.model_dump())
-                # Only fall back to default audio if no specific audio was requested
-                if not audio_id:
+                # Fallback to default audio if specific audio returned no streams (e.g. translator didn't voice this episode)
+                if rz_audio_id:
                     rz_streams_fallback = hdrezka.get_streams(rz_id, season=season, episode=episode, audio_id=None)
                     if rz_streams_fallback.streams:
                         return ("hdrezka", rz_streams_fallback.model_dump())

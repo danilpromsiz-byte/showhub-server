@@ -115,15 +115,20 @@ object ShowHubApiClient {
 
     suspend fun fetchMediaDetails(movie: Movie): Movie = withContext(Dispatchers.IO) {
         val cached = MediaDiskCache.getCachedDetails(movie.id)
+        val isSeriesLike = movie.isSeries || cached?.isSeries == true || (cached?.seasons?.isNotEmpty() == true)
+        val hasTranslatorSeasons = cached?.audioTracks?.any { it.seasonsEpisodes.isNotEmpty() } == true
+
         if (cached != null && (cached.seasons.isNotEmpty() || cached.audioTracks.isNotEmpty() || cached.cast.isNotEmpty())) {
-            // Instant 0 ms load from TV disk cache!
-            CoroutineScope(Dispatchers.IO).launch {
-                try {
-                    val refreshed = fetchMediaDetailsFromNetwork(movie)
-                    MediaDiskCache.putCachedDetails(refreshed)
-                } catch (_: Exception) {}
+            if (!isSeriesLike || hasTranslatorSeasons) {
+                // Instant 0 ms load from TV disk cache!
+                CoroutineScope(Dispatchers.IO).launch {
+                    try {
+                        val refreshed = fetchMediaDetailsFromNetwork(movie)
+                        MediaDiskCache.putCachedDetails(refreshed)
+                    } catch (_: Exception) {}
+                }
+                return@withContext cached
             }
-            return@withContext cached
         }
         val result = fetchMediaDetailsFromNetwork(movie)
         MediaDiskCache.putCachedDetails(result)
@@ -290,6 +295,8 @@ object ShowHubApiClient {
                 val rawDesc = obj.optString("description", movie.description).ifEmpty { movie.description }
                 val desc = if (rawDesc.isBlank() || rawDesc.equals("null", ignoreCase = true)) movie.description else rawDesc
 
+                val isSeriesDetected = movie.isSeries || obj.optBoolean("is_series", false) || seasonsList.isNotEmpty() || scheduleList.isNotEmpty()
+
                 return@withContext movie.copy(
                     posterUrl = updatedPoster,
                     backdropUrl = updatedPoster,
@@ -299,6 +306,7 @@ object ShowHubApiClient {
                     country = country,
                     actors = actors,
                     description = desc,
+                    isSeries = isSeriesDetected,
                     seasons = if (seasonsList.isNotEmpty()) seasonsList else movie.seasons,
                     audioTracks = if (audioList.isNotEmpty()) audioList else movie.audioTracks,
                     sources = if (sourcesList.isNotEmpty()) sourcesList else movie.sources,
@@ -375,7 +383,7 @@ object ShowHubApiClient {
         try {
             val q = URLEncoder.encode(movie.title, "UTF-8")
             val origQ = URLEncoder.encode(movie.originalTitle, "UTF-8")
-            val isSeriesStr = if (movie.isSeries) "1" else "0"
+            val isSeriesStr = if (movie.isSeries || (episode != null && episode > 1) || (season != null && season > 1)) "1" else "0"
             val srcParam = if (source.isNullOrEmpty()) "all" else source.lowercase().trim()
             val sb = StringBuilder("$SERVER_BASE/api/media/streams?source=$srcParam&media_id=${movie.id}&kp_id=${movie.id}&title=$q&original_title=$origQ&year=${movie.releaseYear}&is_series=$isSeriesStr")
             if (season != null) sb.append("&season=$season")

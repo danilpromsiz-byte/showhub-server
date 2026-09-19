@@ -1440,11 +1440,14 @@ fun DetailsScreen(
                                                         try {
                                                             val realSeasons = ShowHubApiClient.fetchEpisodes(currentMovie, targetTrack.id, targetTrack.source)
                                                             if (realSeasons.isNotEmpty()) {
-                                                                currentMovie = currentMovie.copy(seasons = realSeasons)
-                                                                val validSeason = realSeasons.firstOrNull { it.seasonNumber == selectedSeason } ?: realSeasons.first()
+                                                                val curTotal = currentMovie.seasons.sumOf { it.episodes.size }
+                                                                val newTotal = realSeasons.sumOf { it.episodes.size }
+                                                                if (newTotal >= curTotal) {
+                                                                    currentMovie = currentMovie.copy(seasons = realSeasons)
+                                                                }
+                                                                val validSeason = currentMovie.seasons.firstOrNull { it.seasonNumber == selectedSeason } ?: currentMovie.seasons.first()
                                                                 selectedSeason = validSeason.seasonNumber
-                                                                val maxEp = validSeason.episodes.maxOfOrNull { it.episodeNumber } ?: 1
-                                                                selectedEpisode = selectedEpisode.coerceIn(1, maxEp)
+                                                                val maxEp = validSeason.episodes.maxOfOrNull { it.episodeNumber } ?: validSeason.episodes.size
                                                                 streamStatus = "Ресурс: $srcLabel | Озвучка: «${targetTrack.name}» ($maxEp сер.)"
                                                             }
                                                         } catch (_: Exception) {}
@@ -1491,12 +1494,15 @@ fun DetailsScreen(
                                                     try {
                                                         val realSeasons = ShowHubApiClient.fetchEpisodes(currentMovie, track.id, track.source)
                                                         if (realSeasons.isNotEmpty()) {
-                                                            currentMovie = currentMovie.copy(seasons = realSeasons)
-                                                            val validSeason = realSeasons.firstOrNull { it.seasonNumber == selectedSeason } ?: realSeasons.first()
+                                                            val curTotal = currentMovie.seasons.sumOf { it.episodes.size }
+                                                            val newTotal = realSeasons.sumOf { it.episodes.size }
+                                                            if (newTotal >= curTotal) {
+                                                                currentMovie = currentMovie.copy(seasons = realSeasons)
+                                                            }
+                                                            val validSeason = currentMovie.seasons.firstOrNull { it.seasonNumber == selectedSeason } ?: currentMovie.seasons.first()
                                                             selectedSeason = validSeason.seasonNumber
-                                                            val maxEp = validSeason.episodes.maxOfOrNull { it.episodeNumber } ?: 1
-                                                            selectedEpisode = selectedEpisode.coerceIn(1, maxEp)
-                                                            streamStatus = "Озвучка: «${track.name}» (доступно $maxEp сер.)"
+                                                            val maxEp = validSeason.episodes.maxOfOrNull { it.episodeNumber } ?: validSeason.episodes.size
+                                                            streamStatus = "Озвучка: «${track.name}» ($maxEp сер.)"
                                                         }
                                                     } catch (_: Exception) {
                                                     }
@@ -1518,7 +1524,9 @@ fun DetailsScreen(
                                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                                         modifier = Modifier.height(26.dp)
                                     ) {
-                                        val countSuffix = if (track.episodesCount > 0) " (${track.episodesCount} сер.)" else ""
+                                        val totalSeriesEps = currentMovie.seasons.sumOf { it.episodes.size }
+                                        val effectiveEps = if (track.episodesCount > 1) track.episodesCount else if (totalSeriesEps > 1) totalSeriesEps else track.episodesCount
+                                        val countSuffix = if (effectiveEps > 1) " ($effectiveEps сер.)" else ""
                                         Text(text = "${track.name}$countSuffix", fontSize = 11.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
                                     }
                                 }

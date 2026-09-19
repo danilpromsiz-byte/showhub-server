@@ -577,13 +577,13 @@ def check_updates() -> Dict[str, Any]:
 
     return {
         "success": True,
-        "version_name": "2.7.9",
-        "version_code": 58,
+        "version_name": "2.8.0",
+        "version_code": 59,
         "force_update": True,
-        "min_version_code": 58,
+        "min_version_code": 59,
         "apk_url": "https://showhub-server.onrender.com/ShowHub.apk",
         "download_url": "https://showhub-server.onrender.com/ShowHub.apk",
-        "changelog": "ShowHub TV v2.7.9: Векторный четкий логотип; ультра-плавный спиннер загрузки; отображение сезонов и серий вместо повтора страны; полный скролл графика серий; фоновый предзагрузчик метаданных без открытия карточки; поиск фильмографии по клику на актёра; экран «Календарь серий» по дням; устранено ограничение серий при смене озвучки; выбор ресурса (Kodik/HDRezka); фильтр мусора в новинках; защита актёров европейского кино."
+        "changelog": "ShowHub TV v2.8.0: Устранён сброс и ограничение серий при смене озвучки (полные серии для всех озвучек без переключения на 1 серию); умный мульти-источник эпизодов (HDRezka, Kodik, Filmix); сохранение канонического списка серий; обновленный медиаплеер с плавной сменой аудиодорожек."
     }
 
 CRASHES_FILE = os.path.join(CURRENT_DIR, "data", "crashes.json")
@@ -1389,12 +1389,21 @@ def _fetch_media_details(
     except Exception:
         pass
 
+    # Normalize and ensure all translators have accurate series episode count
+    total_series_eps = max((len(s.get("episodes", [])) for s in details.get("seasons", [])), default=0)
+    if total_series_eps > 0:
+        details["is_series"] = True
+    for t in details.get("translators", []):
+        ep_cnt = t.get("episodes_count")
+        if ep_cnt is None or ep_cnt <= 0 or (ep_cnt == 1 and total_series_eps > 1):
+            t["episodes_count"] = total_series_eps
+
     # Source availability metadata for UI Source selector
     sources_info = []
     if kd_max_eps > 0:
-        sources_info.append({"source": "kodik", "name": "Kodik", "episodes_count": kd_max_eps})
-    if rz_max_eps > 0:
-        sources_info.append({"source": "hdrezka", "name": "HDRezka", "episodes_count": rz_max_eps})
+        sources_info.append({"source": "kodik", "name": "Kodik", "episodes_count": max(kd_max_eps, total_series_eps)})
+    if rz_max_eps > 0 or details.get("seasons"):
+        sources_info.append({"source": "hdrezka", "name": "HDRezka", "episodes_count": max(rz_max_eps, total_series_eps)})
     details["sources_info"] = sources_info
 
     # 4b. Enrich missing ratings from Kodik and Shikimori (especially for anime and fresh titles)
@@ -1749,29 +1758,66 @@ def get_media_episodes(
     source: str = Query("hdrezka"),
     media_id: str = Query(...),
     translator_id: str = Query(...),
-    title: Optional[str] = Query(None)
+    title: Optional[str] = Query(None),
+    year: Optional[str] = Query(None),
+    is_series: Optional[str] = Query(None),
+    kp_id: Optional[str] = Query(None),
+    original_title: Optional[str] = Query(None)
 ) -> List[Dict[str, Any]]:
     """Returns authentic translator-specific seasons and episodes aggregated across sources."""
     clean_t = re.sub(r'\(.*?\)|\[.*?\]', '', title).strip() if title else ""
+    year_int = safe_parse_year(year)
+    is_ser_bool = bool(int(is_series)) if str(is_series).isdigit() else (bool(is_series) if is_series is not None else True)
+    resolved_kp = kp_id if kp_id else (media_id if media_id.isdigit() else None)
     target_id = media_id
     rz_seasons = []
 
-    if source == "hdrezka" and not translator_id.startswith("kodik_"):
+    if not translator_id.startswith("kodik_"):
         try:
             if not target_id.startswith("http") and not target_id.startswith("/"):
                 if clean_t:
                     rz_items = hdrezka.search(clean_t)
-                    if rz_items:
-                        target_id = rz_items[0].id
-            rz_seasons = hdrezka.get_episodes(target_id, translator_id, title=title)
+                    rz_match = find_best_match(rz_items, year_int, is_ser_bool=True)
+                    if not rz_match:
+                        ser_items = [it for it in rz_items if it.is_series]
+                        rz_match = ser_items[0] if ser_items else (rz_items[0] if rz_items else None)
+                    if rz_match:
+                        target_id = rz_match.id
+            if target_id and (target_id.startswith("http") or target_id.startswith("/") or target_id.isdigit()):
+                rz_seasons = hdrezka.get_episodes(target_id, translator_id, title=title)
         except Exception:
             pass
+
+    # Check Filmix for matching episodes
+    filmix_seasons = []
+    try:
+        fx_id = media_id if (source == "filmix" and media_id.isdigit()) else None
+        if not fx_id and clean_t:
+            fx_items = filmix.search(clean_t)
+            fx_match = find_best_match(fx_items, year_int, is_ser_bool)
+            if fx_match:
+                fx_id = fx_match.id
+        if fx_id:
+            fx_res = filmix.get_streams(fx_id, season=1, episode=1, audio_id=translator_id if translator_id.isdigit() else None)
+            if fx_res and fx_res.seasons:
+                for s in fx_res.seasons:
+                    filmix_seasons.append({
+                        "season_id": s.season_id,
+                        "season_number": s.season_id,
+                        "title": s.title or f"Сезон {s.season_id}",
+                        "episodes": [
+                            {"episode_id": ep.episode_id, "episode_number": ep.episode_id, "title": ep.title or f"Серия {ep.episode_id}"}
+                            for ep in s.episodes
+                        ]
+                    })
+    except Exception:
+        pass
 
     # Check Kodik for matching episodes
     kodik_seasons = []
     try:
         if clean_t:
-            k_items = kodik.search(clean_t)
+            k_items = kodik.search(clean_t, year=year_int, kp_id=resolved_kp)
             matched_k = None
             if translator_id.startswith("kodik_"):
                 matched_k_id = translator_id.replace("kodik_", "")
@@ -1794,6 +1840,10 @@ def get_media_episodes(
             if not matched_k and translator_id == "618":
                 matched_k = next((it for it in k_items if "дубляж" in str(it.extra_data.get("translation", "")).lower()), None)
 
+            if not matched_k and k_items:
+                # Fallback to the Kodik item with the most episodes
+                matched_k = max(k_items, key=lambda it: max((len(sv.get("episodes", {})) for sv in it.extra_data.get("seasons", {}).values() if isinstance(sv, dict)), default=0))
+
             if matched_k and matched_k.extra_data.get("seasons"):
                 k_raw_s = matched_k.extra_data["seasons"]
                 for s_k, s_v in k_raw_s.items():
@@ -1811,25 +1861,28 @@ def get_media_episodes(
     except Exception:
         pass
 
-    # Source-aware return: if specific source requested, honor it
-    if source == "kodik" or translator_id.startswith("kodik_"):
-        if kodik_seasons:
-            return kodik_seasons
+    rz_eps = sum(len(s.get("episodes", [])) for s in rz_seasons)
+    kd_eps = sum(len(s.get("episodes", [])) for s in kodik_seasons)
+    fx_eps = sum(len(s.get("episodes", [])) for s in filmix_seasons)
 
-    if source == "hdrezka" and not translator_id.startswith("kodik_"):
-        if rz_seasons:
-            return rz_seasons
-
-    # Fallback/default: Return the source that has the maximum episodes
-    rz_total_eps = sum(len(s.get("episodes", [])) for s in rz_seasons)
-    kd_total_eps = sum(len(s.get("episodes", [])) for s in kodik_seasons)
-
-    if kd_total_eps > rz_total_eps:
+    # If explicitly requested source has > 1 episodes, return it
+    if (source == "kodik" or translator_id.startswith("kodik_")) and kd_eps > 1:
         return kodik_seasons
-    elif rz_total_eps > 0:
+    if source == "filmix" and fx_eps > 1:
+        return filmix_seasons
+    if source == "hdrezka" and rz_eps > 1:
         return rz_seasons
-    elif kodik_seasons:
-        return kodik_seasons
+
+    # If any source has full series episodes, return the one with the maximum episodes!
+    candidates = [
+        (rz_eps, rz_seasons),
+        (kd_eps, kodik_seasons),
+        (fx_eps, filmix_seasons)
+    ]
+    best_eps, best_seasons = max(candidates, key=lambda c: c[0])
+    if best_eps > 0:
+        return best_seasons
+
     return []
 
 @app.get("/api/media/details")

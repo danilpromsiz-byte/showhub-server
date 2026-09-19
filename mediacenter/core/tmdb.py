@@ -100,7 +100,7 @@ class TMDbClient:
         self.api_key = api_key
         self.session = requests.Session()
         self.session.headers.update({
-            "User-Agent": "ShowHubTV-MediaCenter/2.7.9",
+            "User-Agent": "ShowHubTV-MediaCenter/2.8.0",
             "Accept": "application/json"
         })
 

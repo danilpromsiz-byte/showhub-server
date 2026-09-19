@@ -302,7 +302,8 @@ object ShowHubApiClient {
             val encTitle = URLEncoder.encode(movie.title, "UTF-8")
             val encOrig = URLEncoder.encode(movie.originalTitle, "UTF-8")
             val srcParam = if (!source.isNullOrBlank()) source.lowercase().trim() else if (translatorId.startsWith("kodik_")) "kodik" else "hdrezka"
-            val urlStr = "$SERVER_BASE/api/media/episodes?source=$srcParam&media_id=$encId&translator_id=$encTrans&title=$encTitle&original_title=$encOrig"
+            val isSer = if (movie.isSeries) "1" else "0"
+            val urlStr = "$SERVER_BASE/api/media/episodes?source=$srcParam&media_id=$encId&translator_id=$encTrans&title=$encTitle&original_title=$encOrig&year=${movie.releaseYear}&is_series=$isSer&kp_id=$encId"
             val conn = URL(urlStr).openConnection() as HttpURLConnection
             conn.connectTimeout = 8000
             conn.readTimeout = 12000
@@ -314,13 +315,13 @@ object ShowHubApiClient {
                 val seasons = mutableListOf<SeasonInfo>()
                 for (sIdx in 0 until arr.length()) {
                     val sObj = arr.getJSONObject(sIdx)
-                    val sNum = sObj.optInt("season_id", sIdx + 1)
+                    val sNum = sObj.optInt("season_number", sObj.optInt("season_id", sIdx + 1))
                     val sTitle = sObj.optString("title", "Сезон $sNum")
                     val epArr = sObj.optJSONArray("episodes") ?: JSONArray()
                     val episodes = mutableListOf<EpisodeInfo>()
                     for (eIdx in 0 until epArr.length()) {
                         val eObj = epArr.getJSONObject(eIdx)
-                        val epNum = eObj.optInt("episode_id", eIdx + 1)
+                        val epNum = eObj.optInt("episode_number", eObj.optInt("episode_id", eIdx + 1))
                         val epTitle = eObj.optString("title", "Серия $epNum")
                         episodes.add(EpisodeInfo(episodeNumber = epNum, title = epTitle))
                     }

@@ -586,18 +586,15 @@ private fun NativeExoPlayerScreen(
         isLoadingStream = true
         coroutineScope.launch {
             try {
-                var epToPlay = newEpisode
+                val epToPlay = newEpisode
                 if (currentMovieState.isSeries && newAudioId.isNotBlank()) {
                     try {
                         val realSeasons = ShowHubApiClient.fetchEpisodes(currentMovieState, newAudioId, source = newSource)
                         if (realSeasons.isNotEmpty()) {
-                            val activeSeason = realSeasons.firstOrNull { it.seasonNumber == newSeason } ?: realSeasons.first()
-                            val maxEpInSeason = activeSeason.episodes.maxOfOrNull { it.episodeNumber } ?: activeSeason.episodes.size
-                            if (maxEpInSeason > 0 && epToPlay > maxEpInSeason) {
-                                val clamped = maxEpInSeason
-                                translatorNoticeBadge = "В этой озвучке доступно $clamped сер. Включена $clamped серия."
-                                epToPlay = clamped
-                                currentEpisode = clamped
+                            val curTotal = currentMovieState.seasons.sumOf { it.episodes.size }
+                            val newTotal = realSeasons.sumOf { it.episodes.size }
+                            if (newTotal >= curTotal && newTotal > 0) {
+                                currentMovieState = currentMovieState.copy(seasons = realSeasons)
                             }
                         }
                     } catch (_: Exception) {}

@@ -40,6 +40,8 @@ import com.example.tvmediaapp.ui.theme.FavoriteGold
 import com.example.tvmediaapp.ui.theme.ImdbGold
 import com.example.tvmediaapp.ui.theme.KpOrange
 import com.example.tvmediaapp.ui.theme.LocalAccentColor
+import com.example.tvmediaapp.ui.theme.LocalBackgroundColor
+import com.example.tvmediaapp.ui.theme.LocalFocusColor
 import com.example.tvmediaapp.ui.theme.TextGray
 import com.example.tvmediaapp.ui.theme.TextWhite
 
@@ -56,6 +58,8 @@ fun FeaturedMovieBanner(
     if (movie == null) return
 
     val accent = LocalAccentColor.current
+    val focusColor = LocalFocusColor.current
+    val bgColor = LocalBackgroundColor.current
 
     Box(
         modifier = modifier
@@ -70,16 +74,16 @@ fun FeaturedMovieBanner(
             modifier = Modifier.fillMaxSize()
         )
 
-        // Dark gradient overlays for pristine readability on TV screens
+        // Dark gradient overlays matching current theme background for pristine contrast on OLED & TV
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(
                     Brush.horizontalGradient(
                         colors = listOf(
-                            BackgroundDark,
-                            BackgroundDark.copy(alpha = 0.92f),
-                            BackgroundDark.copy(alpha = 0.45f),
+                            bgColor,
+                            bgColor.copy(alpha = 0.92f),
+                            bgColor.copy(alpha = 0.45f),
                             Color.Transparent
                         ),
                         startX = 0f,
@@ -94,8 +98,8 @@ fun FeaturedMovieBanner(
                     Brush.verticalGradient(
                         colors = listOf(
                             Color.Transparent,
-                            BackgroundDark.copy(alpha = 0.85f),
-                            BackgroundDark
+                            bgColor.copy(alpha = 0.85f),
+                            bgColor
                         ),
                         startY = 180f,
                         endY = 550f
@@ -222,7 +226,7 @@ fun FeaturedMovieBanner(
                     onClick = { onWatchClick(movie) },
                     colors = ButtonDefaults.colors(
                         containerColor = accent,
-                        focusedContainerColor = Color.White,
+                        focusedContainerColor = focusColor,
                         contentColor = Color.Black,
                         focusedContentColor = Color.Black
                     ),
@@ -243,7 +247,7 @@ fun FeaturedMovieBanner(
                     onClick = { onDetailsClick(movie) },
                     colors = ButtonDefaults.colors(
                         containerColor = Color.White.copy(alpha = 0.15f),
-                        focusedContainerColor = Color.White,
+                        focusedContainerColor = focusColor,
                         contentColor = TextWhite,
                         focusedContentColor = Color.Black
                     ),
@@ -253,7 +257,7 @@ fun FeaturedMovieBanner(
                     modifier = Modifier.height(38.dp)
                 ) {
                     Text(
-                        text = "ℹ️  О фильме",
+                        text = "О фильме",
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 14.sp,
                         modifier = Modifier.padding(horizontal = 8.dp)
@@ -264,7 +268,7 @@ fun FeaturedMovieBanner(
                     onClick = { onToggleFavorite(movie) },
                     colors = ButtonDefaults.colors(
                         containerColor = if (isFavorite) FavoriteGold.copy(alpha = 0.85f) else Color.White.copy(alpha = 0.10f),
-                        focusedContainerColor = Color.White,
+                        focusedContainerColor = focusColor,
                         contentColor = if (isFavorite) Color.Black else TextWhite,
                         focusedContentColor = Color.Black
                     ),
@@ -277,7 +281,7 @@ fun FeaturedMovieBanner(
                     modifier = Modifier.height(38.dp)
                 ) {
                     Text(
-                        text = if (isFavorite) "★ В избранном" else "☆ В избранное",
+                        text = if (isFavorite) "В избранном" else "В избранное",
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 14.sp,
                         modifier = Modifier.padding(horizontal = 6.dp)

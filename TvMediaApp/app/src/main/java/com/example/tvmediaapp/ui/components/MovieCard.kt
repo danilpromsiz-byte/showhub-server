@@ -68,6 +68,7 @@ import com.example.tvmediaapp.data.models.Movie
 import com.example.tvmediaapp.data.resolver.RezkaNativeResolver
 import com.example.tvmediaapp.ui.screens.player.isDirectVideoStream
 import com.example.tvmediaapp.ui.theme.LocalAccentColor
+import com.example.tvmediaapp.ui.theme.LocalFocusColor
 import com.example.tvmediaapp.ui.theme.TextGray
 import com.example.tvmediaapp.ui.theme.TextWhite
 import kotlinx.coroutines.delay
@@ -84,6 +85,7 @@ fun MovieCard(
 ) {
     val context = LocalContext.current
     val accent = LocalAccentColor.current
+    val focusColor = LocalFocusColor.current
     val historyManager = remember { com.example.tvmediaapp.data.history.WatchHistoryManager(context) }
     val newEpisodesCount = remember(movie.id) {
         if (movie.isSeries) historyManager.getNewEpisodesCount(movie.id) else 0
@@ -280,7 +282,7 @@ fun MovieCard(
                 interactionSource = interactionSource,
                 border = CardDefaults.border(
                     focusedBorder = Border(
-                        border = BorderStroke(2.dp, accent)
+                        border = BorderStroke(2.dp, focusColor)
                     )
                 ),
                 scale = CardDefaults.scale(
@@ -488,9 +490,9 @@ fun MovieCard(
                     }
 
                     // Bottom-left: Country flag + Max Non-Premium Quality badge
-                    val flagEmoji = com.example.tvmediaapp.data.models.getCountryFlagEmoji(movie.country)
+                    val countryBadge = com.example.tvmediaapp.data.models.getCountryBadge(movie.country)
                     val badgeQuality = movie.maxQuality.ifEmpty { "1080p" }
-                    val badgeText = (if (flagEmoji.isNotBlank()) "$flagEmoji " else "") + badgeQuality
+                    val badgeText = if (countryBadge.isNotBlank()) "$countryBadge • $badgeQuality" else badgeQuality
                     Box(
                         modifier = Modifier
                             .align(Alignment.BottomStart)
@@ -564,8 +566,8 @@ fun MovieCard(
                 val typeStr = if (movie.isSeries) {
                     if (movie.episodesInfo.isNotBlank()) movie.episodesInfo else "Сериал"
                 } else "Фильм"
-                val flag = com.example.tvmediaapp.data.models.getCountryFlagEmoji(movie.country)
-                val flagPrefix = if (flag.isNotBlank()) "$flag " else ""
+                val countryBadge = com.example.tvmediaapp.data.models.getCountryBadge(movie.country)
+                val flagPrefix = if (countryBadge.isNotBlank()) "$countryBadge  " else ""
                 val subText = if (cleanYear.isNotEmpty()) "$flagPrefix$cleanYear • $typeStr" else "$flagPrefix$typeStr"
                 Text(
                     text = subText,

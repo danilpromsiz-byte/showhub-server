@@ -134,7 +134,7 @@ object ShowHubApiClient {
             val conn = URL(urlStr).openConnection() as HttpURLConnection
             conn.connectTimeout = 10000
             conn.readTimeout = 15000
-            conn.setRequestProperty("User-Agent", "ShowHubTV-Native/2.7.2")
+            conn.setRequestProperty("User-Agent", "ShowHubTV-Native/${com.example.tvmediaapp.BuildConfig.VERSION_NAME}")
             conn.connect()
             if (conn.responseCode == 200) {
                 val body = BufferedReader(InputStreamReader(conn.inputStream, "UTF-8")).use { it.readText() }
@@ -209,7 +209,12 @@ object ShowHubApiClient {
                     }
                 }
 
-                val ageRating = obj.optString("age_limit", movie.ageRating).ifEmpty { movie.ageRating }
+                val ageRating = classifyAgeRating(
+                    title = movie.title,
+                    desc = obj.optString("description", movie.description),
+                    genres = movie.genres,
+                    rawAge = obj.optString("age_limit", movie.ageRating)
+                )
                 val rawPoster = obj.optString("poster", "")
                 val updatedPoster = if (rawPoster.startsWith("http") && !rawPoster.contains("no_image") && !rawPoster.contains("noposter")) rawPoster else movie.posterUrl
 
@@ -438,6 +443,29 @@ object ShowHubApiClient {
 
 
 
+    fun classifyAgeRating(title: String, desc: String, genres: List<String>, rawAge: String): String {
+        val cleanRaw = rawAge.trim().uppercase()
+        if (cleanRaw in listOf("18+", "18", "R", "NC-17", "R-18", "X")) return "18+"
+        val fullTxt = "$title $desc ${genres.joinToString(" ")}".lowercase()
+        val r18 = listOf(
+            "18+", "18 плюс", "парфюмер", "история одного убийцы", "убийц", "убийств", "маньяк",
+            "расчлен", "потрошител", "кровав", "резня", "снафф", "пытки", "пыток", "бойня",
+            "эротик", "порно", "секс", "интим", "разврат", "наркоти", "кокаин", "героин",
+            "ужасы", "хоррор", "slasher", "слэшер"
+        )
+        if (r18.any { fullTxt.contains(it) }) return "18+"
+        val r16 = listOf(
+            "16+", "16 плюс", "боевик", "детектив", "криминал", "триллер", "война", "военный",
+            "мистика", "зомби", "ограблен", "перестрелк", "мафия", "банда", "бандит"
+        )
+        if (r16.any { fullTxt.contains(it) }) return "16+"
+        val r6 = listOf("мультфильм", "детский", "семейный", "сказка", "0+", "6+", "6 плюс")
+        if (r6.any { fullTxt.contains(it) }) return "6+"
+        val r12 = listOf("12+", "12 плюс", "комедия", "фантастика", "фэнтези", "приключения", "мелодрама", "спорт")
+        if (r12.any { fullTxt.contains(it) }) return "12+"
+        return if (cleanRaw.contains("+")) cleanRaw else "12+"
+    }
+
     private fun parseMoviesJson(arr: JSONArray, outList: MutableList<Movie>) {
         for (i in 0 until arr.length()) {
             val it = arr.getJSONObject(i)
@@ -464,19 +492,44 @@ object ShowHubApiClient {
             val rawYear = it.optString("year", "2024").replace("null", "").trim()
             val year = if (rawYear.isNotEmpty()) rawYear else "2024"
             val isSeries = it.optBoolean("is_series", false)
-            val extraObj = it.optJSONObject("extra") ?: it.optJSONObject("material_data")
+            val extraObj = it.optJSONObject("extra_data") ?: it.optJSONObject("extra") ?: it.optJSONObject("material_data")
 
-            val rawCountry = extraObj?.optString("country", "") ?: it.optString("country", "")
+            val rawCountry = it.optString("country", "").ifEmpty {
+                extraObj?.optString("country", "") ?: ""
+            }.ifEmpty {
+                val cArr = extraObj?.optJSONArray("countries") ?: it.optJSONArray("countries")
+                if (cArr != null && cArr.length() > 0) cArr.getString(0) else ""
+            }
             val country = if (rawCountry.isBlank() || rawCountry.equals("null", ignoreCase = true)) "" else rawCountry
-            val rawDirector = extraObj?.optString("director", "") ?: it.optString("director", "")
+
+            val rawDirector = it.optString("director", "").ifEmpty {
+                extraObj?.optString("director", "") ?: ""
+            }.ifEmpty {
+                val dArr = extraObj?.optJSONArray("directors") ?: it.optJSONArray("directors")
+                if (dArr != null && dArr.length() > 0) dArr.getString(0) else ""
+            }
             val director = if (rawDirector.isBlank() || rawDirector.equals("null", ignoreCase = true)) "" else rawDirector
-            val rawActors = extraObj?.optString("actors", "") ?: it.optString("actors", "")
+
+            val rawActors = it.optString("actors", "").ifEmpty {
+                extraObj?.optString("actors", "") ?: ""
+            }.ifEmpty {
+                val aArr = extraObj?.optJSONArray("actors") ?: it.optJSONArray("actors")
+                if (aArr != null && aArr.length() > 0) {
+                    val sb = StringBuilder()
+                    for (ai in 0 until minOf(aArr.length(), 6)) {
+                        if (sb.isNotEmpty()) sb.append(", ")
+                        sb.append(aArr.getString(ai))
+                    }
+                    sb.toString()
+                } else ""
+            }
             val actors = if (rawActors.isBlank() || rawActors.equals("null", ignoreCase = true)) "" else rawActors
+
             val rawEpisodesInfo = extraObj?.optString("episodes_info", "") ?: it.optString("episodes_info", "")
             val episodesInfo = if (rawEpisodesInfo.isBlank() || rawEpisodesInfo.equals("null", ignoreCase = true)) "" else rawEpisodesInfo
 
             val genresList = mutableListOf<String>()
-            val gArr = it.optJSONArray("genres")
+            val gArr = it.optJSONArray("genres") ?: extraObj?.optJSONArray("genres")
             if (gArr != null) {
                 for (g in 0 until gArr.length()) genresList.add(gArr.getString(g))
             } else {
@@ -484,15 +537,8 @@ object ShowHubApiClient {
                 if (gStr.isNotEmpty()) genresList.addAll(gStr.split(",").map { s -> s.trim() })
             }
 
-            val rawAge = it.optString("age_limit", extraObj?.optString("age_limit", "") ?: "").ifEmpty {
-                val fullTxt = "$title $desc $genresList".lowercase()
-                when {
-                    fullTxt.contains("18+") || fullTxt.contains("18 плюс") || fullTxt.contains("эротик") || fullTxt.contains("ужасы") -> "18+"
-                    fullTxt.contains("16+") || fullTxt.contains("16 плюс") || fullTxt.contains("боевик") -> "16+"
-                    fullTxt.contains("мультфильм") || fullTxt.contains("детский") || fullTxt.contains("0+") -> "6+"
-                    else -> "12+"
-                }
-            }
+            val givenAge = it.optString("age_limit", extraObj?.optString("age_limit", "") ?: "")
+            val rawAge = classifyAgeRating(title, desc, genresList, givenAge)
 
             outList.add(
                 Movie(

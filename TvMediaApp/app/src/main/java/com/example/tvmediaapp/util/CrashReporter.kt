@@ -70,8 +70,8 @@ object CrashReporter {
             put("device_product", Build.PRODUCT)
             put("android_release", Build.VERSION.RELEASE)
             put("android_sdk", Build.VERSION.SDK_INT)
-            put("app_version_name", "2.7.2")
-            put("app_version_code", 51)
+            put("app_version_name", com.example.tvmediaapp.BuildConfig.VERSION_NAME)
+            put("app_version_code", com.example.tvmediaapp.BuildConfig.VERSION_CODE)
         }
     }
 

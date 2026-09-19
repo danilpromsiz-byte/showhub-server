@@ -149,6 +149,82 @@ def safe_parse_year(val: Any) -> Optional[int]:
         pass
     return None
 
+def classify_age_rating(
+    title: str = "",
+    desc: str = "",
+    genres: Any = None,
+    extra: Any = None,
+    raw_limit: Optional[str] = None
+) -> str:
+    """
+    Accurately classifies movie/series age rating (0+, 6+, 12+, 16+, 18+).
+    Ensures that dark psychological thrillers, crime, murders, horror, and erotica
+    (e.g., 'Парфюмер: История одного убийцы') are strictly marked 18+.
+    """
+    g_str = ""
+    if isinstance(genres, list):
+        g_str = " ".join(str(x) for x in genres)
+    elif isinstance(genres, str):
+        g_str = genres
+
+    ex_str = ""
+    if isinstance(extra, dict):
+        ex_str = f"{extra.get('genre', '')} {extra.get('age_limit', '')} {extra.get('genres', '')} {extra.get('description', '')}"
+
+    corpus = f"{title} {desc} {g_str} {ex_str}".lower()
+
+    if raw_limit:
+        r_clean = str(raw_limit).strip().upper()
+        if r_clean in ["18+", "18", "R", "NC-17", "R-18", "X"]:
+            return "18+"
+
+    # 1. Strict 18+ Keywords & Themes (Horror, violent murder, serial killers, explicit eroticism, drugs)
+    r18_keywords = [
+        "18+", "18 плюс", "18 и старше", "r-rated", "nc-17",
+        "парфюмер", "история одного убийцы", "убийц", "убийств", "маньяк", "расчлен",
+        "потрошител", "кровав", "резня", "снафф", "пытки", "пыток", "бойня",
+        "эротик", "порно", "секс", "интим", "разврат", "орги", "обнажен", "постельн",
+        "наркоти", "кокаин", "героин", "передоз",
+        "ужасы", "хоррор", "slasher", "слэшер", "gore", "людоед", "каннибал", "зомби"
+    ]
+    if any(kw in corpus for kw in r18_keywords):
+        return "18+"
+
+    # 2. 16+ Keywords & Themes (Action, crime, thriller, war, detectives)
+    r16_keywords = [
+        "16+", "16 плюс", "боевик", "детектив", "криминал", "триллер",
+        "война", "военный", "мистика", "ограблен", "перестрелк",
+        "мафия", "банда", "бандит", "жестокост", "action", "mystery",
+        "драма", "психологическ", "суицид", "мрачн", "опасн"
+    ]
+    if any(kw in corpus for kw in r16_keywords):
+        return "16+"
+
+    # 3. 0+ Keywords (Infants, early childhood)
+    r0_keywords = ["0+", "0 плюс", "для самых маленьких", "для малышей", "колыбельн"]
+    if any(kw in corpus for kw in r0_keywords):
+        return "0+"
+
+    # 4. 6+ Keywords (Animation, family, fairy tales)
+    r6_keywords = [
+        "6+", "6 плюс", "мультфильм", "детский", "семейный", "сказка",
+        "мультсериал", "анимация", "animation", "family", "kids"
+    ]
+    if any(kw in corpus for kw in r6_keywords):
+        return "6+"
+
+    # 5. 12+ Keywords (Adventure, fantasy, comedy, sci-fi)
+    r12_keywords = [
+        "12+", "12 плюс", "комедия", "фантастика", "фэнтези", "приключения",
+        "мелодрама", "документальный", "спорт", "comedy", "adventure", "fantasy", "sci-fi"
+    ]
+    if any(kw in corpus for kw in r12_keywords):
+        return "12+"
+
+    if raw_limit and ("+" in str(raw_limit)):
+        return str(raw_limit).strip()
+    return "12+"
+
 def rank_matches(items: list, target_year: Optional[Any] = None, target_is_series: Optional[Any] = None) -> list:
     if not items:
         return []
@@ -208,6 +284,34 @@ def search_media(q: str = Query(..., min_length=1)) -> List[Dict[str, Any]]:
                 all_items.extend(items)
             except Exception:
                 pass
+
+    # Search local catalog for actor, director, and title matches (filmography support)
+    q_low = q.lower().strip()
+    try:
+        init_cat_path = os.path.join(CURRENT_DIR, "static", "initial_catalog.json")
+        if os.path.exists(init_cat_path):
+            with open(init_cat_path, "r", encoding="utf-8") as f:
+                cat_list = json.load(f)
+                for it in cat_list:
+                    act_txt = str(it.get("actors") or it.get("extra_data", {}).get("actors") or "").lower()
+                    dir_txt = str(it.get("director") or it.get("extra_data", {}).get("director") or "").lower()
+                    tit_txt = str(it.get("title") or "").lower()
+                    if q_low in act_txt or q_low in dir_txt or q_low in tit_txt:
+                        all_items.append(MediaItem(
+                            id=str(it.get("id")),
+                            source_name=it.get("source_name", "kodik"),
+                            title=it.get("title", ""),
+                            year=it.get("year"),
+                            is_series=bool(it.get("is_series")),
+                            poster=it.get("poster"),
+                            description=it.get("description"),
+                            rating_kp=it.get("rating_kp"),
+                            rating_imdb=it.get("rating_imdb"),
+                            kinopoisk_id=it.get("kinopoisk_id"),
+                            extra_data=it.get("extra_data") or {}
+                        ))
+    except Exception:
+        pass
 
     seen_kp = {}
     deduped_dict = {}
@@ -666,7 +770,8 @@ def get_catalog(
         except Exception:
             y = current_year - 6
 
-        year_score = y * 1_000_000_000
+        # Year dominates completely (100 billion per year) so current & recent releases NEVER get buried by older movies
+        year_score = y * 100_000_000_000
 
         da = it.get("date_added") or 0
         if isinstance(da, (int, float)):
@@ -676,17 +781,17 @@ def get_catalog(
         else:
             date_score = 0
 
-        # Smart rating boost: movies with high ratings (KP/IMDb) are strongly elevated
+        # Eff rating is only a subtle tiebreaker (up to 100_000), NEVER burying unrated brand-new releases
         kp = float(it.get("rating_kp") or 0.0)
         imdb = float(it.get("rating_imdb") or 0.0)
         eff_rating = max(kp, imdb)
-        rating_score = int(eff_rating * 100_000_000)
+        rating_score = int(eff_rating * 10_000)
 
         # Popularity and views boost
         vkp = int(it.get("vote_num_kp") or 0)
         vimdb = int(it.get("vote_num_imdb") or 0)
         votes = max(vkp, vimdb)
-        vote_score = min(votes, 1_000_000) * 100
+        vote_score = min(votes, 100_000) * 10
 
         poster_str = str(it.get("poster") or "")
         has_real_poster = bool(poster_str and "no_image_poster" not in poster_str and "noposter" not in poster_str)
@@ -737,17 +842,27 @@ def get_catalog(
             if real_p:
                 it["poster"] = real_p
 
-        # Assign age_limit for badge display in catalog
-        if not it.get("age_limit"):
-            txt = f"{it.get('title','')} {it.get('description','')} {str(it.get('extra_data',{}))}".lower()
-            if any(w in txt for w in ["18+", "18 плюс", "эротик", "ужасы", "триллер", "криминал"]):
-                it["age_limit"] = "18+"
-            elif any(w in txt for w in ["16+", "16 плюс", "боевик", "детектив"]):
-                it["age_limit"] = "16+"
-            elif any(w in txt for w in ["мультфильм", "детский", "семейный", "сказка"]):
-                it["age_limit"] = "6+"
-            else:
-                it["age_limit"] = "12+"
+        # Promote country, countries, genres, actors, director to top-level fields
+        extra = it.get("extra_data") or {}
+        if not it.get("country"):
+            it["country"] = extra.get("country") or (extra.get("countries", [None])[0] if isinstance(extra.get("countries"), list) and extra.get("countries") else "")
+        if not it.get("countries") and extra.get("countries"):
+            it["countries"] = extra.get("countries")
+        if not it.get("genres") and extra.get("genres"):
+            it["genres"] = extra.get("genres")
+        if not it.get("actors") and extra.get("actors"):
+            it["actors"] = extra.get("actors")
+        if not it.get("director") and extra.get("director"):
+            it["director"] = extra.get("director")
+
+        # Accurately classify age rating for badge display
+        it["age_limit"] = classify_age_rating(
+            title=it.get("title", ""),
+            desc=it.get("description", ""),
+            genres=it.get("genres") or extra.get("genres") or extra.get("genre"),
+            extra=extra,
+            raw_limit=it.get("age_limit")
+        )
 
     _catalog_cache[cache_key] = (now_ts, all_items)
     return all_items
@@ -1005,15 +1120,13 @@ def _fetch_media_details(
     details["directors_list"] = directors_list
 
     # 6. Determine Age Rating
-    age_limit = "12+"
-    text_corpus = f"{details.get('title','')} {details.get('description','')} {' '.join(details.get('genres') or [])}".lower()
-    if any(w in text_corpus for w in ["18+", "18 плюс", "эротик", "ужасы", "триллер", "криминал"]):
-        age_limit = "18+"
-    elif any(w in text_corpus for w in ["16+", "16 плюс", "боевик", "детектив"]):
-        age_limit = "16+"
-    elif any(w in text_corpus for w in ["мультфильм", "детский", "семейный", "сказка", "0+"]):
-        age_limit = "6+"
-    details["age_limit"] = age_limit
+    details["age_limit"] = classify_age_rating(
+        title=details.get("title", ""),
+        desc=details.get("description", ""),
+        genres=details.get("genres"),
+        extra=details.get("extra_data"),
+        raw_limit=details.get("age_limit")
+    )
 
     return details
 

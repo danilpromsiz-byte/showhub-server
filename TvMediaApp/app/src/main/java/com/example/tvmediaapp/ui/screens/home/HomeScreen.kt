@@ -42,7 +42,7 @@ import com.example.tvmediaapp.ui.components.FilterBar
 import com.example.tvmediaapp.ui.components.MovieCard
 import com.example.tvmediaapp.ui.components.NeonSpinner
 import com.example.tvmediaapp.ui.components.TvTopBar
-import com.example.tvmediaapp.ui.theme.BackgroundDark
+import com.example.tvmediaapp.ui.theme.LocalBackgroundColor
 import com.example.tvmediaapp.ui.theme.TextGray
 import com.example.tvmediaapp.ui.theme.TextWhite
 import kotlinx.coroutines.delay
@@ -98,7 +98,7 @@ fun HomeScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(BackgroundDark)
+            .background(LocalBackgroundColor.current)
     ) {
         // TOP NAVIGATION BAR: Logo + Search + Favorites + History + Settings + Update
         TvTopBar(
@@ -169,7 +169,7 @@ fun HomeScreen(
             TvLazyVerticalGrid(
                 state = viewModel.gridState,
                 columns = TvGridCells.Fixed(6),
-                contentPadding = PaddingValues(horizontal = 32.dp, vertical = 8.dp),
+                contentPadding = PaddingValues(start = 32.dp, top = 8.dp, end = 32.dp, bottom = 120.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
                 modifier = Modifier.fillMaxSize()

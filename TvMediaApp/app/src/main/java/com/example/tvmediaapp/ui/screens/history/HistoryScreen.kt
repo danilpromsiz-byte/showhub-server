@@ -52,6 +52,8 @@ import com.example.tvmediaapp.data.models.Movie
 import com.example.tvmediaapp.ui.theme.BackgroundDark
 import com.example.tvmediaapp.ui.theme.CyanNeon
 import com.example.tvmediaapp.ui.theme.LocalAccentColor
+import com.example.tvmediaapp.ui.theme.LocalBackgroundColor
+import com.example.tvmediaapp.ui.theme.LocalFocusColor
 import com.example.tvmediaapp.ui.theme.RedPrimary
 import com.example.tvmediaapp.ui.theme.SurfaceDark
 import com.example.tvmediaapp.ui.theme.TextGray
@@ -82,6 +84,8 @@ fun HistoryScreen(
     var historyItems by remember { mutableStateOf(historyManager.getHistory()) }
 
     val accent = LocalAccentColor.current
+    val focusColor = LocalFocusColor.current
+    val bgColor = LocalBackgroundColor.current
     val firstCardFocusRequester = remember { FocusRequester() }
     val backButtonFocusRequester = remember { FocusRequester() }
 
@@ -97,7 +101,7 @@ fun HistoryScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(BackgroundDark)
+            .background(bgColor)
             .padding(horizontal = 48.dp, vertical = 28.dp)
     ) {
         // Header
@@ -143,7 +147,11 @@ fun HistoryScreen(
                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
                         modifier = Modifier
                             .height(28.dp)
-                            .focusProperties { down = firstCardFocusRequester }
+                            .focusProperties {
+                                if (historyItems.isNotEmpty()) {
+                                    down = firstCardFocusRequester
+                                }
+                            }
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             com.example.tvmediaapp.ui.components.AppIcon(
@@ -166,7 +174,7 @@ fun HistoryScreen(
                     onClick = onBackClick,
                     colors = ButtonDefaults.colors(
                         containerColor = Color.White.copy(alpha = 0.12f),
-                        focusedContainerColor = Color.White,
+                        focusedContainerColor = focusColor,
                         contentColor = TextWhite,
                         focusedContentColor = Color.Black
                     ),
@@ -177,7 +185,11 @@ fun HistoryScreen(
                     modifier = Modifier
                         .height(28.dp)
                         .focusRequester(backButtonFocusRequester)
-                        .focusProperties { down = firstCardFocusRequester }
+                        .focusProperties {
+                            if (historyItems.isNotEmpty()) {
+                                down = firstCardFocusRequester
+                            }
+                        }
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         com.example.tvmediaapp.ui.components.AppIcon(
@@ -223,7 +235,7 @@ fun HistoryScreen(
         } else {
             TvLazyVerticalGrid(
                 columns = TvGridCells.Fixed(6),
-                contentPadding = PaddingValues(bottom = 32.dp),
+                contentPadding = PaddingValues(bottom = 120.dp),
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 modifier = Modifier.fillMaxSize()

@@ -63,7 +63,7 @@ import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import com.example.tvmediaapp.ui.screens.search.SearchScreen
 import com.example.tvmediaapp.ui.screens.settings.SettingsScreen
-import com.example.tvmediaapp.ui.theme.BackgroundDark
+import com.example.tvmediaapp.ui.theme.LocalBackgroundColor
 import com.example.tvmediaapp.ui.theme.CyanNeon
 import com.example.tvmediaapp.ui.theme.LocalAccentColor
 import com.example.tvmediaapp.ui.theme.ThemeManager
@@ -247,7 +247,7 @@ fun TvAppNavHost(activity: MainActivity) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(BackgroundDark)
+            .background(LocalBackgroundColor.current)
             .focusProperties {
                 canFocus = !isUpdateDialogVisible
             }

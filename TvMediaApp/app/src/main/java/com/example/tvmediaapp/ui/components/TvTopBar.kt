@@ -37,6 +37,7 @@ import androidx.tv.material3.ButtonDefaults
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Text
 import com.example.tvmediaapp.ui.theme.LocalAccentColor
+import com.example.tvmediaapp.ui.theme.LocalFocusColor
 import com.example.tvmediaapp.ui.theme.TextGray
 import com.example.tvmediaapp.ui.theme.TextWhite
 
@@ -56,6 +57,7 @@ fun TvTopBar(
     modifier: Modifier = Modifier
 ) {
     val accent = LocalAccentColor.current
+    val focusColor = LocalFocusColor.current
 
     Row(
         modifier = modifier
@@ -85,7 +87,7 @@ fun TvTopBar(
                 onClick = onSearchClick,
                 colors = ButtonDefaults.colors(
                     containerColor = if (isSearch) accent.copy(alpha = 0.85f) else Color.White.copy(alpha = 0.08f),
-                    focusedContainerColor = Color.White,
+                    focusedContainerColor = focusColor,
                     contentColor = if (isSearch) Color.Black else TextWhite,
                     focusedContentColor = Color.Black
                 ),
@@ -129,7 +131,7 @@ fun TvTopBar(
                 onClick = onFavoritesClick,
                 colors = ButtonDefaults.colors(
                     containerColor = if (isFav) accent.copy(alpha = 0.85f) else Color.White.copy(alpha = 0.08f),
-                    focusedContainerColor = Color.White,
+                    focusedContainerColor = focusColor,
                     contentColor = if (isFav) Color.Black else TextWhite,
                     focusedContentColor = Color.Black
                 ),
@@ -172,7 +174,7 @@ fun TvTopBar(
                 onClick = onHistoryClick,
                 colors = ButtonDefaults.colors(
                     containerColor = if (isHist) accent.copy(alpha = 0.85f) else Color.White.copy(alpha = 0.08f),
-                    focusedContainerColor = Color.White,
+                    focusedContainerColor = focusColor,
                     contentColor = if (isHist) Color.Black else TextWhite,
                     focusedContentColor = Color.Black
                 ),
@@ -216,7 +218,7 @@ fun TvTopBar(
                     onClick = onSettingsClick,
                     colors = ButtonDefaults.colors(
                         containerColor = if (isSettings) accent.copy(alpha = 0.85f) else Color.White.copy(alpha = 0.08f),
-                        focusedContainerColor = Color.White,
+                        focusedContainerColor = focusColor,
                         contentColor = if (isSettings) Color.Black else TextWhite,
                         focusedContentColor = Color.Black
                     ),
@@ -260,7 +262,7 @@ fun TvTopBar(
                     onClick = onCheckUpdateClick,
                     colors = ButtonDefaults.colors(
                         containerColor = if (hasUpdateAvailable) accent.copy(alpha = 0.85f) else Color.White.copy(alpha = 0.08f),
-                        focusedContainerColor = Color.White,
+                        focusedContainerColor = focusColor,
                         contentColor = if (hasUpdateAvailable) Color.Black else TextWhite,
                         focusedContentColor = Color.Black
                     ),

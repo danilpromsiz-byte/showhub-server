@@ -85,6 +85,7 @@ import com.example.tvmediaapp.data.models.StreamOption
 import com.example.tvmediaapp.data.resolver.RezkaNativeResolver
 import com.example.tvmediaapp.ui.components.AppIcon
 import com.example.tvmediaapp.ui.components.NeonSpinner
+import androidx.compose.foundation.focusable
 import com.example.tvmediaapp.ui.screens.player.isDirectVideoStream
 import com.example.tvmediaapp.ui.theme.BackgroundDark
 import com.example.tvmediaapp.ui.theme.ChipBackground
@@ -92,6 +93,8 @@ import com.example.tvmediaapp.ui.theme.FavoriteGold
 import com.example.tvmediaapp.ui.theme.ImdbGold
 import com.example.tvmediaapp.ui.theme.KpOrange
 import com.example.tvmediaapp.ui.theme.LocalAccentColor
+import com.example.tvmediaapp.ui.theme.LocalBackgroundColor
+import com.example.tvmediaapp.ui.theme.LocalFocusColor
 import com.example.tvmediaapp.ui.theme.TextGray
 import com.example.tvmediaapp.ui.theme.TextWhite
 import kotlinx.coroutines.async
@@ -461,7 +464,8 @@ fun DetailsScreen(
         }
     }
 
-    Box(modifier = modifier.fillMaxSize().background(BackgroundDark)) {
+    val screenBg = LocalBackgroundColor.current
+    Box(modifier = modifier.fillMaxSize().background(screenBg)) {
         // High-res backdrop
         AsyncImage(
             model = currentMovie.backdropUrl.ifEmpty { currentMovie.posterUrl },
@@ -479,9 +483,9 @@ fun DetailsScreen(
                 .background(
                     Brush.horizontalGradient(
                         colors = listOf(
-                            BackgroundDark.copy(alpha = 0.96f),
-                            BackgroundDark.copy(alpha = 0.88f),
-                            BackgroundDark.copy(alpha = 0.75f)
+                            screenBg.copy(alpha = 0.96f),
+                            screenBg.copy(alpha = 0.88f),
+                            screenBg.copy(alpha = 0.75f)
                         )
                     )
                 )
@@ -1478,28 +1482,28 @@ fun DetailsScreen(
                                         onClick = { onSearchClick(actor.name) },
                                         colors = CardDefaults.colors(
                                             containerColor = Color.White.copy(alpha = 0.08f),
-                                            focusedContainerColor = Color.White.copy(alpha = 0.22f)
+                                            focusedContainerColor = LocalFocusColor.current.copy(alpha = 0.22f)
                                         ),
                                         border = CardDefaults.border(
                                             border = Border.None,
-                                            focusedBorder = Border(BorderStroke(2.dp, accent))
+                                            focusedBorder = Border(BorderStroke(2.dp, LocalFocusColor.current))
                                         ),
                                         shape = CardDefaults.shape(RoundedCornerShape(8.dp)),
                                         scale = CardDefaults.scale(scale = 1.0f, focusedScale = 1.05f),
                                         modifier = Modifier
-                                            .width(86.dp)
+                                            .width(84.dp)
                                             .onFocusChanged { isActorFocused = it.isFocused }
                                     ) {
                                         Column(
                                             horizontalAlignment = Alignment.CenterHorizontally,
-                                            modifier = Modifier.padding(6.dp)
+                                            modifier = Modifier.padding(4.dp)
                                         ) {
                                             Box(
                                                 modifier = Modifier
-                                                    .size(54.dp)
-                                                    .clip(RoundedCornerShape(27.dp))
-                                                    .background(Color.White.copy(alpha = 0.1f))
-                                                    .border(1.5.dp, if (isActorFocused) accent else Color.Transparent, RoundedCornerShape(27.dp)),
+                                                    .fillMaxWidth()
+                                                    .height(96.dp)
+                                                    .clip(RoundedCornerShape(6.dp))
+                                                    .background(Color.White.copy(alpha = 0.08f)),
                                                 contentAlignment = Alignment.Center
                                             ) {
                                                 if (actor.photoUrl.isNotBlank()) {
@@ -1513,7 +1517,7 @@ fun DetailsScreen(
                                                     AppIcon(
                                                         resId = R.drawable.ic_person,
                                                         tint = TextGray,
-                                                        size = 28.dp
+                                                        size = 32.dp
                                                     )
                                                 }
                                             }
@@ -1522,10 +1526,11 @@ fun DetailsScreen(
                                                 text = actor.name,
                                                 fontSize = 10.sp,
                                                 fontWeight = FontWeight.Medium,
-                                                color = TextWhite,
+                                                color = if (isActorFocused) LocalFocusColor.current else TextWhite,
                                                 maxLines = 2,
                                                 overflow = TextOverflow.Ellipsis,
-                                                textAlign = TextAlign.Center
+                                                textAlign = TextAlign.Center,
+                                                lineHeight = 13.sp
                                             )
                                         }
                                     }
@@ -1582,28 +1587,28 @@ fun DetailsScreen(
                                             onClick = { onSearchClick(director.name) },
                                             colors = CardDefaults.colors(
                                                 containerColor = Color.White.copy(alpha = 0.08f),
-                                                focusedContainerColor = Color.White.copy(alpha = 0.22f)
+                                                focusedContainerColor = LocalFocusColor.current.copy(alpha = 0.22f)
                                             ),
                                             border = CardDefaults.border(
                                                 border = Border.None,
-                                                focusedBorder = Border(BorderStroke(2.dp, accent))
+                                                focusedBorder = Border(BorderStroke(2.dp, LocalFocusColor.current))
                                             ),
                                             shape = CardDefaults.shape(RoundedCornerShape(8.dp)),
                                             scale = CardDefaults.scale(scale = 1.0f, focusedScale = 1.05f),
                                             modifier = Modifier
-                                                .width(86.dp)
+                                                .width(84.dp)
                                                 .onFocusChanged { isDirFocused = it.isFocused }
                                         ) {
                                             Column(
                                                 horizontalAlignment = Alignment.CenterHorizontally,
-                                                modifier = Modifier.padding(6.dp)
+                                                modifier = Modifier.padding(4.dp)
                                             ) {
                                                 Box(
                                                     modifier = Modifier
-                                                        .size(54.dp)
-                                                        .clip(RoundedCornerShape(27.dp))
-                                                        .background(Color.White.copy(alpha = 0.1f))
-                                                        .border(1.5.dp, if (isDirFocused) accent else Color.Transparent, RoundedCornerShape(27.dp)),
+                                                        .fillMaxWidth()
+                                                        .height(96.dp)
+                                                        .clip(RoundedCornerShape(6.dp))
+                                                        .background(Color.White.copy(alpha = 0.08f)),
                                                     contentAlignment = Alignment.Center
                                                 ) {
                                                     if (director.photoUrl.isNotBlank()) {
@@ -1617,7 +1622,7 @@ fun DetailsScreen(
                                                         AppIcon(
                                                             resId = R.drawable.ic_director,
                                                             tint = TextGray,
-                                                            size = 28.dp
+                                                            size = 32.dp
                                                         )
                                                     }
                                                 }
@@ -1626,10 +1631,11 @@ fun DetailsScreen(
                                                     text = director.name,
                                                     fontSize = 10.sp,
                                                     fontWeight = FontWeight.Medium,
-                                                    color = TextWhite,
+                                                    color = if (isDirFocused) LocalFocusColor.current else TextWhite,
                                                     maxLines = 2,
                                                     overflow = TextOverflow.Ellipsis,
-                                                    textAlign = TextAlign.Center
+                                                    textAlign = TextAlign.Center,
+                                                    lineHeight = 13.sp
                                                 )
                                             }
                                         }
@@ -1656,28 +1662,28 @@ fun DetailsScreen(
                                             onClick = { onSearchClick(actor.name) },
                                             colors = CardDefaults.colors(
                                                 containerColor = Color.White.copy(alpha = 0.08f),
-                                                focusedContainerColor = Color.White.copy(alpha = 0.22f)
+                                                focusedContainerColor = LocalFocusColor.current.copy(alpha = 0.22f)
                                             ),
                                             border = CardDefaults.border(
                                                 border = Border.None,
-                                                focusedBorder = Border(BorderStroke(2.dp, accent))
+                                                focusedBorder = Border(BorderStroke(2.dp, LocalFocusColor.current))
                                             ),
                                             shape = CardDefaults.shape(RoundedCornerShape(8.dp)),
                                             scale = CardDefaults.scale(scale = 1.0f, focusedScale = 1.05f),
                                             modifier = Modifier
-                                                .width(86.dp)
+                                                .width(84.dp)
                                                 .onFocusChanged { isActorFocused = it.isFocused }
                                         ) {
                                             Column(
                                                 horizontalAlignment = Alignment.CenterHorizontally,
-                                                modifier = Modifier.padding(6.dp)
+                                                modifier = Modifier.padding(4.dp)
                                             ) {
                                                 Box(
                                                     modifier = Modifier
-                                                        .size(54.dp)
-                                                        .clip(RoundedCornerShape(27.dp))
-                                                        .background(Color.White.copy(alpha = 0.1f))
-                                                        .border(1.5.dp, if (isActorFocused) accent else Color.Transparent, RoundedCornerShape(27.dp)),
+                                                        .fillMaxWidth()
+                                                        .height(96.dp)
+                                                        .clip(RoundedCornerShape(6.dp))
+                                                        .background(Color.White.copy(alpha = 0.08f)),
                                                     contentAlignment = Alignment.Center
                                                 ) {
                                                     if (actor.photoUrl.isNotBlank()) {
@@ -1691,7 +1697,7 @@ fun DetailsScreen(
                                                         AppIcon(
                                                             resId = R.drawable.ic_person,
                                                             tint = TextGray,
-                                                            size = 28.dp
+                                                            size = 32.dp
                                                         )
                                                     }
                                                 }
@@ -1700,24 +1706,38 @@ fun DetailsScreen(
                                                     text = actor.name,
                                                     fontSize = 10.sp,
                                                     fontWeight = FontWeight.Medium,
-                                                    color = TextWhite,
+                                                    color = if (isActorFocused) LocalFocusColor.current else TextWhite,
                                                     maxLines = 2,
                                                     overflow = TextOverflow.Ellipsis,
-                                                    textAlign = TextAlign.Center
+                                                    textAlign = TextAlign.Center,
+                                                    lineHeight = 13.sp
                                                 )
                                             }
                                         }
                                     }
                                 }
                             }
-                            if (displayDirectors.isEmpty() && currentMovie.director.isNotEmpty()) {
-                                Text(text = "Режиссёр: ${currentMovie.director}", fontSize = 13.sp, color = TextGray)
-                            }
-                            if (currentMovie.country.isNotEmpty()) {
-                                Text(text = "Страна производства: ${currentMovie.country}", fontSize = 13.sp, color = TextGray)
-                            }
-                            if (currentMovie.releaseYear.isNotEmpty()) {
-                                Text(text = "Год премьеры: ${currentMovie.releaseYear}", fontSize = 13.sp, color = TextGray)
+
+                            var isMetaBlockFocused by remember { mutableStateOf(false) }
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(if (isMetaBlockFocused) LocalFocusColor.current.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.04f))
+                                    .onFocusChanged { isMetaBlockFocused = it.isFocused }
+                                    .focusable()
+                                    .padding(12.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                if (displayDirectors.isEmpty() && currentMovie.director.isNotEmpty()) {
+                                    Text(text = "Режиссёр: ${currentMovie.director}", fontSize = 13.sp, color = TextWhite)
+                                }
+                                if (currentMovie.country.isNotEmpty()) {
+                                    Text(text = "Страна производства: ${currentMovie.country}", fontSize = 13.sp, color = TextWhite)
+                                }
+                                if (currentMovie.releaseYear.isNotEmpty()) {
+                                    Text(text = "Год премьеры: ${currentMovie.releaseYear}", fontSize = 13.sp, color = TextWhite)
+                                }
                             }
                         }
                     }

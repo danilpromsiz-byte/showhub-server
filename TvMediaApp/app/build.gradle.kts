@@ -11,8 +11,8 @@ android {
         applicationId = "com.showhub.tv"
         minSdk = 21
         targetSdk = 34
-        versionCode = 52
-        versionName = "2.7.3"
+        versionCode = 53
+        versionName = "2.7.4"
 
         vectorDrawables {
             useSupportLibrary = true
@@ -56,6 +56,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     composeOptions {
         kotlinCompilerExtensionVersion = "1.5.14"

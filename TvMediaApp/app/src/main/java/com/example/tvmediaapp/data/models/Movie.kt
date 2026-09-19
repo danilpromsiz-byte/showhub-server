@@ -60,6 +60,38 @@ data class Movie(
     val isFavorite: Boolean = false
 )
 
+fun getCountryBadge(country: String): String {
+    val c = country.lowercase().trim()
+    return when {
+        c.contains("росси") || c.contains("ссср") || c.contains("russia") -> "🇷🇺 RU"
+        c.contains("сша") || c.contains("америк") || c.contains("usa") -> "🇺🇸 US"
+        c.contains("коре") || c.contains("korea") -> "🇰🇷 KR"
+        c.contains("турц") || c.contains("turkey") -> "🇹🇷 TR"
+        c.contains("япон") || c.contains("japan") -> "🇯🇵 JP"
+        c.contains("кита") || c.contains("china") -> "🇨🇳 CN"
+        c.contains("великобрит") || c.contains("англи") || c.contains("uk") -> "🇬🇧 UK"
+        c.contains("франц") || c.contains("france") -> "🇫🇷 FR"
+        c.contains("герман") || c.contains("germany") -> "🇩🇪 DE"
+        c.contains("итал") || c.contains("italy") -> "🇮🇹 IT"
+        c.contains("испан") || c.contains("spain") -> "🇪🇸 ES"
+        c.contains("инди") || c.contains("india") -> "🇮🇳 IN"
+        c.contains("канад") || c.contains("canada") -> "🇨🇦 CA"
+        c.contains("австрал") || c.contains("australia") -> "🇦🇺 AU"
+        c.contains("таиланд") || c.contains("тайланд") || c.contains("thailand") -> "🇹🇭 TH"
+        c.contains("швеци") || c.contains("sweden") -> "🇸🇪 SE"
+        c.contains("мексик") || c.contains("mexico") -> "🇲🇽 MX"
+        c.contains("бразил") || c.contains("brazil") -> "🇧🇷 BR"
+        c.contains("норвег") || c.contains("norway") -> "🇳🇴 NO"
+        c.contains("дани") || c.contains("denmark") -> "🇩🇰 DK"
+        c.contains("финлянд") || c.contains("finland") -> "🇫🇮 FI"
+        c.contains("польш") || c.contains("poland") -> "🇵🇱 PL"
+        c.contains("ирланд") || c.contains("ireland") -> "🇮🇪 IE"
+        c.contains("нидерланд") || c.contains("netherlands") || c.contains("голланди") -> "🇳🇱 NL"
+        country.isNotBlank() -> country.take(3).uppercase()
+        else -> ""
+    }
+}
+
 fun getCountryFlagEmoji(country: String): String {
     val c = country.lowercase().trim()
     return when {

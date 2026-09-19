@@ -67,6 +67,8 @@ import com.example.tvmediaapp.ui.components.NeonSpinner
 import com.example.tvmediaapp.ui.theme.BackgroundDark
 import com.example.tvmediaapp.ui.theme.ChipBackground
 import com.example.tvmediaapp.ui.theme.LocalAccentColor
+import com.example.tvmediaapp.ui.theme.LocalBackgroundColor
+import com.example.tvmediaapp.ui.theme.LocalFocusColor
 import com.example.tvmediaapp.ui.theme.TextGray
 import com.example.tvmediaapp.ui.theme.TextWhite
 import kotlinx.coroutines.launch
@@ -83,6 +85,8 @@ fun SearchScreen(
 ) {
     val context = LocalContext.current
     val accent = LocalAccentColor.current
+    val focusColor = LocalFocusColor.current
+    val bgColor = LocalBackgroundColor.current
     val searchPrefs = remember { context.getSharedPreferences("showhub_search_history", Context.MODE_PRIVATE) }
 
     fun loadHistory(): List<String> {
@@ -133,7 +137,10 @@ fun SearchScreen(
         coroutineScope.launch {
             val res = ShowHubApiClient.searchMovies(q)
             results = if (res.isNotEmpty()) res else initialMovies.filter {
-                it.title.contains(q, ignoreCase = true) || it.originalTitle.contains(q, ignoreCase = true)
+                it.title.contains(q, ignoreCase = true) ||
+                it.originalTitle.contains(q, ignoreCase = true) ||
+                it.actors.contains(q, ignoreCase = true) ||
+                it.director.contains(q, ignoreCase = true)
             }
             isSearching = false
         }
@@ -148,7 +155,7 @@ fun SearchScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(BackgroundDark)
+            .background(bgColor)
             .padding(horizontal = 48.dp, vertical = 24.dp)
     ) {
         // Top Header
@@ -158,7 +165,7 @@ fun SearchScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "Поиск",
+                text = if (initialQuery.isNotBlank()) "Фильмография: $initialQuery" else "Поиск",
                 fontSize = 24.sp,
                 fontWeight = FontWeight.Bold,
                 color = TextWhite
@@ -168,7 +175,7 @@ fun SearchScreen(
                 onClick = onBackClick,
                 colors = ButtonDefaults.colors(
                     containerColor = Color.White.copy(alpha = 0.12f),
-                    focusedContainerColor = Color.White,
+                    focusedContainerColor = focusColor,
                     contentColor = TextWhite,
                     focusedContentColor = Color.Black
                 ),
@@ -331,7 +338,7 @@ fun SearchScreen(
                             onClick = { performSearch(histQuery) },
                             colors = ButtonDefaults.colors(
                                 containerColor = if (isSelected) accent.copy(alpha = 0.85f) else ChipBackground,
-                                focusedContainerColor = Color.White,
+                                focusedContainerColor = focusColor,
                                 contentColor = if (isSelected) Color.Black else TextWhite,
                                 focusedContentColor = Color.Black
                             ),
@@ -347,8 +354,8 @@ fun SearchScreen(
                             Text(
                                 text = histQuery,
                                 fontSize = 11.sp,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                lineHeight = 13.sp
+                                lineHeight = 13.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                             )
                         }
                     }
@@ -360,7 +367,7 @@ fun SearchScreen(
                             },
                             colors = ButtonDefaults.colors(
                                 containerColor = Color.White.copy(alpha = 0.08f),
-                                focusedContainerColor = Color.White,
+                                focusedContainerColor = focusColor,
                                 contentColor = TextGray,
                                 focusedContentColor = Color(0xFFE53935)
                             ),
@@ -406,10 +413,10 @@ fun SearchScreen(
                 )
             }
         } else {
-            // Results Grid (6 columns)
+            // Results Grid (6 columns) with generous TV bottom padding
             TvLazyVerticalGrid(
                 columns = TvGridCells.Fixed(6),
-                contentPadding = PaddingValues(bottom = 32.dp),
+                contentPadding = PaddingValues(bottom = 120.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
                 modifier = Modifier.fillMaxSize()

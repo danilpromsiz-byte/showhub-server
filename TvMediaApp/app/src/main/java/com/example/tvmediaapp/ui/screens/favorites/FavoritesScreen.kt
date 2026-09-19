@@ -46,6 +46,8 @@ import com.example.tvmediaapp.ui.theme.BackgroundDark
 import com.example.tvmediaapp.ui.theme.CyanNeon
 import com.example.tvmediaapp.ui.theme.FavoriteGold
 import com.example.tvmediaapp.ui.theme.LocalAccentColor
+import com.example.tvmediaapp.ui.theme.LocalBackgroundColor
+import com.example.tvmediaapp.ui.theme.LocalFocusColor
 import com.example.tvmediaapp.ui.theme.TextGray
 import com.example.tvmediaapp.ui.theme.TextWhite
 
@@ -71,6 +73,8 @@ fun FavoritesScreen(
     }
 
     val accent = LocalAccentColor.current
+    val focusColor = LocalFocusColor.current
+    val bgColor = LocalBackgroundColor.current
     val firstCardFocusRequester = remember { FocusRequester() }
     val backButtonFocusRequester = remember { FocusRequester() }
 
@@ -86,7 +90,7 @@ fun FavoritesScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(BackgroundDark)
+            .background(bgColor)
             .padding(horizontal = 48.dp, vertical = 28.dp)
     ) {
         // Header
@@ -117,7 +121,7 @@ fun FavoritesScreen(
                 onClick = onBackClick,
                 colors = ButtonDefaults.colors(
                     containerColor = Color.White.copy(alpha = 0.12f),
-                    focusedContainerColor = Color.White,
+                    focusedContainerColor = focusColor,
                     contentColor = TextWhite,
                     focusedContentColor = Color.Black
                 ),
@@ -128,7 +132,11 @@ fun FavoritesScreen(
                 modifier = Modifier
                     .height(28.dp)
                     .focusRequester(backButtonFocusRequester)
-                    .focusProperties { down = firstCardFocusRequester }
+                    .focusProperties {
+                        if (favoriteMovies.isNotEmpty()) {
+                            down = firstCardFocusRequester
+                        }
+                    }
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     com.example.tvmediaapp.ui.components.AppIcon(
@@ -173,7 +181,7 @@ fun FavoritesScreen(
         } else {
             TvLazyVerticalGrid(
                 columns = TvGridCells.Fixed(6),
-                contentPadding = PaddingValues(bottom = 32.dp),
+                contentPadding = PaddingValues(bottom = 120.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
                 modifier = Modifier.fillMaxSize()

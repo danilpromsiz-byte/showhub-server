@@ -35,6 +35,7 @@ import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Text
 import com.example.tvmediaapp.ui.theme.ChipBackground
 import com.example.tvmediaapp.ui.theme.LocalAccentColor
+import com.example.tvmediaapp.ui.theme.LocalFocusColor
 import com.example.tvmediaapp.ui.theme.TextGray
 import com.example.tvmediaapp.ui.theme.TextWhite
 
@@ -132,6 +133,7 @@ fun FilterBar(
     modifier: Modifier = Modifier
 ) {
     val accent = LocalAccentColor.current
+    val focusColor = LocalFocusColor.current
     var activeCategory by remember { mutableStateOf(FilterCategory.GENRES) }
 
     Column(
@@ -159,7 +161,7 @@ fun FilterBar(
                     onClick = { onTypeSelected(typeKey) },
                     colors = ButtonDefaults.colors(
                         containerColor = if (isSelected) accent.copy(alpha = 0.85f) else ChipBackground,
-                        focusedContainerColor = Color.White,
+                        focusedContainerColor = focusColor,
                         contentColor = if (isSelected) Color.Black else TextWhite,
                         focusedContentColor = Color.Black
                     ),
@@ -228,7 +230,7 @@ fun FilterBar(
                             hasCustomFilter -> accent.copy(alpha = 0.35f)
                             else -> ChipBackground.copy(alpha = 0.6f)
                         },
-                        focusedContainerColor = Color.White,
+                        focusedContainerColor = focusColor,
                         contentColor = when {
                             isCategoryActive -> Color.Black
                             hasCustomFilter -> Color.White
@@ -282,7 +284,7 @@ fun FilterBar(
                     },
                     colors = ButtonDefaults.colors(
                         containerColor = if (hasAnyFilter) Color(0xFFE53935).copy(alpha = 0.25f) else Color.White.copy(alpha = 0.08f),
-                        focusedContainerColor = Color.White,
+                        focusedContainerColor = focusColor,
                         contentColor = if (hasAnyFilter) Color(0xFFFF8A80) else TextGray,
                         focusedContentColor = Color(0xFFE53935)
                     ),
@@ -337,7 +339,7 @@ fun FilterBar(
                             onClick = { onGenreSelected(genre) },
                             colors = ButtonDefaults.colors(
                                 containerColor = if (isSelected) accent.copy(alpha = 0.85f) else ChipBackground,
-                                focusedContainerColor = Color.White,
+                                focusedContainerColor = focusColor,
                                 contentColor = if (isSelected) Color.Black else TextWhite,
                                 focusedContentColor = Color.Black
                             ),
@@ -370,7 +372,7 @@ fun FilterBar(
                             onClick = { onSortSelected(sortKey) },
                             colors = ButtonDefaults.colors(
                                 containerColor = if (isSelected) accent.copy(alpha = 0.85f) else ChipBackground,
-                                focusedContainerColor = Color.White,
+                                focusedContainerColor = focusColor,
                                 contentColor = if (isSelected) Color.Black else TextWhite,
                                 focusedContentColor = Color.Black
                             ),
@@ -403,7 +405,7 @@ fun FilterBar(
                             onClick = { onYearSelected(yearKey) },
                             colors = ButtonDefaults.colors(
                                 containerColor = if (isSelected) accent.copy(alpha = 0.85f) else ChipBackground,
-                                focusedContainerColor = Color.White,
+                                focusedContainerColor = focusColor,
                                 contentColor = if (isSelected) Color.Black else TextWhite,
                                 focusedContentColor = Color.Black
                             ),
@@ -441,7 +443,7 @@ fun FilterBar(
                             },
                             colors = ButtonDefaults.colors(
                                 containerColor = if (isSelected) accent.copy(alpha = 0.85f) else ChipBackground,
-                                focusedContainerColor = Color.White,
+                                focusedContainerColor = focusColor,
                                 contentColor = if (isSelected) Color.Black else TextWhite,
                                 focusedContentColor = Color.Black
                             ),

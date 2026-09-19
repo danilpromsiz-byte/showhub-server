@@ -305,7 +305,28 @@ def classify_age_rating(
         return str(raw_limit).strip()
     return "12+"
 
-def rank_matches(items: list, target_year: Optional[Any] = None, target_is_series: Optional[Any] = None) -> list:
+def compute_title_similarity(s1: str, s2: str) -> float:
+    if not s1 or not s2:
+        return 0.0
+    n1 = normalize_search_title(s1)
+    n2 = normalize_search_title(s2)
+    if not n1 or not n2:
+        return 0.0
+    if n1 == n2:
+        return 1.0
+    if n1 in n2 or n2 in n1:
+        return min(len(n1), len(n2)) / max(len(n1), len(n2))
+    w1 = set(n1.split())
+    w2 = set(n2.split())
+    if not w1 or not w2:
+        return 0.0
+    intersection = w1 & w2
+    union = w1 | w2
+    jaccard = len(intersection) / len(union)
+    overlap = len(intersection) / min(len(w1), len(w2))
+    return max(jaccard, overlap * 0.7)
+
+def rank_matches(items: list, target_year: Optional[Any] = None, target_is_series: Optional[Any] = None, target_title: Optional[str] = None) -> list:
     if not items:
         return []
 
@@ -321,6 +342,15 @@ def rank_matches(items: list, target_year: Optional[Any] = None, target_is_serie
         score = 0
         it_yr = safe_parse_year(getattr(it, "year", None))
         it_ser = getattr(it, "is_series", False)
+        it_title = getattr(it, "title", "")
+
+        # Title similarity matching
+        if target_title and it_title:
+            sim = compute_title_similarity(it_title, target_title)
+            if sim < 0.40:
+                return -9999  # Disqualify completely unrelated title matches
+            score += int(sim * 200)
+
         # Year matching
         if t_year and it_yr:
             diff = abs(it_yr - t_year)
@@ -340,11 +370,19 @@ def rank_matches(items: list, target_year: Optional[Any] = None, target_is_serie
                 score -= 30
         return score
 
-    return sorted(items, key=score_item, reverse=True)
+    filtered = [it for it in items if score_item(it) > -5000]
+    return sorted(filtered, key=score_item, reverse=True)
 
-def find_best_match(items: list, target_year: Optional[Any] = None, target_is_series: Optional[Any] = None):
-    ranked = rank_matches(items, target_year, target_is_series)
-    return ranked[0] if ranked else None
+def find_best_match(items: list, target_year: Optional[Any] = None, target_is_series: Optional[Any] = None, target_title: Optional[str] = None):
+    ranked = rank_matches(items, target_year, target_is_series, target_title=target_title)
+    if not ranked:
+        return None
+    best = ranked[0]
+    if target_title:
+        sim = compute_title_similarity(getattr(best, "title", ""), target_title)
+        if sim < 0.40:
+            return None
+    return best
 
 @app.get("/api/search")
 def search_media(q: str = Query(..., min_length=1), type: Optional[str] = Query(None)) -> List[Dict[str, Any]]:
@@ -476,6 +514,25 @@ def search_media(q: str = Query(..., min_length=1), type: Optional[str] = Query(
             real_p = resolve_real_poster(it.get("title", ""), it.get("year"), it.get("kinopoisk_id"))
             if real_p:
                 it["poster"] = real_p
+
+    # Sort results by relevance to query q (exact match first, then prefix, then substring)
+    qn = normalize_search_title(q)
+    def search_relevance(item):
+        t = normalize_search_title(item.get("title", ""))
+        if not t or not qn:
+            return 0
+        if t == qn:
+            return 1000
+        if t.startswith(qn):
+            return 800 - len(t)
+        if qn in t:
+            return 600 - len(t)
+        w_t = set(t.split())
+        w_q = set(qn.split())
+        overlap = len(w_t & w_q)
+        return overlap * 100 - len(t)
+
+    res_list.sort(key=search_relevance, reverse=True)
     return res_list
 
 _poster_cache: Dict[str, str] = {}
@@ -577,10 +634,10 @@ def check_updates() -> Dict[str, Any]:
 
     return {
         "success": True,
-        "version_name": "2.8.7",
-        "version_code": 66,
+        "version_name": "2.8.8",
+        "version_code": 67,
         "force_update": True,
-        "min_version_code": 66,
+        "min_version_code": 67,
         "apk_url": "https://showhub-server.onrender.com/ShowHub.apk",
         "download_url": "https://showhub-server.onrender.com/ShowHub.apk",
         "changelog": "ShowHub TV v2.8.7: Исправление фейковых озвучек и серий (серии и дорожки фильтруются строго по сезонам); контрастный таймлайн серий в карточке фильма; однократное нажатие Назад для выхода из плеера; хронологический порядок в календаре «Скоро выйдут»; отображение текущего времени при перемотке (напр. 48 м. 34 с.), отображение минут и секунд при быстрой перемотке свыше 60с; таймер меню не сбрасывается во время перемотки; яркая подсветка таймлайна сверху."
@@ -1162,6 +1219,8 @@ def _fetch_media_details(
         clean_title = clean_title.split(":")[0].strip()
     if clean_title and " - " in clean_title:
         clean_title = clean_title.split(" - ")[0].strip()
+    clean_title = re.sub(r'\b\d+\s+(сери[йия]|сезон(а|ов)?)\b', '', clean_title, flags=re.I).strip()
+    clean_title = re.sub(r'\b(сезон|серия)\s+\d+\b', '', clean_title, flags=re.I).strip()
 
     # Determine real Kinopoisk ID if available
     resolved_kp = kp_id
@@ -1170,9 +1229,34 @@ def _fetch_media_details(
     if not resolved_kp and clean_title:
         try:
             b_items = bazon.search(clean_title)
-            b_match = find_best_match(b_items, year_int, is_ser_bool)
+            b_match = find_best_match(b_items, year_int, is_ser_bool, target_title=clean_title)
             if b_match and b_match.kinopoisk_id:
                 resolved_kp = b_match.kinopoisk_id
+        except Exception:
+            pass
+
+    # 0a. If source is kodik, pre-extract authentic metadata from Kodik immediately
+    if (source == "kodik" or not clean_title) and clean_title:
+        try:
+            kd_pre = kodik.search(clean_title, year=year_int, kp_id=resolved_kp)
+            if kd_pre:
+                first_k = kd_pre[0]
+                if first_k.extra_data.get("country"):
+                    details["country"] = first_k.extra_data["country"]
+                if first_k.extra_data.get("countries"):
+                    details["countries"] = first_k.extra_data["countries"]
+                if first_k.extra_data.get("actors"):
+                    details["actors"] = first_k.extra_data["actors"]
+                if first_k.extra_data.get("director"):
+                    details["director"] = first_k.extra_data["director"]
+                if first_k.extra_data.get("genres"):
+                    details["genres"] = first_k.extra_data["genres"]
+                if first_k.description:
+                    details["description"] = first_k.description
+                if first_k.rating_kp:
+                    details["rating_kp"] = first_k.rating_kp
+                if first_k.rating_imdb:
+                    details["rating_imdb"] = first_k.rating_imdb
         except Exception:
             pass
 
@@ -1231,7 +1315,7 @@ def _fetch_media_details(
         rz_id = media_id if (source == "hdrezka" and media_id.startswith("http")) else None
         if not rz_id and clean_title:
             rz_items = hdrezka.search(clean_title)
-            rz_match = find_best_match(rz_items, year_int, is_ser_bool)
+            rz_match = find_best_match(rz_items, year_int, is_ser_bool, target_title=clean_title)
             if rz_match:
                 rz_id = rz_match.id
         if rz_id:
@@ -1253,29 +1337,31 @@ def _fetch_media_details(
                     details["rating_imdb"] = rz_det["rating_imdb"]
                     details["vote_num_imdb"] = rz_det.get("vote_num_imdb")
                 rz_country = rz_det.get("country") or ""
-                tmdb_country = str(details.get("country") or "")
-                is_asian_mismatch = any(a in tmdb_country.lower() for a in ["китай", "япони", "коре"]) and not any(a in rz_country.lower() for a in ["китай", "япони", "коре"]) if rz_country else False
+                cur_country = str(details.get("country") or "")
+                cur_actors = str(details.get("actors") or "")
+                asian_markers = ["китай", "япони", "коре", "тайван", "гонконг", "тайланд"]
+                is_cur_asian = any(a in cur_country.lower() for a in asian_markers) or any(s in cur_actors.lower() for s in ["чэнь", "тун яо", "линь", "юань", "пань", "ван ян", "сюй", "дун", "чжан", "ким", "пак", "минхо", "хайси"])
+                is_rz_asian = any(a in rz_country.lower() for a in asian_markers) if rz_country else False
 
-                if not details["director"] or is_asian_mismatch:
-                    if rz_det.get("director"):
-                        details["director"] = rz_det["director"]
-                        if is_asian_mismatch:
-                            details["directors_list"] = []
-                if not details["actors"] or is_asian_mismatch:
-                    if rz_det.get("actors"):
-                        details["actors"] = rz_det["actors"]
-                        if is_asian_mismatch:
-                            details["cast"] = []
-                if not details["genres"] and rz_det.get("genres"):
-                    details["genres"] = rz_det["genres"]
-                if not details["country"] or is_asian_mismatch:
-                    if rz_country:
+                if is_cur_asian and not is_rz_asian:
+                    # Keep authentic Asian metadata, do not overwrite with non-Asian HDRezka metadata (e.g. Ukraine, USA)
+                    pass
+                else:
+                    if not details["director"]:
+                        if rz_det.get("director"):
+                            details["director"] = rz_det["director"]
+                    if not details["actors"]:
+                        if rz_det.get("actors"):
+                            details["actors"] = rz_det["actors"]
+                    if not details["genres"] and rz_det.get("genres"):
+                        details["genres"] = rz_det["genres"]
+                    if not details["country"] and rz_country:
                         details["country"] = rz_country
                 if rz_det.get("episodes_schedule"):
                     details["episodes_schedule"] = rz_det["episodes_schedule"]
 
                 # If TMDb was not resolved, retry using HDRezka's original title
-                if (not details.get("actors") or not details.get("cast")) and rz_det.get("original_title"):
+                if (not details.get("actors") or not details.get("cast")) and rz_det.get("original_title") and not is_cur_asian:
                     tmdb_retry = tmdb.search_and_enrich(title=clean_title, year=year_int, is_series=is_ser_bool, original_title=rz_det["original_title"])
                     if tmdb_retry and tmdb_retry.get("actors"):
                         details["actors"] = tmdb_retry["actors"]
@@ -1311,7 +1397,7 @@ def _fetch_media_details(
         fx_id = media_id if (source == "filmix" and media_id.isdigit()) else None
         if not fx_id and clean_title:
             fx_items = filmix.search(clean_title)
-            fx_match = find_best_match(fx_items, year_int, is_ser_bool)
+            fx_match = find_best_match(fx_items, year_int, is_ser_bool, target_title=clean_title)
             if fx_match:
                 fx_id = fx_match.id
         if fx_id:
@@ -1459,7 +1545,8 @@ def _fetch_media_details(
     for t in details.get("translators", []):
         t_se = t.get("seasons_episodes")
         if not t_se and t.get("source") == "hdrezka" and not t.get("kodik_id"):
-            t["seasons_episodes"] = rz_seasons_eps
+            if len(details.get("seasons", [])) <= 1:
+                t["seasons_episodes"] = rz_seasons_eps
         
         ep_cnt = t.get("episodes_count")
         if t.get("seasons_episodes"):
@@ -1467,7 +1554,10 @@ def _fetch_media_details(
             if se_max > 0:
                 t["episodes_count"] = se_max
         elif ep_cnt is None or ep_cnt <= 0:
-            t["episodes_count"] = total_series_eps
+            if len(details.get("seasons", [])) <= 1:
+                t["episodes_count"] = total_series_eps
+            else:
+                t["episodes_count"] = 0
 
     # Source availability metadata for UI Source selector
     sources_info = []
@@ -1592,6 +1682,24 @@ def _fetch_media_details(
         raw_limit=details.get("age_limit")
     )
 
+    # 7. Final sanity check: detect country mismatch where country says Ukraine/USA/Russia/India but actors or Kodik confirm Asian
+    act_str = str(details.get("actors") or "").lower()
+    c_str = str(details.get("country") or "").lower()
+    asian_surnames = ["чэнь", "тун яо", "линь", "юань", "пань", "ван ян", "сюй", "дун ", "чжан", "ким ", "пак ", "сон ", "ли мин", "минхо", "бай лу", "чжао лусы"]
+    if any(s in act_str for s in asian_surnames) and not any(a in c_str for a in ["китай", "коре", "япони", "тайван", "гонконг", "ази"]):
+        if clean_title:
+            try:
+                k_re = kodik.search(clean_title, year=year_int, kp_id=resolved_kp)
+                for kit in k_re:
+                    k_c = kit.extra_data.get("country")
+                    if k_c and any(a in k_c.lower() for a in ["китай", "коре", "япони", "тайван"]):
+                        details["country"] = k_c
+                        break
+            except Exception:
+                pass
+        if not any(a in str(details.get("country") or "").lower() for a in ["китай", "коре", "япони"]):
+            details["country"] = "Китай"
+
     return details
 
 
@@ -1634,8 +1742,15 @@ def _fetch_media_streams(
         clean_title = clean_title.split(":")[0].strip()
     if clean_title and " - " in clean_title:
         clean_title = clean_title.split(" - ")[0].strip()
+    clean_title = re.sub(r'\b\d+\s+(сери[йия]|сезон(а|ов)?)\b', '', clean_title, flags=re.I).strip()
+    clean_title = re.sub(r'\b(сезон|серия)\s+\d+\b', '', clean_title, flags=re.I).strip()
 
-    titles_to_try = [clean_title] if clean_title else []
+    titles_to_try = []
+    if clean_title:
+        titles_to_try.append(clean_title)
+        no_year = re.sub(r'\b(19\d\d|20\d\d)\b', '', clean_title).strip()
+        if no_year and no_year not in titles_to_try:
+            titles_to_try.append(no_year)
     if title and title not in titles_to_try:
         titles_to_try.append(title)
 
@@ -1643,7 +1758,7 @@ def _fetch_media_streams(
         for t_query in titles_to_try:
             try:
                 b_items = bazon.search(t_query)
-                b_match = find_best_match(b_items, year_int, is_ser_bool)
+                b_match = find_best_match(b_items, year_int, is_ser_bool, target_title=clean_title)
                 if b_match and b_match.kinopoisk_id:
                     resolved_kp = b_match.kinopoisk_id
                     break
@@ -1658,7 +1773,7 @@ def _fetch_media_streams(
             if titles_to_try:
                 for t_query in titles_to_try:
                     fx_items = filmix.search(t_query)
-                    for it in rank_matches(fx_items, year_int, is_ser_bool):
+                    for it in rank_matches(fx_items, year_int, is_ser_bool, target_title=clean_title):
                         if it.id not in candidate_fx_ids:
                             candidate_fx_ids.append(it.id)
             for fx_id in candidate_fx_ids[:3]:
@@ -1676,12 +1791,14 @@ def _fetch_media_streams(
     def _resolve_hdrezka():
         try:
             candidate_rz_ids = []
-            if source == "hdrezka" and media_id.startswith("http"):
+            if media_id and (media_id.startswith("http") or "hdrezka" in media_id):
+                candidate_rz_ids.append(media_id)
+            elif source == "hdrezka" and media_id.startswith("http"):
                 candidate_rz_ids.append(media_id)
             if titles_to_try:
                 for t_query in titles_to_try:
                     rz_items = hdrezka.search(t_query)
-                    for it in rank_matches(rz_items, year_int, is_ser_bool):
+                    for it in rank_matches(rz_items, year_int, is_ser_bool, target_title=clean_title):
                         if it.id not in candidate_rz_ids:
                             candidate_rz_ids.append(it.id)
             for rz_id in candidate_rz_ids[:3]:
@@ -1704,7 +1821,7 @@ def _fetch_media_streams(
             if not vc_id and titles_to_try:
                 for t_query in titles_to_try:
                     vc_items = videocdn.search(t_query)
-                    vc_match = find_best_match(vc_items, year_int, is_ser_bool)
+                    vc_match = find_best_match(vc_items, year_int, is_ser_bool, target_title=clean_title)
                     if vc_match and vc_match.kinopoisk_id:
                         vc_id = vc_match.kinopoisk_id
                         break
@@ -1731,7 +1848,7 @@ def _fetch_media_streams(
             b_id = resolved_kp
             if not b_id and clean_title:
                 b_items = bazon.search(clean_title)
-                b_match = find_best_match(b_items, year_int, is_ser_bool)
+                b_match = find_best_match(b_items, year_int, is_ser_bool, target_title=clean_title)
                 if b_match and b_match.kinopoisk_id:
                     b_id = b_match.kinopoisk_id
             if b_id:
@@ -1744,30 +1861,32 @@ def _fetch_media_streams(
 
     def _resolve_kodik():
         try:
-            if clean_title:
-                k_items = kodik.search(clean_title, year=year_int, kp_id=resolved_kp)
-                if k_items:
-                    target_k_id = None
-                    if audio_id and str(audio_id).startswith("kodik_"):
-                        target_k_id = str(audio_id).replace("kodik_", "")
-                    elif audio_id:
-                        a_lower = str(audio_id).lower()
+            if clean_title or media_id:
+                k_items = kodik.search(clean_title, year=year_int, kp_id=resolved_kp) if clean_title else []
+                target_k_id = None
+                if audio_id and str(audio_id).startswith("kodik_"):
+                    target_k_id = str(audio_id).replace("kodik_", "")
+                elif source == "kodik" and media_id:
+                    target_k_id = media_id.replace("kodik_", "")
+                elif audio_id:
+                    a_lower = str(audio_id).lower()
+                    for it in k_items:
+                        tr_name = str(it.extra_data.get("translation", "")).lower()
+                        if tr_name and (a_lower in tr_name or tr_name in a_lower or it.id == audio_id):
+                            target_k_id = it.id
+                            break
+                    if not target_k_id:
                         for it in k_items:
                             tr_name = str(it.extra_data.get("translation", "")).lower()
-                            if tr_name and (a_lower in tr_name or tr_name in a_lower or it.id == audio_id):
+                            if "дубляж" in tr_name and ("дубляж" in a_lower or str(audio_id) == "618"):
                                 target_k_id = it.id
                                 break
-                        if not target_k_id:
-                            for it in k_items:
-                                tr_name = str(it.extra_data.get("translation", "")).lower()
-                                if "дубляж" in tr_name and ("дубляж" in a_lower or str(audio_id) == "618"):
-                                    target_k_id = it.id
-                                    break
 
-                    if not target_k_id:
-                        ranked = rank_matches(k_items, year_int, is_ser_bool)
-                        target_k_id = ranked[0].id if ranked else k_items[0].id
+                if not target_k_id:
+                    ranked = rank_matches(k_items, year_int, is_ser_bool, target_title=clean_title)
+                    target_k_id = ranked[0].id if ranked else (k_items[0].id if k_items else None)
 
+                if target_k_id:
                     k_res = kodik.get_streams(target_k_id, season=season, episode=episode, audio_id=audio_id)
                     if k_res.streams or k_res.embed_url:
                         return ("kodik", k_res.model_dump())

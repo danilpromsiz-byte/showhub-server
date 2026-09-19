@@ -185,6 +185,11 @@ fun TvAppNavHost(activity: MainActivity) {
         episode: Int = activeEpisode,
         audioId: String = activeAudioId
     ) {
+        // Fast guard: If already on this exact screen with this exact movie, ignore duplicate calls
+        if (newScreen == currentScreen && (movie == null || movie.id == selectedMovie?.id)) {
+            return
+        }
+
         val currentState = NavState(
             screen = currentScreen,
             movie = selectedMovie,
@@ -213,11 +218,21 @@ fun TvAppNavHost(activity: MainActivity) {
 
     fun navigateBack() {
         // Pop any trailing redundant states matching the current view
-        while (backStack.isNotEmpty() && backStack.last().screen == currentScreen && backStack.last().movie?.id == selectedMovie?.id) {
+        while (backStack.isNotEmpty() && (backStack.last().screen == currentScreen && (backStack.last().movie == null || backStack.last().movie?.id == selectedMovie?.id))) {
             backStack.removeAt(backStack.size - 1)
         }
         if (backStack.isNotEmpty()) {
-            val prev = backStack.removeAt(backStack.size - 1)
+            var prev = backStack.removeAt(backStack.size - 1)
+            while (prev.screen == currentScreen && (prev.movie == null || prev.movie?.id == selectedMovie?.id) && backStack.isNotEmpty()) {
+                prev = backStack.removeAt(backStack.size - 1)
+            }
+            if (prev.screen == currentScreen && (prev.movie == null || prev.movie?.id == selectedMovie?.id)) {
+                currentScreen = Screen.HOME
+                selectedMovie = null
+                SessionManager.clearSession(activity)
+                homeViewModel.refreshCatalog()
+                return
+            }
             currentScreen = prev.screen
             selectedMovie = prev.movie
             searchInitialQuery = prev.searchQuery

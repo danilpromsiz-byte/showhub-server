@@ -81,6 +81,12 @@ data class Movie(
 
 fun getCountryBadge(country: String, genres: List<String> = emptyList(), title: String = ""): String {
     val c = country.lowercase().trim()
+    val gStr = genres.joinToString(" ").lowercase()
+    val isAsianContent = gStr.contains("дорама") || gStr.contains("аниме") || gStr.contains("аним")
+    if (isAsianContent && (c.contains("украин") || c.contains("сша") || c.contains("инди") || c.isEmpty())) {
+        return if (gStr.contains("аниме") || gStr.contains("аним")) "🇯🇵 JP" else "🇨🇳 CN"
+    }
+
     val fromCountry = when {
         c.contains("росси") || c.contains("ссср") || c.contains("russia") -> "🇷🇺 RU"
         c.contains("сша") || c.contains("америк") || c.contains("usa") -> "🇺🇸 US"
@@ -137,7 +143,6 @@ fun getCountryBadge(country: String, genres: List<String> = emptyList(), title: 
     }
     if (fromCountry.isNotBlank()) return fromCountry
 
-    val gStr = genres.joinToString(" ").lowercase()
     val tStr = title.lowercase()
     return when {
         gStr.contains("аним") || tStr.contains("титан") || tStr.contains("клинок") || tStr.contains("магическ") || tStr.contains("перекур") -> "🇯🇵 JP"

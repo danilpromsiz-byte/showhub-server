@@ -294,6 +294,7 @@ fun MovieCard(
                     .fillMaxWidth()
                     .aspectRatio(2f / 3f)
                     .then(cardModifier)
+                    .focusedGlow(isFocused = isFocused, color = focusColor, radius = 10.dp, shapeRadius = 8.dp)
                     .onFocusChanged { focusState ->
                         isFocused = focusState.isFocused
                         if (focusState.isFocused) {

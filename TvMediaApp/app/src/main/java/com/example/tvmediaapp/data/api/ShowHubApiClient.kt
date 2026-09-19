@@ -139,7 +139,8 @@ object ShowHubApiClient {
         try {
             val q = URLEncoder.encode(movie.title, "UTF-8")
             val origQ = URLEncoder.encode(movie.originalTitle, "UTF-8")
-            val urlStr = "$SERVER_BASE/api/media/details?source=hdrezka&media_id=${movie.id}&title=$q&original_title=$origQ&year=${movie.releaseYear}&is_series=${if (movie.isSeries) "1" else "0"}"
+            val encId = URLEncoder.encode(movie.id, "UTF-8")
+            val urlStr = "$SERVER_BASE/api/media/details?source=hdrezka&media_id=$encId&title=$q&original_title=$origQ&year=${movie.releaseYear}&is_series=${if (movie.isSeries) "1" else "0"}"
             val conn = URL(urlStr).openConnection() as HttpURLConnection
             conn.connectTimeout = 10000
             conn.readTimeout = 15000
@@ -383,9 +384,10 @@ object ShowHubApiClient {
         try {
             val q = URLEncoder.encode(movie.title, "UTF-8")
             val origQ = URLEncoder.encode(movie.originalTitle, "UTF-8")
+            val encId = URLEncoder.encode(movie.id, "UTF-8")
             val isSeriesStr = if (movie.isSeries || (episode != null && episode > 1) || (season != null && season > 1)) "1" else "0"
             val srcParam = if (source.isNullOrEmpty()) "all" else source.lowercase().trim()
-            val sb = StringBuilder("$SERVER_BASE/api/media/streams?source=$srcParam&media_id=${movie.id}&kp_id=${movie.id}&title=$q&original_title=$origQ&year=${movie.releaseYear}&is_series=$isSeriesStr")
+            val sb = StringBuilder("$SERVER_BASE/api/media/streams?source=$srcParam&media_id=$encId&kp_id=$encId&title=$q&original_title=$origQ&year=${movie.releaseYear}&is_series=$isSeriesStr")
             if (season != null) sb.append("&season=$season")
             if (episode != null) sb.append("&episode=$episode")
             if (!audioId.isNullOrEmpty()) sb.append("&audio_id=").append(URLEncoder.encode(audioId, "UTF-8"))
@@ -491,8 +493,9 @@ object ShowHubApiClient {
     suspend fun fetchPreviewStream(movie: Movie, startMin: Int? = null): String? = withContext(Dispatchers.IO) {
         try {
             val q = URLEncoder.encode(movie.title, "UTF-8")
+            val encId = URLEncoder.encode(movie.id, "UTF-8")
             val isSeries = if (movie.isSeries) "1" else "0"
-            val sb = StringBuilder("$SERVER_BASE/api/media/preview-stream?title=$q&media_id=${movie.id}&kp_id=${movie.id}&year=${movie.releaseYear}&is_series=$isSeries")
+            val sb = StringBuilder("$SERVER_BASE/api/media/preview-stream?title=$q&media_id=$encId&kp_id=$encId&year=${movie.releaseYear}&is_series=$isSeries")
             if (startMin != null && startMin > 0) {
                 sb.append("&start_min=").append(startMin)
             }
@@ -500,7 +503,7 @@ object ShowHubApiClient {
             val conn = url.openConnection() as HttpURLConnection
             conn.connectTimeout = 6000
             conn.readTimeout = 8000
-            conn.setRequestProperty("User-Agent", "ShowHubTV-Native/2.7.3")
+            conn.setRequestProperty("User-Agent", "ShowHubTV-Native/${com.example.tvmediaapp.BuildConfig.VERSION_NAME}")
             conn.connect()
             if (conn.responseCode == 200) {
                 val body = BufferedReader(InputStreamReader(conn.inputStream, "UTF-8")).use { it.readText() }
@@ -525,7 +528,8 @@ object ShowHubApiClient {
         val comments = mutableListOf<CommentItem>()
         try {
             val q = URLEncoder.encode(movie.title, "UTF-8")
-            val url = URL("$SERVER_BASE/api/media/comments?source=filmix&media_id=${movie.id}&title=$q")
+            val encId = URLEncoder.encode(movie.id, "UTF-8")
+            val url = URL("$SERVER_BASE/api/media/comments?source=filmix&media_id=$encId&title=$q")
             val conn = url.openConnection() as HttpURLConnection
             conn.connectTimeout = 8000
             conn.readTimeout = 12000

@@ -398,6 +398,8 @@ private fun NativeExoPlayerScreen(
     var seekSpeedLevel by remember { mutableIntStateOf(0) }
     val seekSteps = remember { listOf(10000L, 15000L, 30000L, 60000L, 120000L) }
     var seekDeltaBadge by remember { mutableStateOf<String?>(null) }
+    var timelineSeekJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+    var pendingTimelineSeekPos by remember { mutableStateOf<Long?>(null) }
     var lastUserInteractionTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
 
     LaunchedEffect(seekDeltaBadge) {
@@ -630,7 +632,8 @@ private fun NativeExoPlayerScreen(
                             isSeries = currentMovieState.isSeries,
                             season = newSeason,
                             episode = epToPlay,
-                            translatorId = newAudioId.ifEmpty { null }
+                            translatorId = newAudioId.ifEmpty { null },
+                            mediaUrl = currentMovieState.id
                         )
                     } else {
                         emptyList()
@@ -737,7 +740,8 @@ private fun NativeExoPlayerScreen(
                     isSeries = currentMovieState.isSeries,
                     season = currentSeason,
                     episode = currentEpisode,
-                    translatorId = currentAudioId.ifEmpty { null }
+                    translatorId = currentAudioId.ifEmpty { null },
+                    mediaUrl = currentMovieState.id
                 )
             }
             val serverStreams = serverDeferred.await()
@@ -1291,8 +1295,22 @@ private fun NativeExoPlayerScreen(
                             color = TextWhite
                         )
                         Spacer(modifier = Modifier.height(8.dp))
+                        val availableTracks = remember(currentMovieState.audioTracks, currentSeason, currentMovieState.isSeries) {
+                            if (currentMovieState.isSeries) {
+                                val filtered = currentMovieState.audioTracks.filter { track ->
+                                    if (track.seasonsEpisodes.isEmpty()) {
+                                        if (currentMovieState.seasons.size > 1 && currentSeason > 1) false else true
+                                    } else {
+                                        (track.seasonsEpisodes[currentSeason] ?: 0) > 0
+                                    }
+                                }
+                                if (filtered.isNotEmpty()) filtered else currentMovieState.audioTracks
+                            } else {
+                                currentMovieState.audioTracks
+                            }
+                        }
                         TvLazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            items(currentMovieState.audioTracks) { track ->
+                            items(availableTracks) { track ->
                                 val isSel = track.id == currentAudioId
                                 Button(
                                     onClick = {
@@ -1588,21 +1606,16 @@ private fun NativeExoPlayerScreen(
                         (bufferedPosition.toFloat() / duration.toFloat()).coerceIn(0f, 1f)
                     } else 0f
 
+                    val trackHeight = if (isTimelineFocused) 8.dp else 4.dp
+
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(if (isTimelineFocused) 26.dp else 14.dp)
+                            .height(20.dp)
                             .focusRequester(timelineFocusRequester)
                             .onFocusChanged { isTimelineFocused = it.isFocused }
                             .focusable()
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(if (isTimelineFocused) accent.copy(alpha = 0.16f) else Color.Transparent)
-                            .border(
-                                width = if (isTimelineFocused) 2.dp else 0.dp,
-                                color = if (isTimelineFocused) accent else Color.Transparent,
-                                shape = RoundedCornerShape(8.dp)
-                            )
-                            .padding(horizontal = 6.dp)
+                            .padding(horizontal = 4.dp)
                             .focusProperties {
                                 down = playPauseFocusRequester
                                 left = FocusRequester.Cancel
@@ -1621,10 +1634,17 @@ private fun NativeExoPlayerScreen(
                                             }
                                             lastSeekTime = now
                                             val step = seekSteps[seekSpeedLevel]
-                                            val newPos = (exoPlayer.currentPosition - step).coerceAtLeast(0L)
-                                            exoPlayer.seekTo(newPos)
+                                            val basePos = pendingTimelineSeekPos ?: currentPosition
+                                            val newPos = (basePos - step).coerceAtLeast(0L)
+                                            pendingTimelineSeekPos = newPos
                                             currentPosition = newPos
                                             seekDeltaBadge = formatTimeRu(newPos)
+                                            timelineSeekJob?.cancel()
+                                            timelineSeekJob = coroutineScope.launch {
+                                                delay(200L)
+                                                exoPlayer.seekTo(newPos)
+                                                pendingTimelineSeekPos = null
+                                            }
                                             true
                                         }
                                         KeyEvent.KEYCODE_DPAD_RIGHT -> {
@@ -1636,15 +1656,28 @@ private fun NativeExoPlayerScreen(
                                             }
                                             lastSeekTime = now
                                             val step = seekSteps[seekSpeedLevel]
-                                            val maxPos = if (exoPlayer.duration > 0) exoPlayer.duration else Long.MAX_VALUE
-                                            val newPos = (exoPlayer.currentPosition + step).coerceAtMost(maxPos)
-                                            exoPlayer.seekTo(newPos)
+                                            val basePos = pendingTimelineSeekPos ?: currentPosition
+                                            val maxPos = if (duration > 0) duration else (if (exoPlayer.duration > 0) exoPlayer.duration else Long.MAX_VALUE)
+                                            val newPos = (basePos + step).coerceAtMost(maxPos)
+                                            pendingTimelineSeekPos = newPos
                                             currentPosition = newPos
                                             seekDeltaBadge = formatTimeRu(newPos)
+                                            timelineSeekJob?.cancel()
+                                            timelineSeekJob = coroutineScope.launch {
+                                                delay(200L)
+                                                exoPlayer.seekTo(newPos)
+                                                pendingTimelineSeekPos = null
+                                            }
                                             true
                                         }
                                         KeyEvent.KEYCODE_DPAD_CENTER,
                                         KeyEvent.KEYCODE_ENTER -> {
+                                            timelineSeekJob?.cancel()
+                                            val pPos = pendingTimelineSeekPos
+                                            if (pPos != null) {
+                                                exoPlayer.seekTo(pPos)
+                                                pendingTimelineSeekPos = null
+                                            }
                                             if (exoPlayer.isPlaying) exoPlayer.pause() else exoPlayer.play()
                                             true
                                         }
@@ -1658,21 +1691,21 @@ private fun NativeExoPlayerScreen(
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(if (isTimelineFocused) 7.dp else 4.dp)
+                                .height(trackHeight)
                                 .background(Color.White.copy(alpha = 0.15f), shape = RoundedCornerShape(4.dp))
                         )
                         // 2. Buffered / Caching track
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth(bufferedFraction)
-                                .height(if (isTimelineFocused) 7.dp else 4.dp)
+                                .height(trackHeight)
                                 .background(Color.White.copy(alpha = 0.35f), shape = RoundedCornerShape(4.dp))
                         )
                         // 3. Played progress track
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth(progressFraction)
-                                .height(if (isTimelineFocused) 7.dp else 4.dp)
+                                .height(trackHeight)
                                 .background(
                                     brush = Brush.horizontalGradient(
                                         colors = listOf(

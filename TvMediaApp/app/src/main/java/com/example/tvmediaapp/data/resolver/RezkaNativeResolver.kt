@@ -49,18 +49,23 @@ object RezkaNativeResolver {
         isSeries: Boolean = false,
         season: Int = 1,
         episode: Int = 1,
-        translatorId: String? = null
+        translatorId: String? = null,
+        mediaUrl: String? = null
     ): List<StreamOption> = withContext(Dispatchers.IO) {
-        val cleanTitle = title
+        var cleanTitle = title
             .replace(Regex("\\(.*?\\)|\\[.*?\\]"), "")
             .split(":")[0]
             .split(" - ")[0]
             .trim()
-        if (cleanTitle.isEmpty()) return@withContext emptyList()
+        cleanTitle = cleanTitle.replace(Regex("\\b\\d+\\s+(сери[йия]|сезон(а|ов)?)\\b", RegexOption.IGNORE_CASE), "")
+            .replace(Regex("\\b(сезон|серия)\\s+\\d+\\b", RegexOption.IGNORE_CASE), "")
+            .replace(Regex("\\b(19\\d\\d|20\\d\\d)\\b"), "")
+            .trim()
+        if (cleanTitle.isEmpty() && mediaUrl.isNullOrEmpty()) return@withContext emptyList()
 
         // Try primary and fallback mirrors
         for (baseUrl in MIRRORS) {
-            val result = tryResolveFromMirror(baseUrl, cleanTitle, year, isSeries, season, episode, translatorId)
+            val result = tryResolveFromMirror(baseUrl, cleanTitle, year, isSeries, season, episode, translatorId, mediaUrl)
             if (result.isNotEmpty()) {
                 return@withContext result
             }
@@ -75,22 +80,35 @@ object RezkaNativeResolver {
         isSeries: Boolean,
         season: Int,
         episode: Int,
-        translatorId: String? = null
+        translatorId: String? = null,
+        mediaUrl: String? = null
     ): List<StreamOption> {
         val streams = mutableListOf<StreamOption>()
         try {
-            // 1. Search HDRezka directly from the Android TV's residential IP
-            var searchUrl = "$baseUrl/search/?do=search&subaction=search&q=" + URLEncoder.encode(cleanTitle, "UTF-8")
-            var searchHtml = httpGet(searchUrl, "$baseUrl/", baseUrl = baseUrl) ?: ""
-
             var dataId: String? = null
             var pageUrl: String? = null
 
-            val targetYearInt = year?.toIntOrNull()
-            data class RezkaCandidate(val id: String, val url: String, val score: Int)
-            val candidates = mutableListOf<RezkaCandidate>()
+            // 0. Direct URL bypass if mediaUrl is an HDRezka page
+            if (!mediaUrl.isNullOrEmpty() && (mediaUrl.startsWith("http") || mediaUrl.contains("hdrezka"))) {
+                val path = mediaUrl.substringAfter(".tv").substringAfter(".me").substringAfter(".ag").substringAfter(".org").substringAfter(".com")
+                val cleanPath = if (path.startsWith("/")) path else "/$path"
+                val idMatch = Pattern.compile("(\\d+)-[^/]+\\.html").matcher(cleanPath)
+                if (idMatch.find()) {
+                    dataId = idMatch.group(1)
+                    pageUrl = "$baseUrl$cleanPath"
+                }
+            }
 
-            fun parseCandidates(html: String) {
+            if (dataId.isNullOrEmpty() || pageUrl.isNullOrEmpty()) {
+                // 1. Search HDRezka directly from the Android TV's residential IP
+                var searchUrl = "$baseUrl/search/?do=search&subaction=search&q=" + URLEncoder.encode(cleanTitle, "UTF-8")
+                var searchHtml = httpGet(searchUrl, "$baseUrl/", baseUrl = baseUrl) ?: ""
+
+                val targetYearInt = year?.toIntOrNull()
+                data class RezkaCandidate(val id: String, val url: String, val score: Int)
+                val candidates = mutableListOf<RezkaCandidate>()
+
+                fun parseCandidates(html: String) {
                 val itemPattern = Pattern.compile("class=\"b-content__inline_item\"[^>]*data-id=\"(\\d+)\"[^>]*data-url=\"([^\"]+)\"([\\s\\S]*?)(?=<div class=\"b-content__inline_item\"|$)")
                 val itemMatcher = itemPattern.matcher(html)
                 while (itemMatcher.find()) {
@@ -161,6 +179,7 @@ object RezkaNativeResolver {
                     }
                 }
             }
+        }
 
             if (dataId.isNullOrEmpty() || pageUrl.isNullOrEmpty()) {
                 return emptyList()

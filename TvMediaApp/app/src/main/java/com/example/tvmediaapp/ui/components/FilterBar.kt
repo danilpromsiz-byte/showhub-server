@@ -198,25 +198,25 @@ fun FilterBar(
 
             items(categories) { category ->
                 val isCategoryActive = activeCategory == category
-                val (hasCustomFilter, label) = when (category) {
+                val (hasCustomFilter, label, iconRes) = when (category) {
                     FilterCategory.SORT -> {
                         val isCustom = selectedSort != "newest"
                         val name = SORT_OPTIONS.find { it.first == selectedSort }?.second ?: "Сортировка"
-                        Pair(isCustom, if (isCustom) "⚡ $name" else "⚡ Сортировка")
+                        Triple(isCustom, if (isCustom) name else "Сортировка", com.example.tvmediaapp.R.drawable.ic_sort)
                     }
                     FilterCategory.GENRES -> {
                         val isCustom = selectedGenre != "Все жанры"
-                        Pair(isCustom, if (isCustom) "🎭 $selectedGenre" else "🎭 Жанры")
+                        Triple(isCustom, if (isCustom) selectedGenre else "Жанры", com.example.tvmediaapp.R.drawable.ic_genre)
                     }
                     FilterCategory.YEAR -> {
                         val isCustom = selectedYear != "all"
                         val name = YEAR_OPTIONS.find { it.first == selectedYear }?.second ?: selectedYear
-                        Pair(isCustom, if (isCustom) "📅 $name" else "📅 Год")
+                        Triple(isCustom, if (isCustom) name else "Год", com.example.tvmediaapp.R.drawable.ic_calendar)
                     }
                     FilterCategory.COUNTRY -> {
                         val isCustom = selectedCountry != "all"
                         val name = COUNTRY_OPTIONS.find { it.first == selectedCountry }?.second ?: selectedCountry
-                        Pair(isCustom, if (isCustom) "🌍 $name" else "🌍 Страна")
+                        Triple(isCustom, if (isCustom) name else "Страна", com.example.tvmediaapp.R.drawable.ic_public)
                     }
                 }
 
@@ -247,12 +247,22 @@ fun FilterBar(
                         .height(28.dp)
                         .then(row1DirectionMod)
                 ) {
-                    Text(
-                        text = label,
-                        fontSize = 11.sp,
-                        fontWeight = if (isCategoryActive || hasCustomFilter) FontWeight.Bold else FontWeight.Medium,
-                        lineHeight = 13.sp
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(5.dp)
+                    ) {
+                        AppIcon(
+                            resId = iconRes,
+                            tint = if (isCategoryActive) Color.Black else (if (hasCustomFilter) Color.White else TextGray),
+                            size = 12.dp
+                        )
+                        Text(
+                            text = label,
+                            fontSize = 11.sp,
+                            fontWeight = if (isCategoryActive || hasCustomFilter) FontWeight.Bold else FontWeight.Medium,
+                            lineHeight = 13.sp
+                        )
+                    }
                 }
             }
 
@@ -287,12 +297,22 @@ fun FilterBar(
                         .height(28.dp)
                         .then(row1DirectionMod)
                 ) {
-                    Text(
-                        text = "✖ Сброс",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Medium,
-                        lineHeight = 13.sp
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        AppIcon(
+                            resId = com.example.tvmediaapp.R.drawable.ic_close,
+                            tint = if (hasAnyFilter) Color(0xFFFF8A80) else TextGray,
+                            size = 12.dp
+                        )
+                        Text(
+                            text = "Сброс",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium,
+                            lineHeight = 13.sp
+                        )
+                    }
                 }
             }
         }

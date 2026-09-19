@@ -134,13 +134,19 @@ fun MovieCard(
                 }
 
                 if (streamUrl.isNullOrEmpty()) {
-                    val candidate = ShowHubApiClient.fetchPreviewStream(movie)
+                    val prefs = context.getSharedPreferences("showhub_prefs", android.content.Context.MODE_PRIVATE)
+                    val configuredStartMin = prefs.getInt("pref_preview_start_min", if (movie.isSeries) 12 else 22)
+                    val candidate = ShowHubApiClient.fetchPreviewStream(movie, configuredStartMin)
                     if (candidate != null && isDirectVideoStream(candidate)) {
                         streamUrl = candidate
                     }
                 }
 
                 if (isFocused && !streamUrl.isNullOrEmpty() && isDirectVideoStream(streamUrl)) {
+                    val prefs = context.getSharedPreferences("showhub_prefs", android.content.Context.MODE_PRIVATE)
+                    val baseStartMin = prefs.getInt("pref_preview_start_min", if (movie.isSeries) 12 else 22)
+                    val baseSeekMs = baseStartMin * 60 * 1000L
+
                     try {
                         val httpDataSourceFactory = DefaultHttpDataSource.Factory()
                             .setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
@@ -167,7 +173,6 @@ fun MovieCard(
                             .setMediaSourceFactory(mediaSourceFactory)
                             .setLoadControl(loadControl)
                             .build().apply {
-                                val targetSeekMs = if (movie.isSeries) 12 * 60 * 1000L else 22 * 60 * 1000L
                                 setMediaItem(MediaItem.fromUri(streamUrl))
                                 volume = 0f // strictly silent
                                 repeatMode = Player.REPEAT_MODE_ALL
@@ -176,8 +181,8 @@ fun MovieCard(
                                         if (state == Player.STATE_READY) {
                                             if (!hasSeeked) {
                                                 hasSeeked = true
-                                                if (duration > 0 && duration > targetSeekMs + 20_000L) {
-                                                    seekTo(targetSeekMs)
+                                                if (duration > 0 && duration > baseSeekMs + 20_000L) {
+                                                    seekTo(baseSeekMs)
                                                 } else if (duration > 0) {
                                                     seekTo((duration * 0.25).toLong())
                                                 }
@@ -187,7 +192,7 @@ fun MovieCard(
                                         } else if (state == Player.STATE_BUFFERING) {
                                             isPreviewBuffering = true
                                         } else if (state == Player.STATE_ENDED) {
-                                            seekTo(0L)
+                                            seekTo(baseSeekMs)
                                             play()
                                         }
                                     }
@@ -201,6 +206,24 @@ fun MovieCard(
                                 playWhenReady = true
                             }
                         previewPlayer = player
+
+                        // Triple sequential preview: Phase 0 (T), Phase 1 (T+10m), Phase 2 (T+20m) cycling every 12s
+                        var currentPhase = 0
+                        while (isFocused && previewPlayer != null) {
+                            delay(12_000)
+                            if (!isFocused) break
+                            currentPhase = (currentPhase + 1) % 3
+                            val nextSeekMin = baseStartMin + (currentPhase * 10)
+                            val nextSeekMs = nextSeekMin * 60 * 1000L
+                            previewPlayer?.let { p ->
+                                if (p.duration > 0 && p.duration > nextSeekMs + 15_000L) {
+                                    p.seekTo(nextSeekMs)
+                                } else if (p.duration > 0) {
+                                    p.seekTo(baseSeekMs.coerceAtMost((p.duration * 0.5).toLong()))
+                                    currentPhase = 0
+                                }
+                            }
+                        }
                     } catch (e: Exception) {
                         e.printStackTrace()
                         isPreviewBuffering = false
@@ -464,6 +487,26 @@ fun MovieCard(
                         }
                     }
 
+                    // Bottom-left: Country flag + Max Non-Premium Quality badge
+                    val flagEmoji = com.example.tvmediaapp.data.models.getCountryFlagEmoji(movie.country)
+                    val badgeQuality = movie.maxQuality.ifEmpty { "1080p" }
+                    val badgeText = (if (flagEmoji.isNotBlank()) "$flagEmoji " else "") + badgeQuality
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomStart)
+                            .padding(5.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(Color.Black.copy(alpha = 0.75f))
+                            .padding(horizontal = 4.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = badgeText,
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    }
+
                     // Preview Timeline Bar (animates across top while waiting for preview)
                     if (isFocused && !isPreviewPlaying && timelineProgress > 0f) {
                         Box(
@@ -521,7 +564,9 @@ fun MovieCard(
                 val typeStr = if (movie.isSeries) {
                     if (movie.episodesInfo.isNotBlank()) movie.episodesInfo else "Сериал"
                 } else "Фильм"
-                val subText = if (cleanYear.isNotEmpty()) "$cleanYear • $typeStr" else typeStr
+                val flag = com.example.tvmediaapp.data.models.getCountryFlagEmoji(movie.country)
+                val flagPrefix = if (flag.isNotBlank()) "$flag " else ""
+                val subText = if (cleanYear.isNotEmpty()) "$flagPrefix$cleanYear • $typeStr" else "$flagPrefix$typeStr"
                 Text(
                     text = subText,
                     style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),

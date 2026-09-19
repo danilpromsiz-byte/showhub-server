@@ -50,7 +50,8 @@ object ShowHubApiClient {
         sortBy: String = "newest",
         year: String? = null,
         country: String? = null,
-        page: Int = 1
+        page: Int = 1,
+        excludedCountries: String? = null
     ): List<Movie> = withContext(Dispatchers.IO) {
         val movies = mutableListOf<Movie>()
         try {
@@ -66,6 +67,9 @@ object ShowHubApiClient {
             }
             if (!country.isNullOrEmpty() && country != "all") {
                 sb.append("&country=").append(URLEncoder.encode(country, "UTF-8"))
+            }
+            if (!excludedCountries.isNullOrEmpty()) {
+                sb.append("&excluded_countries=").append(URLEncoder.encode(excludedCountries, "UTF-8"))
             }
             val url = URL(sb.toString())
             val conn = url.openConnection() as HttpURLConnection
@@ -189,6 +193,22 @@ object ShowHubApiClient {
                     }
                 }
 
+                val dirList = mutableListOf<PersonInfo>()
+                val dArr = obj.optJSONArray("directors_list")
+                if (dArr != null) {
+                    for (dIdx in 0 until dArr.length()) {
+                        val dObj = dArr.getJSONObject(dIdx)
+                        dirList.add(
+                            PersonInfo(
+                                id = dObj.optString("id", dIdx.toString()),
+                                name = dObj.optString("name", ""),
+                                role = dObj.optString("role", "Режиссёр"),
+                                photoUrl = dObj.optString("photo", dObj.optString("photoUrl", ""))
+                            )
+                        )
+                    }
+                }
+
                 val ageRating = obj.optString("age_limit", movie.ageRating).ifEmpty { movie.ageRating }
                 val rawPoster = obj.optString("poster", "")
                 val updatedPoster = if (rawPoster.startsWith("http") && !rawPoster.contains("no_image") && !rawPoster.contains("noposter")) rawPoster else movie.posterUrl
@@ -216,6 +236,7 @@ object ShowHubApiClient {
                     seasons = if (seasonsList.isNotEmpty()) seasonsList else movie.seasons,
                     audioTracks = if (audioList.isNotEmpty()) audioList else movie.audioTracks,
                     cast = if (castList.isNotEmpty()) castList else movie.cast,
+                    directorsList = if (dirList.isNotEmpty()) dirList else movie.directorsList,
                     ageRating = ageRating
                 )
             }
@@ -345,15 +366,19 @@ object ShowHubApiClient {
         null
     }
 
-    suspend fun fetchPreviewStream(movie: Movie): String? = withContext(Dispatchers.IO) {
+    suspend fun fetchPreviewStream(movie: Movie, startMin: Int? = null): String? = withContext(Dispatchers.IO) {
         try {
             val q = URLEncoder.encode(movie.title, "UTF-8")
             val isSeries = if (movie.isSeries) "1" else "0"
-            val url = URL("$SERVER_BASE/api/media/preview-stream?title=$q&media_id=${movie.id}&kp_id=${movie.id}&year=${movie.releaseYear}&is_series=$isSeries")
+            val sb = StringBuilder("$SERVER_BASE/api/media/preview-stream?title=$q&media_id=${movie.id}&kp_id=${movie.id}&year=${movie.releaseYear}&is_series=$isSeries")
+            if (startMin != null && startMin > 0) {
+                sb.append("&start_min=").append(startMin)
+            }
+            val url = URL(sb.toString())
             val conn = url.openConnection() as HttpURLConnection
             conn.connectTimeout = 6000
             conn.readTimeout = 8000
-            conn.setRequestProperty("User-Agent", "ShowHubTV-Native/2.6.4")
+            conn.setRequestProperty("User-Agent", "ShowHubTV-Native/2.7.3")
             conn.connect()
             if (conn.responseCode == 200) {
                 val body = BufferedReader(InputStreamReader(conn.inputStream, "UTF-8")).use { it.readText() }

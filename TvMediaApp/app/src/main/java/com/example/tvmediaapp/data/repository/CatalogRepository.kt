@@ -319,6 +319,9 @@ class CatalogRepository(context: Context? = null) {
             return@flow
         }
 
+        val excludedCountriesStr = prefs?.getString("pref_excluded_countries", "") ?: ""
+        val onlyWithPoster = prefs?.getBoolean("pref_only_with_poster", true) ?: true
+
         // Live API fetch first without hardcoded movies on start
         try {
             val liveMovies = ShowHubApiClient.fetchCatalog(
@@ -326,16 +329,33 @@ class CatalogRepository(context: Context? = null) {
                 genre = genre,
                 sortBy = sortBy,
                 year = year,
-                country = country
+                country = country,
+                excludedCountries = if (excludedCountriesStr.isNotBlank()) excludedCountriesStr else null
             )
 
-            if (liveMovies.isNotEmpty()) {
+            var effectiveMovies = liveMovies
+            if (onlyWithPoster) {
+                effectiveMovies = effectiveMovies.filter { m ->
+                    m.posterUrl.isNotBlank() && !m.posterUrl.contains("no_image") && !m.posterUrl.contains("noposter")
+                }
+            }
+            if (excludedCountriesStr.isNotBlank()) {
+                val exList = excludedCountriesStr.split(",").map { it.trim().lowercase() }.filter { it.isNotEmpty() }
+                if (exList.isNotEmpty()) {
+                    effectiveMovies = effectiveMovies.filter { m ->
+                        val cLow = m.country.lowercase()
+                        exList.none { ex -> cLow.contains(ex) }
+                    }
+                }
+            }
+
+            if (effectiveMovies.isNotEmpty()) {
                 val liveCategories = if (category == "all" && (genre.isNullOrEmpty() || genre == "Все жанры")) {
                     listOf(
-                        MovieCategory(id = "popular", title = "Популярные новинки", movies = liveMovies),
-                        MovieCategory(id = "top_rated", title = "Топ рейтинга", movies = liveMovies.sortedByDescending { it.rating }),
-                        MovieCategory(id = "series", title = "Сериалы", movies = liveMovies.filter { it.isSeries }),
-                        MovieCategory(id = "movies", title = "Фильмы", movies = liveMovies.filter { !it.isSeries })
+                        MovieCategory(id = "popular", title = "Популярные новинки", movies = effectiveMovies),
+                        MovieCategory(id = "top_rated", title = "Топ рейтинга", movies = effectiveMovies.sortedByDescending { it.rating }),
+                        MovieCategory(id = "series", title = "Сериалы", movies = effectiveMovies.filter { it.isSeries }),
+                        MovieCategory(id = "movies", title = "Фильмы", movies = effectiveMovies.filter { !it.isSeries })
                     )
                 } else {
                     val title = when (category) {
@@ -345,7 +365,7 @@ class CatalogRepository(context: Context? = null) {
                         "anime" -> "Аниме"
                         else -> "Каталог"
                     }
-                    listOf(MovieCategory(id = category, title = title, movies = liveMovies))
+                    listOf(MovieCategory(id = category, title = title, movies = effectiveMovies))
                 }
                 emit(liveCategories)
             } else {

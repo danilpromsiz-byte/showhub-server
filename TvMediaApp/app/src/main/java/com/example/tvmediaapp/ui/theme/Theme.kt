@@ -13,17 +13,17 @@ import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.darkColorScheme
 
-val LocalAccentColor = compositionLocalOf { CyanNeon }
+val LocalAccentColor = compositionLocalOf { ThemeYellow }
 
 object ThemeManager {
     private const val PREF_THEME_KEY = "pref_theme"
     private const val PREF_PURE_BLACK_KEY = "pref_pure_black"
     private var prefs: SharedPreferences? = null
 
-    var currentAccentColor by mutableStateOf(CyanNeon)
+    var currentAccentColor by mutableStateOf(ThemeYellow)
         private set
 
-    var currentThemeKey by mutableStateOf("cyan")
+    var currentThemeKey by mutableStateOf("yellow")
         private set
 
     var isPureBlackEnabled by mutableStateOf(false)
@@ -31,7 +31,7 @@ object ThemeManager {
 
     fun init(context: Context) {
         prefs = context.getSharedPreferences("showhub_prefs", Context.MODE_PRIVATE)
-        val saved = prefs?.getString(PREF_THEME_KEY, "cyan") ?: "cyan"
+        val saved = prefs?.getString(PREF_THEME_KEY, "yellow") ?: "yellow"
         isPureBlackEnabled = prefs?.getBoolean(PREF_PURE_BLACK_KEY, false) ?: false
         setTheme(saved)
     }
@@ -44,12 +44,14 @@ object ThemeManager {
     fun setTheme(themeKey: String) {
         currentThemeKey = themeKey
         currentAccentColor = when (themeKey) {
+            "yellow" -> ThemeYellow
+            "cyan" -> ThemeCyan
             "emerald" -> ThemeEmerald
             "amber" -> ThemeAmber
             "ruby" -> ThemeRuby
             "amethyst" -> ThemeAmethyst
             "sapphire" -> ThemeSapphire
-            else -> CyanNeon
+            else -> ThemeYellow
         }
         prefs?.edit()?.putString(PREF_THEME_KEY, themeKey)?.apply()
     }

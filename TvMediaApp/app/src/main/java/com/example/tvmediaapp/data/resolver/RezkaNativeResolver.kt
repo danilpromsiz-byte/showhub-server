@@ -51,7 +51,11 @@ object RezkaNativeResolver {
         episode: Int = 1,
         translatorId: String? = null
     ): List<StreamOption> = withContext(Dispatchers.IO) {
-        val cleanTitle = title.split(":")[0].split(" - ")[0].trim()
+        val cleanTitle = title
+            .replace(Regex("\\(.*?\\)|\\[.*?\\]"), "")
+            .split(":")[0]
+            .split(" - ")[0]
+            .trim()
         if (cleanTitle.isEmpty()) return@withContext emptyList()
 
         // Try primary and fallback mirrors
@@ -82,12 +86,47 @@ object RezkaNativeResolver {
             var dataId: String? = null
             var pageUrl: String? = null
 
-            // Pattern A: Match inside search result items container (avoid top-rated/popular sidebar items)
-            val itemMatcher = Pattern.compile("<div class=\"b-content__inline_item\"[^>]*data-id=\"(\\d+)\"[^>]*data-url=\"([^\"]+)\"").matcher(searchHtml)
-            if (itemMatcher.find()) {
-                dataId = itemMatcher.group(1)
+            val targetYearInt = year?.toIntOrNull()
+            data class RezkaCandidate(val id: String, val url: String, val score: Int)
+            val candidates = mutableListOf<RezkaCandidate>()
+
+            // Pattern A: Match inside search result items container and score candidates
+            val itemPattern = Pattern.compile("class=\"b-content__inline_item\"[^>]*data-id=\"(\\d+)\"[^>]*data-url=\"([^\"]+)\"([\\s\\S]*?)(?=<div class=\"b-content__inline_item\"|$)")
+            val itemMatcher = itemPattern.matcher(searchHtml)
+            while (itemMatcher.find()) {
+                val id = itemMatcher.group(1) ?: continue
                 val rawLink = itemMatcher.group(2) ?: ""
-                pageUrl = if (rawLink.startsWith("http")) rawLink else "$baseUrl$rawLink"
+                val fullUrl = if (rawLink.startsWith("http")) rawLink else "$baseUrl$rawLink"
+                val snippet = itemMatcher.group(3) ?: ""
+                var score = 10
+
+                // Year matching
+                val yearMatcher = Pattern.compile("\\b(19\\d\\d|20\\d\\d)\\b").matcher(snippet)
+                if (yearMatcher.find()) {
+                    val candYear = yearMatcher.group(1).toIntOrNull()
+                    if (targetYearInt != null && candYear != null) {
+                        val diff = Math.abs(candYear - targetYearInt)
+                        if (diff == 0) score += 100
+                        else if (diff == 1) score += 50
+                        else score -= diff * 10
+                    }
+                }
+
+                // Series vs Movie matching
+                val isCandSeries = fullUrl.contains("/series/") || fullUrl.contains("/animation/") || snippet.contains("сезон") || snippet.contains("сери")
+                if (isSeries == isCandSeries) {
+                    score += 60
+                } else {
+                    score -= 30
+                }
+
+                candidates.add(RezkaCandidate(id, fullUrl, score))
+            }
+
+            if (candidates.isNotEmpty()) {
+                val best = candidates.maxByOrNull { it.score }!!
+                dataId = best.id
+                pageUrl = best.url
             } else {
                 // Pattern B: general data-id and data-url
                 val genMatcher = Pattern.compile("data-id=\"(\\d+)\"\\s+data-url=\"([^\"]+)\"").matcher(searchHtml)

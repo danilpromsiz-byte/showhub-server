@@ -36,7 +36,8 @@ class KodikSource(BaseSource):
         token = self.TOKENS[0]
         params = {
             "token": token,
-            "with_episodes": "true"
+            "with_episodes": "true",
+            "with_material_data": "true"
         }
         if kp_id and str(kp_id).isdigit():
             params["kinopoisk_id"] = str(kp_id)
@@ -58,17 +59,43 @@ class KodikSource(BaseSource):
                             link = res.get("link", "")
                             r_year = res.get("year")
                             trans = res.get("translation", {}).get("title", "Оригинал")
+                            md = res.get("material_data") or {}
+                            poster = md.get("poster_url")
+                            if not poster:
+                                sc = res.get("screenshots", [])
+                                if sc:
+                                    poster = sc[0]
+                            genres_list = md.get("genres") or []
+                            countries_list = md.get("countries") or []
+                            actors_list = md.get("actors") or []
+                            directors_list = md.get("directors") or []
+                            kp_id_val = res.get("kinopoisk_id") or md.get("kinopoisk_id")
+                            imdb_id_val = res.get("imdb_id") or md.get("imdb_id")
+                            kp_rating = md.get("kinopoisk_rating")
+                            imdb_rating = md.get("imdb_rating")
+
                             items.append(MediaItem(
                                 id=str(res.get("id", link)),
                                 source_name=self.name,
-                                title=f"{title} ({trans})",
+                                title=title,
                                 year=r_year,
-                                description=f"Перевод: {trans}",
+                                poster=poster,
+                                description=md.get("description") or f"Перевод: {trans}",
+                                rating_kp=float(kp_rating) if kp_rating else None,
+                                rating_imdb=float(imdb_rating) if imdb_rating else None,
+                                kinopoisk_id=str(kp_id_val) if kp_id_val else None,
+                                imdb_id=str(imdb_id_val) if imdb_id_val else None,
                                 extra_data={
                                     "link": link,
                                     "translation": trans,
                                     "type": res.get("type", "movie"),
-                                    "seasons": res.get("seasons", {})
+                                    "seasons": res.get("seasons", {}),
+                                    "genres": genres_list,
+                                    "countries": countries_list,
+                                    "country": countries_list[0] if countries_list else "",
+                                    "actors": ", ".join(actors_list) if actors_list else "",
+                                    "directors": ", ".join(directors_list) if directors_list else "",
+                                    "director": directors_list[0] if directors_list else ""
                                 }
                             ))
                         break
@@ -82,7 +109,8 @@ class KodikSource(BaseSource):
         params = {
             "token": token,
             "limit": str(limit),
-            "with_episodes": "true"
+            "with_episodes": "true",
+            "with_material_data": "true"
         }
         if country and country != "all":
             c_norm = country
@@ -141,24 +169,42 @@ class KodikSource(BaseSource):
                         title = res.get("title") or res.get("title_orig") or ""
                         r_year = res.get("year")
                         trans = res.get("translation", {}).get("title", "")
-                        poster = None
-                        screenshots = res.get("screenshots", [])
-                        if screenshots and len(screenshots) > 0:
-                            poster = screenshots[0]
-                        kp_id = res.get("kinopoisk_id")
-                        imdb_id = res.get("imdb_id")
+                        md = res.get("material_data") or {}
+                        poster = md.get("poster_url")
+                        if not poster:
+                            screenshots = res.get("screenshots", [])
+                            if screenshots and len(screenshots) > 0:
+                                poster = screenshots[0]
+                        kp_id = res.get("kinopoisk_id") or md.get("kinopoisk_id")
+                        imdb_id = res.get("imdb_id") or md.get("imdb_id")
                         is_ser = "serial" in str(res.get("type", ""))
+                        genres_list = md.get("genres") or ([genre] if genre and genre != "all" else [])
+                        countries_list = md.get("countries") or ([params.get("countries")] if params.get("countries") else [])
+                        actors_list = md.get("actors") or []
+                        directors_list = md.get("directors") or []
+                        kp_rating = md.get("kinopoisk_rating")
+                        imdb_rating = md.get("imdb_rating")
+
                         items.append(MediaItem(
                             id=str(res.get("id")),
                             source_name=self.name,
                             title=title,
                             year=r_year,
                             poster=poster,
+                            description=md.get("description") or (f"Перевод: {trans}" if trans else ""),
+                            rating_kp=float(kp_rating) if kp_rating else None,
+                            rating_imdb=float(imdb_rating) if imdb_rating else None,
                             kinopoisk_id=str(kp_id) if kp_id else None,
                             imdb_id=str(imdb_id) if imdb_id else None,
                             is_series=is_ser,
                             extra_data={
-                                "country": country or "",
+                                "country": countries_list[0] if countries_list else (country or ""),
+                                "countries": countries_list,
+                                "genre": genres_list[0] if genres_list else (genre or ""),
+                                "genres": genres_list,
+                                "actors": ", ".join(actors_list) if actors_list else "",
+                                "directors": ", ".join(directors_list) if directors_list else "",
+                                "director": directors_list[0] if directors_list else "",
                                 "translation": trans,
                                 "type": res.get("type")
                             }

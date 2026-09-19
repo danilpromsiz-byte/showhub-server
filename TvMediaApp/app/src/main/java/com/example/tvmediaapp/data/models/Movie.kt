@@ -54,9 +54,42 @@ data class Movie(
     val seasons: List<SeasonInfo> = emptyList(),
     val audioTracks: List<AudioTrackInfo> = emptyList(),
     val cast: List<PersonInfo> = emptyList(),
+    val directorsList: List<PersonInfo> = emptyList(),
     val ageRating: String = "",
+    val maxQuality: String = "1080p",
     val isFavorite: Boolean = false
 )
+
+fun getCountryFlagEmoji(country: String): String {
+    val c = country.lowercase().trim()
+    return when {
+        c.contains("росси") || c.contains("ссср") || c.contains("russia") -> "🇷🇺"
+        c.contains("сша") || c.contains("америк") || c.contains("usa") -> "🇺🇸"
+        c.contains("коре") || c.contains("korea") -> "🇰🇷"
+        c.contains("турц") || c.contains("turkey") -> "🇹🇷"
+        c.contains("япон") || c.contains("japan") -> "🇯🇵"
+        c.contains("кита") || c.contains("china") -> "🇨🇳"
+        c.contains("великобрит") || c.contains("англи") || c.contains("uk") -> "🇬🇧"
+        c.contains("франц") || c.contains("france") -> "🇫🇷"
+        c.contains("герман") || c.contains("germany") -> "🇩🇪"
+        c.contains("итал") || c.contains("italy") -> "🇮🇹"
+        c.contains("испан") || c.contains("spain") -> "🇪🇸"
+        c.contains("инди") || c.contains("india") -> "🇮🇳"
+        c.contains("канад") || c.contains("canada") -> "🇨🇦"
+        c.contains("австрал") || c.contains("australia") -> "🇦🇺"
+        c.contains("таиланд") || c.contains("тайланд") || c.contains("thailand") -> "🇹🇭"
+        c.contains("швеци") || c.contains("sweden") -> "🇸🇪"
+        c.contains("мексик") || c.contains("mexico") -> "🇲🇽"
+        c.contains("бразил") || c.contains("brazil") -> "🇧🇷"
+        c.contains("норвег") || c.contains("norway") -> "🇳🇴"
+        c.contains("дани") || c.contains("denmark") -> "🇩🇰"
+        c.contains("финлянд") || c.contains("finland") -> "🇫🇮"
+        c.contains("польш") || c.contains("poland") -> "🇵🇱"
+        c.contains("ирланд") || c.contains("ireland") -> "🇮🇪"
+        c.contains("нидерланд") || c.contains("netherlands") || c.contains("голланди") -> "🇳🇱"
+        else -> ""
+    }
+}
 
 data class MovieCategory(
     val id: String,

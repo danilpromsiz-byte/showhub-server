@@ -144,6 +144,20 @@ fun DetailsScreen(
         }
     }
 
+    val displayDirectors = remember(currentMovie.directorsList, currentMovie.director) {
+        if (currentMovie.directorsList.isNotEmpty()) {
+            currentMovie.directorsList
+        } else if (currentMovie.director.isNotBlank()) {
+            currentMovie.director.split(",", "•", ";")
+                .map { it.trim() }
+                .filter { it.isNotEmpty() && !it.equals("null", ignoreCase = true) }
+                .take(6)
+                .map { com.example.tvmediaapp.data.models.PersonInfo(name = it) }
+        } else {
+            emptyList()
+        }
+    }
+
     fun matchStreamQuality(stream: StreamOption, target: String): Boolean {
         if (!isDirectVideoStream(stream.url)) return false
         val sq = stream.quality.lowercase().trim()
@@ -926,7 +940,7 @@ fun DetailsScreen(
                             ) {
                                 AppIcon(
                                     resId = R.drawable.ic_replay_10,
-                                    tint = TextWhite,
+                                    tint = androidx.tv.material3.LocalContentColor.current,
                                     size = 13.dp
                                 )
                                 Text(
@@ -1030,7 +1044,7 @@ fun DetailsScreen(
                         ) {
                             AppIcon(
                                 resId = R.drawable.ic_movie,
-                                tint = TextWhite,
+                                tint = androidx.tv.material3.LocalContentColor.current,
                                 size = 14.dp
                             )
                             Text(
@@ -1127,7 +1141,7 @@ fun DetailsScreen(
                         ) {
                             AppIcon(
                                 resId = R.drawable.ic_open_in_new,
-                                tint = TextWhite,
+                                tint = androidx.tv.material3.LocalContentColor.current,
                                 size = 13.dp
                             )
                             Text(
@@ -1178,7 +1192,7 @@ fun DetailsScreen(
                         ) {
                             AppIcon(
                                 resId = if (isFavorite) R.drawable.ic_star else R.drawable.ic_star_border,
-                                tint = if (isFavorite) FavoriteGold else TextWhite,
+                                tint = if (isFavorite) FavoriteGold else androidx.tv.material3.LocalContentColor.current,
                                 size = 13.dp
                             )
                             Text(
@@ -1220,7 +1234,7 @@ fun DetailsScreen(
                         ) {
                             AppIcon(
                                 resId = R.drawable.ic_arrow_back,
-                                tint = TextWhite,
+                                tint = androidx.tv.material3.LocalContentColor.current,
                                 size = 13.dp
                             )
                             Text(
@@ -1522,23 +1536,17 @@ fun DetailsScreen(
 
                     1 -> {
                         // TAB 1: ОПИСАНИЕ И ДЕТАЛИ (С возможностью скролла пультом)
-                        var isDescFocused by remember { mutableStateOf(false) }
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(8.dp))
-                                .background(Color.White.copy(alpha = if (isDescFocused) 0.10f else 0.05f))
+                                .background(Color.White.copy(alpha = 0.05f))
                                 .border(
-                                    width = if (isDescFocused) 2.dp else 1.dp,
-                                    color = if (isDescFocused) accent else Color.White.copy(alpha = 0.1f),
+                                    width = 1.dp,
+                                    color = Color.White.copy(alpha = 0.1f),
                                     shape = RoundedCornerShape(8.dp)
                                 )
-                                .padding(16.dp)
-                                .focusable()
-                                .onFocusChanged { isDescFocused = it.isFocused }
-                                .focusProperties {
-                                    up = tabsFocusRequester
-                                },
+                                .padding(16.dp),
                             verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             Text(
@@ -1553,6 +1561,82 @@ fun DetailsScreen(
                                 lineHeight = 22.sp,
                                 color = TextWhite
                             )
+
+                            // Director Strip
+                            if (displayDirectors.isNotEmpty()) {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = "Режиссёр (нажмите для поиска фильмов):",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = accent
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                TvLazyRow(
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                    contentPadding = PaddingValues(vertical = 4.dp)
+                                ) {
+                                    items(displayDirectors) { director ->
+                                        var isDirFocused by remember { mutableStateOf(false) }
+                                        Card(
+                                            onClick = { onSearchClick(director.name) },
+                                            colors = CardDefaults.colors(
+                                                containerColor = Color.White.copy(alpha = 0.08f),
+                                                focusedContainerColor = Color.White.copy(alpha = 0.22f)
+                                            ),
+                                            border = CardDefaults.border(
+                                                border = Border.None,
+                                                focusedBorder = Border(BorderStroke(2.dp, accent))
+                                            ),
+                                            shape = CardDefaults.shape(RoundedCornerShape(8.dp)),
+                                            scale = CardDefaults.scale(scale = 1.0f, focusedScale = 1.05f),
+                                            modifier = Modifier
+                                                .width(86.dp)
+                                                .onFocusChanged { isDirFocused = it.isFocused }
+                                        ) {
+                                            Column(
+                                                horizontalAlignment = Alignment.CenterHorizontally,
+                                                modifier = Modifier.padding(6.dp)
+                                            ) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(54.dp)
+                                                        .clip(RoundedCornerShape(27.dp))
+                                                        .background(Color.White.copy(alpha = 0.1f))
+                                                        .border(1.5.dp, if (isDirFocused) accent else Color.Transparent, RoundedCornerShape(27.dp)),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    if (director.photoUrl.isNotBlank()) {
+                                                        AsyncImage(
+                                                            model = director.photoUrl,
+                                                            contentDescription = director.name,
+                                                            contentScale = ContentScale.Crop,
+                                                            modifier = Modifier.fillMaxSize()
+                                                        )
+                                                    } else {
+                                                        AppIcon(
+                                                            resId = R.drawable.ic_director,
+                                                            tint = TextGray,
+                                                            size = 28.dp
+                                                        )
+                                                    }
+                                                }
+                                                Spacer(modifier = Modifier.height(4.dp))
+                                                Text(
+                                                    text = director.name,
+                                                    fontSize = 10.sp,
+                                                    fontWeight = FontWeight.Medium,
+                                                    color = TextWhite,
+                                                    maxLines = 2,
+                                                    overflow = TextOverflow.Ellipsis,
+                                                    textAlign = TextAlign.Center
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
                             if (displayCast.isNotEmpty()) {
                                 Spacer(modifier = Modifier.height(8.dp))
                                 Text(
@@ -1626,7 +1710,7 @@ fun DetailsScreen(
                                     }
                                 }
                             }
-                            if (currentMovie.director.isNotEmpty()) {
+                            if (displayDirectors.isEmpty() && currentMovie.director.isNotEmpty()) {
                                 Text(text = "Режиссёр: ${currentMovie.director}", fontSize = 13.sp, color = TextGray)
                             }
                             if (currentMovie.country.isNotEmpty()) {
@@ -1724,6 +1808,9 @@ fun DetailsScreen(
                         }
                     }
                 }
+
+                // Smooth bottom clearance for TV bezels and overscan
+                Spacer(modifier = Modifier.height(64.dp))
             }
         }
     }

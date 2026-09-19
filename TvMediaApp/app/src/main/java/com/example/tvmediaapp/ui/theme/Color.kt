@@ -27,6 +27,7 @@ val RatingStar = Color(0xFFFFB800)
 val FavoriteGold = Color(0xFFFFD700)
 
 // Theme Palette
+val ThemeYellow = Color(0xFFF5C518) // Cinema Yellow (IMDb Gold)
 val ThemeCyan = Color(0xFF00E5FF)
 val ThemeEmerald = Color(0xFF00D26A)
 val ThemeAmber = Color(0xFFFFB300)

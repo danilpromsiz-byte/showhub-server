@@ -81,12 +81,27 @@ enum class SettingsTab(val title: String) {
 }
 
 val THEME_OPTIONS = listOf(
+    Pair("yellow", "Cinema Yellow (Золото IMDb)"),
     Pair("cyan", "Cyan Neon (Бирюза)"),
     Pair("emerald", "Emerald (Изумруд)"),
     Pair("amber", "Amber (Янтарь)"),
     Pair("ruby", "Ruby (Рубин)"),
     Pair("amethyst", "Amethyst (Аметист)"),
     Pair("sapphire", "Sapphire (Сапфир)")
+)
+
+val PREVIEW_START_OPTIONS = listOf(
+    Pair(5, "5 мин"),
+    Pair(10, "10 мин"),
+    Pair(12, "12 мин (По умолчанию)"),
+    Pair(15, "15 мин"),
+    Pair(20, "20 мин")
+)
+
+val EXCLUDE_COUNTRY_OPTIONS = listOf(
+    "Россия", "США", "Южная Корея", "Турция", "Япония", "Китай",
+    "Великобритания", "Франция", "Германия", "Италия", "Испания",
+    "Индия", "СССР", "Канада", "Австралия", "Таиланд", "Швеция"
 )
 
 val QUALITY_OPTIONS = listOf(
@@ -141,16 +156,6 @@ fun SettingsScreen(
     val firstControlModifier = Modifier
         .focusRequester(firstControlFocusRequester)
         .focusProperties { up = tabsFocusRequester }
-        .onPreviewKeyEvent { event ->
-            if (event.nativeKeyEvent.action == android.view.KeyEvent.ACTION_DOWN &&
-                event.nativeKeyEvent.keyCode == android.view.KeyEvent.KEYCODE_DPAD_UP) {
-                try {
-                    tabsFocusRequester.requestFocus()
-                    return@onPreviewKeyEvent true
-                } catch (_: Exception) {}
-            }
-            false
-        }
 
     var activeTab by remember { mutableStateOf(SettingsTab.PLAYER) }
 
@@ -159,6 +164,9 @@ fun SettingsScreen(
     var selectedPlayer by remember { mutableStateOf(prefs.getString("pref_player", "internal") ?: "internal") }
     var selectedQuality by remember { mutableStateOf(prefs.getString("pref_quality", "1080p") ?: "1080p") }
     var selectedVoice by remember { mutableStateOf(prefs.getString("pref_voice", "Любая / Оригинал") ?: "Любая / Оригинал") }
+    var selectedPreviewStart by remember { mutableStateOf(prefs.getInt("pref_preview_start_min", 12)) }
+    var onlyWithPoster by remember { mutableStateOf(prefs.getBoolean("pref_only_with_poster", true)) }
+    var excludedCountriesStr by remember { mutableStateOf(prefs.getString("pref_excluded_countries", "") ?: "") }
 
     // Server States
     var serverUrl by remember { mutableStateOf(prefs.getString("pref_server_url", "https://showhub-server.onrender.com") ?: "https://showhub-server.onrender.com") }
@@ -212,26 +220,18 @@ fun SettingsScreen(
         )
 
         // TABS RIBBON
-        TvLazyRow(
-            contentPadding = PaddingValues(horizontal = 48.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 48.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            items(SettingsTab.values()) { tab ->
+            SettingsTab.values().forEachIndexed { index, tab ->
                 val isSelected = tab == activeTab
-                val tabMod = if (isSelected) {
-                    Modifier
-                        .height(28.dp)
-                        .focusRequester(tabsFocusRequester)
-                        .focusProperties {
-                            down = firstControlFocusRequester
-                        }
-                } else {
-                    Modifier
-                        .height(28.dp)
-                        .focusProperties {
-                            down = firstControlFocusRequester
-                        }
-                }
+                val tabFocusMod = if (index == 0) {
+                    Modifier.focusRequester(tabsFocusRequester)
+                } else Modifier
                 Button(
                     onClick = { activeTab = tab },
                     colors = ButtonDefaults.colors(
@@ -247,16 +247,12 @@ fun SettingsScreen(
                     shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                     scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
-                    modifier = tabMod.onPreviewKeyEvent { event ->
-                        if (event.nativeKeyEvent.action == android.view.KeyEvent.ACTION_DOWN &&
-                            event.nativeKeyEvent.keyCode == android.view.KeyEvent.KEYCODE_DPAD_DOWN) {
-                            try {
-                                firstControlFocusRequester.requestFocus()
-                                return@onPreviewKeyEvent true
-                            } catch (_: Exception) {}
+                    modifier = Modifier
+                        .height(28.dp)
+                        .then(tabFocusMod)
+                        .focusProperties {
+                            down = firstControlFocusRequester
                         }
-                        false
-                    }
                 ) {
                     Text(
                         text = tab.title,
@@ -267,45 +263,43 @@ fun SettingsScreen(
                 }
             }
 
-            item {
-                Spacer(modifier = Modifier.width(16.dp))
-                Button(
-                    onClick = onBackClick,
-                    colors = ButtonDefaults.colors(
-                        containerColor = Color.White.copy(alpha = 0.08f),
-                        focusedContainerColor = Color.White,
-                        contentColor = TextWhite,
-                        focusedContentColor = Color.Black
-                    ),
-                    border = ButtonDefaults.border(
-                        border = Border.None,
-                        focusedBorder = Border.None
-                    ),
-                    shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
-                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
-                    modifier = Modifier
-                        .height(28.dp)
-                        .focusProperties {
-                            down = firstControlFocusRequester
-                        }
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        AppIcon(
-                            resId = R.drawable.ic_arrow_back,
-                            tint = TextWhite,
-                            size = 13.dp
-                        )
-                        Text(
-                            text = "Назад к каталогу",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Medium,
-                            lineHeight = 13.sp
-                        )
+            Spacer(modifier = Modifier.width(16.dp))
+            Button(
+                onClick = onBackClick,
+                colors = ButtonDefaults.colors(
+                    containerColor = Color.White.copy(alpha = 0.08f),
+                    focusedContainerColor = Color.White,
+                    contentColor = TextWhite,
+                    focusedContentColor = Color.Black
+                ),
+                border = ButtonDefaults.border(
+                    border = Border.None,
+                    focusedBorder = Border.None
+                ),
+                shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
+                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                modifier = Modifier
+                    .height(28.dp)
+                    .focusProperties {
+                        down = firstControlFocusRequester
                     }
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    AppIcon(
+                        resId = R.drawable.ic_arrow_back,
+                        tint = androidx.tv.material3.LocalContentColor.current,
+                        size = 13.dp
+                    )
+                    Text(
+                        text = "Назад к каталогу",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        lineHeight = 13.sp
+                    )
                 }
             }
         }
@@ -537,6 +531,191 @@ fun SettingsScreen(
                                     ) {
                                         Text(text = voice, fontSize = 11.sp, fontWeight = if (isCur) FontWeight.Bold else FontWeight.Normal, lineHeight = 13.sp)
                                     }
+                                }
+                            }
+                        }
+
+                        // Section: Preview Start Time
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(
+                                text = "Начало предпросмотра фильма",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextWhite
+                            )
+                            Text(
+                                text = "Минута фильма, с которой запускается бесшумный предпросмотр при наведении",
+                                fontSize = 13.sp,
+                                color = TextGray
+                            )
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                modifier = Modifier.padding(top = 4.dp)
+                            ) {
+                                PREVIEW_START_OPTIONS.forEach { (mins, label) ->
+                                    val isCur = mins == selectedPreviewStart
+                                    Button(
+                                        onClick = {
+                                            selectedPreviewStart = mins
+                                            prefs.edit().putInt("pref_preview_start_min", mins).apply()
+                                        },
+                                        colors = ButtonDefaults.colors(
+                                            containerColor = if (isCur) accent.copy(alpha = 0.85f) else ChipBackground,
+                                            focusedContainerColor = Color.White,
+                                            contentColor = if (isCur) Color.Black else TextWhite,
+                                            focusedContentColor = Color.Black
+                                        ),
+                                        border = ButtonDefaults.border(
+                                            border = Border.None,
+                                            focusedBorder = Border.None
+                                        ),
+                                        shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                                        scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
+                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                                        modifier = Modifier.height(28.dp)
+                                    ) {
+                                        Text(text = label, fontSize = 11.sp, fontWeight = if (isCur) FontWeight.Bold else FontWeight.Normal, lineHeight = 13.sp)
+                                    }
+                                }
+                            }
+                        }
+
+                        // Section: Only with Poster & Excluded Countries
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(
+                                text = "Фильтрация каталога",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextWhite
+                            )
+                            Text(
+                                text = "Настройка скрытия контента без обложек и нежелательных стран",
+                                fontSize = 13.sp,
+                                color = TextGray
+                            )
+
+                            // Toggle: Only with poster
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                modifier = Modifier.padding(top = 4.dp)
+                            ) {
+                                Button(
+                                    onClick = {
+                                        val newState = !onlyWithPoster
+                                        onlyWithPoster = newState
+                                        prefs.edit().putBoolean("pref_only_with_poster", newState).apply()
+                                    },
+                                    colors = ButtonDefaults.colors(
+                                        containerColor = if (onlyWithPoster) accent.copy(alpha = 0.85f) else ChipBackground,
+                                        focusedContainerColor = Color.White,
+                                        contentColor = if (onlyWithPoster) Color.Black else TextWhite,
+                                        focusedContentColor = Color.Black
+                                    ),
+                                    border = ButtonDefaults.border(
+                                        border = Border.None,
+                                        focusedBorder = Border.None
+                                    ),
+                                    shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                                    modifier = Modifier.height(28.dp)
+                                ) {
+                                    val mark = if (onlyWithPoster) "☑" else "☐"
+                                    Text(
+                                        text = "$mark Показывать только фильмы с обложкой",
+                                        fontSize = 11.sp,
+                                        fontWeight = if (onlyWithPoster) FontWeight.Bold else FontWeight.Normal,
+                                        lineHeight = 13.sp
+                                    )
+                                }
+                            }
+
+                            // Subtitle: Excluded countries
+                            Text(
+                                text = "Исключить страны из показа (нажмите, чтобы скрыть фильмы выбранной страны):",
+                                fontSize = 12.sp,
+                                color = TextGray,
+                                modifier = Modifier.padding(top = 6.dp)
+                            )
+
+                            val excludedSet = remember(excludedCountriesStr) {
+                                excludedCountriesStr.split(",").map { it.trim() }.filter { it.isNotEmpty() }.toSet()
+                            }
+
+                            // Flow-like 2-row layout of countries
+                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                val chunked = EXCLUDE_COUNTRY_OPTIONS.chunked(9)
+                                chunked.forEach { rowCountries ->
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        rowCountries.forEach { cName ->
+                                            val isExcluded = excludedSet.contains(cName)
+                                            Button(
+                                                onClick = {
+                                                    val newSet = if (isExcluded) excludedSet - cName else excludedSet + cName
+                                                    val newStr = newSet.joinToString(",")
+                                                    excludedCountriesStr = newStr
+                                                    prefs.edit().putString("pref_excluded_countries", newStr).apply()
+                                                },
+                                                colors = ButtonDefaults.colors(
+                                                    containerColor = if (isExcluded) Color(0xFFE53935).copy(alpha = 0.7f) else ChipBackground,
+                                                    focusedContainerColor = Color.White,
+                                                    contentColor = if (isExcluded) Color.White else TextWhite,
+                                                    focusedContentColor = if (isExcluded) Color(0xFFE53935) else Color.Black
+                                                ),
+                                                border = ButtonDefaults.border(
+                                                    border = Border.None,
+                                                    focusedBorder = Border.None
+                                                ),
+                                                shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                                                scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
+                                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                                                modifier = Modifier.height(26.dp)
+                                            ) {
+                                                val prefix = if (isExcluded) "✖ " else ""
+                                                Text(
+                                                    text = "$prefix$cName",
+                                                    fontSize = 10.sp,
+                                                    fontWeight = if (isExcluded) FontWeight.Bold else FontWeight.Normal,
+                                                    lineHeight = 12.sp
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Section: Catalog Library Stats
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(ChipBackground)
+                                .padding(16.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
+                                AppIcon(
+                                    resId = R.drawable.ic_movie,
+                                    tint = accent,
+                                    size = 30.dp
+                                )
+                                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Text(
+                                        text = "Медиатека ShowHub TV",
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = TextWhite
+                                    )
+                                    Text(
+                                        text = "Всего в каталоге: 30 260+ фильмов и сериалов  •  Фильмы: 18 450+  •  Сериалы: 6 210+  •  Мультфильмы: 3 120+  •  Аниме: 2 480+",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = accent
+                                    )
                                 }
                             }
                         }

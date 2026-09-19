@@ -461,13 +461,14 @@ def get_catalog(
     content_type: Optional[str] = "all",
     min_rating: Optional[float] = None,
     sort_by: Optional[str] = "newest",
-    page: int = 1
+    page: int = 1,
+    excluded_countries: Optional[str] = None
 ) -> List[Dict[str, Any]]:
     """
     Returns dynamic fresh releases (новинки) and catalog items aggregated across live sources.
-    Supports filtering by genre, country, content type (movies/series/cartoons/anime), release year, minimum rating, and sorting.
+    Supports filtering by genre, country, content type (movies/series/cartoons/anime), release year, minimum rating, excluded countries, and sorting.
     """
-    cache_key = f"{category}_{genre}_{year}_{country}_{content_type}_{min_rating}_{sort_by}_{page}"
+    cache_key = f"{category}_{genre}_{year}_{country}_{content_type}_{min_rating}_{sort_by}_{page}_{excluded_countries}"
     now_ts = time.time()
     if cache_key in _catalog_cache:
         cached_time, cached_items = _catalog_cache[cache_key]
@@ -603,6 +604,22 @@ def get_catalog(
             return any(a in meta_c or a in desc or a in direct_c for a in aliases)
 
         all_items = [it for it in all_items if match_country(it)]
+
+    # 4b. Apply Excluded Countries Filter
+    if excluded_countries:
+        ex_tokens = [c.strip().lower() for c in excluded_countries.split(",") if c.strip()]
+        if ex_tokens:
+            def is_not_excluded(it):
+                meta_c = str(it.get("extra_data", {}).get("country") or "").lower()
+                desc = str(it.get("description") or "").lower()
+                direct_c = str(it.get("country") or "").lower()
+                countries_list = " ".join([str(x).lower() for x in (it.get("extra_data", {}).get("countries") or [])])
+                text = f"{meta_c} {desc} {direct_c} {countries_list}"
+                for ex in ex_tokens:
+                    if ex in text:
+                        return False
+                return True
+            all_items = [it for it in all_items if is_not_excluded(it)]
 
     # 5. Apply Content Type (Movie vs Series) Filtering
     if content_type == "movie":
@@ -810,7 +827,9 @@ def _fetch_media_details(
         "episodes_schedule": []
     }
 
-    clean_title = title.split(":")[0].strip() if (title and ":" in title) else title
+    clean_title = re.sub(r'\(.*?\)|\[.*?\]', '', title).strip() if title else ""
+    if clean_title and ":" in clean_title:
+        clean_title = clean_title.split(":")[0].strip()
     if clean_title and " - " in clean_title:
         clean_title = clean_title.split(" - ")[0].strip()
 
@@ -936,6 +955,25 @@ def _fetch_media_details(
     except Exception:
         pass
 
+    # Fallback to Kodik actors/directors/genres/country if still empty
+    if (not details.get("actors") or not details.get("director")) and (resolved_kp or clean_title):
+        try:
+            k_items = kodik.search(clean_title, year=year_int, kp_id=resolved_kp)
+            if k_items:
+                k_it = k_items[0]
+                if not details.get("actors") and k_it.extra_data.get("actors"):
+                    details["actors"] = k_it.extra_data["actors"]
+                if not details.get("director") and k_it.extra_data.get("director"):
+                    details["director"] = k_it.extra_data["director"]
+                if not details.get("country") and k_it.extra_data.get("country"):
+                    details["country"] = k_it.extra_data["country"]
+                if not details.get("genres") and k_it.extra_data.get("genres"):
+                    details["genres"] = k_it.extra_data["genres"]
+                if not details.get("description") and k_it.description:
+                    details["description"] = k_it.description
+        except Exception:
+            pass
+
     # 5. Populate Actors with Photos (up to 10 principal cast members with Wikipedia photos)
     actors_list = []
     raw_actors = details.get("actors") or ""
@@ -950,6 +988,21 @@ def _fetch_media_details(
                 "photo": photo or ""
             })
     details["actors_list"] = actors_list
+
+    # 5b. Populate Directors with Photos
+    directors_list = []
+    raw_director = details.get("director") or ""
+    if raw_director:
+        d_names = [n.strip() for n in re.split(r'[,;•\n/]', str(raw_director)) if n.strip()]
+        for idx, d_name in enumerate(d_names[:5]):
+            photo = resolve_actor_photo(d_name)
+            directors_list.append({
+                "id": f"dir_{idx+1}",
+                "name": d_name,
+                "role": "Режиссёр",
+                "photo": photo or ""
+            })
+    details["directors_list"] = directors_list
 
     # 6. Determine Age Rating
     age_limit = "12+"
@@ -997,7 +1050,9 @@ def _fetch_media_streams(
     if not resolved_kp and media_id and str(media_id).isdigit():
         resolved_kp = str(media_id)
 
-    clean_title = title.split(":")[0].strip() if (title and ":" in title) else title
+    clean_title = re.sub(r'\(.*?\)|\[.*?\]', '', title).strip() if title else ""
+    if clean_title and ":" in clean_title:
+        clean_title = clean_title.split(":")[0].strip()
     if clean_title and " - " in clean_title:
         clean_title = clean_title.split(" - ")[0].strip()
 
@@ -1111,7 +1166,8 @@ def _fetch_media_streams(
             if clean_title:
                 k_items = kodik.search(clean_title, year=year_int, kp_id=resolved_kp)
                 if k_items:
-                    best = k_items[0]
+                    ranked = rank_matches(k_items, year_int, is_ser_bool)
+                    best = ranked[0] if ranked else k_items[0]
                     k_res = kodik.get_streams(best.id, season=season, episode=episode, audio_id=audio_id)
                     if k_res.streams or k_res.embed_url:
                         return ("kodik", k_res.model_dump())
@@ -1339,17 +1395,20 @@ def get_media_preview_stream(
     media_id: Optional[str] = None,
     kp_id: Optional[str] = None,
     year: Optional[str] = None,
-    is_series: Optional[str] = None
+    is_series: Optional[str] = None,
+    start_min: Optional[int] = None
 ) -> Dict[str, Any]:
     """Returns a fast silent preview direct video stream (HLS/MP4) for TV card hover. Strictly no trailers or iframes."""
-    cache_key = f"{source}_{media_id}_{kp_id}_{title}_{year}_{is_series}"
+    cache_key = f"{source}_{media_id}_{kp_id}_{title}_{year}_{is_series}_{start_min}"
     if cache_key in _preview_cache:
         return _preview_cache[cache_key]
 
     # Try to find direct stream (HDRezka, Filmix, Bazon)
     # Prefer lightweight SD 480p/360p/720p or standard 1080p, strictly excluding Ultra/4K/2160p/1440p
-    clean_title = title.split(":")[0].strip() if ":" in title else title
-    if " - " in clean_title:
+    clean_title = re.sub(r'\(.*?\)|\[.*?\]', '', title).strip() if title else ""
+    if clean_title and ":" in clean_title:
+        clean_title = clean_title.split(":")[0].strip()
+    if clean_title and " - " in clean_title:
         clean_title = clean_title.split(" - ")[0].strip()
 
     candidate_streams = []
@@ -1450,9 +1509,11 @@ def get_media_preview_stream(
                     break
 
         if chosen:
-            # 22nd minute of movie: 22 * 60 = 1320 seconds
-            is_ser_flag = str(is_series) in ["1", "true", "True"]
-            seek_seconds = 720 if is_ser_flag else 1320
+            if start_min is not None and start_min > 0:
+                seek_seconds = start_min * 60
+            else:
+                is_ser_flag = str(is_series) in ["1", "true", "True"]
+                seek_seconds = 720 if is_ser_flag else 1320
             res = {
                 "success": True,
                 "stream_url": chosen.url,

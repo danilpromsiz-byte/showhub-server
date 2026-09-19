@@ -67,9 +67,8 @@ fun FavoritesScreen(
     modifier: Modifier = Modifier
 ) {
     val favTrigger by viewModel.favoriteChangeTrigger.collectAsState()
-    val allMovies = remember(favTrigger) { viewModel.getAllMovies() }
-    val favoriteMovies = remember(favTrigger, allMovies) {
-        allMovies.filter { viewModel.isFavorite(it.id) }
+    val favoriteMovies = remember(favTrigger) {
+        viewModel.getFavoriteMovies()
     }
 
     val accent = LocalAccentColor.current

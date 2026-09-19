@@ -104,6 +104,15 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         return if (live.isNotEmpty()) live else repository.sampleMovies
     }
 
+    fun getFavoriteMovies(): List<Movie> {
+        val favs = repository.getFavoriteMovies().toMutableList()
+        val catFavs = _categories.value.flatMap { it.movies }.filter { isFavorite(it.id) }
+        for (m in catFavs) {
+            if (!favs.any { it.id == m.id }) favs.add(m)
+        }
+        return favs
+    }
+
     fun refreshCatalog() {
         loadCatalog()
     }

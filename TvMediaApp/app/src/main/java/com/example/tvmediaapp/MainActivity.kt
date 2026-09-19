@@ -390,7 +390,7 @@ fun TvAppNavHost(activity: MainActivity) {
                     onBackClick = {
                         currentScreen = Screen.HOME
                     },
-                    trackedMovies = homeViewModel.getAllMovies().filter { homeViewModel.isFavorite(it.id) && it.isSeries }
+                    trackedMovies = homeViewModel.getFavoriteMovies().filter { it.isSeries }
                 )
             }
 

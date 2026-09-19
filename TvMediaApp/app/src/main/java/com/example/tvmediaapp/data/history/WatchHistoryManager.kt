@@ -85,26 +85,98 @@ class WatchHistoryManager(context: Context) {
         }
     }
 
-    fun getEpisodeProgress(seriesId: String, season: Int, episode: Int): Int {
-        if (seriesId.isBlank()) return 0
-        if (isEpisodeWatched(seriesId, season, episode)) return 100
-        val key = "ep_pct_${seriesId}_s${season}e${episode}"
-        return prefs.getInt(key, 0)
+    fun getEpisodeProgress(seriesId: String, season: Int, episode: Int, title: String? = null): Int {
+        if (isEpisodeWatched(seriesId, season, episode, title)) return 100
+        if (seriesId.isNotBlank()) {
+            val key = "ep_pct_${seriesId}_s${season}e${episode}"
+            val p = prefs.getInt(key, 0)
+            if (p > 0) return p
+        }
+        if (!title.isNullOrBlank()) {
+            val histItem = getHistory().firstOrNull { it.title.equals(title, ignoreCase = true) }
+            if (histItem != null && histItem.id != seriesId) {
+                val key = "ep_pct_${histItem.id}_s${season}e${episode}"
+                val p = prefs.getInt(key, 0)
+                if (p > 0) return p
+            }
+        }
+        return 0
     }
 
-    fun markEpisodeWatched(seriesId: String, season: Int, episode: Int) {
-        if (seriesId.isBlank()) return
-        val key = "watched_episodes_$seriesId"
-        val existing = prefs.getStringSet(key, emptySet())?.toMutableSet() ?: mutableSetOf()
-        existing.add("s${season}e${episode}")
-        prefs.edit().putStringSet(key, existing).apply()
+    fun markEpisodeWatched(seriesId: String, season: Int, episode: Int, title: String? = null) {
+        if (seriesId.isNotBlank()) {
+            val key = "watched_episodes_$seriesId"
+            val existing = prefs.getStringSet(key, emptySet())?.toMutableSet() ?: mutableSetOf()
+            existing.add("s${season}e${episode}")
+            prefs.edit().putStringSet(key, existing).apply()
+        }
+        if (!title.isNullOrBlank()) {
+            val histItem = getHistory().firstOrNull { it.title.equals(title, ignoreCase = true) }
+            if (histItem != null && histItem.id != seriesId) {
+                val key = "watched_episodes_${histItem.id}"
+                val existing = prefs.getStringSet(key, emptySet())?.toMutableSet() ?: mutableSetOf()
+                existing.add("s${season}e${episode}")
+                prefs.edit().putStringSet(key, existing).apply()
+            }
+        }
     }
 
-    fun isEpisodeWatched(seriesId: String, season: Int, episode: Int): Boolean {
-        if (seriesId.isBlank()) return false
-        val key = "watched_episodes_$seriesId"
-        val watched = prefs.getStringSet(key, emptySet()) ?: return false
-        return watched.contains("s${season}e${episode}")
+    fun isEpisodeWatched(seriesId: String, season: Int, episode: Int, title: String? = null): Boolean {
+        if (seriesId.isNotBlank()) {
+            val key = "watched_episodes_$seriesId"
+            val watched = prefs.getStringSet(key, emptySet()) ?: emptySet()
+            if (watched.contains("s${season}e${episode}")) return true
+        }
+        if (!title.isNullOrBlank()) {
+            val histItem = getHistory().firstOrNull { it.title.equals(title, ignoreCase = true) }
+            if (histItem != null && histItem.id != seriesId) {
+                val key = "watched_episodes_${histItem.id}"
+                val watched = prefs.getStringSet(key, emptySet()) ?: emptySet()
+                if (watched.contains("s${season}e${episode}")) return true
+            }
+        }
+        return false
+    }
+
+    fun getLastWatchedEpisode(seriesId: String, title: String? = null): Pair<Int, Int>? {
+        val candidates = mutableListOf<HistoryItem>()
+        val hist = getHistory()
+        hist.firstOrNull { it.id == seriesId }?.let { candidates.add(it) }
+        if (!title.isNullOrBlank()) {
+            hist.firstOrNull { it.title.equals(title, ignoreCase = true) }?.let {
+                if (!candidates.contains(it)) candidates.add(it)
+            }
+        }
+
+        var maxSeason = 0
+        var maxEp = 0
+
+        for (item in candidates) {
+            val s = item.season ?: 1
+            val e = item.episode ?: 1
+            if (s > maxSeason || (s == maxSeason && e > maxEp)) {
+                maxSeason = s
+                maxEp = e
+            }
+        }
+
+        val ids = candidates.map { it.id }.toMutableSet().apply { if (seriesId.isNotBlank()) add(seriesId) }
+        for (id in ids) {
+            val watchedSet = getWatchedEpisodes(id)
+            for (w in watchedSet) {
+                val match = Regex("""s(\d+)e(\d+)""").find(w)
+                if (match != null) {
+                    val s = match.groupValues[1].toIntOrNull() ?: 1
+                    val e = match.groupValues[2].toIntOrNull() ?: 1
+                    if (s > maxSeason || (s == maxSeason && e > maxEp)) {
+                        maxSeason = s
+                        maxEp = e
+                    }
+                }
+            }
+        }
+
+        return if (maxSeason > 0 && maxEp > 0) Pair(maxSeason, maxEp) else null
     }
 
     fun getWatchedEpisodes(seriesId: String): Set<String> {

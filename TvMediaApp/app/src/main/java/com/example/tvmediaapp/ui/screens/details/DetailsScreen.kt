@@ -36,6 +36,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -69,6 +70,7 @@ import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import androidx.tv.foundation.lazy.list.TvLazyRow
 import androidx.tv.foundation.lazy.list.items
+import androidx.tv.foundation.lazy.list.itemsIndexed
 import kotlinx.coroutines.delay
 import androidx.tv.material3.Border
 import androidx.tv.material3.Button
@@ -118,6 +120,7 @@ fun DetailsScreen(
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val accent = LocalAccentColor.current
+    val focusColor = LocalFocusColor.current
 
     val historyManager = remember { WatchHistoryManager(context) }
     val savedHistory = remember(movie.id) {
@@ -126,6 +129,7 @@ fun DetailsScreen(
 
     val prefs = remember { context.getSharedPreferences("showhub_prefs", Context.MODE_PRIVATE) }
     val rightPaneScrollState = rememberScrollState()
+    var isFav by remember(movie.id, isFavorite) { mutableStateOf(isFavorite) }
     var currentMovie by remember {
         mutableStateOf(
             com.example.tvmediaapp.data.cache.MediaDiskCache.getCachedDetails(movie.id, movie.title, movie.releaseYear) ?: movie
@@ -225,8 +229,10 @@ fun DetailsScreen(
     val firstScheduleItemFocusRequester = remember { FocusRequester() }
     val descriptionTabFocusRequester = remember { FocusRequester() }
     val synopsisBlockFocusRequester = remember { FocusRequester() }
+    val firstDirectorFocusRequester = remember { FocusRequester() }
+    val firstCastFocusRequester = remember { FocusRequester() }
     val episodesFocusRequester = remember { FocusRequester() }
-    val translatorSeasonsCache = remember { mutableMapOf<String, List<SeasonInfo>>() }
+    val translatorSeasonsCache = remember { mutableStateMapOf<String, List<SeasonInfo>>() }
 
     // Automatically focus the primary play button as soon as movie card opens
     LaunchedEffect(Unit) {
@@ -529,7 +535,7 @@ fun DetailsScreen(
                 ),
                 border = CardDefaults.border(
                     border = Border(BorderStroke(2.dp, Color.White.copy(alpha = 0.1f))),
-                    focusedBorder = Border(BorderStroke(2.dp, accent))
+                    focusedBorder = Border(BorderStroke(2.dp, focusColor))
                 ),
                 scale = CardDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                 shape = CardDefaults.shape(RoundedCornerShape(12.dp)),
@@ -753,21 +759,6 @@ fun DetailsScreen(
                     .weight(1f)
                     .fillMaxHeight()
                     .verticalScroll(rightPaneScrollState)
-                    .onPreviewKeyEvent { evt ->
-                        if (evt.nativeKeyEvent.action == KeyEvent.ACTION_DOWN) {
-                            if (evt.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
-                                coroutineScope.launch {
-                                    rightPaneScrollState.animateScrollTo((rightPaneScrollState.value + 180).coerceAtMost(rightPaneScrollState.maxValue))
-                                }
-                                false
-                            } else if (evt.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_UP && rightPaneScrollState.value > 0) {
-                                coroutineScope.launch {
-                                    rightPaneScrollState.animateScrollTo((rightPaneScrollState.value - 180).coerceAtLeast(0))
-                                }
-                                false
-                            } else false
-                        } else false
-                    }
             ) {
                 val titleWithYear = buildString {
                     append(currentMovie.title)
@@ -874,7 +865,7 @@ fun DetailsScreen(
                             },
                             colors = ButtonDefaults.colors(
                                 containerColor = if (isSelected) accent.copy(alpha = 0.85f) else ChipBackground,
-                                focusedContainerColor = Color.White,
+                                focusedContainerColor = focusColor,
                                 contentColor = if (isSelected) Color.Black else TextWhite,
                                 focusedContentColor = Color.Black
                             ),
@@ -932,7 +923,7 @@ fun DetailsScreen(
                             },
                             colors = ButtonDefaults.colors(
                                 containerColor = accent,
-                                focusedContainerColor = Color.White,
+                                focusedContainerColor = focusColor,
                                 contentColor = Color.Black,
                                 focusedContentColor = Color.Black
                             ),
@@ -975,7 +966,7 @@ fun DetailsScreen(
                             onClick = { startPlayback(startPos = 0L) },
                             colors = ButtonDefaults.colors(
                                 containerColor = Color.White.copy(alpha = 0.12f),
-                                focusedContainerColor = Color.White,
+                                focusedContainerColor = focusColor,
                                 contentColor = TextWhite,
                                 focusedContentColor = Color.Black
                             ),
@@ -1018,7 +1009,7 @@ fun DetailsScreen(
                             onClick = { startPlayback(startPos = 0L) },
                             colors = ButtonDefaults.colors(
                                 containerColor = accent,
-                                focusedContainerColor = Color.White,
+                                focusedContainerColor = focusColor,
                                 contentColor = Color.Black,
                                 focusedContentColor = Color.Black
                             ),
@@ -1081,7 +1072,7 @@ fun DetailsScreen(
                         },
                         colors = ButtonDefaults.colors(
                             containerColor = Color.White.copy(alpha = 0.12f),
-                            focusedContainerColor = Color.White,
+                            focusedContainerColor = focusColor,
                             contentColor = TextWhite,
                             focusedContentColor = Color.Black
                         ),
@@ -1179,7 +1170,7 @@ fun DetailsScreen(
                         },
                         colors = ButtonDefaults.colors(
                             containerColor = Color.White.copy(alpha = 0.12f),
-                            focusedContainerColor = Color.White,
+                            focusedContainerColor = focusColor,
                             contentColor = TextWhite,
                             focusedContentColor = Color.Black
                         ),
@@ -1225,11 +1216,14 @@ fun DetailsScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Button(
-                        onClick = { onToggleFavorite(currentMovie) },
+                        onClick = {
+                            isFav = !isFav
+                            onToggleFavorite(currentMovie)
+                        },
                         colors = ButtonDefaults.colors(
-                            containerColor = if (isFavorite) FavoriteGold.copy(alpha = 0.85f) else Color.White.copy(alpha = 0.12f),
-                            focusedContainerColor = Color.White,
-                            contentColor = if (isFavorite) Color.Black else TextWhite,
+                            containerColor = if (isFav) FavoriteGold.copy(alpha = 0.85f) else Color.White.copy(alpha = 0.12f),
+                            focusedContainerColor = focusColor,
+                            contentColor = if (isFav) Color.Black else TextWhite,
                             focusedContentColor = Color.Black
                         ),
                         border = ButtonDefaults.border(
@@ -1254,12 +1248,12 @@ fun DetailsScreen(
                             horizontalArrangement = Arrangement.spacedBy(5.dp)
                         ) {
                             AppIcon(
-                                resId = if (isFavorite) R.drawable.ic_star else R.drawable.ic_star_border,
-                                tint = if (isFavorite) FavoriteGold else androidx.tv.material3.LocalContentColor.current,
+                                resId = if (isFav) R.drawable.ic_star else R.drawable.ic_star_border,
+                                tint = if (isFav) FavoriteGold else androidx.tv.material3.LocalContentColor.current,
                                 size = 13.dp
                             )
                             Text(
-                                text = if (isFavorite) "В избранном" else "В избранное",
+                                text = if (isFav) "В избранном" else "В избранное",
                                 fontWeight = FontWeight.SemiBold,
                                 fontSize = 11.sp,
                                 lineHeight = 13.sp
@@ -1271,7 +1265,7 @@ fun DetailsScreen(
                         onClick = onBackClick,
                         colors = ButtonDefaults.colors(
                             containerColor = Color.White.copy(alpha = 0.12f),
-                            focusedContainerColor = Color.White,
+                            focusedContainerColor = focusColor,
                             contentColor = TextWhite,
                             focusedContentColor = Color.Black
                         ),
@@ -1367,6 +1361,7 @@ fun DetailsScreen(
                                     .focusRequester(descriptionTabFocusRequester)
                                     .focusProperties {
                                         up = favoriteButtonFocusRequester
+                                        down = if (displayDirectors.isNotEmpty()) firstDirectorFocusRequester else firstCastFocusRequester
                                     }
                             }
                             2 -> if (currentMovie.isSeries) {
@@ -1375,6 +1370,7 @@ fun DetailsScreen(
                                     .focusRequester(descriptionTabFocusRequester)
                                     .focusProperties {
                                         up = favoriteButtonFocusRequester
+                                        down = if (displayDirectors.isNotEmpty()) firstDirectorFocusRequester else firstCastFocusRequester
                                     }
                             } else {
                                 Modifier.height(26.dp).focusProperties { up = favoriteButtonFocusRequester }
@@ -1385,7 +1381,7 @@ fun DetailsScreen(
                             onClick = { selectedDetailTab = index },
                             colors = ButtonDefaults.colors(
                                 containerColor = if (isSelected) accent.copy(alpha = 0.85f) else ChipBackground,
-                                focusedContainerColor = Color.White,
+                                focusedContainerColor = focusColor,
                                 contentColor = if (isSelected) Color.Black else TextWhite,
                                 focusedContentColor = Color.Black
                             ),
@@ -1535,7 +1531,7 @@ fun DetailsScreen(
                                          },
                                          colors = ButtonDefaults.colors(
                                              containerColor = if (isSrcSelected) accent.copy(alpha = 0.85f) else ChipBackground,
-                                             focusedContainerColor = Color.White,
+                                             focusedContainerColor = focusColor,
                                              contentColor = if (isSrcSelected) Color.Black else TextWhite,
                                              focusedContentColor = Color.Black
                                          ),
@@ -1601,7 +1597,7 @@ fun DetailsScreen(
                                          },
                                          colors = ButtonDefaults.colors(
                                              containerColor = if (isSelected) accent.copy(alpha = 0.85f) else ChipBackground,
-                                             focusedContainerColor = Color.White,
+                                             focusedContainerColor = focusColor,
                                              contentColor = if (isSelected) Color.Black else TextWhite,
                                              focusedContentColor = Color.Black
                                          ),
@@ -1617,7 +1613,7 @@ fun DetailsScreen(
                                          val cachedSeasonEps = translatorSeasonsCache[track.id]?.firstOrNull { it.seasonNumber == selectedSeason }?.episodes?.size
                                          val seasonEpCount = cachedSeasonEps
                                              ?: track.seasonsEpisodes[selectedSeason]
-                                             ?: if (currentMovie.seasons.size <= 1) track.episodesCount else (currentMovie.seasons.firstOrNull { it.seasonNumber == selectedSeason }?.episodes?.size ?: track.episodesCount)
+                                             ?: (if (track.seasonsEpisodes.isNotEmpty()) 0 else if (currentMovie.seasons.size <= 1) track.episodesCount else (currentMovie.seasons.firstOrNull { it.seasonNumber == selectedSeason }?.episodes?.size ?: track.episodesCount))
                                          val countSuffix = if (seasonEpCount > 0) " ($seasonEpCount сер.)" else ""
                                          Text(text = "${track.name}$countSuffix", fontSize = 11.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
                                      }
@@ -1641,7 +1637,7 @@ fun DetailsScreen(
                                         },
                                         colors = ButtonDefaults.colors(
                                             containerColor = if (isSelected) accent.copy(alpha = 0.85f) else ChipBackground,
-                                            focusedContainerColor = Color.White,
+                                            focusedContainerColor = focusColor,
                                             contentColor = if (isSelected) Color.Black else TextWhite,
                                             focusedContentColor = Color.Black
                                         ),
@@ -1673,12 +1669,12 @@ fun DetailsScreen(
                             TvLazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 items(activeSeason.episodes) { ep ->
                                     val isSelected = ep.episodeNumber == selectedEpisode
-                                    val isWatched = historyManager.isEpisodeWatched(currentMovie.id, selectedSeason, ep.episodeNumber)
-                                    val epProgress = historyManager.getEpisodeProgress(currentMovie.id, selectedSeason, ep.episodeNumber)
+                                    val isWatched = historyManager.isEpisodeWatched(currentMovie.id, selectedSeason, ep.episodeNumber, currentMovie.title)
+                                    val epProgress = historyManager.getEpisodeProgress(currentMovie.id, selectedSeason, ep.episodeNumber, currentMovie.title)
                                     Button(
                                         onClick = {
                                             selectedEpisode = ep.episodeNumber
-                                            historyManager.markEpisodeWatched(currentMovie.id, selectedSeason, ep.episodeNumber)
+                                            historyManager.markEpisodeWatched(currentMovie.id, selectedSeason, ep.episodeNumber, currentMovie.title)
                                             if (newEpisodesCount > 0) {
                                                 historyManager.clearNewEpisodes(currentMovie.id)
                                                 newEpisodesCount = 0
@@ -1687,7 +1683,7 @@ fun DetailsScreen(
                                         },
                                         colors = ButtonDefaults.colors(
                                             containerColor = if (isSelected) accent.copy(alpha = 0.85f) else ChipBackground,
-                                            focusedContainerColor = Color.White,
+                                            focusedContainerColor = focusColor,
                                             contentColor = if (isSelected) Color.Black else TextWhite,
                                             focusedContentColor = Color.Black
                                         ),
@@ -1725,21 +1721,22 @@ fun DetailsScreen(
                                                 )
                                             }
 
-                                            // Progress timeline bar for partially watched episodes (e.g. 50%)
-                                            if (epProgress in 5..84 && !isWatched) {
+                                            // Progress timeline bar for watched or partially watched episodes
+                                            if (epProgress > 0 || isWatched) {
+                                                val progressPct = if (isWatched) 1.0f else (epProgress.coerceIn(5, 100) / 100f)
                                                 Box(
                                                     modifier = Modifier
                                                         .fillMaxWidth()
-                                                        .height(2.5.dp)
+                                                        .height(3.dp)
                                                         .align(Alignment.BottomCenter)
-                                                        .clip(RoundedCornerShape(1.dp))
-                                                        .background(Color.White.copy(alpha = 0.2f))
+                                                        .clip(RoundedCornerShape(bottomStart = 6.dp, bottomEnd = 6.dp))
+                                                        .background(Color.White.copy(alpha = 0.25f))
                                                 ) {
                                                     Box(
                                                         modifier = Modifier
                                                             .fillMaxHeight()
-                                                            .fillMaxWidth(epProgress / 100f)
-                                                            .background(if (isSelected) Color.Black else accent)
+                                                            .fillMaxWidth(progressPct)
+                                                            .background(if (isSelected) Color.Black else (if (isWatched) Color(0xFF4ADE80) else accent))
                                                     )
                                                 }
                                             }
@@ -1769,11 +1766,11 @@ fun DetailsScreen(
                                         onClick = { onSearchClick(actor.name) },
                                         colors = CardDefaults.colors(
                                             containerColor = Color.White.copy(alpha = 0.08f),
-                                            focusedContainerColor = LocalFocusColor.current.copy(alpha = 0.22f)
+                                            focusedContainerColor = focusColor.copy(alpha = 0.22f)
                                         ),
                                         border = CardDefaults.border(
                                             border = Border(BorderStroke(2.dp, Color.Transparent)),
-                                            focusedBorder = Border(BorderStroke(2.dp, LocalFocusColor.current))
+                                            focusedBorder = Border(BorderStroke(2.dp, focusColor))
                                         ),
                                         shape = CardDefaults.shape(RoundedCornerShape(8.dp)),
                                         scale = CardDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
@@ -1813,7 +1810,7 @@ fun DetailsScreen(
                                                 text = actor.name,
                                                 fontSize = 10.sp,
                                                 fontWeight = FontWeight.Medium,
-                                                color = if (isActorFocused) LocalFocusColor.current else TextWhite,
+                                                color = if (isActorFocused) focusColor else TextWhite,
                                                 maxLines = 2,
                                                 overflow = TextOverflow.Ellipsis,
                                                 textAlign = TextAlign.Center,
@@ -1955,210 +1952,214 @@ fun DetailsScreen(
                     }
 
                     activeTabTitle.startsWith("Описание") -> {
-                        // TAB: ОПИСАНИЕ И ДЕТАЛИ (С возможностью скролла пультом)
-                        var isSynopsisFocused by remember { mutableStateOf(false) }
+                        // TAB: ОПИСАНИЕ И ДЕТАЛИ (Прямой переход фокуса на режиссёра и актёров)
                         Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(if (isSynopsisFocused) accent.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.05f))
-                                .border(
-                                    width = 1.dp,
-                                    color = if (isSynopsisFocused) accent else Color.White.copy(alpha = 0.1f),
-                                    shape = RoundedCornerShape(8.dp)
-                                )
-                                .focusRequester(synopsisBlockFocusRequester)
-                                .focusable()
-                                .onFocusChanged { isSynopsisFocused = it.isFocused }
-                                .onPreviewKeyEvent { evt ->
-                                    if (evt.nativeKeyEvent.action == KeyEvent.ACTION_DOWN) {
-                                        if (evt.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
-                                            coroutineScope.launch {
-                                                rightPaneScrollState.animateScrollTo((rightPaneScrollState.value + 200).coerceAtMost(rightPaneScrollState.maxValue))
-                                            }
-                                        } else if (evt.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_UP && rightPaneScrollState.value > 0) {
-                                            coroutineScope.launch {
-                                                rightPaneScrollState.animateScrollTo((rightPaneScrollState.value - 200).coerceAtLeast(0))
-                                            }
-                                        }
-                                    }
-                                    false
-                                }
-                                .padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(14.dp)
                         ) {
-                            Text(
-                                text = "Сюжет фильма / сериала:",
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = accent
-                            )
-                            Text(
-                                text = currentMovie.description.ifEmpty { "Описание пока не добавлено" },
-                                fontSize = 14.sp,
-                                lineHeight = 22.sp,
-                                color = TextWhite
-                            )
-
-                            // Director Strip
-                            if (displayDirectors.isNotEmpty()) {
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text(
-                                    text = "Режиссёр (нажмите для поиска фильмов):",
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = accent
-                                )
-                                Spacer(modifier = Modifier.height(6.dp))
-                                TvLazyRow(
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                    contentPadding = PaddingValues(vertical = 4.dp)
-                                ) {
-                                    items(displayDirectors) { director ->
-                                        var isDirFocused by remember { mutableStateOf(false) }
-                                        Card(
-                                            onClick = { onSearchClick(director.name) },
-                                            colors = CardDefaults.colors(
-                                                containerColor = Color.White.copy(alpha = 0.08f),
-                                                focusedContainerColor = LocalFocusColor.current.copy(alpha = 0.22f)
-                                            ),
-                                            border = CardDefaults.border(
-                                                border = Border(BorderStroke(2.dp, Color.Transparent)),
-                                                focusedBorder = Border(BorderStroke(2.dp, LocalFocusColor.current))
-                                            ),
-                                            shape = CardDefaults.shape(RoundedCornerShape(8.dp)),
-                                            scale = CardDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
-                                            modifier = Modifier
-                                                .width(84.dp)
-                                                .onFocusChanged { isDirFocused = it.isFocused }
-                                        ) {
-                                            Column(
-                                                horizontalAlignment = Alignment.CenterHorizontally,
-                                                modifier = Modifier.padding(4.dp)
-                                            ) {
-                                                Box(
-                                                    modifier = Modifier
-                                                        .fillMaxWidth()
-                                                        .height(96.dp)
-                                                        .clip(RoundedCornerShape(6.dp))
-                                                        .background(Color.White.copy(alpha = 0.08f)),
-                                                    contentAlignment = Alignment.Center
-                                                ) {
-                                                    if (director.photoUrl.isNotBlank()) {
-                                                        AsyncImage(
-                                                            model = director.photoUrl,
-                                                            contentDescription = director.name,
-                                                            contentScale = ContentScale.Crop,
-                                                            modifier = Modifier.fillMaxSize()
-                                                        )
-                                                    } else {
-                                                        AppIcon(
-                                                            resId = R.drawable.ic_director,
-                                                            tint = TextGray,
-                                                            size = 32.dp
-                                                        )
-                                                    }
-                                                }
-                                                Spacer(modifier = Modifier.height(4.dp))
-                                                Text(
-                                                    text = director.name,
-                                                    fontSize = 10.sp,
-                                                    fontWeight = FontWeight.Medium,
-                                                    color = if (isDirFocused) LocalFocusColor.current else TextWhite,
-                                                    maxLines = 2,
-                                                    overflow = TextOverflow.Ellipsis,
-                                                    textAlign = TextAlign.Center,
-                                                    lineHeight = 13.sp
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
-                            if (displayCast.isNotEmpty()) {
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text(
-                                    text = "В главных ролях (нажмите для поиска фильмов):",
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = accent
-                                )
-                                Spacer(modifier = Modifier.height(6.dp))
-                                TvLazyRow(
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                    contentPadding = PaddingValues(vertical = 4.dp)
-                                ) {
-                                    items(displayCast) { actor ->
-                                        var isActorFocused by remember { mutableStateOf(false) }
-                                        Card(
-                                            onClick = { onSearchClick(actor.name) },
-                                            colors = CardDefaults.colors(
-                                                containerColor = Color.White.copy(alpha = 0.08f),
-                                                focusedContainerColor = LocalFocusColor.current.copy(alpha = 0.22f)
-                                            ),
-                                            border = CardDefaults.border(
-                                                border = Border(BorderStroke(2.dp, Color.Transparent)),
-                                                focusedBorder = Border(BorderStroke(2.dp, LocalFocusColor.current))
-                                            ),
-                                            shape = CardDefaults.shape(RoundedCornerShape(8.dp)),
-                                            scale = CardDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
-                                            modifier = Modifier
-                                                .width(84.dp)
-                                                .onFocusChanged { isActorFocused = it.isFocused }
-                                        ) {
-                                            Column(
-                                                horizontalAlignment = Alignment.CenterHorizontally,
-                                                modifier = Modifier.padding(4.dp)
-                                            ) {
-                                                Box(
-                                                    modifier = Modifier
-                                                        .fillMaxWidth()
-                                                        .height(96.dp)
-                                                        .clip(RoundedCornerShape(6.dp))
-                                                        .background(Color.White.copy(alpha = 0.08f)),
-                                                    contentAlignment = Alignment.Center
-                                                ) {
-                                                    if (actor.photoUrl.isNotBlank()) {
-                                                        AsyncImage(
-                                                            model = actor.photoUrl,
-                                                            contentDescription = actor.name,
-                                                            contentScale = ContentScale.Crop,
-                                                            modifier = Modifier.fillMaxSize()
-                                                        )
-                                                    } else {
-                                                        AppIcon(
-                                                            resId = R.drawable.ic_person,
-                                                            tint = TextGray,
-                                                            size = 32.dp
-                                                        )
-                                                    }
-                                                }
-                                                Spacer(modifier = Modifier.height(4.dp))
-                                                Text(
-                                                    text = actor.name,
-                                                    fontSize = 10.sp,
-                                                    fontWeight = FontWeight.Medium,
-                                                    color = if (isActorFocused) LocalFocusColor.current else TextWhite,
-                                                    maxLines = 2,
-                                                    overflow = TextOverflow.Ellipsis,
-                                                    textAlign = TextAlign.Center,
-                                                    lineHeight = 13.sp
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
-                            var isMetaBlockFocused by remember { mutableStateOf(false) }
+                            // Synopsis Block
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(8.dp))
-                                    .background(if (isMetaBlockFocused) LocalFocusColor.current.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.04f))
-                                    .onFocusChanged { isMetaBlockFocused = it.isFocused }
-                                    .focusable()
+                                    .background(Color.White.copy(alpha = 0.05f))
+                                    .border(
+                                        width = 1.dp,
+                                        color = Color.White.copy(alpha = 0.1f),
+                                        shape = RoundedCornerShape(8.dp)
+                                    )
+                                    .padding(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text(
+                                    text = "Сюжет фильма / сериала:",
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = accent
+                                )
+                                Text(
+                                    text = currentMovie.description.ifEmpty { "Описание пока не добавлено" },
+                                    fontSize = 14.sp,
+                                    lineHeight = 22.sp,
+                                    color = TextWhite
+                                )
+                            }
+
+                            // Director Strip
+                            if (displayDirectors.isNotEmpty()) {
+                                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Text(
+                                        text = "Режиссёр (нажмите для поиска фильмов):",
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = accent
+                                    )
+                                    TvLazyRow(
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                        contentPadding = PaddingValues(vertical = 4.dp)
+                                    ) {
+                                        itemsIndexed(displayDirectors) { dirIdx, director ->
+                                            var isDirFocused by remember { mutableStateOf(false) }
+                                            val dirMod = if (dirIdx == 0) {
+                                                Modifier
+                                                    .focusRequester(firstDirectorFocusRequester)
+                                                    .focusProperties {
+                                                        up = descriptionTabFocusRequester
+                                                        if (displayCast.isNotEmpty()) down = firstCastFocusRequester
+                                                    }
+                                            } else Modifier
+                                            Card(
+                                                onClick = { onSearchClick(director.name) },
+                                                colors = CardDefaults.colors(
+                                                    containerColor = Color.White.copy(alpha = 0.08f),
+                                                    focusedContainerColor = focusColor.copy(alpha = 0.22f)
+                                                ),
+                                                border = CardDefaults.border(
+                                                    border = Border(BorderStroke(2.dp, Color.Transparent)),
+                                                    focusedBorder = Border(BorderStroke(2.dp, focusColor))
+                                                ),
+                                                shape = CardDefaults.shape(RoundedCornerShape(8.dp)),
+                                                scale = CardDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
+                                                modifier = Modifier
+                                                    .width(84.dp)
+                                                    .then(dirMod)
+                                                    .onFocusChanged { isDirFocused = it.isFocused }
+                                            ) {
+                                                Column(
+                                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                                    modifier = Modifier.padding(4.dp)
+                                                ) {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .fillMaxWidth()
+                                                            .height(96.dp)
+                                                            .clip(RoundedCornerShape(6.dp))
+                                                            .background(Color.White.copy(alpha = 0.08f)),
+                                                        contentAlignment = Alignment.Center
+                                                    ) {
+                                                        if (director.photoUrl.isNotBlank()) {
+                                                            AsyncImage(
+                                                                model = director.photoUrl,
+                                                                contentDescription = director.name,
+                                                                contentScale = ContentScale.Crop,
+                                                                modifier = Modifier.fillMaxSize()
+                                                            )
+                                                        } else {
+                                                            AppIcon(
+                                                                resId = R.drawable.ic_director,
+                                                                tint = TextGray,
+                                                                size = 32.dp
+                                                            )
+                                                        }
+                                                    }
+                                                    Spacer(modifier = Modifier.height(4.dp))
+                                                    Text(
+                                                        text = director.name,
+                                                        fontSize = 10.sp,
+                                                        fontWeight = FontWeight.Medium,
+                                                        color = if (isDirFocused) focusColor else TextWhite,
+                                                        maxLines = 2,
+                                                        overflow = TextOverflow.Ellipsis,
+                                                        textAlign = TextAlign.Center,
+                                                        lineHeight = 13.sp
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Cast Strip
+                            if (displayCast.isNotEmpty()) {
+                                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Text(
+                                        text = "В главных ролях (нажмите для поиска фильмов):",
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = accent
+                                    )
+                                    TvLazyRow(
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                        contentPadding = PaddingValues(vertical = 4.dp)
+                                    ) {
+                                        itemsIndexed(displayCast) { actorIdx, actor ->
+                                            var isActorFocused by remember { mutableStateOf(false) }
+                                            val castMod = if (actorIdx == 0) {
+                                                Modifier
+                                                    .focusRequester(firstCastFocusRequester)
+                                                    .focusProperties {
+                                                        up = if (displayDirectors.isNotEmpty()) firstDirectorFocusRequester else descriptionTabFocusRequester
+                                                    }
+                                            } else Modifier
+                                            Card(
+                                                onClick = { onSearchClick(actor.name) },
+                                                colors = CardDefaults.colors(
+                                                    containerColor = Color.White.copy(alpha = 0.08f),
+                                                    focusedContainerColor = focusColor.copy(alpha = 0.22f)
+                                                ),
+                                                border = CardDefaults.border(
+                                                    border = Border(BorderStroke(2.dp, Color.Transparent)),
+                                                    focusedBorder = Border(BorderStroke(2.dp, focusColor))
+                                                ),
+                                                shape = CardDefaults.shape(RoundedCornerShape(8.dp)),
+                                                scale = CardDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
+                                                modifier = Modifier
+                                                    .width(84.dp)
+                                                    .then(castMod)
+                                                    .onFocusChanged { isActorFocused = it.isFocused }
+                                            ) {
+                                                Column(
+                                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                                    modifier = Modifier.padding(4.dp)
+                                                ) {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .fillMaxWidth()
+                                                            .height(96.dp)
+                                                            .clip(RoundedCornerShape(6.dp))
+                                                            .background(Color.White.copy(alpha = 0.08f)),
+                                                        contentAlignment = Alignment.Center
+                                                    ) {
+                                                        if (actor.photoUrl.isNotBlank()) {
+                                                            AsyncImage(
+                                                                model = actor.photoUrl,
+                                                                contentDescription = actor.name,
+                                                                contentScale = ContentScale.Crop,
+                                                                modifier = Modifier.fillMaxSize()
+                                                            )
+                                                        } else {
+                                                            AppIcon(
+                                                                resId = R.drawable.ic_person,
+                                                                tint = TextGray,
+                                                                size = 32.dp
+                                                            )
+                                                        }
+                                                    }
+                                                    Spacer(modifier = Modifier.height(4.dp))
+                                                    Text(
+                                                        text = actor.name,
+                                                        fontSize = 10.sp,
+                                                        fontWeight = FontWeight.Medium,
+                                                        color = if (isActorFocused) focusColor else TextWhite,
+                                                        maxLines = 2,
+                                                        overflow = TextOverflow.Ellipsis,
+                                                        textAlign = TextAlign.Center,
+                                                        lineHeight = 13.sp
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Metadata block
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(Color.White.copy(alpha = 0.04f))
                                     .padding(12.dp),
                                 verticalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
@@ -2216,7 +2217,7 @@ fun DetailsScreen(
                                             .background(Color.White.copy(alpha = if (isCommentFocused) 0.12f else 0.06f))
                                             .border(
                                                 width = if (isCommentFocused) 2.dp else 1.dp,
-                                                color = if (isCommentFocused) accent else Color.White.copy(alpha = 0.08f),
+                                                color = if (isCommentFocused) focusColor else Color.White.copy(alpha = 0.08f),
                                                 shape = RoundedCornerShape(8.dp)
                                             )
                                             .padding(14.dp)

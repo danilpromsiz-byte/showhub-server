@@ -325,11 +325,11 @@ fun CalendarEpisodeCard(
             focusedContainerColor = focusColor.copy(alpha = 0.18f)
         ),
         border = CardDefaults.border(
-            border = Border(androidx.compose.foundation.BorderStroke(1.dp, if (entry.isSummary) accent.copy(alpha = 0.35f) else Color.White.copy(alpha = 0.08f))),
-            focusedBorder = Border(androidx.compose.foundation.BorderStroke(2.dp, focusColor))
+            border = Border(androidx.compose.foundation.BorderStroke(1.5.dp, if (entry.isSummary) accent.copy(alpha = 0.35f) else Color.White.copy(alpha = 0.08f))),
+            focusedBorder = Border(androidx.compose.foundation.BorderStroke(1.5.dp, focusColor))
         ),
         shape = CardDefaults.shape(RoundedCornerShape(10.dp)),
-        scale = CardDefaults.scale(scale = 1.0f, focusedScale = 1.04f),
+        scale = CardDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
         modifier = modifier
             .width(180.dp)
             .onFocusChanged { isFocused = it.isFocused }
@@ -516,13 +516,16 @@ fun buildCalendarGroups(movies: List<Movie>, historyManager: WatchHistoryManager
     val recentEntries = mutableListOf<CalendarEpisodeEntry>()
 
     for (m in movies) {
-        // 1. Check unwatched episodes for current/target season (not historical seasons)
+        val lastWatched = historyManager?.getLastWatchedEpisode(m.id, m.title)
+
+        // 1. Check unwatched episodes for current/target season (counting strictly forward from last watched episode)
         if (m.seasons.isNotEmpty()) {
-            val historyItem = historyManager?.getHistory()?.firstOrNull { it.id == m.id }
-            val targetSeason = historyItem?.season ?: m.seasons.maxOfOrNull { it.seasonNumber } ?: 1
+            val targetSeason = lastWatched?.first ?: m.seasons.maxOfOrNull { it.seasonNumber } ?: 1
             val targetSeasonObj = m.seasons.firstOrNull { it.seasonNumber == targetSeason }
+            val lwEp = if (lastWatched != null && lastWatched.first == targetSeason) lastWatched.second else if (lastWatched != null && lastWatched.first > targetSeason) Int.MAX_VALUE else 0
+
             val targetUnwatched = targetSeasonObj?.episodes?.filter { ep ->
-                !(historyManager?.isEpisodeWatched(m.id, targetSeason, ep.episodeNumber) ?: false)
+                ep.episodeNumber > lwEp && !(historyManager?.isEpisodeWatched(m.id, targetSeason, ep.episodeNumber, m.title) ?: false)
             } ?: emptyList()
 
             if (targetUnwatched.size > 2) {
@@ -566,10 +569,24 @@ fun buildCalendarGroups(movies: List<Movie>, historyManager: WatchHistoryManager
 
         for (item in sched) {
             val dLower = (item.date + " " + item.status).lowercase()
+
+            // Check if this episode is already released or watched
+            var isAlreadyReleasedOrWatched = false
+            val epMatch = Regex("""(?:(\d+)\s+сезон)?.*?(\d+)\s+серия""").find(item.episode)
+            if (epMatch != null) {
+                val sNum = epMatch.groupValues[1].takeIf { it.isNotBlank() }?.toIntOrNull() ?: 1
+                val epNum = epMatch.groupValues[2].takeIf { it.isNotBlank() }?.toIntOrNull() ?: 0
+                val inSeasons = m.seasons.any { s -> s.seasonNumber == sNum && s.episodes.any { it.episodeNumber == epNum } }
+                val isWatched = lastWatched != null && (lastWatched.first > sNum || (lastWatched.first == sNum && lastWatched.second >= epNum))
+                if (inSeasons || isWatched) {
+                    isAlreadyReleasedOrWatched = true
+                }
+            }
+
             when {
                 isDateToday(item.status) || isDateToday(item.date) -> todaySched.add(item)
                 isDateTomorrow(item.status) || isDateTomorrow(item.date) -> tomorrowSched.add(item)
-                isDateFuture(item.date) || dLower.contains("ожидается") -> upcomingSched.add(item)
+                !isAlreadyReleasedOrWatched && (isDateFuture(item.date) || dLower.contains("ожидается")) -> upcomingSched.add(item)
                 else -> otherSched.add(item)
             }
         }

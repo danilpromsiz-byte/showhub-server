@@ -577,13 +577,13 @@ def check_updates() -> Dict[str, Any]:
 
     return {
         "success": True,
-        "version_name": "2.8.4",
-        "version_code": 63,
+        "version_name": "2.8.5",
+        "version_code": 64,
         "force_update": True,
-        "min_version_code": 63,
+        "min_version_code": 64,
         "apk_url": "https://showhub-server.onrender.com/ShowHub.apk",
         "download_url": "https://showhub-server.onrender.com/ShowHub.apk",
-        "changelog": "ShowHub TV v2.8.4: Увеличен кэш и видеобуфер ExoPlayer (до 120 сек / 64 МБ); устранён кратковременный значок паузы при снятии с паузы; исправлен краш навигации по вкладкам (FocusRequester); восстановлен фокус в диалоге подтверждения выхода; синхронизировано количество серий на кнопках озвучек и в заголовке; точный статус серий в календаре (сегодня/вышла/ожидается) и группировка по текущему сезону."
+        "changelog": "ShowHub TV v2.8.5: Синхронизировано количество серий на кнопках озвучек (фоновый парсинг сезонов HDRezka); активный цвет карточки фильма теперь полностью соответствует выбранному в настройках; сохранение избранного для всех фильмов из любых разделов; сохранение только подтверждённых запросов в поиске (без фрагментов и актёров); отображение таймлайна прогресса на кнопках серий; прямой фокус на актёров и режиссёров в описании без лишнего скролла; стабильная навигация фокуса между фильмами и верхним меню; точный расчёт непросмотренных серий в календаре."
     }
 
 CRASHES_FILE = os.path.join(CURRENT_DIR, "data", "crashes.json")
@@ -1327,6 +1327,28 @@ def _fetch_media_details(
     except Exception:
         pass
 
+    # Enrich HDRezka translators with exact per-season episode counts
+    if details.get("is_series") and details.get("translators") and rz_id:
+        def _enrich_rz_tr(tr_item):
+            t_id = tr_item.get("id")
+            if t_id and str(t_id).isdigit() and not str(t_id).startswith("kodik_"):
+                try:
+                    eps = hdrezka.get_episodes(rz_id, str(t_id))
+                    if eps:
+                        s_eps = {}
+                        for s in eps:
+                            s_num = s.get("season_id") or s.get("season_number") or 1
+                            s_eps[int(s_num)] = len(s.get("episodes", []))
+                        tr_item["seasons_episodes"] = s_eps
+                        tr_item["episodes_count"] = max(s_eps.values(), default=0)
+                except Exception:
+                    pass
+        try:
+            with ThreadPoolExecutor(max_workers=6) as ex:
+                list(ex.map(_enrich_rz_tr, details["translators"]))
+        except Exception:
+            pass
+
     def _is_matching_title(item_title: str, query: str) -> bool:
         def norm(s: str) -> str:
             return re.sub(r'[^a-zA-Zа-яА-Я0-9]', '', (s or "").lower())
@@ -1334,7 +1356,13 @@ def _fetch_media_details(
         it = norm(item_title)
         if not qt or not it:
             return False
-        return qt in it or it in qt
+        if qt == it:
+            return True
+        if qt in it:
+            return True
+        if it in qt and len(it) >= 0.75 * len(qt):
+            return True
+        return False
 
     # Merge Kodik translations & seasons
     kd_max_eps = 0

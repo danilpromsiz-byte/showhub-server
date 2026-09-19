@@ -95,22 +95,36 @@ fun SearchScreen(
         val list = mutableListOf<String>()
         try {
             val arr = JSONArray(raw)
-            for (i in 0 until arr.length()) list.add(arr.getString(i))
+            for (i in 0 until arr.length()) {
+                val s = arr.getString(i).trim()
+                if (s.length >= 2 && !list.contains(s)) list.add(s)
+            }
         } catch (e: Exception) {}
-        return list
-    }
-
-    fun saveQuery(q: String) {
-        if (q.trim().isEmpty()) return
-        val list = loadHistory().toMutableList()
-        list.removeAll { it.equals(q.trim(), ignoreCase = true) }
-        list.add(0, q.trim())
-        val arr = JSONArray()
-        list.take(10).forEach { arr.put(it) }
-        searchPrefs.edit().putString("queries", arr.toString()).apply()
+        // Filter out fragment prefixes where a longer phrase starting with it also exists
+        val cleaned = list.filter { item ->
+            !list.any { other -> other.length > item.length && other.startsWith(item, ignoreCase = true) }
+        }
+        return cleaned
     }
 
     var recentQueries by remember { mutableStateOf(loadHistory()) }
+
+    fun commitQuery(q: String) {
+        if (isActorSearch || q.trim().length < 2) return
+        val trimmed = q.trim()
+        val list = loadHistory().toMutableList()
+        // Remove exact matches and any partial fragments of this query
+        list.removeAll { existing ->
+            existing.equals(trimmed, ignoreCase = true) ||
+            (trimmed.length > existing.length && trimmed.startsWith(existing, ignoreCase = true))
+        }
+        list.add(0, trimmed)
+        val arr = JSONArray()
+        list.take(10).forEach { arr.put(it) }
+        searchPrefs.edit().putString("queries", arr.toString()).apply()
+        recentQueries = loadHistory()
+    }
+
     var query by remember { mutableStateOf(initialQuery) }
     var results by remember { mutableStateOf(initialMovies) }
     var isSearching by remember { mutableStateOf(false) }
@@ -132,8 +146,6 @@ fun SearchScreen(
             results = initialMovies
             return
         }
-        saveQuery(q)
-        recentQueries = loadHistory()
         isSearching = true
         coroutineScope.launch {
             val res = if (byActor) ShowHubApiClient.searchByActor(q) else ShowHubApiClient.searchMovies(q)
@@ -261,6 +273,7 @@ fun SearchScreen(
                                 if (keyEvent.nativeKeyEvent.action == KeyEvent.ACTION_DOWN) {
                                     when (keyEvent.nativeKeyEvent.keyCode) {
                                         KeyEvent.KEYCODE_DPAD_DOWN -> {
+                                            commitQuery(query)
                                             if (recentQueries.isNotEmpty()) {
                                                 try { historyFocusRequester.requestFocus(); true } catch (_: Exception) { false }
                                             } else if (results.isNotEmpty()) {
@@ -269,6 +282,7 @@ fun SearchScreen(
                                         }
                                         KeyEvent.KEYCODE_ENTER,
                                         KeyEvent.KEYCODE_DPAD_CENTER -> {
+                                            commitQuery(query)
                                             if (results.isNotEmpty()) {
                                                 try { resultsFocusRequester.requestFocus(); true } catch (_: Exception) { false }
                                             } else false
@@ -336,7 +350,10 @@ fun SearchScreen(
                                 }
                         }
                         Button(
-                            onClick = { performSearch(histQuery) },
+                            onClick = {
+                                commitQuery(histQuery)
+                                performSearch(histQuery)
+                            },
                             colors = ButtonDefaults.colors(
                                 containerColor = if (isSelected) accent.copy(alpha = 0.85f) else ChipBackground,
                                 focusedContainerColor = focusColor,
@@ -438,9 +455,12 @@ fun SearchScreen(
                     }
                     MovieCard(
                         movie = movie,
-                        onClick = { onMovieSelect(movie) },
+                        onClick = {
+                            commitQuery(query)
+                            onMovieSelect(movie)
+                        },
                         onFocus = {},
-                        modifier = cardMod
+                        cardModifier = cardMod
                     )
                 }
             }

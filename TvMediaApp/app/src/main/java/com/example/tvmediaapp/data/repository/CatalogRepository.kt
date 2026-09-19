@@ -34,16 +34,93 @@ class CatalogRepository(context: Context? = null) {
         }
     }
 
+    fun getFavoriteMovies(): List<Movie> {
+        val list = mutableListOf<Movie>()
+        val raw = prefs?.getString("favorite_movies_json", "[]") ?: "[]"
+        try {
+            val arr = org.json.JSONArray(raw)
+            for (i in 0 until arr.length()) {
+                val obj = arr.getJSONObject(i)
+                val id = obj.optString("id")
+                if (memoryFavorites.contains(id)) {
+                    val cached = com.example.tvmediaapp.data.cache.MediaDiskCache.getCachedDetails(id)
+                    list.add(cached ?: Movie(
+                        id = id,
+                        title = obj.optString("title", "Медиа"),
+                        originalTitle = obj.optString("originalTitle", ""),
+                        description = obj.optString("description", ""),
+                        posterUrl = obj.optString("posterUrl", ""),
+                        backdropUrl = obj.optString("backdropUrl", ""),
+                        rating = obj.optDouble("rating", 0.0),
+                        ratingKp = obj.optDouble("ratingKp", 0.0),
+                        ratingImdb = obj.optDouble("ratingImdb", 0.0),
+                        releaseYear = obj.optString("releaseYear", ""),
+                        duration = obj.optString("duration", ""),
+                        genres = emptyList(),
+                        isSeries = obj.optBoolean("isSeries", false)
+                    ))
+                }
+            }
+        } catch (_: Exception) {}
+
+        val loadedIds = list.map { it.id }.toSet()
+        for (id in memoryFavorites) {
+            if (!loadedIds.contains(id)) {
+                val cached = com.example.tvmediaapp.data.cache.MediaDiskCache.getCachedDetails(id)
+                if (cached != null) {
+                    list.add(cached)
+                } else {
+                    sampleMovies.firstOrNull { it.id == id }?.let { list.add(it) }
+                }
+            }
+        }
+        return list
+    }
+
     fun toggleFavorite(movie: Movie): Boolean {
         val newStatus = if (memoryFavorites.contains(movie.id)) {
             memoryFavorites.remove(movie.id)
             false
         } else {
             memoryFavorites.add(movie.id)
+            com.example.tvmediaapp.data.cache.MediaDiskCache.putCachedDetails(movie)
             true
         }
         prefs?.edit()?.putStringSet("favorite_ids", memoryFavorites)?.apply()
+        saveFavoriteMoviesJson(movie, newStatus)
         return newStatus
+    }
+
+    private fun saveFavoriteMoviesJson(movie: Movie, isAdded: Boolean) {
+        try {
+            val raw = prefs?.getString("favorite_movies_json", "[]") ?: "[]"
+            val arr = try { org.json.JSONArray(raw) } catch (_: Exception) { org.json.JSONArray() }
+            val newArr = org.json.JSONArray()
+            for (i in 0 until arr.length()) {
+                val obj = arr.getJSONObject(i)
+                val id = obj.optString("id")
+                if (id != movie.id && memoryFavorites.contains(id)) {
+                    newArr.put(obj)
+                }
+            }
+            if (isAdded) {
+                val obj = org.json.JSONObject().apply {
+                    put("id", movie.id)
+                    put("title", movie.title)
+                    put("originalTitle", movie.originalTitle)
+                    put("description", movie.description)
+                    put("posterUrl", movie.posterUrl)
+                    put("backdropUrl", movie.backdropUrl)
+                    put("rating", movie.rating)
+                    put("ratingKp", movie.ratingKp)
+                    put("ratingImdb", movie.ratingImdb)
+                    put("releaseYear", movie.releaseYear)
+                    put("isSeries", movie.isSeries)
+                }
+                newArr.put(obj)
+            }
+            prefs?.edit()?.putString("favorite_movies_json", newArr.toString())?.apply()
+        } catch (_: Exception) {}
     }
 
     private fun generateDefaultEpisodes(seasonNum: Int, count: Int): List<EpisodeInfo> {

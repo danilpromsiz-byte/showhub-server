@@ -305,8 +305,6 @@ def classify_age_rating(
         return str(raw_limit).strip()
     return "12+"
 
-def compute_title_similarity(s1: str, s2: str) -> float:
-    if not s1 or not s2:
 TITLE_STOP_WORDS = {
     "или", "не", "нет", "и", "в", "на", "с", "по", "за", "о", "а", "из", "к", "у", "от", "до", "для", "же", "ли",
     "the", "a", "an", "or", "of", "in", "and", "to", "not", "is", "no", "for", "with", "on", "at"

@@ -643,13 +643,13 @@ def check_updates() -> Dict[str, Any]:
 
     return {
         "success": True,
-        "version_name": "2.8.11",
-        "version_code": 70,
+        "version_name": "2.8.12",
+        "version_code": 71,
         "force_update": True,
-        "min_version_code": 70,
+        "min_version_code": 71,
         "apk_url": "https://showhub-server.onrender.com/ShowHub.apk",
         "download_url": "https://showhub-server.onrender.com/ShowHub.apk",
-        "changelog": "ShowHub TV v2.8.11: Мгновенная проверка обновлений через GitHub CDN; восстановлены постеры («Сто девушек») и стильный fallback; восстановлена боковая навигация с крайних колонок на верхнее меню; защита от потери фокуса и устранение крэшей."
+        "changelog": "ShowHub TV v2.8.12: Исправлен фильтр по странам («Южная Корея» и др.) — мгновенный показ корейских дорам и кино без перебивания нерелевантной историей просмотров; сохранение выбранного порядка сортировки («Новинки», «По рейтингу», «По году»); обогащен офлайн-каталог шедеврами мирового и корейского кино («Чеболь против детектива», «Игра в кальмара», «Паразиты» и др.)."
     }
 
 CRASHES_FILE = os.path.join(CURRENT_DIR, "data", "crashes.json")
@@ -1112,10 +1112,21 @@ def get_catalog(
             desc_val = str(it.get("description"))
             if "," in desc_val:
                 sp_c = [p.strip() for p in desc_val.split(",") if p.strip()]
-                if len(sp_c) >= 2 and not any(ch.isdigit() for ch in sp_c[1]):
-                    it["country"] = sp_c[1]
-                    if not it.get("countries"):
-                        it["countries"] = [sp_c[1]]
+                if len(sp_c) >= 2:
+                    cand_c = sp_c[1].lower().strip()
+                    known_c = {
+                        "россия": "Россия", "ссср": "СССР", "сша": "США", "корея": "Корея Южная",
+                        "южная корея": "Корея Южная", "япония": "Япония", "китай": "Китай",
+                        "турция": "Турция", "индия": "Индия", "франция": "Франция",
+                        "германия": "Германия", "италия": "Италия", "испания": "Испания",
+                        "великобритания": "Великобритания", "англия": "Великобритания",
+                        "канада": "Канада", "австралия": "Австралия", "таиланд": "Таиланд",
+                        "тайланд": "Таиланд", "швеция": "Швеция", "мексика": "Мексика"
+                    }
+                    if cand_c in known_c:
+                        it["country"] = known_c[cand_c]
+                        if not it.get("countries"):
+                            it["countries"] = [known_c[cand_c]]
 
         # Comprehensive fallback country inference from text and genres
         if not it.get("country"):

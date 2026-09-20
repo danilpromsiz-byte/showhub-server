@@ -329,8 +329,142 @@ class CatalogRepository(context: Context? = null) {
                 SeasonInfo(2, "\u0421\u0435\u0437\u043e\u043d 2", generateDefaultEpisodes(2, 16))
             ),
             audioTracks = listOf(AudioTrackInfo("1", "Original"))
+        ),
+        Movie(
+            id = "kodik_serial-60205",
+            title = "Чеболь против детектива",
+            originalTitle = "Flex X Cop",
+            description = "Избалованный наследник огромной корпорации попадает на службу в полицию и использует свои миллионы и связи для раскрытия преступлений.",
+            posterUrl = "https://avatars.mds.yandex.net/get-kinopoisk-image/10809707/dcfdb788-b2ca-4cfa-8186-53fa3857ee13/600x900",
+            backdropUrl = "https://avatars.mds.yandex.net/get-kinopoisk-image/10809707/dcfdb788-b2ca-4cfa-8186-53fa3857ee13/1920x1080",
+            rating = 8.2,
+            ratingKp = 8.2,
+            ratingImdb = 7.9,
+            releaseYear = "2024",
+            duration = "65 мин",
+            country = "Корея Южная",
+            director = "Ким Джэ-хон",
+            genres = listOf("Детектив", "Комедия", "Криминал", "Дорама"),
+            videoUrl = "",
+            isSeries = true,
+            seasons = listOf(SeasonInfo(1, "Сезон 1", generateDefaultEpisodes(1, 16))),
+            audioTracks = listOf(AudioTrackInfo("1", "Original"))
+        ),
+        Movie(
+            id = "1309570",
+            title = "Игра в кальмара",
+            originalTitle = "Squid Game",
+            description = "Сотни игроков в долгах принимают странное приглашение поучаствовать в детских играх ради огромного приза с фатальными последствиями.",
+            posterUrl = "https://avatars.mds.yandex.net/get-kinopoisk-image/4774061/e3f6b4ee-bf85-48fa-869a-6945532ab1a0/600x900",
+            backdropUrl = "https://avatars.mds.yandex.net/get-kinopoisk-image/4774061/e3f6b4ee-bf85-48fa-869a-6945532ab1a0/1920x1080",
+            rating = 8.1,
+            ratingKp = 8.1,
+            ratingImdb = 8.0,
+            releaseYear = "2021",
+            duration = "55 мин",
+            country = "Корея Южная",
+            director = "Хван Дон-хёк",
+            genres = listOf("Триллер", "Драма", "Дорама"),
+            videoUrl = "",
+            isSeries = true,
+            seasons = listOf(SeasonInfo(1, "Сезон 1", generateDefaultEpisodes(1, 9))),
+            audioTracks = listOf(AudioTrackInfo("1", "Original"))
+        ),
+        Movie(
+            id = "1043758",
+            title = "Паразиты",
+            originalTitle = "Parasite",
+            description = "Бедная семья Ким обманом устраивается на работу в дом богачей Пак, запуская череду непредсказуемых событий.",
+            posterUrl = "https://avatars.mds.yandex.net/get-kinopoisk-image/1599028/0b76b2a2-d1c7-4f04-a284-80ff7bb709a4/600x900",
+            backdropUrl = "https://avatars.mds.yandex.net/get-kinopoisk-image/1599028/0b76b2a2-d1c7-4f04-a284-80ff7bb709a4/1920x1080",
+            rating = 8.6,
+            ratingKp = 8.6,
+            ratingImdb = 8.5,
+            releaseYear = "2019",
+            duration = "131 мин",
+            country = "Корея Южная",
+            director = "Пон Джун-хо",
+            genres = listOf("Триллер", "Драма", "Комедия"),
+            videoUrl = "",
+            isSeries = false,
+            audioTracks = listOf(AudioTrackInfo("1", "Original"))
+        ),
+        Movie(
+            id = "1355137",
+            title = "Постучись в мою дверь",
+            originalTitle = "Sen Çal Kapımı",
+            description = "Флористка Эда и архитектор Серкан Болат заключают договор о фиктивной помолвке, который перерастает в настоящую любовь.",
+            posterUrl = "https://avatars.mds.yandex.net/get-kinopoisk-image/1900788/e0214c77-cecb-456a-a0bb-a72eb56f082e/600x900",
+            backdropUrl = "https://avatars.mds.yandex.net/get-kinopoisk-image/1900788/e0214c77-cecb-456a-a0bb-a72eb56f082e/1920x1080",
+            rating = 8.2,
+            ratingKp = 8.2,
+            ratingImdb = 7.3,
+            releaseYear = "2020",
+            duration = "45 мин",
+            country = "Турция",
+            director = "Алтан Дёнмез",
+            genres = listOf("Мелодрама", "Комедия"),
+            videoUrl = "",
+            isSeries = true,
+            seasons = listOf(SeasonInfo(1, "Сезон 1", generateDefaultEpisodes(1, 161))),
+            audioTracks = listOf(AudioTrackInfo("1", "Original"))
+        ),
+        Movie(
+            id = "748554",
+            title = "Атака титанов",
+            originalTitle = "Attack on Titan",
+            description = "Человечество живёт за огромными стенами, защищающими от гигантских титанов-людоедов.",
+            posterUrl = "https://avatars.mds.yandex.net/get-kinopoisk-image/4303601/bb816ea8-fa24-4f46-95ea-656da6c84c17/600x900",
+            backdropUrl = "https://avatars.mds.yandex.net/get-kinopoisk-image/4303601/bb816ea8-fa24-4f46-95ea-656da6c84c17/1920x1080",
+            rating = 8.7,
+            ratingKp = 8.7,
+            ratingImdb = 9.1,
+            releaseYear = "2013",
+            duration = "24 мин",
+            country = "Япония",
+            director = "Тэцуро Араки",
+            genres = listOf("Аниме", "Боевик", "Фэнтези"),
+            videoUrl = "",
+            isSeries = true,
+            seasons = listOf(SeasonInfo(1, "Сезон 1", generateDefaultEpisodes(1, 25))),
+            audioTracks = listOf(AudioTrackInfo("1", "Original"))
         )
     )
+
+    private fun matchesCountry(movie: Movie, filterCountry: String): Boolean {
+        if (filterCountry.isBlank() || filterCountry == "all" || filterCountry == "Все страны") return true
+        val fLow = filterCountry.lowercase().trim()
+        val mCountry = movie.country.lowercase().trim()
+        val mDesc = movie.description.lowercase()
+        val mTitle = movie.title.lowercase()
+        val mGenres = movie.genres.map { it.lowercase() }
+
+        val aliases = when {
+            fLow.contains("коре") -> listOf("коре", "южная корея", "республика корея", "korea", "дорам")
+            fLow.contains("сша") || fLow.contains("usa") -> listOf("сша", "usa", "америк", "соединенные штаты")
+            fLow.contains("росси") -> listOf("росси", "рф", "russia")
+            fLow.contains("великобрит") || fLow.contains("англи") -> listOf("великобрит", "англи", "uk", "британ")
+            fLow.contains("япон") -> listOf("япон", "japan", "аниме")
+            fLow.contains("турц") -> listOf("турц", "turkey", "турец")
+            fLow.contains("кита") -> listOf("кита", "china", "донгхуа")
+            fLow.contains("инди") -> listOf("инди", "india", "болливуд")
+            fLow.contains("франц") -> listOf("франц", "france")
+            fLow.contains("герман") -> listOf("герман", "germany", "немец")
+            fLow.contains("италь") || fLow.contains("итали") -> listOf("италь", "итали", "italy")
+            fLow.contains("испан") -> listOf("испан", "spain")
+            fLow.contains("ссср") -> listOf("ссср", "советск", "ussr")
+            fLow.contains("канад") -> listOf("канад", "canada")
+            fLow.contains("австрал") -> listOf("австрал", "australia")
+            fLow.contains("таиланд") || fLow.contains("тайланд") -> listOf("таиланд", "тайланд", "thailand", "лакорн")
+            fLow.contains("швеци") -> listOf("швеци", "sweden")
+            else -> listOf(fLow)
+        }
+
+        return aliases.any { alias ->
+            mCountry.contains(alias) ||
+            (mCountry.isBlank() && (mDesc.contains(alias) || mTitle.contains(alias) || mGenres.any { it.contains(alias) }))
+        }
+    }
 
     private fun filterAndSort(
         list: List<Movie>,
@@ -346,19 +480,19 @@ class CatalogRepository(context: Context? = null) {
         res = when (category) {
             "movies" -> res.filter { !it.isSeries }
             "series" -> res.filter { it.isSeries }
-            "cartoons" -> res.filter { it.genres.any { g -> g.contains("\u041c\u0443\u043b\u044c\u0442", ignoreCase = true) } }
-            "anime" -> res.filter { it.genres.any { g -> g.contains("\u0410\u043d\u0438\u043c\u0435", ignoreCase = true) } }
+            "cartoons" -> res.filter { it.genres.any { g -> g.contains("Мульт", ignoreCase = true) } }
+            "anime" -> res.filter { it.genres.any { g -> g.contains("Аниме", ignoreCase = true) } }
             "favorites" -> res.filter { isFavorite(it.id) }
             else -> res
         }
 
         // Genre filter
-        if (!genre.isNullOrEmpty() && genre != "all" && genre != "\u0412\u0441\u0435 \u0436\u0430\u043d\u0440\u044b") {
+        if (!genre.isNullOrEmpty() && genre != "all" && genre != "Все жанры") {
             res = res.filter { m -> m.genres.any { g -> g.contains(genre, ignoreCase = true) } }
         }
 
         // Year filter
-        if (!year.isNullOrEmpty() && year != "all" && year != "\u0412\u0441\u0435 \u0433\u043e\u0434\u044b") {
+        if (!year.isNullOrEmpty() && year != "all" && year != "Все годы") {
             res = when (year) {
                 "2020-2022" -> res.filter { it.releaseYear in listOf("2020", "2021", "2022") }
                 "2010s" -> res.filter { (it.releaseYear.toIntOrNull() ?: 0) in 2010..2019 }
@@ -368,8 +502,8 @@ class CatalogRepository(context: Context? = null) {
         }
 
         // Country filter
-        if (!country.isNullOrEmpty() && country != "all" && country != "\u0412\u0441\u0435 \u0441\u0442\u0440\u0430\u043d\u044b") {
-            res = res.filter { it.country.contains(country, ignoreCase = true) }
+        if (!country.isNullOrEmpty() && country != "all" && country != "Все страны") {
+            res = res.filter { matchesCountry(it, country) }
         }
 
         // Sorting
@@ -433,7 +567,12 @@ class CatalogRepository(context: Context? = null) {
             effective = filterAndSort(effective, category, genre, sortBy, year, country)
             if (effective.isEmpty()) return emptyList()
 
-            return if (category == "all" && (genre.isNullOrEmpty() || genre == "Все жанры")) {
+            val isPureDefault = category == "all" &&
+                (genre.isNullOrEmpty() || genre == "Все жанры") &&
+                (country.isNullOrEmpty() || country == "all") &&
+                (year.isNullOrEmpty() || year == "all")
+
+            return if (isPureDefault) {
                 listOf(
                     MovieCategory(id = "popular", title = "Популярные новинки", movies = effective),
                     MovieCategory(id = "top_rated", title = "Топ рейтинга", movies = effective.sortedByDescending { it.rating }),
@@ -441,14 +580,27 @@ class CatalogRepository(context: Context? = null) {
                     MovieCategory(id = "movies", title = "Фильмы", movies = effective.filter { !it.isSeries })
                 )
             } else {
-                val title = when (category) {
+                val titleParts = mutableListOf<String>()
+                if (!country.isNullOrEmpty() && country != "all") {
+                    titleParts.add(if (country.contains("Коре", ignoreCase = true)) "Южная Корея" else country)
+                }
+                if (!genre.isNullOrEmpty() && genre != "all" && genre != "Все жанры") {
+                    titleParts.add(genre)
+                }
+                if (!year.isNullOrEmpty() && year != "all") {
+                    titleParts.add(year)
+                }
+                val catName = when (category) {
                     "movies" -> "Фильмы"
                     "series" -> "Сериалы"
                     "cartoons" -> "Мультфильмы"
                     "anime" -> "Аниме"
-                    else -> "Каталог"
+                    else -> if (titleParts.isEmpty()) "Каталог" else ""
                 }
-                listOf(MovieCategory(id = category, title = title, movies = effective))
+                if (catName.isNotEmpty()) titleParts.add(0, catName)
+
+                val displayTitle = if (titleParts.isNotEmpty()) titleParts.joinToString(" • ") else "Каталог"
+                listOf(MovieCategory(id = category, title = displayTitle, movies = effective))
             }
         }
 
@@ -458,6 +610,9 @@ class CatalogRepository(context: Context? = null) {
         val initialCats = buildCategories(initialMovies)
         if (initialCats.isNotEmpty()) {
             emit(initialCats)
+        } else {
+            // Emit empty list so the grid clears stale items and displays loading state immediately
+            emit(emptyList())
         }
 
         // STEP 2: Live API fetch in background to get fresh releases
@@ -471,20 +626,31 @@ class CatalogRepository(context: Context? = null) {
                 excludedCountries = if (excludedCountriesStr.isNotBlank()) excludedCountriesStr else null
             )
             if (liveMovies.isNotEmpty()) {
-                com.example.tvmediaapp.data.cache.MediaDiskCache.putCachedCatalog(liveMovies)
+                val isDefaultMainCatalog = category == "all" &&
+                    (genre.isNullOrEmpty() || genre == "Все жанры" || genre == "all") &&
+                    (country.isNullOrEmpty() || country == "all") &&
+                    (year.isNullOrEmpty() || year == "all") &&
+                    sortBy == "newest"
+                if (isDefaultMainCatalog) {
+                    com.example.tvmediaapp.data.cache.MediaDiskCache.putCachedCatalog(liveMovies)
+                }
                 val liveCategories = buildCategories(liveMovies)
                 if (liveCategories.isNotEmpty()) {
                     emit(liveCategories)
                 }
-            } else if (cachedCatalog.isNullOrEmpty()) {
+            } else if (cachedCatalog.isNullOrEmpty() && initialCats.isEmpty()) {
                 val fallback = buildCategories(sampleMovies)
-                emit(if (fallback.isNotEmpty()) fallback else listOf(MovieCategory(id = category, title = "Офлайн-каталог", movies = sampleMovies)))
+                if (fallback.isNotEmpty()) {
+                    emit(fallback)
+                }
             }
         } catch (e: Exception) {
             e.printStackTrace()
-            if (cachedCatalog.isNullOrEmpty()) {
+            if (cachedCatalog.isNullOrEmpty() && initialCats.isEmpty()) {
                 val fallback = buildCategories(sampleMovies)
-                emit(if (fallback.isNotEmpty()) fallback else listOf(MovieCategory(id = category, title = "Офлайн-каталог", movies = sampleMovies)))
+                if (fallback.isNotEmpty()) {
+                    emit(fallback)
+                }
             }
         }
     }

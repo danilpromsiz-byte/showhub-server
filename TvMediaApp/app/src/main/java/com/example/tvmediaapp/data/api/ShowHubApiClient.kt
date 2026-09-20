@@ -648,11 +648,17 @@ object ShowHubApiClient {
                 val cArr = extraObj?.optJSONArray("countries") ?: it.optJSONArray("countries")
                 if (cArr != null && cArr.length() > 0) cArr.getString(0) else ""
             }.ifEmpty {
-                val desc = it.optString("description", "")
-                if (desc.contains(",")) {
-                    val sp = desc.split(",")
-                    if (sp.size >= 2 && !sp[1].any { ch -> ch.isDigit() }) sp[1].trim() else ""
-                } else ""
+                val fullText = (it.optString("description", "") + " " + title).lowercase()
+                when {
+                    fullText.contains("коре") || fullText.contains("дорам") || fullText.contains("сеул") -> "Корея Южная"
+                    fullText.contains("япон") || fullText.contains("токио") || fullText.contains("аниме") -> "Япония"
+                    fullText.contains("кита") || fullText.contains("пекин") || fullText.contains("донгхуа") -> "Китай"
+                    fullText.contains("турц") || fullText.contains("стамбул") -> "Турция"
+                    fullText.contains("инди") || fullText.contains("болливуд") -> "Индия"
+                    fullText.contains("росси") || fullText.contains("москва") || fullText.contains("ссср") -> "Россия"
+                    fullText.contains("сша") || fullText.contains("америк") || fullText.contains("голливуд") -> "США"
+                    else -> ""
+                }
             }
             val country = if (rawCountry.isBlank() || rawCountry.equals("null", ignoreCase = true)) "" else rawCountry
 

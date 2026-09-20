@@ -23,6 +23,17 @@ object MediaDiskCache {
             base.mkdirs()
         }
         cacheDir = base
+
+        val catFile = File(base, "catalog.json")
+        if (!catFile.exists() || catFile.length() < 200) {
+            try {
+                context.assets.open("initial_catalog.json").use { input ->
+                    catFile.outputStream().use { output ->
+                        input.copyTo(output)
+                    }
+                }
+            } catch (_: Exception) {}
+        }
     }
 
     private fun getDetailsDir(): File {

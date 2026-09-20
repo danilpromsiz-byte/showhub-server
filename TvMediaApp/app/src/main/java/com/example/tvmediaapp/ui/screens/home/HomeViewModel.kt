@@ -52,30 +52,35 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     fun selectType(type: String) {
         lastFocusedIndex = 0
         _selectedType.value = type
+        viewModelScope.launch { try { gridState.scrollToItem(0) } catch (_: Exception) {} }
         loadCatalog()
     }
 
     fun selectSort(sortBy: String) {
         lastFocusedIndex = 0
         _selectedSort.value = sortBy
+        viewModelScope.launch { try { gridState.scrollToItem(0) } catch (_: Exception) {} }
         loadCatalog()
     }
 
     fun selectGenre(genre: String) {
         lastFocusedIndex = 0
         _selectedGenre.value = genre
+        viewModelScope.launch { try { gridState.scrollToItem(0) } catch (_: Exception) {} }
         loadCatalog()
     }
 
     fun selectYear(year: String) {
         lastFocusedIndex = 0
         _selectedYear.value = year
+        viewModelScope.launch { try { gridState.scrollToItem(0) } catch (_: Exception) {} }
         loadCatalog()
     }
 
     fun selectCountry(country: String) {
         lastFocusedIndex = 0
         _selectedCountry.value = country
+        viewModelScope.launch { try { gridState.scrollToItem(0) } catch (_: Exception) {} }
         loadCatalog()
     }
 
@@ -86,6 +91,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         _selectedGenre.value = "Все жанры"
         _selectedYear.value = "all"
         _selectedCountry.value = "all"
+        viewModelScope.launch { try { gridState.scrollToItem(0) } catch (_: Exception) {} }
         loadCatalog()
     }
 
@@ -124,6 +130,12 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         loadCatalogJob?.cancel()
         loadCatalogJob = viewModelScope.launch {
             _isLoading.value = true
+            val hasCustomFilters = _selectedType.value != "all" ||
+                (_selectedGenre.value.isNotEmpty() && _selectedGenre.value != "Все жанры" && _selectedGenre.value != "all") ||
+                _selectedSort.value != "newest" ||
+                (_selectedYear.value.isNotEmpty() && _selectedYear.value != "all") ||
+                (_selectedCountry.value.isNotEmpty() && _selectedCountry.value != "all")
+
             repository.getCatalog(
                 category = _selectedType.value,
                 genre = _selectedGenre.value,
@@ -131,10 +143,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 year = _selectedYear.value,
                 country = _selectedCountry.value
             ).collect { data ->
-                val processedData = if (_selectedType.value == "all" &&
-                    (_selectedGenre.value.isEmpty() || _selectedGenre.value == "Все жанры") &&
-                    _selectedSort.value == "newest"
-                ) {
+                val processedData = if (!hasCustomFilters) {
                     applyHistoryRanking(data)
                 } else {
                     data

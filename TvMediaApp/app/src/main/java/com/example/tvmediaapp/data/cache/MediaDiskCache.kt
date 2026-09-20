@@ -66,6 +66,15 @@ object MediaDiskCache {
 
     fun putCachedDetails(movie: Movie) {
         try {
+            // Guard: Never overwrite rich cached details with an empty movie
+            if (movie.seasons.isEmpty() && movie.audioTracks.isEmpty() && movie.cast.isEmpty()) {
+                val existing = getCachedDetails(movie.id, movie.title, movie.releaseYear)
+                if (existing != null && (existing.seasons.isNotEmpty() || existing.audioTracks.isNotEmpty() || existing.cast.isNotEmpty())) {
+                    Log.d(TAG, "Preserving existing rich cache for ${movie.title} (${movie.id}) instead of empty data")
+                    return
+                }
+            }
+
             val safeId = movie.id.replace(Regex("[^a-zA-Z0-9_-]"), "_")
             val json = serializeMovie(movie)
             val jsonStr = json.toString()
@@ -76,6 +85,46 @@ object MediaDiskCache {
             }
         } catch (e: Exception) {
             Log.w(TAG, "Failed to write cached details for ${movie.id}: ${e.message}")
+        }
+    }
+
+    private fun getCatalogFile(): File {
+        return File(cacheDir, "catalog.json")
+    }
+
+    fun getCachedCatalog(): List<Movie>? {
+        return try {
+            val file = getCatalogFile()
+            if (!file.exists()) return null
+            if (System.currentTimeMillis() - file.lastModified() > MAX_AGE_MS) {
+                file.delete()
+                return null
+            }
+            val content = file.readText()
+            val arr = JSONArray(content)
+            val list = mutableListOf<Movie>()
+            for (i in 0 until arr.length()) {
+                val obj = arr.getJSONObject(i)
+                val m = deserializeMovie(obj)
+                if (m != null) list.add(m)
+            }
+            if (list.isNotEmpty()) list else null
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to read cached catalog: ${e.message}")
+            null
+        }
+    }
+
+    fun putCachedCatalog(movies: List<Movie>) {
+        try {
+            if (movies.isEmpty()) return
+            val arr = JSONArray()
+            for (m in movies) {
+                arr.put(serializeMovie(m))
+            }
+            getCatalogFile().writeText(arr.toString())
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to write cached catalog: ${e.message}")
         }
     }
 

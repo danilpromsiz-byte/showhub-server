@@ -173,8 +173,12 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                         cached
                     } else {
                         val fetched = com.example.tvmediaapp.data.api.ShowHubApiClient.fetchMediaDetails(movie)
-                        com.example.tvmediaapp.data.cache.MediaDiskCache.putCachedDetails(fetched)
-                        fetched
+                        if (fetched.seasons.isNotEmpty() || fetched.audioTracks.isNotEmpty() || fetched.cast.isNotEmpty()) {
+                            com.example.tvmediaapp.data.cache.MediaDiskCache.putCachedDetails(fetched)
+                            fetched
+                        } else {
+                            cached ?: fetched
+                        }
                     }
 
                     // Check if newly released episodes appeared for started or favorite series

@@ -114,7 +114,7 @@ object ShowHubApiClient {
     suspend fun searchByActor(actorName: String): List<Movie> = searchMovies(actorName, type = "actor")
 
     suspend fun fetchMediaDetails(movie: Movie): Movie = withContext(Dispatchers.IO) {
-        val cached = MediaDiskCache.getCachedDetails(movie.id)
+        val cached = MediaDiskCache.getCachedDetails(movie.id, movie.title, movie.releaseYear)
         val isSeriesLike = movie.isSeries || cached?.isSeries == true || (cached?.seasons?.isNotEmpty() == true)
         val hasTranslatorSeasons = cached?.audioTracks?.any { it.seasonsEpisodes.isNotEmpty() } == true
 
@@ -124,14 +124,22 @@ object ShowHubApiClient {
                 CoroutineScope(Dispatchers.IO).launch {
                     try {
                         val refreshed = fetchMediaDetailsFromNetwork(movie)
-                        MediaDiskCache.putCachedDetails(refreshed)
+                        if (refreshed.seasons.isNotEmpty() || refreshed.audioTracks.isNotEmpty() || refreshed.cast.isNotEmpty()) {
+                            MediaDiskCache.putCachedDetails(refreshed)
+                        }
                     } catch (_: Exception) {}
                 }
                 return@withContext cached
             }
         }
         val result = fetchMediaDetailsFromNetwork(movie)
-        MediaDiskCache.putCachedDetails(result)
+        if (result.seasons.isNotEmpty() || result.audioTracks.isNotEmpty() || result.cast.isNotEmpty()) {
+            MediaDiskCache.putCachedDetails(result)
+            return@withContext result
+        } else if (cached != null) {
+            // Network returned empty or timed out, preserve existing rich cached data!
+            return@withContext cached
+        }
         result
     }
 

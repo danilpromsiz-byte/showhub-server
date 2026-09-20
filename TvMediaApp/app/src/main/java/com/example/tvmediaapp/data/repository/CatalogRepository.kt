@@ -399,7 +399,67 @@ class CatalogRepository(context: Context? = null) {
         val excludedCountriesStr = prefs?.getString("pref_excluded_countries", "") ?: ""
         val onlyWithPoster = prefs?.getBoolean("pref_only_with_poster", true) ?: true
 
-        // Live API fetch first without hardcoded movies on start
+        fun hasValidPoster(url: String): Boolean {
+            if (url.isBlank()) return false
+            val lower = url.lowercase()
+            return !lower.contains("no_image") &&
+                   !lower.contains("noposter") &&
+                   !lower.contains("kinopoiskapiunofficial.tech") &&
+                   !lower.contains("10592371/4c676451")
+        }
+
+        fun buildCategories(movies: List<Movie>): List<MovieCategory> {
+            var effective = movies
+            if (onlyWithPoster) {
+                effective = effective.filter { m -> hasValidPoster(m.posterUrl) }
+            }
+            if (excludedCountriesStr.isNotBlank()) {
+                val exList = excludedCountriesStr.split(",").map { it.trim().lowercase() }.filter { it.isNotEmpty() }
+                if (exList.isNotEmpty()) {
+                    effective = effective.filter { m ->
+                        val cLow = m.country.lowercase()
+                        exList.none { ex -> cLow.contains(ex) }
+                    }
+                }
+            }
+            // Immediately enrich movies with cached details from disk
+            effective = effective.map { m ->
+                com.example.tvmediaapp.data.cache.MediaDiskCache.getCachedDetails(m.id, m.title, m.releaseYear) ?: m
+            }
+            if (onlyWithPoster) {
+                effective = effective.filter { m -> hasValidPoster(m.posterUrl) }
+            }
+            effective = filterAndSort(effective, category, genre, sortBy, year, country)
+            if (effective.isEmpty()) return emptyList()
+
+            return if (category == "all" && (genre.isNullOrEmpty() || genre == "Все жанры")) {
+                listOf(
+                    MovieCategory(id = "popular", title = "Популярные новинки", movies = effective),
+                    MovieCategory(id = "top_rated", title = "Топ рейтинга", movies = effective.sortedByDescending { it.rating }),
+                    MovieCategory(id = "series", title = "Сериалы", movies = effective.filter { it.isSeries }),
+                    MovieCategory(id = "movies", title = "Фильмы", movies = effective.filter { !it.isSeries })
+                )
+            } else {
+                val title = when (category) {
+                    "movies" -> "Фильмы"
+                    "series" -> "Сериалы"
+                    "cartoons" -> "Мультфильмы"
+                    "anime" -> "Аниме"
+                    else -> "Каталог"
+                }
+                listOf(MovieCategory(id = category, title = title, movies = effective))
+            }
+        }
+
+        // STEP 1: Fast progressive initial emit from local disk cache or sample catalog (0-50 ms)!
+        val cachedCatalog = com.example.tvmediaapp.data.cache.MediaDiskCache.getCachedCatalog()
+        val initialMovies = if (!cachedCatalog.isNullOrEmpty()) cachedCatalog else sampleMovies
+        val initialCats = buildCategories(initialMovies)
+        if (initialCats.isNotEmpty()) {
+            emit(initialCats)
+        }
+
+        // STEP 2: Live API fetch in background to get fresh releases
         try {
             val liveMovies = ShowHubApiClient.fetchCatalog(
                 category = category,
@@ -409,69 +469,22 @@ class CatalogRepository(context: Context? = null) {
                 country = country,
                 excludedCountries = if (excludedCountriesStr.isNotBlank()) excludedCountriesStr else null
             )
-
-            fun hasValidPoster(url: String): Boolean {
-                if (url.isBlank()) return false
-                val lower = url.lowercase()
-                return !lower.contains("no_image") &&
-                       !lower.contains("noposter") &&
-                       !lower.contains("kinopoiskapiunofficial.tech") &&
-                       !lower.contains("10592371/4c676451")
-            }
-
-            var effectiveMovies = liveMovies
-            if (onlyWithPoster) {
-                effectiveMovies = effectiveMovies.filter { m -> hasValidPoster(m.posterUrl) }
-            }
-            if (excludedCountriesStr.isNotBlank()) {
-                val exList = excludedCountriesStr.split(",").map { it.trim().lowercase() }.filter { it.isNotEmpty() }
-                if (exList.isNotEmpty()) {
-                    effectiveMovies = effectiveMovies.filter { m ->
-                        val cLow = m.country.lowercase()
-                        exList.none { ex -> cLow.contains(ex) }
-                    }
+            if (liveMovies.isNotEmpty()) {
+                com.example.tvmediaapp.data.cache.MediaDiskCache.putCachedCatalog(liveMovies)
+                val liveCategories = buildCategories(liveMovies)
+                if (liveCategories.isNotEmpty()) {
+                    emit(liveCategories)
                 }
-            }
-
-            // Immediately enrich movies with cached details from disk on startup
-            effectiveMovies = effectiveMovies.map { m ->
-                com.example.tvmediaapp.data.cache.MediaDiskCache.getCachedDetails(m.id, m.title, m.releaseYear) ?: m
-            }
-
-            if (onlyWithPoster) {
-                effectiveMovies = effectiveMovies.filter { m -> hasValidPoster(m.posterUrl) }
-            }
-
-            if (effectiveMovies.isNotEmpty()) {
-                val liveCategories = if (category == "all" && (genre.isNullOrEmpty() || genre == "Все жанры")) {
-                    listOf(
-                        MovieCategory(id = "popular", title = "Популярные новинки", movies = effectiveMovies),
-                        MovieCategory(id = "top_rated", title = "Топ рейтинга", movies = effectiveMovies.sortedByDescending { it.rating }),
-                        MovieCategory(id = "series", title = "Сериалы", movies = effectiveMovies.filter { it.isSeries }),
-                        MovieCategory(id = "movies", title = "Фильмы", movies = effectiveMovies.filter { !it.isSeries })
-                    )
-                } else {
-                    val title = when (category) {
-                        "movies" -> "Фильмы"
-                        "series" -> "Сериалы"
-                        "cartoons" -> "Мультфильмы"
-                        "anime" -> "Аниме"
-                        else -> "Каталог"
-                    }
-                    listOf(MovieCategory(id = category, title = title, movies = effectiveMovies))
-                }
-                emit(liveCategories)
-            } else {
-                // Emergency offline fallback only if network returned empty
-                val fallback = filterAndSort(sampleMovies, category, genre, sortBy, year, country)
-                val fallbackCategories = listOf(MovieCategory(id = category, title = "Офлайн-каталог", movies = fallback))
-                emit(fallbackCategories)
+            } else if (cachedCatalog.isNullOrEmpty()) {
+                val fallback = buildCategories(sampleMovies)
+                emit(if (fallback.isNotEmpty()) fallback else listOf(MovieCategory(id = category, title = "Офлайн-каталог", movies = sampleMovies)))
             }
         } catch (e: Exception) {
             e.printStackTrace()
-            val fallback = filterAndSort(sampleMovies, category, genre, sortBy, year, country)
-            val fallbackCategories = listOf(MovieCategory(id = category, title = "Офлайн-каталог", movies = fallback))
-            emit(fallbackCategories)
+            if (cachedCatalog.isNullOrEmpty()) {
+                val fallback = buildCategories(sampleMovies)
+                emit(if (fallback.isNotEmpty()) fallback else listOf(MovieCategory(id = category, title = "Офлайн-каталог", movies = sampleMovies)))
+            }
         }
     }
 }

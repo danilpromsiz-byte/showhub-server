@@ -220,18 +220,19 @@ object RezkaNativeResolver {
                 pageHtml.contains("b-simple_episodes__list") ||
                 pageHtml.contains("id=\"simple-seasons-tabs\"")
 
+            // Collect all available translator IDs from the page
+            val allPageTranslators = mutableListOf<String>()
+            val allTrMatcher = Pattern.compile("data-translator_id=\"(\\d+)\"").matcher(pageHtml)
+            while (allTrMatcher.find()) {
+                val tid = allTrMatcher.group(1)
+                if (!tid.isNullOrEmpty() && !allPageTranslators.contains(tid)) {
+                    allPageTranslators.add(tid)
+                }
+            }
+
             // 3. Request CDN streams via AJAX
             val tNow = System.currentTimeMillis()
             val ajaxUrl = "$baseUrl/ajax/get_cdn_series/?t=$tNow"
-            val postData = StringBuilder()
-                .append("id=").append(dataId)
-                .append("&translator_id=").append(transId)
-                .append("&action=").append(if (actualIsSeries) "get_stream" else "get_movie")
-
-            if (actualIsSeries) {
-                postData.append("&season=").append(season).append("&episode=").append(episode)
-            }
-
             val headers = mapOf(
                 "X-Requested-With" to "XMLHttpRequest",
                 "Referer" to pageUrl,
@@ -240,13 +241,47 @@ object RezkaNativeResolver {
                 "Content-Type" to "application/x-www-form-urlencoded"
             )
 
-            val ajaxResponse = httpPost(ajaxUrl, postData.toString(), headers, baseUrl = baseUrl) ?: return emptyList()
-            if (!ajaxResponse.trim().startsWith("{")) {
-                return emptyList()
+            fun makeAjaxCall(targetTransId: String, sNum: Int, epNum: Int): String {
+                val postData = StringBuilder()
+                    .append("id=").append(dataId)
+                    .append("&translator_id=").append(targetTransId)
+                    .append("&action=").append(if (actualIsSeries) "get_stream" else "get_movie")
+                if (actualIsSeries) {
+                    postData.append("&season=").append(sNum).append("&episode=").append(epNum)
+                }
+                val resp = httpPost(ajaxUrl, postData.toString(), headers, baseUrl = baseUrl)
+                if (resp != null && resp.trim().startsWith("{")) {
+                    val j = JSONObject(resp)
+                    return j.optString("url").ifEmpty { j.optString("streams", "") }
+                }
+                return ""
             }
 
-            val json = JSONObject(ajaxResponse)
-            val streamStr = json.optString("url").ifEmpty { json.optString("streams", "") }
+            var streamStr = makeAjaxCall(transId, season, episode)
+
+            // Fallback for series when active translator has no season 1 (e.g. Chebol Coldfilm has only season 2)
+            if (streamStr.isEmpty() && translatorId == null) {
+                // 1. Try other translators discovered on this page for season 1
+                for (otherTid in allPageTranslators) {
+                    if (otherTid == transId) continue
+                    val s = makeAjaxCall(otherTid, season, episode)
+                    if (s.isNotEmpty()) {
+                        streamStr = s
+                        break
+                    }
+                }
+                // 2. If still empty and season == 1, try season 2 episode 1
+                if (streamStr.isEmpty() && actualIsSeries && season == 1) {
+                    val s = makeAjaxCall(transId, 2, 1)
+                    if (s.isNotEmpty()) {
+                        streamStr = s
+                    }
+                }
+            }
+
+            if (streamStr.isEmpty()) {
+                return emptyList()
+            }
 
             fun parseStreams(raw: String, isFallback: Boolean = false) {
                 val parts = raw.split(Regex(",\\s*(?=\\[[^\\]]+\\])"))

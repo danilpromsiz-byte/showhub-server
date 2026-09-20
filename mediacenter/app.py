@@ -643,13 +643,13 @@ def check_updates() -> Dict[str, Any]:
 
     return {
         "success": True,
-        "version_name": "2.8.9",
-        "version_code": 68,
+        "version_name": "2.8.10",
+        "version_code": 69,
         "force_update": True,
-        "min_version_code": 68,
+        "min_version_code": 69,
         "apk_url": "https://showhub-server.onrender.com/ShowHub.apk",
         "download_url": "https://showhub-server.onrender.com/ShowHub.apk",
-        "changelog": "ShowHub TV v2.8.9: Исправление даты в графике выхода серий (синхронизация с часами устройства); сохранение фокуса при переходе в карточке между вкладками; синтез недостающих серий (14-я серия Чеболь Octopus); восстановлены таймлайны-прогрессбары на кнопках серий; исправление прыжков перемотки и отображения меток времени в плеере; закрытие шторок и меню по кнопке Назад и подтверждение выхода из фильма двойным кликом; выход из карточки фильма по одному клику; дебаунс поиска со спиннером; обновленные темы и исправленная иконка приложения."
+        "changelog": "ShowHub TV v2.8.10: Мгновенная поэтапная загрузка каталога на старте (0-50 мс из дискового кэша с фоновым обновлением новинок); защита кэша данных от затирания при сетевых таймаутах; серверное кэширование метаданных; восстановлен видео-предпросмотр и загрузка карточек для многосезонных сериалов («Чеболь против детектива»)."
     }
 
 CRASHES_FILE = os.path.join(CURRENT_DIR, "data", "crashes.json")
@@ -1190,6 +1190,9 @@ def check_favorites_updates(favs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             pass
     return updates
 
+_details_cache: Dict[str, Tuple[float, Dict[str, Any]]] = {}
+_DETAILS_CACHE_TTL = 3600  # 1 hour in-memory cache for ultra-fast details response
+
 def _fetch_media_details(
     source: str,
     media_id: str,
@@ -1202,6 +1205,21 @@ def _fetch_media_details(
     """Returns rich metadata, ratings, cast, seasons, episodes, and translators unified across sources."""
     year_int = safe_parse_year(year)
     is_ser_bool = bool(int(is_series)) if str(is_series).isdigit() else (bool(is_series) if is_series is not None else None)
+
+    clean_title = re.sub(r'\(.*?\)|\[.*?\]', '', title).strip() if title else ""
+    if clean_title and ":" in clean_title:
+        clean_title = clean_title.split(":")[0].strip()
+    if clean_title and " - " in clean_title:
+        clean_title = clean_title.split(" - ")[0].strip()
+    clean_title = re.sub(r'\b\d+\s+(сери[йия]|сезон(а|ов)?)\b', '', clean_title, flags=re.I).strip()
+    clean_title = re.sub(r'\b(сезон|серия)\s+\d+\b', '', clean_title, flags=re.I).strip()
+
+    cache_key = f"{source}_{media_id}_{clean_title.lower()}_{year_int}_{is_ser_bool}"
+    now_ts = time.time()
+    if cache_key in _details_cache:
+        c_time, c_data = _details_cache[cache_key]
+        if now_ts - c_time < _DETAILS_CACHE_TTL:
+            return c_data
 
     details: Dict[str, Any] = {
         "media_id": media_id,
@@ -1222,14 +1240,6 @@ def _fetch_media_details(
         "poster": None,
         "episodes_schedule": []
     }
-
-    clean_title = re.sub(r'\(.*?\)|\[.*?\]', '', title).strip() if title else ""
-    if clean_title and ":" in clean_title:
-        clean_title = clean_title.split(":")[0].strip()
-    if clean_title and " - " in clean_title:
-        clean_title = clean_title.split(" - ")[0].strip()
-    clean_title = re.sub(r'\b\d+\s+(сери[йия]|сезон(а|ов)?)\b', '', clean_title, flags=re.I).strip()
-    clean_title = re.sub(r'\b(сезон|серия)\s+\d+\b', '', clean_title, flags=re.I).strip()
 
     # Determine real Kinopoisk ID if available
     resolved_kp = kp_id
@@ -1439,8 +1449,9 @@ def _fetch_media_details(
                 except Exception:
                     pass
         try:
+            top_trs = details["translators"][:6]
             with ThreadPoolExecutor(max_workers=6) as ex:
-                list(ex.map(_enrich_rz_tr, details["translators"]))
+                list(ex.map(_enrich_rz_tr, top_trs))
         except Exception:
             pass
 
@@ -1708,6 +1719,9 @@ def _fetch_media_details(
                 pass
         if not any(a in str(details.get("country") or "").lower() for a in ["китай", "коре", "япони"]):
             details["country"] = "Китай"
+
+    if details.get("seasons") or details.get("translators") or details.get("description"):
+        _details_cache[cache_key] = (now_ts, details)
 
     return details
 
@@ -2304,6 +2318,8 @@ def get_media_preview_stream(
     try:
         if source == "hdrezka" and media_id:
             rz_res = hdrezka.get_streams(media_id, season=1, episode=1)
+            if not rz_res.streams and (is_series or str(is_series) == "1"):
+                rz_res = hdrezka.get_streams(media_id, season=2, episode=1)
             if rz_res.streams:
                 valid_rz = [s for s in rz_res.streams if is_usable_preview_stream(s)]
                 if valid_rz:
@@ -2318,6 +2334,8 @@ def get_media_preview_stream(
             rz_match = find_best_match(rz_items, year, is_series)
             if rz_match:
                 rz_res = hdrezka.get_streams(rz_match.id, season=1, episode=1)
+                if not rz_res.streams and (is_series or str(is_series) == "1" or getattr(rz_match, "is_series", False)):
+                    rz_res = hdrezka.get_streams(rz_match.id, season=2, episode=1)
                 if rz_res.streams:
                     valid_rz = [s for s in rz_res.streams if is_usable_preview_stream(s)]
                     if valid_rz:

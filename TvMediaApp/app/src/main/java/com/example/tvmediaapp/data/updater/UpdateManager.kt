@@ -27,33 +27,37 @@ data class UpdateInfo(
 
 object UpdateManager {
     private val VERSION_URLS = listOf(
-        "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/version.json",
-        "https://showhub-server.onrender.com/version.json"
+        "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/version.json",
+        "https://showhub-server.onrender.com/version.json",
+        "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/version.json"
     )
 
     suspend fun checkUpdate(currentVersionCode: Int): UpdateInfo = withContext(Dispatchers.IO) {
-        for (versionUrl in VERSION_URLS) {
+        for (baseUrl in VERSION_URLS) {
             for (attempt in 1..2) {
                 try {
-                    val url = URL(versionUrl)
+                    val fullUrl = if (baseUrl.contains("?")) "$baseUrl&t=${System.currentTimeMillis()}" else "$baseUrl?t=${System.currentTimeMillis()}"
+                    val url = URL(fullUrl)
                     val conn = url.openConnection() as HttpURLConnection
-                    conn.connectTimeout = 8000
-                    conn.readTimeout = 8000
-                    conn.setRequestProperty("User-Agent", "ShowHubTV-Native/2.8.11")
+                    conn.connectTimeout = 5000
+                    conn.readTimeout = 5000
+                    conn.useCaches = false
+                    conn.setRequestProperty("User-Agent", "ShowHubTV-Native/2.8.16")
+                    conn.setRequestProperty("Cache-Control", "no-cache, no-store, must-revalidate")
+                    conn.setRequestProperty("Pragma", "no-cache")
                     conn.connect()
                     if (conn.responseCode == 200) {
                         val body = conn.inputStream.bufferedReader().use { it.readText() }
                         val json = JSONObject(body)
                         val sCode = json.optInt("version_code", 0)
-                        val sName = json.optString("version_name", "2.8.11")
+                        val sName = json.optString("version_name", "2.8.16")
                         val sUrl = json.optString("download_url", json.optString("apk_url", "https://showhub-server.onrender.com/ShowHub.apk"))
                         val sChangelog = json.optString("changelog", "Новая версия ShowHub TV")
                         val hasUpdate = sCode > currentVersionCode
                         return@withContext UpdateInfo(hasUpdate, sName, sCode, sUrl, sChangelog)
                     }
                 } catch (e: Exception) {
-                    e.printStackTrace()
-                    if (attempt < 2) delay(1000)
+                    if (attempt < 2) delay(500)
                 }
             }
         }
@@ -108,7 +112,7 @@ object UpdateManager {
                 val conn = url.openConnection() as HttpURLConnection
                 conn.connectTimeout = 20000
                 conn.readTimeout = 60000
-                conn.setRequestProperty("User-Agent", "ShowHubTV-Native/2.8.1")
+                conn.setRequestProperty("User-Agent", "ShowHubTV-Native/2.8.16")
                 conn.connect()
 
                 val responseCode = conn.responseCode

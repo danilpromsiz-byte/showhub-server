@@ -341,9 +341,9 @@ fun TvAppNavHost(activity: MainActivity) {
 
     // Auto-check on launch with safety delay and follow-up retry
     LaunchedEffect(Unit) {
-        delay(1200)
+        delay(600)
         triggerUpdateCheck()
-        delay(5000)
+        delay(3000)
         if (updateInfo == null) {
             triggerUpdateCheck()
         }

@@ -2,7 +2,6 @@ package com.example.tvmediaapp.ui.screens.history
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -239,9 +238,7 @@ fun HistoryScreen(
                 contentPadding = PaddingValues(bottom = 120.dp),
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
-                modifier = Modifier
-                    .fillMaxSize()
-                    .focusGroup()
+                modifier = Modifier.fillMaxSize()
             ) {
                 itemsIndexed(historyItems, key = { _, item -> item.id }) { index, item ->
                     val movie = Movie(

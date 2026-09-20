@@ -8,7 +8,6 @@ package com.example.tvmediaapp.ui.screens.home
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
-import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -87,7 +86,7 @@ fun HomeScreen(
     val topBarSearchFocusRequester = remember { FocusRequester() }
     val filterRow1FocusRequester = remember { FocusRequester() }
     val filterRow2FocusRequester = remember { FocusRequester() }
-    val gridFocusRequester = remember { FocusRequester() }
+    val targetCardFocusRequester = remember { FocusRequester() }
     val emptyResetFocusRequester = remember { FocusRequester() }
 
     // Scroll to top on Back button if user scrolled down in grid
@@ -96,20 +95,21 @@ fun HomeScreen(
             try {
                 viewModel.gridState.scrollToItem(0)
                 viewModel.lastFocusedIndex = 0
-                gridFocusRequester.requestFocus()
+                delay(60)
+                targetCardFocusRequester.requestFocus()
             } catch (_: Exception) {}
         }
     }
 
     var initialFocusDone by remember { mutableStateOf(false) }
 
-    // Automatically focus the grid ONCE on initial screen enter when displayMovies is ready
+    // Automatically focus the active card ONCE on initial screen enter when displayMovies is ready
     LaunchedEffect(displayMovies.isNotEmpty()) {
         if (displayMovies.isNotEmpty() && !initialFocusDone) {
             initialFocusDone = true
             delay(150)
             try {
-                gridFocusRequester.requestFocus()
+                targetCardFocusRequester.requestFocus()
             } catch (_: Exception) {}
         }
     }
@@ -134,6 +134,8 @@ fun HomeScreen(
             focusDownRequester = filterRow1FocusRequester
         )
 
+        val currentDownRequester = if (displayMovies.isEmpty()) emptyResetFocusRequester else targetCardFocusRequester
+
         // FILTER & SORT RIBBON
         FilterBar(
             selectedType = selectedType,
@@ -150,7 +152,7 @@ fun HomeScreen(
             row1FocusRequester = filterRow1FocusRequester,
             row2FocusRequester = filterRow2FocusRequester,
             focusUpRequester = topBarSearchFocusRequester,
-            focusDownRequester = gridFocusRequester
+            focusDownRequester = currentDownRequester
         )
 
         // 6-COLUMN VERTICAL GRID (2 rows of 6 cards on screen at a time, scrolling down)
@@ -213,24 +215,15 @@ fun HomeScreen(
                 contentPadding = PaddingValues(start = 32.dp, top = 8.dp, end = 32.dp, bottom = 120.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
-                modifier = Modifier
-                    .fillMaxSize()
-                    .focusRequester(gridFocusRequester)
-                    .focusGroup()
+                modifier = Modifier.fillMaxSize()
             ) {
                 itemsIndexed(displayMovies, key = { _, movie -> movie.id }) { index, movie ->
-                    val isLeftmost = index % 6 == 0
-                    val isRightmost = index % 6 == 5 || index == displayMovies.size - 1
+                    val isTarget = index == viewModel.lastFocusedIndex.coerceIn(0, (displayMovies.size - 1).coerceAtLeast(0))
+                    val targetMod = if (isTarget) Modifier.focusRequester(targetCardFocusRequester) else Modifier
 
                     val edgePropertiesMod = Modifier.focusProperties {
                         if (index < 6) {
                             up = filterRow2FocusRequester
-                        }
-                        if (isLeftmost) {
-                            left = topBarSearchFocusRequester
-                        }
-                        if (isRightmost) {
-                            right = topBarSearchFocusRequester
                         }
                     }
 
@@ -243,7 +236,7 @@ fun HomeScreen(
                         onFocus = {
                             viewModel.lastFocusedIndex = index
                         },
-                        cardModifier = edgePropertiesMod
+                        cardModifier = targetMod.then(edgePropertiesMod)
                     )
                 }
             }

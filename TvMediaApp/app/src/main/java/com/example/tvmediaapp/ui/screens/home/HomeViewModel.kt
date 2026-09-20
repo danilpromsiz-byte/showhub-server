@@ -1,6 +1,9 @@
 package com.example.tvmediaapp.ui.screens.home
 
 import android.app.Application
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.tvmediaapp.data.history.WatchHistoryManager
@@ -43,7 +46,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     @OptIn(androidx.tv.foundation.ExperimentalTvFoundationApi::class)
     val gridState = androidx.tv.foundation.lazy.grid.TvLazyGridState()
-    var lastFocusedIndex: Int = 0
+    var lastFocusedIndex by mutableIntStateOf(0)
 
     init {
         loadCatalog()

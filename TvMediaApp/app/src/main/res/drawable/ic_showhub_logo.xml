@@ -12,12 +12,12 @@
 
     <!-- Main Solid Black Squircle Body -->
     <path
-        android:pathData="M 122 24 H 390 A 98 98 0 0 1 488 122 V 390 A 98 98 0 0 1 390 488 H 122 A 98 98 0 0 1 24 122 V 122 A 98 98 0 0 1 122 24 Z"
+        android:pathData="M 122 24 H 390 A 98 98 0 0 1 488 122 V 390 A 98 98 0 0 1 390 488 H 122 A 98 98 0 0 1 24 390 V 122 A 98 98 0 0 1 122 24 Z"
         android:fillColor="#040608" />
 
     <!-- Subtle Inner Rim Highlight -->
     <path
-        android:pathData="M 124 28 H 388 A 94 94 0 0 1 482 122 V 390 A 94 94 0 0 1 388 484 H 124 A 94 94 0 0 1 28 122 V 122 A 94 94 0 0 1 124 28 Z"
+        android:pathData="M 124 28 H 388 A 94 94 0 0 1 482 122 V 390 A 94 94 0 0 1 388 484 H 124 A 94 94 0 0 1 28 390 V 122 A 94 94 0 0 1 124 28 Z"
         android:strokeWidth="2"
         android:strokeColor="#2E3A46"
         android:fillColor="#00000000" />

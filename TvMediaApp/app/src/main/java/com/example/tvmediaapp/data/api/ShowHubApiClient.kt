@@ -625,7 +625,7 @@ object ShowHubApiClient {
             val rawDesc = it.optString("description", "")
             val desc = if (rawDesc.isBlank() || rawDesc.equals("null", ignoreCase = true)) "" else rawDesc
             val poster = it.optString("poster", "")
-            val posterUrl = if (poster.startsWith("http")) poster else if (poster.isNotEmpty()) "$SERVER_BASE$poster" else "https://avatars.mds.yandex.net/get-kinopoisk-image/10592371/4c676451-f7ea-4d89-9d5a-bf98b1eb7980/600x900"
+            val posterUrl = if (poster.startsWith("http")) poster else if (poster.isNotEmpty()) "$SERVER_BASE$poster" else ""
             val kpRating = if (it.has("rating_kp") && !it.isNull("rating_kp")) it.optDouble("rating_kp", 7.5) else 0.0
             val imdbRating = if (it.has("rating_imdb") && !it.isNull("rating_imdb")) it.optDouble("rating_imdb", 7.2) else 0.0
             val rating = if (kpRating > 0) kpRating else if (imdbRating > 0) imdbRating else it.optDouble("rating", 7.5)

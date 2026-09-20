@@ -524,7 +524,7 @@ private fun NativeExoPlayerScreen(
             exoPlayer.pause()
             playbackActionBadge = "pause"
             isControlsVisible = true
-            try { playPauseFocusRequester.requestFocus() } catch (_: Exception) {}
+            try { timelineFocusRequester.requestFocus() } catch (_: Exception) {}
         } else {
             exoPlayer.play()
             playbackActionBadge = "play"
@@ -764,7 +764,9 @@ private fun NativeExoPlayerScreen(
     // Monitor playback progress & periodically save to WatchHistoryManager (throttled when controls hidden)
     LaunchedEffect(exoPlayer, isControlsVisible) {
         while (true) {
-            currentPosition = exoPlayer.currentPosition
+            if (!isTimelineFocused && pendingTimelineSeekPos == null) {
+                currentPosition = exoPlayer.currentPosition
+            }
             duration = if (exoPlayer.duration > 0) exoPlayer.duration else 0L
             bufferedPosition = exoPlayer.bufferedPosition
             isPlaying = exoPlayer.isPlaying
@@ -793,22 +795,32 @@ private fun NativeExoPlayerScreen(
         }
     }
 
-    // Auto-focus play/pause button when controls become visible
+    // Auto-focus TIMELINE when controls become visible
     LaunchedEffect(isControlsVisible) {
         if (isControlsVisible && activeDrawer == null) {
             delay(50)
             try {
-                playPauseFocusRequester.requestFocus()
+                timelineFocusRequester.requestFocus()
             } catch (_: Exception) {}
         }
     }
 
-    // Handle Hardware Back button - exit immediately unless a drawer is open
+    var lastBackPressTime by remember { mutableLongStateOf(0L) }
+
+    // Handle Hardware Back button: close drawer -> close controls -> double click to exit
     BackHandler {
         if (activeDrawer != null) {
             activeDrawer = null
+        } else if (isControlsVisible) {
+            isControlsVisible = false
         } else {
-            onBackPress()
+            val now = System.currentTimeMillis()
+            if (now - lastBackPressTime < 2000L) {
+                onBackPress()
+            } else {
+                lastBackPressTime = now
+                android.widget.Toast.makeText(context, "Нажмите «Назад» еще раз для выхода", android.widget.Toast.LENGTH_SHORT).show()
+            }
         }
     }
 
@@ -897,7 +909,17 @@ private fun NativeExoPlayerScreen(
                             activeDrawer = null
                             return@onKeyEvent true
                         }
-                        onBackPress()
+                        if (isControlsVisible) {
+                            isControlsVisible = false
+                            return@onKeyEvent true
+                        }
+                        val now = System.currentTimeMillis()
+                        if (now - lastBackPressTime < 2000L) {
+                            onBackPress()
+                        } else {
+                            lastBackPressTime = now
+                            android.widget.Toast.makeText(context, "Нажмите «Назад» еще раз для выхода", android.widget.Toast.LENGTH_SHORT).show()
+                        }
                         return@onKeyEvent true
                     }
                 }
@@ -973,7 +995,7 @@ private fun NativeExoPlayerScreen(
                             }
                             else -> {
                                 isControlsVisible = true
-                                try { playPauseFocusRequester.requestFocus() } catch (_: Exception) {}
+                                try { timelineFocusRequester.requestFocus() } catch (_: Exception) {}
                                 return@onKeyEvent true
                             }
                         }
@@ -1295,13 +1317,18 @@ private fun NativeExoPlayerScreen(
                             color = TextWhite
                         )
                         Spacer(modifier = Modifier.height(8.dp))
-                        val availableTracks = remember(currentMovieState.audioTracks, currentSeason, currentMovieState.isSeries) {
+                        val availableTracks = remember(currentMovieState.audioTracks, currentSeason, currentEpisode, currentMovieState.isSeries) {
                             if (currentMovieState.isSeries) {
                                 val filtered = currentMovieState.audioTracks.filter { track ->
                                     if (track.seasonsEpisodes.isEmpty()) {
-                                        if (currentMovieState.seasons.size > 1 && currentSeason > 1) false else true
+                                        if (currentMovieState.seasons.size > 1 && currentSeason > 1) {
+                                            false
+                                        } else {
+                                            track.episodesCount == 0 || track.episodesCount >= currentEpisode
+                                        }
                                     } else {
-                                        (track.seasonsEpisodes[currentSeason] ?: 0) > 0
+                                        val epCount = track.seasonsEpisodes[currentSeason] ?: 0
+                                        epCount >= currentEpisode
                                     }
                                 }
                                 if (filtered.isNotEmpty()) filtered else currentMovieState.audioTracks
@@ -1606,7 +1633,7 @@ private fun NativeExoPlayerScreen(
                         (bufferedPosition.toFloat() / duration.toFloat()).coerceIn(0f, 1f)
                     } else 0f
 
-                    val trackHeight = if (isTimelineFocused) 8.dp else 4.dp
+                    val trackHeight = if (isTimelineFocused) 10.dp else 4.dp
 
                     Box(
                         modifier = Modifier
@@ -1641,7 +1668,7 @@ private fun NativeExoPlayerScreen(
                                             seekDeltaBadge = formatTimeRu(newPos)
                                             timelineSeekJob?.cancel()
                                             timelineSeekJob = coroutineScope.launch {
-                                                delay(200L)
+                                                delay(120L)
                                                 exoPlayer.seekTo(newPos)
                                                 pendingTimelineSeekPos = null
                                             }
@@ -1664,7 +1691,7 @@ private fun NativeExoPlayerScreen(
                                             seekDeltaBadge = formatTimeRu(newPos)
                                             timelineSeekJob?.cancel()
                                             timelineSeekJob = coroutineScope.launch {
-                                                delay(200L)
+                                                delay(120L)
                                                 exoPlayer.seekTo(newPos)
                                                 pendingTimelineSeekPos = null
                                             }
@@ -1716,38 +1743,36 @@ private fun NativeExoPlayerScreen(
                                     shape = RoundedCornerShape(4.dp)
                                 )
                         )
-                        // 4. Scrubber Thumb & Seek delta badge when focused
+                        // 4. Scrubber Thumb & Floating Time Badge when focused
                         if (isTimelineFocused) {
                             Box(
                                 modifier = Modifier.fillMaxWidth(progressFraction),
                                 contentAlignment = Alignment.CenterEnd
                             ) {
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    modifier = Modifier.offset(x = 12.dp)
-                                ) {
-                                    if (seekDeltaBadge != null) {
-                                        Box(
-                                            modifier = Modifier
-                                                .background(accent, shape = RoundedCornerShape(4.dp))
-                                                .padding(horizontal = 6.dp, vertical = 2.dp)
-                                        ) {
-                                            Text(
-                                                text = seekDeltaBadge ?: "",
-                                                fontSize = 10.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = Color.Black
-                                            )
-                                        }
-                                        Spacer(modifier = Modifier.height(2.dp))
-                                    }
+                                // Floating Time Badge positioned ABOVE the timeline bar so it never obscures the thumb
+                                if (seekDeltaBadge != null) {
                                     Box(
                                         modifier = Modifier
-                                            .size(16.dp)
-                                            .background(Color.White, shape = CircleShape)
-                                            .border(2.dp, accent, shape = CircleShape)
-                                    )
+                                            .offset(x = 10.dp, y = (-26).dp)
+                                            .background(accent, shape = RoundedCornerShape(4.dp))
+                                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                                    ) {
+                                        Text(
+                                            text = seekDeltaBadge ?: "",
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.Black
+                                        )
+                                    }
                                 }
+
+                                // Scrubber Thumb Dot (Clean, centered on timeline track, no extra outline)
+                                Box(
+                                    modifier = Modifier
+                                        .offset(x = 8.dp)
+                                        .size(16.dp)
+                                        .background(Color.White, shape = CircleShape)
+                                )
                             }
                         }
                     }

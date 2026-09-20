@@ -307,6 +307,14 @@ def classify_age_rating(
 
 def compute_title_similarity(s1: str, s2: str) -> float:
     if not s1 or not s2:
+TITLE_STOP_WORDS = {
+    "или", "не", "нет", "и", "в", "на", "с", "по", "за", "о", "а", "из", "к", "у", "от", "до", "для", "же", "ли",
+    "the", "a", "an", "or", "of", "in", "and", "to", "not", "is", "no", "for", "with", "on", "at"
+}
+
+def compute_title_similarity(s1: str, s2: str) -> float:
+    """Computes robust word-level similarity between two titles, excluding common stop words."""
+    if not s1 or not s2:
         return 0.0
     n1 = normalize_search_title(s1)
     n2 = normalize_search_title(s2)
@@ -314,17 +322,24 @@ def compute_title_similarity(s1: str, s2: str) -> float:
         return 0.0
     if n1 == n2:
         return 1.0
-    if n1 in n2 or n2 in n1:
-        return min(len(n1), len(n2)) / max(len(n1), len(n2))
-    w1 = set(n1.split())
-    w2 = set(n2.split())
-    if not w1 or not w2:
-        return 0.0
+    
+    words1 = [w for w in n1.split() if len(w) > 1 and w not in TITLE_STOP_WORDS]
+    words2 = [w for w in n2.split() if len(w) > 1 and w not in TITLE_STOP_WORDS]
+    if not words1 or not words2:
+        # Fallback to character normalized compare if only single letters / stop words
+        return 1.0 if n1 == n2 else 0.0
+
+    w1 = set(words1)
+    w2 = set(words2)
     intersection = w1 & w2
+    if not intersection:
+        # None of the meaningful content words match!
+        return 0.0
+
     union = w1 | w2
     jaccard = len(intersection) / len(union)
     overlap = len(intersection) / min(len(w1), len(w2))
-    return max(jaccard, overlap * 0.7)
+    return max(jaccard, overlap * 0.75)
 
 def rank_matches(items: list, target_year: Optional[Any] = None, target_is_series: Optional[Any] = None, target_title: Optional[str] = None) -> list:
     if not items:
@@ -347,11 +362,11 @@ def rank_matches(items: list, target_year: Optional[Any] = None, target_is_serie
         # Title similarity matching
         if target_title and it_title:
             sim = compute_title_similarity(it_title, target_title)
-            if sim < 0.40:
-                return -9999  # Disqualify completely unrelated title matches
-            score += int(sim * 200)
+            if sim < 0.60:
+                return -9999  # Disqualify unrelated title matches
+            score += int(sim * 250)
 
-        # Year matching
+        # Year matching: heavily penalize mismatched years
         if t_year and it_yr:
             diff = abs(it_yr - t_year)
             if diff == 0:
@@ -359,15 +374,17 @@ def rank_matches(items: list, target_year: Optional[Any] = None, target_is_serie
             elif diff == 1:
                 score += 70
             elif diff == 2:
-                score += 40
+                score += 30
             else:
-                score -= diff * 5
+                score -= diff * 50
+                if diff > 3:
+                    return -9999  # Disqualify titles released more than 3 years apart
         # is_series matching
         if t_series is not None:
             if bool(it_ser) == bool(t_series):
-                score += 50
+                score += 60
             else:
-                score -= 30
+                score -= 100
         return score
 
     filtered = [it for it in items if score_item(it) > -5000]
@@ -380,7 +397,7 @@ def find_best_match(items: list, target_year: Optional[Any] = None, target_is_se
     best = ranked[0]
     if target_title:
         sim = compute_title_similarity(getattr(best, "title", ""), target_title)
-        if sim < 0.40:
+        if sim < 0.60:
             return None
     return best
 
@@ -550,12 +567,6 @@ def resolve_real_poster(title: str, year: Optional[Any] = None, kp_id: Optional[
     if " - " in clean_t:
         clean_t = clean_t.split(" - ")[0].strip()
 
-    # 1. Top priority: Kinopoisk Unofficial if kp_id is available (crisp 1000x1500)
-    if kp_id and str(kp_id).isdigit():
-        kp_poster = f"https://kinopoiskapiunofficial.tech/images/posters/kp/{kp_id}.jpg"
-        _poster_cache[cache_key] = kp_poster
-        return kp_poster
-
     # 2. Bazon search (returns 1000x1500 high-res posters from i.kbd.so)
     try:
         b_matches = bazon.search(clean_t)
@@ -634,13 +645,13 @@ def check_updates() -> Dict[str, Any]:
 
     return {
         "success": True,
-        "version_name": "2.8.8",
-        "version_code": 67,
+        "version_name": "2.8.9",
+        "version_code": 68,
         "force_update": True,
-        "min_version_code": 67,
+        "min_version_code": 68,
         "apk_url": "https://showhub-server.onrender.com/ShowHub.apk",
         "download_url": "https://showhub-server.onrender.com/ShowHub.apk",
-        "changelog": "ShowHub TV v2.8.7: Исправление фейковых озвучек и серий (серии и дорожки фильтруются строго по сезонам); контрастный таймлайн серий в карточке фильма; однократное нажатие Назад для выхода из плеера; хронологический порядок в календаре «Скоро выйдут»; отображение текущего времени при перемотке (напр. 48 м. 34 с.), отображение минут и секунд при быстрой перемотке свыше 60с; таймер меню не сбрасывается во время перемотки; яркая подсветка таймлайна сверху."
+        "changelog": "ShowHub TV v2.8.9: Исправление даты в графике выхода серий (синхронизация с часами устройства); сохранение фокуса при переходе в карточке между вкладками; синтез недостающих серий (14-я серия Чеболь Octopus); восстановлены таймлайны-прогрессбары на кнопках серий; исправление прыжков перемотки и отображения меток времени в плеере; закрытие шторок и меню по кнопке Назад и подтверждение выхода из фильма двойным кликом; выход из карточки фильма по одному клику; дебаунс поиска со спиннером; обновленные темы и исправленная иконка приложения."
     }
 
 CRASHES_FILE = os.path.join(CURRENT_DIR, "data", "crashes.json")

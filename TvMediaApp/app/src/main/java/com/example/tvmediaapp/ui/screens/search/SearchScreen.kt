@@ -128,6 +128,7 @@ fun SearchScreen(
     var query by remember { mutableStateOf(initialQuery) }
     var results by remember { mutableStateOf(initialMovies) }
     var isSearching by remember { mutableStateOf(false) }
+    var searchJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     val coroutineScope = rememberCoroutineScope()
     val searchInputFocusRequester = remember { FocusRequester() }
     val historyFocusRequester = remember { FocusRequester() }
@@ -140,28 +141,38 @@ fun SearchScreen(
         } catch (_: Exception) {}
     }
 
-    fun performSearch(q: String, byActor: Boolean = isActorSearch) {
+    fun performSearch(q: String, byActor: Boolean = isActorSearch, debounceMs: Long = 400L) {
         query = q
+        searchJob?.cancel()
         if (q.trim().isEmpty()) {
+            isSearching = false
             results = initialMovies
             return
         }
         isSearching = true
-        coroutineScope.launch {
-            val res = if (byActor) ShowHubApiClient.searchByActor(q) else ShowHubApiClient.searchMovies(q)
-            results = if (res.isNotEmpty()) res else initialMovies.filter {
-                it.title.contains(q, ignoreCase = true) ||
-                it.originalTitle.contains(q, ignoreCase = true) ||
-                it.actors.contains(q, ignoreCase = true) ||
-                it.director.contains(q, ignoreCase = true)
+        searchJob = coroutineScope.launch {
+            if (debounceMs > 0L) {
+                delay(debounceMs)
             }
-            isSearching = false
+            try {
+                val res = if (byActor) ShowHubApiClient.searchByActor(q.trim()) else ShowHubApiClient.searchMovies(q.trim())
+                results = if (res.isNotEmpty()) res else initialMovies.filter {
+                    it.title.contains(q, ignoreCase = true) ||
+                    it.originalTitle.contains(q, ignoreCase = true) ||
+                    it.actors.contains(q, ignoreCase = true) ||
+                    it.director.contains(q, ignoreCase = true)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            } finally {
+                isSearching = false
+            }
         }
     }
 
     LaunchedEffect(initialQuery) {
         if (initialQuery.isNotBlank()) {
-            performSearch(initialQuery, byActor = isActorSearch)
+            performSearch(initialQuery, byActor = isActorSearch, debounceMs = 0L)
         }
     }
 
@@ -296,7 +307,7 @@ fun SearchScreen(
 
                 if (query.isNotEmpty()) {
                     Button(
-                        onClick = { performSearch("") },
+                        onClick = { performSearch("", debounceMs = 0L) },
                         colors = ButtonDefaults.colors(
                             containerColor = Color.White.copy(alpha = 0.12f),
                             focusedContainerColor = Color.Red,
@@ -352,7 +363,7 @@ fun SearchScreen(
                         Button(
                             onClick = {
                                 commitQuery(histQuery)
-                                performSearch(histQuery)
+                                performSearch(histQuery, debounceMs = 0L)
                             },
                             colors = ButtonDefaults.colors(
                                 containerColor = if (isSelected) accent.copy(alpha = 0.85f) else ChipBackground,

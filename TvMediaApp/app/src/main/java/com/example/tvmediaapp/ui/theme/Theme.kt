@@ -13,9 +13,9 @@ import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.darkColorScheme
 
-val LocalAccentColor = compositionLocalOf { ThemeYellow }
+val LocalAccentColor = compositionLocalOf { ThemeCyan }
 val LocalBackgroundColor = compositionLocalOf { BackgroundDark }
-val LocalFocusColor = compositionLocalOf { Color.White }
+val LocalFocusColor = compositionLocalOf { ThemeYellow }
 val LocalSurfaceColor = compositionLocalOf { SurfaceDark }
 val LocalSurfaceVariantColor = compositionLocalOf { SurfaceVariantDark }
 
@@ -25,16 +25,16 @@ object ThemeManager {
     private const val PREF_FOCUS_COLOR_KEY = "pref_focus_color"
     private var prefs: SharedPreferences? = null
 
-    var currentAccentColor by mutableStateOf(ThemeYellow)
+    var currentAccentColor by mutableStateOf(ThemeCyan)
         private set
 
-    var currentThemeKey by mutableStateOf("yellow")
+    var currentThemeKey by mutableStateOf("cyan")
         private set
 
     var isPureBlackEnabled by mutableStateOf(false)
         private set
 
-    var currentFocusColorKey by mutableStateOf("white")
+    var currentFocusColorKey by mutableStateOf("yellow")
         private set
 
     val currentBackgroundColor: Color
@@ -59,14 +59,14 @@ object ThemeManager {
             "sapphire" -> ThemeSapphire
             "lime" -> ThemeLime
             "magenta" -> ThemeMagenta
-            else -> Color.White
+            else -> ThemeYellow
         }
 
     fun init(context: Context) {
         prefs = context.getSharedPreferences("showhub_prefs", Context.MODE_PRIVATE)
-        val saved = prefs?.getString(PREF_THEME_KEY, "yellow") ?: "yellow"
+        val saved = prefs?.getString(PREF_THEME_KEY, "cyan") ?: "cyan"
         isPureBlackEnabled = prefs?.getBoolean(PREF_PURE_BLACK_KEY, false) ?: false
-        currentFocusColorKey = prefs?.getString(PREF_FOCUS_COLOR_KEY, "white") ?: "white"
+        currentFocusColorKey = prefs?.getString(PREF_FOCUS_COLOR_KEY, "yellow") ?: "yellow"
         setTheme(saved)
     }
 

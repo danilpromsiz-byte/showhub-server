@@ -159,14 +159,17 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         prefetchJob = viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             val historyManager = WatchHistoryManager(getApplication())
             val startedSeriesIds = historyManager.getHistory().filter { it.isSeries }.map { it.id }.toSet()
+            val favoriteSeriesIds = getFavoriteMovies().filter { it.isSeries }.map { it.id }.toSet()
+            val targetSeriesIds = startedSeriesIds + favoriteSeriesIds
             val batchUpdates = mutableMapOf<String, Movie>()
             var lastBatchFlush = System.currentTimeMillis()
 
             for (movie in allMovies) {
                 if (!isActive) break
                 try {
+                    val isTrackedSeries = movie.isSeries && (movie.id in targetSeriesIds || targetSeriesIds.any { id -> id.isNotBlank() && (movie.id.contains(id) || id.contains(movie.id)) })
                     val cached = com.example.tvmediaapp.data.cache.MediaDiskCache.getCachedDetails(movie.id, movie.title, movie.releaseYear)
-                    val detailed = if (cached != null && (cached.ratingKp > 0 || cached.country.isNotBlank())) {
+                    val detailed = if (cached != null && !isTrackedSeries && (cached.ratingKp > 0 || cached.country.isNotBlank())) {
                         cached
                     } else {
                         val fetched = com.example.tvmediaapp.data.api.ShowHubApiClient.fetchMediaDetails(movie)
@@ -174,9 +177,11 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                         fetched
                     }
 
-                    // Check if newly released episodes appeared for started series
-                    if (detailed.isSeries && detailed.id in startedSeriesIds) {
-                        val totalEps = if (detailed.seasons.isNotEmpty()) detailed.seasons.sumOf { it.episodes.size } else 0
+                    // Check if newly released episodes appeared for started or favorite series
+                    if (detailed.isSeries && isTrackedSeries) {
+                        val seasonTotal = if (detailed.seasons.isNotEmpty()) detailed.seasons.sumOf { it.episodes.size } else 0
+                        val trackMax = detailed.audioTracks.mapNotNull { it.seasonsEpisodes.values.maxOrNull() ?: it.episodesCount.takeIf { c -> c > 0 } }.maxOrNull() ?: 0
+                        val totalEps = maxOf(seasonTotal, trackMax)
                         if (totalEps > 0) {
                             val newCount = historyManager.updateKnownTotalEpisodes(detailed.id, totalEps)
                             if (newCount > 0) {

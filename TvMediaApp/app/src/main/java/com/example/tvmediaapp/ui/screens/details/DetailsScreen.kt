@@ -1347,6 +1347,18 @@ fun DetailsScreen(
                 }
                 val activeTabTitle = tabs.getOrNull(selectedDetailTab) ?: tabs.firstOrNull() ?: "Плеер и серии"
 
+                LaunchedEffect(selectedDetailTab) {
+                    delay(60)
+                    try {
+                        when (selectedDetailTab) {
+                            0 -> tabsFocusRequester.requestFocus()
+                            1 -> if (currentMovie.isSeries) scheduleTabFocusRequester.requestFocus() else descriptionTabFocusRequester.requestFocus()
+                            2 -> if (currentMovie.isSeries) descriptionTabFocusRequester.requestFocus() else tabsFocusRequester.requestFocus()
+                            else -> tabsFocusRequester.requestFocus()
+                        }
+                    } catch (_: Exception) {}
+                }
+
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
@@ -1360,6 +1372,7 @@ fun DetailsScreen(
                                 .focusProperties {
                                     up = favoriteButtonFocusRequester
                                     left = leftPaneFocusRequester
+                                    down = episodesFocusRequester
                                 }
                             1 -> if (currentMovie.isSeries) {
                                 Modifier
@@ -1367,6 +1380,7 @@ fun DetailsScreen(
                                     .focusRequester(scheduleTabFocusRequester)
                                     .focusProperties {
                                         up = favoriteButtonFocusRequester
+                                        down = firstScheduleItemFocusRequester
                                     }
                             } else {
                                 Modifier
@@ -1374,6 +1388,7 @@ fun DetailsScreen(
                                     .focusRequester(descriptionTabFocusRequester)
                                     .focusProperties {
                                         up = favoriteButtonFocusRequester
+                                        down = synopsisBlockFocusRequester
                                     }
                             }
                             2 -> if (currentMovie.isSeries) {
@@ -1382,6 +1397,7 @@ fun DetailsScreen(
                                     .focusRequester(descriptionTabFocusRequester)
                                     .focusProperties {
                                         up = favoriteButtonFocusRequester
+                                        down = synopsisBlockFocusRequester
                                     }
                             } else {
                                 Modifier.height(26.dp).focusProperties { up = favoriteButtonFocusRequester }
@@ -1695,7 +1711,17 @@ fun DetailsScreen(
                                     val curTrack = currentMovie.audioTracks.firstOrNull { it.id == selectedAudioId }
                                     val maxEpForTrack = curTrack?.seasonsEpisodes?.get(selectedSeason)
                                     if (maxEpForTrack != null && maxEpForTrack > 0) {
-                                        activeSeason.episodes.filter { it.episodeNumber <= maxEpForTrack }
+                                        if (maxEpForTrack > activeSeason.episodes.size) {
+                                            (1..maxEpForTrack).map { epNum ->
+                                                activeSeason.episodes.firstOrNull { it.episodeNumber == epNum }
+                                                    ?: EpisodeInfo(
+                                                        episodeNumber = epNum,
+                                                        title = "Серия $epNum"
+                                                    )
+                                            }
+                                        } else {
+                                            activeSeason.episodes.filter { it.episodeNumber <= maxEpForTrack }
+                                        }
                                     } else if (curTrack?.seasonsEpisodes?.isNotEmpty() == true) {
                                         emptyList()
                                     } else {
@@ -1717,11 +1743,15 @@ fun DetailsScreen(
                             Spacer(modifier = Modifier.height(5.dp))
 
                             TvLazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                items(activeEpisodes) { ep ->
+                                itemsIndexed(activeEpisodes) { epIdx, ep ->
                                     val hVer = com.example.tvmediaapp.data.history.WatchHistoryManager.historyVersion
                                     val isSelected = ep.episodeNumber == selectedEpisode
                                     val isWatched = historyManager.isEpisodeWatched(currentMovie.id, selectedSeason, ep.episodeNumber, currentMovie.title)
                                     val epProgress = historyManager.getEpisodeProgress(currentMovie.id, selectedSeason, ep.episodeNumber, currentMovie.title)
+                                    var isButtonFocused by remember { mutableStateOf(false) }
+                                    val epFocusMod = if (epIdx == 0) {
+                                        Modifier.focusRequester(episodesFocusRequester).focusProperties { up = tabsFocusRequester }
+                                    } else Modifier
                                     Button(
                                         onClick = {
                                             selectedEpisode = ep.episodeNumber
@@ -1743,61 +1773,64 @@ fun DetailsScreen(
                                             focusedBorder = Border.None
                                         ),
                                         shape = ButtonDefaults.shape(RoundedCornerShape(6.dp)),
-                                         scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
-                                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
-                                         modifier = Modifier
-                                             .height(32.dp)
-                                             .defaultMinSize(minWidth = 56.dp)
-                                     ) {
-                                         Column(
-                                             horizontalAlignment = Alignment.CenterHorizontally,
-                                             verticalArrangement = Arrangement.Center
-                                         ) {
-                                             Row(
-                                                 verticalAlignment = Alignment.CenterVertically,
-                                                 horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                             ) {
-                                                 if (isWatched || epProgress >= 85) {
-                                                     Text(
-                                                         text = "✓",
-                                                         fontSize = 11.sp,
-                                                         fontWeight = FontWeight.ExtraBold,
-                                                         color = if (isSelected) Color.Black else Color(0xFF22C55E)
-                                                     )
-                                                 }
-                                                 Text(
-                                                     text = ep.title,
-                                                     fontSize = 10.sp,
-                                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                                                 )
-                                             }
+                                        scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
+                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                        modifier = Modifier
+                                            .height(34.dp)
+                                            .defaultMinSize(minWidth = 60.dp)
+                                            .then(epFocusMod)
+                                            .onFocusChanged { isButtonFocused = it.isFocused }
+                                            .focusedGlow(isFocused = isButtonFocused, color = focusColor, radius = 6.dp, shapeRadius = 6.dp)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                                modifier = Modifier.padding(bottom = 5.dp, start = 4.dp, end = 4.dp)
+                                            ) {
+                                                if (isWatched || epProgress >= 85) {
+                                                    Text(
+                                                        text = "✓",
+                                                        fontSize = 11.sp,
+                                                        fontWeight = FontWeight.ExtraBold,
+                                                        color = if (isSelected) Color.Black else Color(0xFF22C55E)
+                                                    )
+                                                }
+                                                Text(
+                                                    text = ep.title,
+                                                    fontSize = 10.sp,
+                                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                                )
+                                            }
 
-                                             Spacer(modifier = Modifier.height(2.dp))
-
-                                             // Visible Timeline Progress Track & Fill
-                                             val progressPct = if (isWatched || epProgress >= 85) 1.0f else if (epProgress > 0) (epProgress.coerceIn(5, 100) / 100f) else 0f
-                                             Box(
-                                                 modifier = Modifier
-                                                     .fillMaxWidth()
-                                                     .height(3.dp)
-                                                     .clip(RoundedCornerShape(1.5.dp))
-                                                     .background(Color.White.copy(alpha = 0.22f))
-                                             ) {
-                                                 if (progressPct > 0f) {
-                                                     Box(
-                                                         modifier = Modifier
-                                                             .fillMaxHeight()
-                                                             .fillMaxWidth(progressPct)
-                                                             .background(
-                                                                 if (isSelected) Color(0xFF0F172A)
-                                                                 else if (isWatched || epProgress >= 85) Color(0xFF22C55E)
-                                                                 else Color(0xFFFFB300)
-                                                             )
-                                                     )
-                                                 }
-                                             }
-                                         }
-                                     }
+                                            // Visible Timeline Progress Track & Fill anchored along entire button bottom edge
+                                            val progressPct = if (isWatched || epProgress >= 85) 1.0f else if (epProgress > 0) (epProgress.coerceIn(5, 100) / 100f) else 0f
+                                            Box(
+                                                modifier = Modifier
+                                                    .align(Alignment.BottomCenter)
+                                                    .fillMaxWidth()
+                                                    .height(3.5.dp)
+                                                    .clip(RoundedCornerShape(bottomStart = 6.dp, bottomEnd = 6.dp))
+                                                    .background(Color.White.copy(alpha = 0.22f))
+                                            ) {
+                                                if (progressPct > 0f) {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .fillMaxHeight()
+                                                            .fillMaxWidth(progressPct)
+                                                            .background(
+                                                                if (isSelected) Color(0xFF0F172A)
+                                                                else if (isWatched || epProgress >= 85) Color(0xFF22C55E)
+                                                                else Color(0xFFFFB300)
+                                                            )
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -1937,7 +1970,7 @@ fun DetailsScreen(
 
                                     var isRowFocused by remember { mutableStateOf(false) }
                                     val itemFocusMod = if (itemIdx == 0) {
-                                        Modifier.focusRequester(firstScheduleItemFocusRequester)
+                                        Modifier.focusRequester(firstScheduleItemFocusRequester).focusProperties { up = scheduleTabFocusRequester }
                                     } else Modifier
 
                                     Row(

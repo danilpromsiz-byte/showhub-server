@@ -217,16 +217,22 @@ fun TvAppNavHost(activity: MainActivity) {
     }
 
     fun navigateBack() {
-        // Pop any trailing redundant states matching the current view
-        while (backStack.isNotEmpty() && (backStack.last().screen == currentScreen && (backStack.last().movie == null || backStack.last().movie?.id == selectedMovie?.id))) {
+        // Pop any trailing redundant states matching current screen, or if on DETAILS, pop all DETAILS entries
+        while (backStack.isNotEmpty() && (
+            backStack.last().screen == currentScreen ||
+            (currentScreen == Screen.DETAILS && backStack.last().screen == Screen.DETAILS)
+        )) {
             backStack.removeAt(backStack.size - 1)
         }
         if (backStack.isNotEmpty()) {
             var prev = backStack.removeAt(backStack.size - 1)
-            while (prev.screen == currentScreen && (prev.movie == null || prev.movie?.id == selectedMovie?.id) && backStack.isNotEmpty()) {
+            while (backStack.isNotEmpty() && (
+                prev.screen == currentScreen ||
+                (currentScreen == Screen.DETAILS && prev.screen == Screen.DETAILS)
+            )) {
                 prev = backStack.removeAt(backStack.size - 1)
             }
-            if (prev.screen == currentScreen && (prev.movie == null || prev.movie?.id == selectedMovie?.id)) {
+            if (prev.screen == currentScreen || (currentScreen == Screen.DETAILS && prev.screen == Screen.DETAILS)) {
                 currentScreen = Screen.HOME
                 selectedMovie = null
                 SessionManager.clearSession(activity)

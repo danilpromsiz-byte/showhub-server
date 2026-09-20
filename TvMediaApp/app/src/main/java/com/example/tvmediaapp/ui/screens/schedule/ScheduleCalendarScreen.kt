@@ -462,50 +462,59 @@ fun parseDateCal(dateStr: String): java.util.Calendar? {
 }
 
 fun isDatePast(dateStr: String): Boolean {
-    val dLower = dateStr.lowercase()
-    if (dLower.contains("вчера") || dLower.contains("вышла") || dLower.contains("доступна") || dLower.contains("✓")) return true
-    if (dLower.contains("сегодня") || dLower.contains("завтра")) return false
-    val cal = parseDateCal(dateStr) ?: return false
+    val cal = parseDateCal(dateStr)
     val todayCal = java.util.Calendar.getInstance().apply {
         set(java.util.Calendar.HOUR_OF_DAY, 0)
         set(java.util.Calendar.MINUTE, 0)
         set(java.util.Calendar.SECOND, 0)
         set(java.util.Calendar.MILLISECOND, 0)
     }
-    return cal.before(todayCal)
+    if (cal != null) {
+        return cal.before(todayCal)
+    }
+    val dLower = dateStr.lowercase()
+    if (dLower.contains("вчера") || dLower.contains("вышла") || dLower.contains("доступна") || dLower.contains("✓")) return true
+    return false
 }
 
 fun isDateFuture(dateStr: String): Boolean {
-    val dLower = dateStr.lowercase()
-    if (dLower.contains("завтра")) return true
-    if (dLower.contains("сегодня") || dLower.contains("вчера") || dLower.contains("вышла") || dLower.contains("доступна") || dLower.contains("✓")) return false
-    val cal = parseDateCal(dateStr) ?: return false
+    val cal = parseDateCal(dateStr)
     val todayEndCal = java.util.Calendar.getInstance().apply {
         set(java.util.Calendar.HOUR_OF_DAY, 23)
         set(java.util.Calendar.MINUTE, 59)
         set(java.util.Calendar.SECOND, 59)
         set(java.util.Calendar.MILLISECOND, 999)
     }
-    return cal.after(todayEndCal)
+    if (cal != null) {
+        return cal.after(todayEndCal)
+    }
+    val dLower = dateStr.lowercase()
+    if (dLower.contains("завтра")) return true
+    return false
 }
 
 fun isDateToday(dateStr: String): Boolean {
+    val cal = parseDateCal(dateStr)
+    if (cal != null) {
+        val today = java.util.Calendar.getInstance()
+        return cal.get(java.util.Calendar.YEAR) == today.get(java.util.Calendar.YEAR) &&
+               cal.get(java.util.Calendar.DAY_OF_YEAR) == today.get(java.util.Calendar.DAY_OF_YEAR)
+    }
     val dLower = dateStr.lowercase()
-    if (dLower.contains("сегодня")) return true
-    if (dLower.contains("завтра") || dLower.contains("вчера")) return false
-    val cal = parseDateCal(dateStr) ?: return false
-    val today = java.util.Calendar.getInstance()
-    return cal.get(java.util.Calendar.YEAR) == today.get(java.util.Calendar.YEAR) &&
-           cal.get(java.util.Calendar.DAY_OF_YEAR) == today.get(java.util.Calendar.DAY_OF_YEAR)
+    if (dLower.contains("сегодня") && !dLower.contains("завтра") && !dLower.contains("вчера")) return true
+    return false
 }
 
 fun isDateTomorrow(dateStr: String): Boolean {
+    val cal = parseDateCal(dateStr)
+    if (cal != null) {
+        val tmrw = java.util.Calendar.getInstance().apply { add(java.util.Calendar.DAY_OF_YEAR, 1) }
+        return cal.get(java.util.Calendar.YEAR) == tmrw.get(java.util.Calendar.YEAR) &&
+               cal.get(java.util.Calendar.DAY_OF_YEAR) == tmrw.get(java.util.Calendar.DAY_OF_YEAR)
+    }
     val dLower = dateStr.lowercase()
-    if (dLower.contains("завтра")) return true
-    val cal = parseDateCal(dateStr) ?: return false
-    val tmrw = java.util.Calendar.getInstance().apply { add(java.util.Calendar.DAY_OF_YEAR, 1) }
-    return cal.get(java.util.Calendar.YEAR) == tmrw.get(java.util.Calendar.YEAR) &&
-           cal.get(java.util.Calendar.DAY_OF_YEAR) == tmrw.get(java.util.Calendar.DAY_OF_YEAR)
+    if (dLower.contains("завтра") && !dLower.contains("сегодня")) return true
+    return false
 }
 
 fun buildCalendarGroups(movies: List<Movie>, historyManager: WatchHistoryManager? = null): List<CalendarDayGroup> {
@@ -583,10 +592,15 @@ fun buildCalendarGroups(movies: List<Movie>, historyManager: WatchHistoryManager
                 }
             }
 
+            val cal = parseDateCal(item.date)
             when {
-                isDateToday(item.status) || isDateToday(item.date) -> todaySched.add(item)
-                isDateTomorrow(item.status) || isDateTomorrow(item.date) -> tomorrowSched.add(item)
-                !isAlreadyReleasedOrWatched && (isDateFuture(item.date) || dLower.contains("ожидается")) -> upcomingSched.add(item)
+                cal != null && isDatePast(item.date) -> otherSched.add(item)
+                isDateToday(item.date) -> todaySched.add(item)
+                isDateTomorrow(item.date) -> tomorrowSched.add(item)
+                isDateFuture(item.date) -> upcomingSched.add(item)
+                cal == null && isDateToday(item.status) -> todaySched.add(item)
+                cal == null && isDateTomorrow(item.status) -> tomorrowSched.add(item)
+                !isAlreadyReleasedOrWatched && dLower.contains("ожидается") -> upcomingSched.add(item)
                 else -> otherSched.add(item)
             }
         }

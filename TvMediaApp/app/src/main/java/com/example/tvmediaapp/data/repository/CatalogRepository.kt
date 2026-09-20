@@ -410,11 +410,18 @@ class CatalogRepository(context: Context? = null) {
                 excludedCountries = if (excludedCountriesStr.isNotBlank()) excludedCountriesStr else null
             )
 
+            fun hasValidPoster(url: String): Boolean {
+                if (url.isBlank()) return false
+                val lower = url.lowercase()
+                return !lower.contains("no_image") &&
+                       !lower.contains("noposter") &&
+                       !lower.contains("kinopoiskapiunofficial.tech") &&
+                       !lower.contains("10592371/4c676451")
+            }
+
             var effectiveMovies = liveMovies
             if (onlyWithPoster) {
-                effectiveMovies = effectiveMovies.filter { m ->
-                    m.posterUrl.isNotBlank() && !m.posterUrl.contains("no_image") && !m.posterUrl.contains("noposter")
-                }
+                effectiveMovies = effectiveMovies.filter { m -> hasValidPoster(m.posterUrl) }
             }
             if (excludedCountriesStr.isNotBlank()) {
                 val exList = excludedCountriesStr.split(",").map { it.trim().lowercase() }.filter { it.isNotEmpty() }
@@ -429,6 +436,10 @@ class CatalogRepository(context: Context? = null) {
             // Immediately enrich movies with cached details from disk on startup
             effectiveMovies = effectiveMovies.map { m ->
                 com.example.tvmediaapp.data.cache.MediaDiskCache.getCachedDetails(m.id, m.title, m.releaseYear) ?: m
+            }
+
+            if (onlyWithPoster) {
+                effectiveMovies = effectiveMovies.filter { m -> hasValidPoster(m.posterUrl) }
             }
 
             if (effectiveMovies.isNotEmpty()) {

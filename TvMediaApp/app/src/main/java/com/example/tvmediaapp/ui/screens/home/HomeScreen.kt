@@ -83,6 +83,8 @@ fun HomeScreen(
 
     val coroutineScope = rememberCoroutineScope()
     val topBarSearchFocusRequester = remember { FocusRequester() }
+    val filterRow1FocusRequester = remember { FocusRequester() }
+    val filterRow2FocusRequester = remember { FocusRequester() }
     val targetCardFocusRequester = remember { FocusRequester() }
     val emptyResetFocusRequester = remember { FocusRequester() }
 
@@ -100,12 +102,6 @@ fun HomeScreen(
     // Automatically focus target card on screen enter and whenever displayMovies becomes ready
     LaunchedEffect(displayMovies.isNotEmpty()) {
         if (displayMovies.isNotEmpty()) {
-            val targetIdx = viewModel.lastFocusedIndex.coerceIn(0, (displayMovies.size - 1).coerceAtLeast(0))
-            if (targetIdx > 0) {
-                try {
-                    viewModel.gridState.scrollToItem(targetIdx)
-                } catch (_: Exception) {}
-            }
             delay(100)
             try {
                 targetCardFocusRequester.requestFocus()
@@ -129,7 +125,8 @@ fun HomeScreen(
             hasUpdateAvailable = hasUpdateAvailable,
             appVersion = appVersion,
             currentScreenName = "home",
-            topBarFocusRequester = topBarSearchFocusRequester
+            topBarFocusRequester = topBarSearchFocusRequester,
+            focusDownRequester = filterRow1FocusRequester
         )
 
         // FILTER & SORT RIBBON
@@ -145,7 +142,10 @@ fun HomeScreen(
             selectedCountry = selectedCountry,
             onCountrySelected = { viewModel.selectCountry(it) },
             onResetFilters = { viewModel.resetFilters() },
-            focusUpRequester = topBarSearchFocusRequester
+            row1FocusRequester = filterRow1FocusRequester,
+            row2FocusRequester = filterRow2FocusRequester,
+            focusUpRequester = topBarSearchFocusRequester,
+            focusDownRequester = targetCardFocusRequester
         )
 
         // 6-COLUMN VERTICAL GRID (2 rows of 6 cards on screen at a time, scrolling down)
@@ -213,12 +213,15 @@ fun HomeScreen(
                     .focusGroup()
             ) {
                 itemsIndexed(displayMovies, key = { _, movie -> movie.id }) { index, movie ->
-                    val isTarget = index == viewModel.lastFocusedIndex.coerceIn(0, (displayMovies.size - 1).coerceAtLeast(0))
+                    val isTarget = index == 0
                     val isLeftmost = index % 6 == 0
                     val isRightmost = index % 6 == 5 || index == displayMovies.size - 1
 
                     val targetMod = if (isTarget) Modifier.focusRequester(targetCardFocusRequester) else Modifier
                     val edgePropertiesMod = Modifier.focusProperties {
+                        if (index < 6) {
+                            up = filterRow2FocusRequester
+                        }
                         if (isLeftmost) {
                             left = topBarSearchFocusRequester
                         }

@@ -36,6 +36,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -403,11 +404,16 @@ fun MovieCard(
                                     player = previewPlayer
                                     useController = false
                                     resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                                    isFocusable = false
+                                    isFocusableInTouchMode = false
+                                    descendantFocusability = android.view.ViewGroup.FOCUS_BLOCK_DESCENDANTS
+                                    isClickable = false
                                 }
                             },
                             modifier = Modifier
                                 .fillMaxSize()
                                 .clip(RoundedCornerShape(8.dp))
+                                .focusProperties { canFocus = false }
                         )
                     }
 

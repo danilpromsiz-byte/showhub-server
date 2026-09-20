@@ -156,12 +156,15 @@ fun FilterBar(
                     if (focusUpRequester != null) {
                         up = focusUpRequester
                     }
+                    if (row2FocusRequester != null) {
+                        down = row2FocusRequester
+                    }
                 }
         ) {
             // 1. Type Chips
             itemsIndexed(TYPE_OPTIONS) { index, (typeKey, typeLabel) ->
                 val isSelected = typeKey == selectedType
-                val firstMod = Modifier
+                val firstMod = if (index == 0 && row1FocusRequester != null) Modifier.focusRequester(row1FocusRequester) else Modifier
                 Button(
                     onClick = { onTypeSelected(typeKey) },
                     colors = ButtonDefaults.colors(
@@ -331,13 +334,22 @@ fun FilterBar(
             contentPadding = PaddingValues(horizontal = 48.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.focusGroup()
+            modifier = Modifier
+                .focusGroup()
+                .focusProperties {
+                    if (row1FocusRequester != null) {
+                        up = row1FocusRequester
+                    }
+                    if (focusDownRequester != null) {
+                        down = focusDownRequester
+                    }
+                }
         ) {
             when (activeCategory) {
                 FilterCategory.GENRES -> {
                     itemsIndexed(GENRES_LIST) { index, genre ->
                         val isSelected = genre == selectedGenre
-                        val firstMod = Modifier
+                        val firstMod = if (index == 0 && row2FocusRequester != null) Modifier.focusRequester(row2FocusRequester) else Modifier
                         Button(
                             onClick = { onGenreSelected(genre) },
                             colors = ButtonDefaults.colors(
@@ -370,7 +382,7 @@ fun FilterBar(
                 FilterCategory.SORT -> {
                     itemsIndexed(SORT_OPTIONS) { index, (sortKey, sortLabel) ->
                         val isSelected = sortKey == selectedSort
-                        val firstMod = Modifier
+                        val firstMod = if (index == 0 && row2FocusRequester != null) Modifier.focusRequester(row2FocusRequester) else Modifier
                         Button(
                             onClick = { onSortSelected(sortKey) },
                             colors = ButtonDefaults.colors(
@@ -403,7 +415,7 @@ fun FilterBar(
                 FilterCategory.YEAR -> {
                     itemsIndexed(YEAR_OPTIONS) { index, (yearKey, yearLabel) ->
                         val isSelected = yearKey == selectedYear
-                        val firstMod = Modifier
+                        val firstMod = if (index == 0 && row2FocusRequester != null) Modifier.focusRequester(row2FocusRequester) else Modifier
                         Button(
                             onClick = { onYearSelected(yearKey) },
                             colors = ButtonDefaults.colors(
@@ -436,7 +448,7 @@ fun FilterBar(
                 FilterCategory.COUNTRY -> {
                     itemsIndexed(COUNTRY_OPTIONS) { index, (countryKey, countryLabel) ->
                         val isSelected = countryKey == selectedCountry
-                        val firstMod = Modifier
+                        val firstMod = if (index == 0 && row2FocusRequester != null) Modifier.focusRequester(row2FocusRequester) else Modifier
                         Button(
                             onClick = {
                                 onCountrySelected(countryKey)

@@ -75,12 +75,13 @@ fun TvTopBar(
         // Modern Cinematic ShowHub TV Logo
         ShowHubLogo(accent = accent, appVersion = appVersion)
 
-        // Top Navigation items: Search, Favorites, History, Settings, Update
-        val downMod = Modifier
+        val downMod = if (focusDownRequester != null) Modifier.focusProperties { down = focusDownRequester } else Modifier
         val searchFocusMod = if (topBarFocusRequester != null) Modifier.focusRequester(topBarFocusRequester) else Modifier
 
         Row(
-            modifier = Modifier.focusGroup(),
+            modifier = Modifier
+                .focusGroup()
+                .then(downMod),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {

@@ -405,11 +405,12 @@ class CatalogRepository(context: Context? = null) {
             return !lower.contains("no_image") &&
                    !lower.contains("noposter") &&
                    !lower.contains("kinopoiskapiunofficial.tech") &&
+                   !lower.contains("st.kp.yandex.net") &&
                    !lower.contains("10592371/4c676451")
         }
 
         fun buildCategories(movies: List<Movie>): List<MovieCategory> {
-            var effective = movies
+            var effective = movies.distinctBy { it.id }
             if (onlyWithPoster) {
                 effective = effective.filter { m -> hasValidPoster(m.posterUrl) }
             }

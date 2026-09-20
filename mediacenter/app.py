@@ -643,16 +643,51 @@ def check_updates() -> Dict[str, Any]:
 
     return {
         "success": True,
-        "version_name": "2.8.10",
-        "version_code": 69,
+        "version_name": "2.8.11",
+        "version_code": 70,
         "force_update": True,
-        "min_version_code": 69,
+        "min_version_code": 70,
         "apk_url": "https://showhub-server.onrender.com/ShowHub.apk",
         "download_url": "https://showhub-server.onrender.com/ShowHub.apk",
-        "changelog": "ShowHub TV v2.8.10: Мгновенная поэтапная загрузка каталога на старте (0-50 мс из дискового кэша с фоновым обновлением новинок); защита кэша данных от затирания при сетевых таймаутах; серверное кэширование метаданных; восстановлен видео-предпросмотр и загрузка карточек для многосезонных сериалов («Чеболь против детектива»)."
+        "changelog": "ShowHub TV v2.8.11: Мгновенная проверка обновлений через GitHub CDN; восстановлены постеры («Сто девушек») и стильный fallback; восстановлена боковая навигация с крайних колонок на верхнее меню; защита от потери фокуса и устранение крэшей."
     }
 
 CRASHES_FILE = os.path.join(CURRENT_DIR, "data", "crashes.json")
+crashes_lock = threading.Lock()
+
+@app.post("/api/analytics/crash")
+def record_crash(payload: Dict[str, Any]):
+    """Receives crash dumps from ShowHub TV and saves to data/crashes.json."""
+    os.makedirs(os.path.dirname(CRASHES_FILE), exist_ok=True)
+    with crashes_lock:
+        crashes = []
+        if os.path.exists(CRASHES_FILE):
+            try:
+                with open(CRASHES_FILE, "r", encoding="utf-8") as f:
+                    crashes = json.load(f)
+            except Exception:
+                crashes = []
+        crashes.insert(0, payload)
+        crashes = crashes[:100]
+        try:
+            with open(CRASHES_FILE, "w", encoding="utf-8") as f:
+                json.dump(crashes, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            logger.warning(f"Failed to write crash dump: {e}")
+    return {"success": True, "message": "Crash dump recorded"}
+
+@app.get("/api/analytics/crashes")
+def get_crashes(limit: int = 50):
+    """Returns recorded crash dumps."""
+    with crashes_lock:
+        if os.path.exists(CRASHES_FILE):
+            try:
+                with open(CRASHES_FILE, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    return {"count": len(data), "crashes": data[:limit]}
+            except Exception:
+                pass
+    return {"count": 0, "crashes": []}
 
 _actor_photo_cache: Dict[str, Optional[str]] = {}
 
@@ -1297,7 +1332,7 @@ def _fetch_media_details(
                 details["countries"] = tmdb_info["countries"]
             if not details.get("description") and tmdb_info.get("description"):
                 details["description"] = tmdb_info["description"]
-            if not details.get("poster") and tmdb_info.get("poster"):
+            if (not details.get("poster") or "st.kp.yandex.net" in str(details.get("poster"))) and tmdb_info.get("poster"):
                 details["poster"] = tmdb_info["poster"]
             if not details.get("rating_imdb") and tmdb_info.get("rating"):
                 details["rating_imdb"] = tmdb_info["rating"]

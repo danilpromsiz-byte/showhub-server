@@ -108,8 +108,8 @@ object CrashReporter {
             val url = URL("$SERVER_BASE/api/analytics/crash")
             val conn = url.openConnection() as HttpURLConnection
             conn.requestMethod = "POST"
-            conn.connectTimeout = 3000
-            conn.readTimeout = 4000
+            conn.connectTimeout = 8000
+            conn.readTimeout = 8000
             conn.doOutput = true
             conn.setRequestProperty("Content-Type", "application/json; charset=UTF-8")
             conn.setRequestProperty("User-Agent", "ShowHubTV-CrashReporter/2.7.2")

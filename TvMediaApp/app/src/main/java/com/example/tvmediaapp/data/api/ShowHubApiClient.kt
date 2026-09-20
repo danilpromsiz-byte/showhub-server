@@ -291,7 +291,7 @@ object ShowHubApiClient {
                     rawAge = apiAge ?: movie.ageRating
                 )
                 val rawPoster = obj.optString("poster", "")
-                val updatedPoster = if (rawPoster.startsWith("http") && !rawPoster.contains("no_image") && !rawPoster.contains("noposter")) rawPoster else movie.posterUrl
+                val updatedPoster = if (rawPoster.startsWith("http") && !rawPoster.contains("no_image") && !rawPoster.contains("noposter") && !rawPoster.contains("st.kp.yandex.net")) rawPoster else movie.posterUrl
 
                 val kpRating = obj.optDouble("rating_kp", movie.ratingKp)
                 val imdbRating = obj.optDouble("rating_imdb", movie.ratingImdb)

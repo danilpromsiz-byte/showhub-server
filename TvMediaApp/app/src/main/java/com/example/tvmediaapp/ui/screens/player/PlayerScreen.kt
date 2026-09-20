@@ -884,7 +884,9 @@ private fun NativeExoPlayerScreen(
 
     // Request focus for D-Pad events on launch and whenever controls hide
     LaunchedEffect(Unit) {
-        rootFocusRequester.requestFocus()
+        try {
+            rootFocusRequester.requestFocus()
+        } catch (_: Exception) {}
     }
     LaunchedEffect(isControlsVisible) {
         if (!isControlsVisible) {

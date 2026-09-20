@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
@@ -180,22 +181,27 @@ fun MovieCard(
                                 repeatMode = Player.REPEAT_MODE_ALL
                                 addListener(object : Player.Listener {
                                     override fun onPlaybackStateChanged(state: Int) {
-                                        if (state == Player.STATE_READY) {
-                                            if (!hasSeeked) {
-                                                hasSeeked = true
-                                                if (duration > 0 && duration > baseSeekMs + 20_000L) {
-                                                    seekTo(baseSeekMs)
-                                                } else if (duration > 0) {
-                                                    seekTo((duration * 0.25).toLong())
+                                        try {
+                                            if (state == Player.STATE_READY) {
+                                                if (!hasSeeked) {
+                                                    hasSeeked = true
+                                                    if (duration > 0 && duration > baseSeekMs + 20_000L) {
+                                                        seekTo(baseSeekMs)
+                                                    } else if (duration > 0) {
+                                                        seekTo((duration * 0.25).toLong())
+                                                    }
                                                 }
+                                                isPreviewBuffering = false
+                                                isPreviewPlaying = true
+                                            } else if (state == Player.STATE_BUFFERING) {
+                                                isPreviewBuffering = true
+                                            } else if (state == Player.STATE_ENDED) {
+                                                seekTo(baseSeekMs)
+                                                play()
                                             }
+                                        } catch (_: Exception) {
                                             isPreviewBuffering = false
-                                            isPreviewPlaying = true
-                                        } else if (state == Player.STATE_BUFFERING) {
-                                            isPreviewBuffering = true
-                                        } else if (state == Player.STATE_ENDED) {
-                                            seekTo(baseSeekMs)
-                                            play()
+                                            isPreviewPlaying = false
                                         }
                                     }
 
@@ -343,12 +349,50 @@ fun MovieCard(
                         }
                     }
 
-                    // Async Image with Coil
+                    // Async Image with Coil with elegant fallback
+                    val effectiveImage = movie.posterUrl.ifEmpty { movie.backdropUrl }
                     SubcomposeAsyncImage(
-                        model = movie.posterUrl,
+                        model = effectiveImage,
                         contentDescription = movie.title,
                         contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
+                        modifier = Modifier.fillMaxSize(),
+                        error = {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(
+                                        Brush.verticalGradient(
+                                            listOf(
+                                                Color(0xFF1E293B),
+                                                Color(0xFF0F172A)
+                                            )
+                                        )
+                                    )
+                                    .padding(8.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.Center
+                                ) {
+                                    AppIcon(
+                                        resId = com.example.tvmediaapp.R.drawable.ic_movie,
+                                        tint = Color.White.copy(alpha = 0.35f),
+                                        size = 32.dp
+                                    )
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Text(
+                                        text = movie.title,
+                                        color = Color.White.copy(alpha = 0.85f),
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        textAlign = TextAlign.Center,
+                                        maxLines = 3,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+                        }
                     )
 
                     // Card Video Preview (ExoPlayer surface - smoothly appears once ready)

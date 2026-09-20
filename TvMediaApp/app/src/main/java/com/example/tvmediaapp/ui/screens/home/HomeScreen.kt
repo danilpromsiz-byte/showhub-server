@@ -85,18 +85,21 @@ fun HomeScreen(
     val filterRow2FocusRequester = remember { FocusRequester() }
     val targetCardFocusRequester = remember { FocusRequester() }
 
-    // Automatically restore focus to the last selected/focused card
+    var hasRestoredFocus by remember { mutableStateOf(false) }
+
+    // Automatically restore focus to the last selected/focused card once on initial display
     LaunchedEffect(displayMovies.isNotEmpty()) {
-        if (displayMovies.isNotEmpty()) {
+        if (displayMovies.isNotEmpty() && !hasRestoredFocus) {
             val targetIdx = viewModel.lastFocusedIndex.coerceIn(0, (displayMovies.size - 1).coerceAtLeast(0))
             if (targetIdx > 0) {
                 try {
                     viewModel.gridState.scrollToItem(targetIdx)
                 } catch (_: Exception) {}
             }
-            delay(100)
+            delay(120)
             try {
                 targetCardFocusRequester.requestFocus()
+                hasRestoredFocus = true
             } catch (_: Exception) {}
         }
     }
@@ -181,11 +184,41 @@ fun HomeScreen(
                 verticalArrangement = Arrangement.spacedBy(10.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
-                itemsIndexed(displayMovies, key = { _, movie -> movie.id }) { index, movie ->
+                itemsIndexed(displayMovies, key = { index, movie -> "${movie.id}_$index" }) { index, movie ->
                     val isTarget = index == viewModel.lastFocusedIndex.coerceIn(0, (displayMovies.size - 1).coerceAtLeast(0))
+                    val isLeftmost = index % 6 == 0
+                    val isRightmost = index % 6 == 5 || index == displayMovies.size - 1
+
                     val targetMod = if (isTarget) Modifier.focusRequester(targetCardFocusRequester) else Modifier
-                    val upMod = if (index < 6) Modifier.focusProperties { up = filterRow2FocusRequester } else Modifier
-                    val cardFocusMod = targetMod.then(upMod)
+                    val edgePropertiesMod = Modifier.focusProperties {
+                        if (index < 6) {
+                            up = filterRow2FocusRequester
+                        }
+                        if (isLeftmost) {
+                            left = topBarSearchFocusRequester
+                        }
+                        if (isRightmost) {
+                            right = topBarSearchFocusRequester
+                        }
+                    }
+                    val edgeKeyMod = Modifier.onKeyEvent { keyEvent ->
+                        if (keyEvent.type == KeyEventType.KeyDown) {
+                            if (isLeftmost && (keyEvent.key == Key.DirectionLeft || keyEvent.key.keyCode == 21L)) {
+                                try {
+                                    topBarSearchFocusRequester.requestFocus()
+                                    return@onKeyEvent true
+                                } catch (_: Exception) {}
+                            } else if (isRightmost && (keyEvent.key == Key.DirectionRight || keyEvent.key.keyCode == 22L)) {
+                                try {
+                                    topBarSearchFocusRequester.requestFocus()
+                                    return@onKeyEvent true
+                                } catch (_: Exception) {}
+                            }
+                        }
+                        false
+                    }
+
+                    val cardFocusMod = targetMod.then(edgePropertiesMod).then(edgeKeyMod)
 
                     MovieCard(
                         movie = movie,

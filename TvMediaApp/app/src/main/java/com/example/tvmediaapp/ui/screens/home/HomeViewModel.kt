@@ -117,8 +117,12 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         loadCatalog()
     }
 
+    private var loadCatalogJob: kotlinx.coroutines.Job? = null
+    private var prefetchJob: kotlinx.coroutines.Job? = null
+
     private fun loadCatalog() {
-        viewModelScope.launch {
+        loadCatalogJob?.cancel()
+        loadCatalogJob = viewModelScope.launch {
             _isLoading.value = true
             repository.getCatalog(
                 category = _selectedType.value,
@@ -141,8 +145,6 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
     }
-
-    private var prefetchJob: kotlinx.coroutines.Job? = null
 
     fun refreshMovieFromCache(movieId: String) {
         val cached = com.example.tvmediaapp.data.cache.MediaDiskCache.getCachedDetails(movieId) ?: return
@@ -218,24 +220,11 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                         batchUpdates[detailed.id] = detailed
                     }
 
-                    // Flush batch periodically without thrashing UI
-                    val now = System.currentTimeMillis()
-                    if (batchUpdates.isNotEmpty() && (now - lastBatchFlush >= 2500 || batchUpdates.size >= 12)) {
-                        val toApply = batchUpdates.toMap()
-                        batchUpdates.clear()
-                        lastBatchFlush = now
-                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                            _categories.value = _categories.value.map { cat ->
-                                cat.copy(movies = cat.movies.map { m -> toApply[m.id] ?: m })
-                            }
-                        }
-                    }
-
                     kotlinx.coroutines.delay(120)
                 } catch (_: Exception) {}
             }
 
-            // Final flush
+            // Single final flush when prefetch completes
             if (batchUpdates.isNotEmpty()) {
                 val toApply = batchUpdates.toMap()
                 batchUpdates.clear()

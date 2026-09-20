@@ -63,7 +63,7 @@ class KodikSource(BaseSource):
                             trans = res.get("translation", {}).get("title", "Оригинал")
                             md = res.get("material_data") or {}
                             poster = md.get("poster_url")
-                            if not poster:
+                            if not poster or "st.kp.yandex.net" in str(poster):
                                 sc = res.get("screenshots", [])
                                 if sc:
                                     poster = sc[0]
@@ -173,7 +173,7 @@ class KodikSource(BaseSource):
                         trans = res.get("translation", {}).get("title", "")
                         md = res.get("material_data") or {}
                         poster = md.get("poster_url")
-                        if not poster:
+                        if not poster or "st.kp.yandex.net" in str(poster):
                             screenshots = res.get("screenshots", [])
                             if screenshots and len(screenshots) > 0:
                                 poster = screenshots[0]

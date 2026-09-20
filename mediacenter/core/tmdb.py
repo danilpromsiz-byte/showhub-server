@@ -53,11 +53,36 @@ ISO_COUNTRY_MAP = {
     "CL": "Чили"
 }
 
+NUM_WORD_MAP = {
+    "сто": "100",
+    "двести": "200",
+    "триста": "300",
+    "четыреста": "400",
+    "пятьсот": "500",
+    "один": "1",
+    "два": "2",
+    "три": "3",
+    "четыре": "4",
+    "пять": "5",
+    "шесть": "6",
+    "семь": "7",
+    "восемь": "8",
+    "девять": "9",
+    "десять": "10",
+    "первый": "1",
+    "второй": "2",
+    "третий": "3"
+}
+
 def _normalize_title_words(s: str) -> set:
     if not s:
         return set()
     cleaned = re.sub(r'[^\w\s]', ' ', s.lower())
-    return {w for w in cleaned.split() if len(w) > 1}
+    words = set()
+    for w in cleaned.split():
+        if len(w) > 1:
+            words.add(NUM_WORD_MAP.get(w, w))
+    return words
 
 def _calc_title_match(cand: dict, target_title: str, target_orig: Optional[str] = None) -> float:
     t_words = _normalize_title_words(target_title)
@@ -81,16 +106,21 @@ def _calc_title_match(cand: dict, target_title: str, target_orig: Optional[str] 
             score = inter / max(len(t_words), len(c_words))
             if score > max_score:
                 max_score = score
+            # If all target words are in candidate (e.g. '100 девушек' in '100 девушек, которые...')
+            if len(t_words & c_words) == len(t_words) and len(t_words) >= 2:
+                max_score = max(max_score, 0.85)
         if orig_words:
             inter = len(orig_words & c_words)
             score = inter / max(len(orig_words), len(c_words))
             if score > max_score:
                 max_score = score
+            if len(orig_words & c_words) == len(orig_words) and len(orig_words) >= 2:
+                max_score = max(max_score, 0.85)
         # Substring bonus
         if target_title and (target_title.lower() in ct.lower() or ct.lower() in target_title.lower()):
-            max_score = max(max_score, 0.7)
+            max_score = max(max_score, 0.8)
         if target_orig and (target_orig.lower() in ct.lower() or ct.lower() in target_orig.lower()):
-            max_score = max(max_score, 0.75)
+            max_score = max(max_score, 0.8)
     return max_score
 
 _cache: Dict[str, Any] = {}
@@ -130,6 +160,12 @@ class TMDbClient:
                     clean_title = clean_title.split(" - ")[0].strip()
                 if clean_title:
                     queries.append(clean_title)
+                    # Expand Russian numerals e.g. "Сто девушек" -> "100 девушек"
+                    num_cand = clean_title
+                    for w, num in NUM_WORD_MAP.items():
+                        num_cand = re.sub(rf'\b{w}\b', num, num_cand, flags=re.IGNORECASE)
+                    if num_cand != clean_title and num_cand not in queries:
+                        queries.append(num_cand)
 
             # Extract any original Latin title contained in parens or brackets
             m_parens = re.findall(r'\(([^)]+)\)|\[([^\]]+)\]', title)

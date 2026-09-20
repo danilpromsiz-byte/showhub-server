@@ -317,9 +317,14 @@ fun TvAppNavHost(activity: MainActivity) {
         }
     }
 
-    // Auto-check on launch
+    // Auto-check on launch with safety delay and follow-up retry
     LaunchedEffect(Unit) {
+        delay(1200)
         triggerUpdateCheck()
+        delay(5000)
+        if (updateInfo == null) {
+            triggerUpdateCheck()
+        }
     }
 
     // Auto-check on ON_RESUME (whenever app returns to foreground)

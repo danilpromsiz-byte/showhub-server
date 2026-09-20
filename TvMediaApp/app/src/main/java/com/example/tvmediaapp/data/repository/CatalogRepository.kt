@@ -610,9 +610,6 @@ class CatalogRepository(context: Context? = null) {
         val initialCats = buildCategories(initialMovies)
         if (initialCats.isNotEmpty()) {
             emit(initialCats)
-        } else {
-            // Emit empty list so the grid clears stale items and displays loading state immediately
-            emit(emptyList())
         }
 
         // STEP 2: Live API fetch in background to get fresh releases
@@ -637,12 +634,18 @@ class CatalogRepository(context: Context? = null) {
                 val liveCategories = buildCategories(liveMovies)
                 if (liveCategories.isNotEmpty()) {
                     emit(liveCategories)
+                } else if (initialCats.isEmpty()) {
+                    emit(emptyList())
                 }
             } else if (cachedCatalog.isNullOrEmpty() && initialCats.isEmpty()) {
                 val fallback = buildCategories(sampleMovies)
                 if (fallback.isNotEmpty()) {
                     emit(fallback)
+                } else {
+                    emit(emptyList())
                 }
+            } else if (initialCats.isEmpty()) {
+                emit(emptyList())
             }
         } catch (e: Exception) {
             e.printStackTrace()
@@ -650,7 +653,11 @@ class CatalogRepository(context: Context? = null) {
                 val fallback = buildCategories(sampleMovies)
                 if (fallback.isNotEmpty()) {
                     emit(fallback)
+                } else {
+                    emit(emptyList())
                 }
+            } else if (initialCats.isEmpty()) {
+                emit(emptyList())
             }
         }
     }

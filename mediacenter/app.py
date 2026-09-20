@@ -643,13 +643,13 @@ def check_updates() -> Dict[str, Any]:
 
     return {
         "success": True,
-        "version_name": "2.8.14",
-        "version_code": 73,
+        "version_name": "2.8.15",
+        "version_code": 74,
         "force_update": True,
-        "min_version_code": 73,
+        "min_version_code": 74,
         "apk_url": "https://showhub-server.onrender.com/ShowHub.apk",
         "download_url": "https://showhub-server.onrender.com/ShowHub.apk",
-        "changelog": "ShowHub TV v2.8.14: Полная изоляция видеопревью в карточках — запрет на перехват фокуса нативным PlayerView (descendantFocusability=BLOCK_DESCENDANTS, canFocus=false); замкнутая 100% надежная двусторонняя вертикальная навигация (Верхнее меню <-> Фильтры строка 1 <-> Фильтры строка 2 <-> Сетка фильмов) со стабильными FocusRequester на каждом шаге."
+        "changelog": "ShowHub TV v2.8.15: Полная ликвидация потери фокуса при переходах в жанры и обратно. Контейнерные FocusRequester на постоянных TvLazyRow и TvLazyVerticalGrid (вместо сбрасываемых при скролле элементов нулевого индекса), однократный первоначальный фокус сетки, запрет сброса сетки при смене фильтров, прямой возврат из пустого состояния в строку категорий/жанров."
     }
 
 CRASHES_FILE = os.path.join(CURRENT_DIR, "data", "crashes.json")

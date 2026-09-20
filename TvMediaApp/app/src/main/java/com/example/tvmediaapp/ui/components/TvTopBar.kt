@@ -80,6 +80,7 @@ fun TvTopBar(
 
         Row(
             modifier = Modifier
+                .then(if (topBarFocusRequester != null) Modifier.focusRequester(topBarFocusRequester) else Modifier)
                 .focusGroup()
                 .then(downMod),
             horizontalArrangement = Arrangement.spacedBy(10.dp),

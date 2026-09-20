@@ -9,6 +9,7 @@ package com.example.tvmediaapp.ui.screens.search
 import android.content.Context
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -448,9 +449,11 @@ fun SearchScreen(
                 contentPadding = PaddingValues(bottom = 120.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier
+                    .fillMaxSize()
+                    .focusGroup()
             ) {
-                itemsIndexed(results) { rIdx, movie ->
+                itemsIndexed(results, key = { _, movie -> movie.id }) { rIdx, movie ->
                     val cardMod = if (rIdx == 0) {
                         Modifier
                             .focusRequester(resultsFocusRequester)

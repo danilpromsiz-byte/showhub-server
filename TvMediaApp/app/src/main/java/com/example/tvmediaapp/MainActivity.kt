@@ -143,6 +143,28 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+    override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
+        if (event.action == android.view.KeyEvent.ACTION_DOWN) {
+            val isDpad = when (event.keyCode) {
+                android.view.KeyEvent.KEYCODE_DPAD_UP,
+                android.view.KeyEvent.KEYCODE_DPAD_DOWN,
+                android.view.KeyEvent.KEYCODE_DPAD_LEFT,
+                android.view.KeyEvent.KEYCODE_DPAD_RIGHT,
+                android.view.KeyEvent.KEYCODE_DPAD_CENTER,
+                android.view.KeyEvent.KEYCODE_ENTER,
+                android.view.KeyEvent.KEYCODE_NUMPAD_ENTER -> true
+                else -> false
+            }
+            if (isDpad) {
+                val view = currentFocus
+                if (view == null || !view.hasFocus()) {
+                    window.decorView.requestFocus()
+                }
+            }
+        }
+        return super.dispatchKeyEvent(event)
+    }
 }
 
 @OptIn(ExperimentalTvMaterial3Api::class, androidx.compose.ui.ExperimentalComposeUiApi::class)
@@ -357,6 +379,19 @@ fun TvAppNavHost(activity: MainActivity) {
 
     BackHandler(enabled = !isUpdateDialogVisible && !showExitDialog) {
         navigateBack()
+    }
+
+    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
+
+    // Auto-restore focus when dialogs close
+    LaunchedEffect(showExitDialog, isUpdateDialogVisible) {
+        if (!showExitDialog && !isUpdateDialogVisible) {
+            delay(80)
+            try {
+                activity.window.decorView.requestFocus()
+                focusManager.moveFocus(androidx.compose.ui.focus.FocusDirection.Enter)
+            } catch (_: Exception) {}
+        }
     }
 
     Box(

@@ -7,6 +7,7 @@
 package com.example.tvmediaapp.ui.screens.favorites
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -183,9 +184,11 @@ fun FavoritesScreen(
                 contentPadding = PaddingValues(bottom = 120.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier
+                    .fillMaxSize()
+                    .focusGroup()
             ) {
-                itemsIndexed(favoriteMovies) { index, movie ->
+                itemsIndexed(favoriteMovies, key = { _, movie -> movie.id }) { index, movie ->
                     val cardFocusMod = Modifier
                         .then(if (index == 0) Modifier.focusRequester(firstCardFocusRequester) else Modifier)
                         .then(if (index < 6) Modifier.focusProperties { up = backButtonFocusRequester } else Modifier)

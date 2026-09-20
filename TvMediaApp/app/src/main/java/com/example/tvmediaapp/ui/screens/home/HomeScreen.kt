@@ -6,7 +6,9 @@
 
 package com.example.tvmediaapp.ui.screens.home
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,27 +21,23 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onKeyEvent
-import androidx.compose.ui.input.key.type
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.tv.foundation.lazy.grid.TvGridCells
 import androidx.tv.foundation.lazy.grid.TvLazyVerticalGrid
-import androidx.tv.foundation.lazy.grid.items
 import androidx.tv.foundation.lazy.grid.itemsIndexed
+import androidx.tv.material3.Button
+import androidx.tv.material3.ButtonDefaults
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Text
 import com.example.tvmediaapp.data.models.Movie
@@ -47,10 +45,13 @@ import com.example.tvmediaapp.ui.components.FilterBar
 import com.example.tvmediaapp.ui.components.MovieCard
 import com.example.tvmediaapp.ui.components.NeonSpinner
 import com.example.tvmediaapp.ui.components.TvTopBar
+import com.example.tvmediaapp.ui.theme.LocalAccentColor
 import com.example.tvmediaapp.ui.theme.LocalBackgroundColor
+import com.example.tvmediaapp.ui.theme.LocalFocusColor
 import com.example.tvmediaapp.ui.theme.TextGray
 import com.example.tvmediaapp.ui.theme.TextWhite
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
@@ -80,26 +81,34 @@ fun HomeScreen(
         categories.firstOrNull()?.movies ?: emptyList()
     }
 
+    val coroutineScope = rememberCoroutineScope()
     val topBarSearchFocusRequester = remember { FocusRequester() }
-    val filterRow1FocusRequester = remember { FocusRequester() }
-    val filterRow2FocusRequester = remember { FocusRequester() }
     val targetCardFocusRequester = remember { FocusRequester() }
+    val emptyResetFocusRequester = remember { FocusRequester() }
 
-    var hasRestoredFocus by remember { mutableStateOf(false) }
+    // Scroll to top on Back button if user scrolled down in grid
+    BackHandler(enabled = viewModel.gridState.firstVisibleItemIndex > 0) {
+        coroutineScope.launch {
+            try {
+                viewModel.gridState.scrollToItem(0)
+                viewModel.lastFocusedIndex = 0
+                targetCardFocusRequester.requestFocus()
+            } catch (_: Exception) {}
+        }
+    }
 
-    // Automatically restore focus to the last selected/focused card once on initial display
+    // Automatically focus target card on screen enter and whenever displayMovies becomes ready
     LaunchedEffect(displayMovies.isNotEmpty()) {
-        if (displayMovies.isNotEmpty() && !hasRestoredFocus) {
+        if (displayMovies.isNotEmpty()) {
             val targetIdx = viewModel.lastFocusedIndex.coerceIn(0, (displayMovies.size - 1).coerceAtLeast(0))
             if (targetIdx > 0) {
                 try {
                     viewModel.gridState.scrollToItem(targetIdx)
                 } catch (_: Exception) {}
             }
-            delay(120)
+            delay(100)
             try {
                 targetCardFocusRequester.requestFocus()
-                hasRestoredFocus = true
             } catch (_: Exception) {}
         }
     }
@@ -120,8 +129,7 @@ fun HomeScreen(
             hasUpdateAvailable = hasUpdateAvailable,
             appVersion = appVersion,
             currentScreenName = "home",
-            topBarFocusRequester = topBarSearchFocusRequester,
-            focusDownRequester = filterRow1FocusRequester
+            topBarFocusRequester = topBarSearchFocusRequester
         )
 
         // FILTER & SORT RIBBON
@@ -137,10 +145,7 @@ fun HomeScreen(
             selectedCountry = selectedCountry,
             onCountrySelected = { viewModel.selectCountry(it) },
             onResetFilters = { viewModel.resetFilters() },
-            row1FocusRequester = filterRow1FocusRequester,
-            row2FocusRequester = filterRow2FocusRequester,
-            focusUpRequester = topBarSearchFocusRequester,
-            focusDownRequester = targetCardFocusRequester
+            focusUpRequester = topBarSearchFocusRequester
         )
 
         // 6-COLUMN VERTICAL GRID (2 rows of 6 cards on screen at a time, scrolling down)
@@ -154,6 +159,10 @@ fun HomeScreen(
                 NeonSpinner(size = 56.dp, strokeWidth = 4.dp, message = "Загрузка каталога ShowHub...")
             }
         } else if (displayMovies.isEmpty()) {
+            LaunchedEffect(Unit) {
+                delay(120)
+                try { emptyResetFocusRequester.requestFocus() } catch (_: Exception) {}
+            }
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -173,6 +182,23 @@ fun HomeScreen(
                         fontSize = 13.sp,
                         color = TextGray
                     )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Button(
+                        onClick = { viewModel.resetFilters() },
+                        colors = ButtonDefaults.colors(
+                            containerColor = LocalAccentColor.current,
+                            focusedContainerColor = LocalFocusColor.current,
+                            contentColor = Color.Black,
+                            focusedContentColor = Color.Black
+                        ),
+                        modifier = Modifier
+                            .focusRequester(emptyResetFocusRequester)
+                            .focusProperties {
+                                up = topBarSearchFocusRequester
+                            }
+                    ) {
+                        Text("Сбросить фильтры", fontWeight = FontWeight.Bold)
+                    }
                 }
             }
         } else {
@@ -182,18 +208,17 @@ fun HomeScreen(
                 contentPadding = PaddingValues(start = 32.dp, top = 8.dp, end = 32.dp, bottom = 120.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier
+                    .fillMaxSize()
+                    .focusGroup()
             ) {
-                itemsIndexed(displayMovies, key = { index, movie -> "${movie.id}_$index" }) { index, movie ->
+                itemsIndexed(displayMovies, key = { _, movie -> movie.id }) { index, movie ->
                     val isTarget = index == viewModel.lastFocusedIndex.coerceIn(0, (displayMovies.size - 1).coerceAtLeast(0))
                     val isLeftmost = index % 6 == 0
                     val isRightmost = index % 6 == 5 || index == displayMovies.size - 1
 
                     val targetMod = if (isTarget) Modifier.focusRequester(targetCardFocusRequester) else Modifier
                     val edgePropertiesMod = Modifier.focusProperties {
-                        if (index < 6) {
-                            up = filterRow2FocusRequester
-                        }
                         if (isLeftmost) {
                             left = topBarSearchFocusRequester
                         }
@@ -201,24 +226,8 @@ fun HomeScreen(
                             right = topBarSearchFocusRequester
                         }
                     }
-                    val edgeKeyMod = Modifier.onKeyEvent { keyEvent ->
-                        if (keyEvent.type == KeyEventType.KeyDown) {
-                            if (isLeftmost && (keyEvent.key == Key.DirectionLeft || keyEvent.key.keyCode == 21L)) {
-                                try {
-                                    topBarSearchFocusRequester.requestFocus()
-                                    return@onKeyEvent true
-                                } catch (_: Exception) {}
-                            } else if (isRightmost && (keyEvent.key == Key.DirectionRight || keyEvent.key.keyCode == 22L)) {
-                                try {
-                                    topBarSearchFocusRequester.requestFocus()
-                                    return@onKeyEvent true
-                                } catch (_: Exception) {}
-                            }
-                        }
-                        false
-                    }
 
-                    val cardFocusMod = targetMod.then(edgePropertiesMod).then(edgeKeyMod)
+                    val cardFocusMod = targetMod.then(edgePropertiesMod)
 
                     MovieCard(
                         movie = movie,
@@ -236,4 +245,3 @@ fun HomeScreen(
         }
     }
 }
-

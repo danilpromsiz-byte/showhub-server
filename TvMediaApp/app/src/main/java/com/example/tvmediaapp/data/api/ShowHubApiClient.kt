@@ -180,7 +180,10 @@ object ShowHubApiClient {
             val q = URLEncoder.encode(movie.title, "UTF-8")
             val origQ = URLEncoder.encode(movie.originalTitle, "UTF-8")
             val encId = URLEncoder.encode(movie.id, "UTF-8")
-            val urlStr = "$SERVER_BASE/api/media/details?source=hdrezka&media_id=$encId&title=$q&original_title=$origQ&year=${movie.releaseYear}&is_series=${if (movie.isSeries) "1" else "0"}"
+            val srcParam = if (movie.source.isNotBlank()) movie.source else "hdrezka"
+            val kpParam = if (movie.kinopoiskId.isNotBlank()) movie.kinopoiskId else if (movie.source == "bazon" && movie.id.all { it.isDigit() }) movie.id else ""
+            val kpQuery = if (kpParam.isNotBlank()) "&kp_id=$kpParam" else ""
+            val urlStr = "$SERVER_BASE/api/media/details?source=$srcParam&media_id=$encId&title=$q&original_title=$origQ&year=${movie.releaseYear}&is_series=${if (movie.isSeries) "1" else "0"}$kpQuery"
             val conn = URL(urlStr).openConnection() as HttpURLConnection
             conn.connectTimeout = 10000
             conn.readTimeout = 15000
@@ -354,7 +357,9 @@ object ShowHubApiClient {
                     cast = if (castList.isNotEmpty()) castList else movie.cast,
                     directorsList = if (dirList.isNotEmpty()) dirList else movie.directorsList,
                     episodesSchedule = if (scheduleList.isNotEmpty()) scheduleList else movie.episodesSchedule,
-                    ageRating = ageRating
+                    ageRating = ageRating,
+                    kinopoiskId = obj.optString("kinopoisk_id", movie.kinopoiskId),
+                    source = if (movie.source.isNotBlank()) movie.source else obj.optString("source_name", obj.optString("source", ""))
                 )
             }
         } catch (e: Exception) {
@@ -374,9 +379,11 @@ object ShowHubApiClient {
             val encTrans = URLEncoder.encode(translatorId, "UTF-8")
             val encTitle = URLEncoder.encode(movie.title, "UTF-8")
             val encOrig = URLEncoder.encode(movie.originalTitle, "UTF-8")
-            val srcParam = if (!source.isNullOrBlank()) source.lowercase().trim() else if (translatorId.startsWith("kodik_")) "kodik" else "hdrezka"
+            val srcParam = if (!source.isNullOrBlank()) source.lowercase().trim() else if (movie.source.isNotBlank()) movie.source else if (translatorId.startsWith("kodik_")) "kodik" else "hdrezka"
+            val kpParam = if (movie.kinopoiskId.isNotBlank()) movie.kinopoiskId else if (movie.source == "bazon" && movie.id.all { it.isDigit() }) movie.id else ""
+            val kpQuery = if (kpParam.isNotBlank()) "&kp_id=$kpParam" else ""
             val isSer = if (movie.isSeries) "1" else "0"
-            val urlStr = "$SERVER_BASE/api/media/episodes?source=$srcParam&media_id=$encId&translator_id=$encTrans&title=$encTitle&original_title=$encOrig&year=${movie.releaseYear}&is_series=$isSer&kp_id=$encId"
+            val urlStr = "$SERVER_BASE/api/media/episodes?source=$srcParam&media_id=$encId&translator_id=$encTrans&title=$encTitle&original_title=$encOrig&year=${movie.releaseYear}&is_series=$isSer$kpQuery"
             val conn = URL(urlStr).openConnection() as HttpURLConnection
             conn.connectTimeout = 8000
             conn.readTimeout = 12000
@@ -426,8 +433,10 @@ object ShowHubApiClient {
             val origQ = URLEncoder.encode(movie.originalTitle, "UTF-8")
             val encId = URLEncoder.encode(movie.id, "UTF-8")
             val isSeriesStr = if (movie.isSeries || (episode != null && episode > 1) || (season != null && season > 1)) "1" else "0"
-            val srcParam = if (source.isNullOrEmpty()) "all" else source.lowercase().trim()
-            val sb = StringBuilder("$SERVER_BASE/api/media/streams?source=$srcParam&media_id=$encId&kp_id=$encId&title=$q&original_title=$origQ&year=${movie.releaseYear}&is_series=$isSeriesStr")
+            val srcParam = if (!source.isNullOrEmpty()) source.lowercase().trim() else if (movie.source.isNotBlank()) movie.source else "all"
+            val kpParam = if (movie.kinopoiskId.isNotBlank()) movie.kinopoiskId else if (movie.source == "bazon" && movie.id.all { it.isDigit() }) movie.id else ""
+            val kpQuery = if (kpParam.isNotBlank()) "&kp_id=$kpParam" else ""
+            val sb = StringBuilder("$SERVER_BASE/api/media/streams?source=$srcParam&media_id=$encId$kpQuery&title=$q&original_title=$origQ&year=${movie.releaseYear}&is_series=$isSeriesStr")
             if (season != null) sb.append("&season=$season")
             if (episode != null) sb.append("&episode=$episode")
             if (!audioId.isNullOrEmpty()) sb.append("&audio_id=").append(URLEncoder.encode(audioId, "UTF-8"))
@@ -512,11 +521,13 @@ object ShowHubApiClient {
     suspend fun fetchTrailerUrl(movie: Movie): String? = withContext(Dispatchers.IO) {
         try {
             val q = URLEncoder.encode(movie.title, "UTF-8")
-            val url = URL("$SERVER_BASE/api/media/trailer?title=$q&year=${movie.releaseYear}&kp_id=${movie.id}")
+            val kpParam = if (movie.kinopoiskId.isNotBlank()) movie.kinopoiskId else if (movie.source == "bazon" && movie.id.all { it.isDigit() }) movie.id else ""
+            val kpQuery = if (kpParam.isNotBlank()) "&kp_id=$kpParam" else ""
+            val url = URL("$SERVER_BASE/api/media/trailer?title=$q&year=${movie.releaseYear}$kpQuery")
             val conn = url.openConnection() as HttpURLConnection
             conn.connectTimeout = 8000
             conn.readTimeout = 8000
-            conn.setRequestProperty("User-Agent", "ShowHubTV-Native/2.6.3")
+            conn.setRequestProperty("User-Agent", "ShowHubTV-Native/${com.example.tvmediaapp.BuildConfig.VERSION_NAME}")
             conn.connect()
             if (conn.responseCode == 200) {
                 val body = BufferedReader(InputStreamReader(conn.inputStream, "UTF-8")).use { it.readText() }
@@ -535,7 +546,10 @@ object ShowHubApiClient {
             val q = URLEncoder.encode(movie.title, "UTF-8")
             val encId = URLEncoder.encode(movie.id, "UTF-8")
             val isSeries = if (movie.isSeries) "1" else "0"
-            val sb = StringBuilder("$SERVER_BASE/api/media/preview-stream?title=$q&media_id=$encId&kp_id=$encId&year=${movie.releaseYear}&is_series=$isSeries")
+            val srcParam = if (movie.source.isNotBlank()) movie.source else "all"
+            val kpParam = if (movie.kinopoiskId.isNotBlank()) movie.kinopoiskId else if (movie.source == "bazon" && movie.id.all { it.isDigit() }) movie.id else ""
+            val kpQuery = if (kpParam.isNotBlank()) "&kp_id=$kpParam" else ""
+            val sb = StringBuilder("$SERVER_BASE/api/media/preview-stream?title=$q&source=$srcParam&media_id=$encId$kpQuery&year=${movie.releaseYear}&is_series=$isSeries")
             if (startMin != null && startMin > 0) {
                 sb.append("&start_min=").append(startMin)
             }
@@ -756,6 +770,8 @@ object ShowHubApiClient {
 
             val givenAge = it.optString("age_limit", extraObj?.optString("age_limit", "") ?: "")
             val rawAge = classifyAgeRating(title, desc, genresList, givenAge)
+            val kinopoiskId = it.optString("kinopoisk_id", "").ifEmpty { extraObj?.optString("kinopoisk_id", "") ?: "" }
+            val srcName = it.optString("source_name", "").ifEmpty { it.optString("source", "") }
 
             outList.add(
                 Movie(
@@ -777,7 +793,9 @@ object ShowHubApiClient {
                     genres = if (genresList.isNotEmpty()) genresList else listOf("\u041a\u0438\u043d\u043e"),
                     videoUrl = "",
                     isSeries = isSeries,
-                    ageRating = rawAge
+                    ageRating = rawAge,
+                    source = srcName,
+                    kinopoiskId = kinopoiskId
                 )
             )
         }

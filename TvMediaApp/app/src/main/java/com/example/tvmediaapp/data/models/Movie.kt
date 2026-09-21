@@ -76,7 +76,9 @@ data class Movie(
     val episodesSchedule: List<EpisodeScheduleItem> = emptyList(),
     val ageRating: String = "",
     val maxQuality: String = "1080p",
-    val isFavorite: Boolean = false
+    val isFavorite: Boolean = false,
+    val source: String = "",
+    val kinopoiskId: String = ""
 )
 
 fun getCountryBadge(country: String, genres: List<String> = emptyList(), title: String = ""): String {

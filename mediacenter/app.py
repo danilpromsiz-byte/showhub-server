@@ -1338,7 +1338,9 @@ def _fetch_media_details(
 
     # Determine real Kinopoisk ID if available
     resolved_kp = kp_id
-    if not resolved_kp and source in ["bazon", "videocdn", "delivembd"] and media_id.isdigit():
+    if source in ("filmix", "kodik", "hdrezka") and resolved_kp and str(resolved_kp) == str(media_id):
+        resolved_kp = None
+    if not resolved_kp and source in ["bazon", "videocdn", "delivembd", "kinopoisk", "kp"] and media_id.isdigit():
         resolved_kp = media_id
     if not resolved_kp and clean_title:
         try:
@@ -1859,7 +1861,9 @@ def _fetch_media_streams(
 
     resolved: Dict[str, Any] = {}
     resolved_kp = kp_id
-    if not resolved_kp and media_id and str(media_id).isdigit():
+    if source in ("filmix", "kodik", "hdrezka") and resolved_kp and str(resolved_kp) == str(media_id):
+        resolved_kp = None
+    if not resolved_kp and source in ["bazon", "videocdn", "delivembd", "kinopoisk", "kp"] and media_id and str(media_id).isdigit():
         resolved_kp = str(media_id)
 
     clean_title = re.sub(r'\(.*?\)|\[.*?\]', '', title).strip() if title else ""
@@ -1891,6 +1895,21 @@ def _fetch_media_streams(
                     break
             except Exception:
                 pass
+
+    # Sanity check: verify resolved_kp against target title and year
+    if resolved_kp and (clean_title or year_int):
+        try:
+            b_info = bazon.get_details(str(resolved_kp))
+            if b_info:
+                b_year = safe_parse_year(b_info.get("year"))
+                if year_int and b_year and abs(b_year - year_int) > 2:
+                    resolved_kp = None
+                elif clean_title and b_info.get("title"):
+                    sim = compute_title_similarity(b_info.get("title"), clean_title)
+                    if sim < 0.40:
+                        resolved_kp = None
+        except Exception:
+            pass
 
     def _resolve_filmix():
         try:
@@ -2097,8 +2116,11 @@ def get_media_episodes(
     """Returns authentic translator-specific seasons and episodes aggregated across sources."""
     clean_t = re.sub(r'\(.*?\)|\[.*?\]', '', title).strip() if title else ""
     year_int = safe_parse_year(year)
-    is_ser_bool = bool(int(is_series)) if str(is_series).isdigit() else (bool(is_series) if is_series is not None else True)
-    resolved_kp = kp_id if kp_id else (media_id if media_id.isdigit() else None)
+    resolved_kp = kp_id
+    if source in ("filmix", "kodik", "hdrezka") and resolved_kp and str(resolved_kp) == str(media_id):
+        resolved_kp = None
+    if not resolved_kp and source in ["bazon", "videocdn", "delivembd", "kinopoisk", "kp"] and media_id.isdigit():
+        resolved_kp = media_id
     target_id = media_id
     rz_seasons = []
 

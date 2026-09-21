@@ -20,7 +20,15 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.style.TextOverflow
+import coil.compose.AsyncImage
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.DisposableEffect
@@ -109,6 +117,15 @@ data class NavState(
     val audioId: String = ""
 )
 
+data class ModalCardTheme(
+    val name: String,
+    val primaryColor: Color,
+    val bgCardColor: Color,
+    val badgeBg: Color,
+    val badgeTextColor: Color,
+    val buttonContentColor: Color
+)
+
 class MainActivity : ComponentActivity() {
     fun getInstalledVersionCode(): Int {
         return try {
@@ -181,7 +198,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun TvAppNavHost(activity: MainActivity) {
     val homeViewModel: HomeViewModel = viewModel()
-    val episodeAlert by homeViewModel.newEpisodeAlert.collectAsState()
+    val episodeAlerts by homeViewModel.newEpisodeAlerts.collectAsState()
     val lifecycleOwner = LocalLifecycleOwner.current
     val coroutineScope = rememberCoroutineScope()
 
@@ -409,7 +426,7 @@ fun TvAppNavHost(activity: MainActivity) {
 
     val isUpdateDialogVisible = updateInfo?.let { it.versionCode > activity.getInstalledVersionCode() } == true
     val isMandatoryUpdate = updateInfo?.isForceUpdate == true
-    val isEpisodeAlertVisible = episodeAlert != null
+    val isEpisodeAlertVisible = episodeAlerts.isNotEmpty()
 
     // Hardware Back button handling for Android TV remotes
     BackHandler(enabled = isUpdateDialogVisible) {
@@ -960,23 +977,92 @@ fun TvAppNavHost(activity: MainActivity) {
             }
         }
 
-        // NEW EPISODE MODAL NOTIFICATION
-        episodeAlert?.let { alert ->
-            val accent = LocalAccentColor.current
+        // NEW EPISODE STACKED MODAL NOTIFICATIONS (Festive Deck)
+        if (episodeAlerts.isNotEmpty()) {
+            val totalAlerts = episodeAlerts.size
+            val activeAlert = episodeAlerts.first()
             val historyManager = remember { com.example.tvmediaapp.data.history.WatchHistoryManager(activity) }
             val playFocusRequester = remember { FocusRequester() }
             val laterFocusRequester = remember { FocusRequester() }
             val checkboxFocusRequester = remember { FocusRequester() }
             var dontRemindAgain by remember { mutableStateOf(false) }
 
-            BackHandler {
-                if (dontRemindAgain) {
-                    historyManager.setSeriesReminderMuted(alert.movie.id, alert.movie.title, true)
-                }
-                homeViewModel.dismissNewEpisodeAlert()
+            // Festive color themes: Amber/Yellow, Pink, Cyan, Green, Violet/Purple, Coral/Orange
+            val cardThemes = remember {
+                listOf(
+                    // 0: Amber / Yellow (Желтая)
+                    ModalCardTheme(
+                        name = "Yellow",
+                        primaryColor = Color(0xFFFBBF24),
+                        bgCardColor = Color(0xFF231A05),
+                        badgeBg = Color(0x33FBBF24),
+                        badgeTextColor = Color(0xFFFDE68A),
+                        buttonContentColor = Color(0xFF1E1400)
+                    ),
+                    // 1: Rose / Hot Pink (Розовая)
+                    ModalCardTheme(
+                        name = "Pink",
+                        primaryColor = Color(0xFFF43F5E),
+                        bgCardColor = Color(0xFF280A16),
+                        badgeBg = Color(0x33F43F5E),
+                        badgeTextColor = Color(0xFFFDA4AF),
+                        buttonContentColor = Color(0xFF20010A)
+                    ),
+                    // 2: Electric Cyan / Sky Blue (Голубая)
+                    ModalCardTheme(
+                        name = "Cyan",
+                        primaryColor = Color(0xFF06B6D4),
+                        bgCardColor = Color(0xFF041E28),
+                        badgeBg = Color(0x3306B6D4),
+                        badgeTextColor = Color(0xFF67E8F9),
+                        buttonContentColor = Color(0xFF001720)
+                    ),
+                    // 3: Bright Emerald / Green (Зеленая)
+                    ModalCardTheme(
+                        name = "Green",
+                        primaryColor = Color(0xFF10B981),
+                        bgCardColor = Color(0xFF062217),
+                        badgeBg = Color(0x3310B981),
+                        badgeTextColor = Color(0xFF6EE7B7),
+                        buttonContentColor = Color(0xFF011C11)
+                    ),
+                    // 4: Electric Violet / Purple (Фиолетовая)
+                    ModalCardTheme(
+                        name = "Purple",
+                        primaryColor = Color(0xFF8B5CF6),
+                        bgCardColor = Color(0xFF1D0E34),
+                        badgeBg = Color(0x338B5CF6),
+                        badgeTextColor = Color(0xFFC4B5FD),
+                        buttonContentColor = Color(0xFF150428)
+                    ),
+                    // 5: Vivid Tangerine / Coral Orange (Оранжевая)
+                    ModalCardTheme(
+                        name = "Orange",
+                        primaryColor = Color(0xFFF97316),
+                        bgCardColor = Color(0xFF281205),
+                        badgeBg = Color(0x33F97316),
+                        badgeTextColor = Color(0xFFFDBA74),
+                        buttonContentColor = Color(0xFF200900)
+                    )
+                )
             }
 
-            LaunchedEffect(alert) {
+            fun getThemeForAlert(seriesId: String, offsetIndex: Int): ModalCardTheme {
+                val seed = kotlin.math.abs(seriesId.hashCode()) + offsetIndex
+                return cardThemes[seed % cardThemes.size]
+            }
+
+            val activeTheme = getThemeForAlert(activeAlert.movie.id, 0)
+
+            BackHandler {
+                if (dontRemindAgain) {
+                    historyManager.setSeriesReminderMuted(activeAlert.movie.id, activeAlert.movie.title, true)
+                }
+                homeViewModel.dismissCurrentEpisodeAlert()
+            }
+
+            LaunchedEffect(activeAlert.movie.id) {
+                dontRemindAgain = false
                 for (i in 0 until 5) {
                     delay(60)
                     try {
@@ -996,195 +1082,380 @@ fun TvAppNavHost(activity: MainActivity) {
                     ) {},
                 contentAlignment = Alignment.Center
             ) {
-                Column(
-                    modifier = Modifier
-                        .width(480.dp)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(Color(0xFF1E293B))
-                        .border(1.dp, accent.copy(alpha = 0.4f), RoundedCornerShape(16.dp))
-                        .padding(28.dp)
-                        .focusGroup()
-                        .onKeyEvent { keyEvent ->
-                            if (keyEvent.nativeKeyEvent.action == KeyEvent.ACTION_DOWN &&
-                                keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_BACK
-                            ) {
-                                if (dontRemindAgain) {
-                                    historyManager.setSeriesReminderMuted(alert.movie.id, alert.movie.title, true)
-                                }
-                                homeViewModel.dismissNewEpisodeAlert()
-                                true
-                            } else {
-                                false
-                            }
-                        },
-                    horizontalAlignment = Alignment.CenterHorizontally
+                // Outer Deck Container with Stacked Card Visuals
+                Box(
+                    modifier = Modifier.wrapContentSize(),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(accent.copy(alpha = 0.15f))
-                            .padding(horizontal = 14.dp, vertical = 6.dp)
-                    ) {
-                        Text(
-                            text = "ВЫШЛА НОВАЯ СЕРИЯ",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = accent,
-                            letterSpacing = 1.sp
-                        )
+                    // Peek Card #3 (deep background, offset to top-right)
+                    if (totalAlerts >= 3) {
+                        val alert3 = episodeAlerts[2]
+                        val theme3 = getThemeForAlert(alert3.movie.id, 2)
+                        Box(
+                            modifier = Modifier
+                                .offset(x = 24.dp, y = (-20).dp)
+                                .graphicsLayer {
+                                    rotationZ = 4.2f
+                                    scaleX = 0.92f
+                                    scaleY = 0.92f
+                                }
+                                .alpha(0.70f)
+                                .width(560.dp)
+                                .height(280.dp)
+                                .clip(RoundedCornerShape(18.dp))
+                                .background(theme3.bgCardColor)
+                                .border(2.dp, theme3.primaryColor.copy(alpha = 0.6f), RoundedCornerShape(18.dp))
+                                .padding(horizontal = 24.dp, vertical = 14.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(theme3.badgeBg)
+                                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                                ) {
+                                    Text(
+                                        text = alert3.movie.title,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = theme3.badgeTextColor,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                                Text(
+                                    text = "3 из $totalAlerts",
+                                    fontSize = 11.sp,
+                                    color = theme3.primaryColor.copy(alpha = 0.8f),
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
                     }
 
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    Text(
-                        text = alert.movie.title,
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White,
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                        maxLines = 2,
-                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                    )
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    val episodeCountText = if (alert.newCount > 1) "+${alert.newCount} новых серий" else "Новая серия"
-                    Text(
-                        text = "В отслеживаемом сериале доступно: $episodeCountText.\nХотите перейти к просмотру сейчас?",
-                        fontSize = 14.sp,
-                        color = Color.LightGray,
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                        lineHeight = 20.sp
-                    )
-
-                    Spacer(modifier = Modifier.height(18.dp))
-
-                    // Checkbox button: "Больше не напоминать об этом сериале"
-                    Button(
-                        onClick = {
-                            dontRemindAgain = !dontRemindAgain
-                        },
-                        shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                        scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.02f),
-                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
-                        colors = ButtonDefaults.colors(
-                            containerColor = if (dontRemindAgain) accent.copy(alpha = 0.15f) else Color.White.copy(alpha = 0.05f),
-                            focusedContainerColor = accent.copy(alpha = 0.22f),
-                            contentColor = Color.LightGray,
-                            focusedContentColor = Color.White
-                        ),
-                        border = ButtonDefaults.border(
-                            border = Border(BorderStroke(1.dp, if (dontRemindAgain) accent.copy(alpha = 0.5f) else Color.White.copy(alpha = 0.15f))),
-                            focusedBorder = Border(BorderStroke(2.dp, accent))
-                        ),
-                        modifier = Modifier
-                            .focusRequester(checkboxFocusRequester)
-                            .focusProperties {
-                                down = playFocusRequester
+                    // Peek Card #2 (middle background, offset to top-left)
+                    if (totalAlerts >= 2) {
+                        val alert2 = episodeAlerts[1]
+                        val theme2 = getThemeForAlert(alert2.movie.id, 1)
+                        Box(
+                            modifier = Modifier
+                                .offset(x = (-24).dp, y = (-14).dp)
+                                .graphicsLayer {
+                                    rotationZ = -3.8f
+                                    scaleX = 0.96f
+                                    scaleY = 0.96f
+                                }
+                                .alpha(0.85f)
+                                .width(560.dp)
+                                .height(280.dp)
+                                .clip(RoundedCornerShape(18.dp))
+                                .background(theme2.bgCardColor)
+                                .border(2.dp, theme2.primaryColor.copy(alpha = 0.75f), RoundedCornerShape(18.dp))
+                                .padding(horizontal = 24.dp, vertical = 14.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(theme2.badgeBg)
+                                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                                ) {
+                                    Text(
+                                        text = alert2.movie.title,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = theme2.badgeTextColor,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                                Text(
+                                    text = "2 из $totalAlerts",
+                                    fontSize = 11.sp,
+                                    color = theme2.primaryColor.copy(alpha = 0.9f),
+                                    fontWeight = FontWeight.SemiBold
+                                )
                             }
+                        }
+                    }
+
+                    // Active Top Card (interactive, focused)
+                    Column(
+                        modifier = Modifier
+                            .width(560.dp)
+                            .clip(RoundedCornerShape(18.dp))
+                            .background(
+                                Brush.verticalGradient(
+                                    listOf(
+                                        activeTheme.bgCardColor,
+                                        Color(0xFF131722)
+                                    )
+                                )
+                            )
+                            .border(2.dp, activeTheme.primaryColor, RoundedCornerShape(18.dp))
+                            .padding(24.dp)
+                            .focusGroup()
+                            .onKeyEvent { keyEvent ->
+                                if (keyEvent.nativeKeyEvent.action == KeyEvent.ACTION_DOWN &&
+                                    keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_BACK
+                                ) {
+                                    if (dontRemindAgain) {
+                                        historyManager.setSeriesReminderMuted(activeAlert.movie.id, activeAlert.movie.title, true)
+                                    }
+                                    homeViewModel.dismissCurrentEpisodeAlert()
+                                    true
+                                } else {
+                                    false
+                                }
+                            },
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
+                        // Top Header Bar
                         Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.Center
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .size(20.dp)
-                                    .clip(RoundedCornerShape(4.dp))
-                                    .border(
-                                        1.5.dp,
-                                        if (dontRemindAgain) accent else Color.White.copy(alpha = 0.6f),
-                                        RoundedCornerShape(4.dp)
-                                    )
-                                    .background(if (dontRemindAgain) accent else Color.Transparent),
-                                contentAlignment = Alignment.Center
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(activeTheme.badgeBg)
+                                    .padding(horizontal = 12.dp, vertical = 5.dp)
                             ) {
-                                if (dontRemindAgain) {
+                                Text(
+                                    text = "ВЫШЛА НОВАЯ СЕРИЯ",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = activeTheme.primaryColor,
+                                    letterSpacing = 0.8.sp
+                                )
+                            }
+
+                            if (totalAlerts > 1) {
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(Color.White.copy(alpha = 0.10f))
+                                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                                ) {
                                     Text(
-                                        text = "✓",
-                                        color = Color.Black,
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.Bold
+                                        text = "1 из $totalAlerts",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = Color(0xFFE2E8F0)
                                     )
                                 }
                             }
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Text(
-                                text = "Больше не напоминать об этом сериале",
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Medium
-                            )
                         }
-                    }
 
-                    Spacer(modifier = Modifier.height(20.dp))
+                        Spacer(modifier = Modifier.height(16.dp))
 
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Button(
-                            onClick = {
-                                if (dontRemindAgain) {
-                                    historyManager.setSeriesReminderMuted(alert.movie.id, alert.movie.title, true)
-                                }
-                                val targetMovie = alert.movie
-                                homeViewModel.dismissNewEpisodeAlert()
-                                navigateTo(Screen.DETAILS, movie = targetMovie)
-                            },
-                            shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.05f),
-                            contentPadding = PaddingValues(horizontal = 22.dp, vertical = 0.dp),
-                            colors = ButtonDefaults.colors(
-                                containerColor = accent,
-                                focusedContainerColor = Color.White,
-                                contentColor = Color.Black,
-                                focusedContentColor = Color.Black
-                            ),
-                            modifier = Modifier
-                                .height(38.dp)
-                                .focusRequester(playFocusRequester)
-                                .focusProperties {
-                                    up = checkboxFocusRequester
-                                    right = laterFocusRequester
-                                }
+                        // Poster Cover + Title & Info Row
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                text = "Смотреть серию",
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold
-                            )
+                            // Poster Image
+                            Box(
+                                modifier = Modifier
+                                    .width(115.dp)
+                                    .height(160.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .border(1.5.dp, activeTheme.primaryColor.copy(alpha = 0.5f), RoundedCornerShape(10.dp))
+                                    .background(Color.Black.copy(alpha = 0.5f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                AsyncImage(
+                                    model = activeAlert.movie.posterUrl,
+                                    contentDescription = activeAlert.movie.title,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.width(18.dp))
+
+                            Column(
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text(
+                                    text = activeAlert.movie.title,
+                                    fontSize = 20.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                    lineHeight = 24.sp
+                                )
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                val episodeCountText = if (activeAlert.newCount > 1) "+${activeAlert.newCount} новых серий" else "Новая серия"
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(activeTheme.primaryColor.copy(alpha = 0.18f))
+                                        .padding(horizontal = 8.dp, vertical = 3.dp)
+                                ) {
+                                    Text(
+                                        text = episodeCountText,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = activeTheme.primaryColor
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                Text(
+                                    text = "В отслеживаемом сериале появились свежие серии. Перейти к просмотру сейчас?",
+                                    fontSize = 13.sp,
+                                    color = Color(0xFFCBD5E1),
+                                    lineHeight = 18.sp
+                                )
+                            }
                         }
 
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        // Checkbox button: "Больше не напоминать об этом сериале"
                         Button(
                             onClick = {
-                                if (dontRemindAgain) {
-                                    historyManager.setSeriesReminderMuted(alert.movie.id, alert.movie.title, true)
-                                }
-                                homeViewModel.dismissNewEpisodeAlert()
+                                dontRemindAgain = !dontRemindAgain
                             },
                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.05f),
-                            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 0.dp),
+                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.02f),
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 7.dp),
                             colors = ButtonDefaults.colors(
-                                containerColor = Color.White.copy(alpha = 0.12f),
-                                focusedContainerColor = Color.White.copy(alpha = 0.25f),
+                                containerColor = if (dontRemindAgain) activeTheme.primaryColor.copy(alpha = 0.15f) else Color.White.copy(alpha = 0.05f),
+                                focusedContainerColor = activeTheme.primaryColor.copy(alpha = 0.22f),
                                 contentColor = Color.LightGray,
                                 focusedContentColor = Color.White
                             ),
+                            border = ButtonDefaults.border(
+                                border = Border(BorderStroke(1.dp, if (dontRemindAgain) activeTheme.primaryColor.copy(alpha = 0.5f) else Color.White.copy(alpha = 0.15f))),
+                                focusedBorder = Border(BorderStroke(2.dp, activeTheme.primaryColor))
+                            ),
                             modifier = Modifier
-                                .height(38.dp)
-                                .focusRequester(laterFocusRequester)
+                                .fillMaxWidth()
+                                .focusRequester(checkboxFocusRequester)
                                 .focusProperties {
-                                    up = checkboxFocusRequester
-                                    left = playFocusRequester
+                                    down = playFocusRequester
                                 }
                         ) {
-                            Text(
-                                text = "Позже",
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.SemiBold
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(18.dp)
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .border(
+                                            1.5.dp,
+                                            if (dontRemindAgain) activeTheme.primaryColor else Color.White.copy(alpha = 0.6f),
+                                            RoundedCornerShape(4.dp)
+                                        )
+                                        .background(if (dontRemindAgain) activeTheme.primaryColor else Color.Transparent),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    if (dontRemindAgain) {
+                                        Text(
+                                            text = "✓",
+                                            color = activeTheme.buttonContentColor,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text(
+                                    text = "Больше не напоминать об этом сериале",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(18.dp))
+
+                        // Action Buttons Row
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Button(
+                                onClick = {
+                                    if (dontRemindAgain) {
+                                        historyManager.setSeriesReminderMuted(activeAlert.movie.id, activeAlert.movie.title, true)
+                                    }
+                                    val targetMovie = activeAlert.movie
+                                    homeViewModel.dismissCurrentEpisodeAlert()
+                                    navigateTo(Screen.DETAILS, movie = targetMovie)
+                                },
+                                shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                                scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.05f),
+                                contentPadding = PaddingValues(horizontal = 24.dp, vertical = 0.dp),
+                                colors = ButtonDefaults.colors(
+                                    containerColor = activeTheme.primaryColor,
+                                    focusedContainerColor = Color.White,
+                                    contentColor = activeTheme.buttonContentColor,
+                                    focusedContentColor = Color.Black
+                                ),
+                                modifier = Modifier
+                                    .height(38.dp)
+                                    .focusRequester(playFocusRequester)
+                                    .focusProperties {
+                                        up = checkboxFocusRequester
+                                        right = laterFocusRequester
+                                    }
+                            ) {
+                                Text(
+                                    text = "Смотреть серию",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+
+                            Button(
+                                onClick = {
+                                    if (dontRemindAgain) {
+                                        historyManager.setSeriesReminderMuted(activeAlert.movie.id, activeAlert.movie.title, true)
+                                    }
+                                    homeViewModel.dismissCurrentEpisodeAlert()
+                                },
+                                shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                                scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.05f),
+                                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 0.dp),
+                                colors = ButtonDefaults.colors(
+                                    containerColor = Color.White.copy(alpha = 0.12f),
+                                    focusedContainerColor = Color.White.copy(alpha = 0.25f),
+                                    contentColor = Color.LightGray,
+                                    focusedContentColor = Color.White
+                                ),
+                                modifier = Modifier
+                                    .height(38.dp)
+                                    .focusRequester(laterFocusRequester)
+                                    .focusProperties {
+                                        up = checkboxFocusRequester
+                                        left = playFocusRequester
+                                    }
+                            ) {
+                                Text(
+                                    text = if (totalAlerts > 1) "Следующий (${totalAlerts - 1})" else "Позже",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
                         }
                     }
                 }

@@ -13,6 +13,10 @@ import com.example.tvmediaapp.data.repository.CatalogRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
@@ -53,11 +57,23 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     val gridState = androidx.tv.foundation.lazy.grid.TvLazyGridState()
     var lastFocusedIndex: Int = 0
 
-    private val _newEpisodeAlert = MutableStateFlow<NewEpisodeAlert?>(null)
-    val newEpisodeAlert: StateFlow<NewEpisodeAlert?> = _newEpisodeAlert.asStateFlow()
+    private val _newEpisodeAlerts = MutableStateFlow<List<NewEpisodeAlert>>(emptyList())
+    val newEpisodeAlerts: StateFlow<List<NewEpisodeAlert>> = _newEpisodeAlerts.asStateFlow()
+
+    val newEpisodeAlert: StateFlow<NewEpisodeAlert?> = _newEpisodeAlerts
+        .map { it.firstOrNull() }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    fun dismissCurrentEpisodeAlert() {
+        _newEpisodeAlerts.update { if (it.isNotEmpty()) it.drop(1) else emptyList() }
+    }
 
     fun dismissNewEpisodeAlert() {
-        _newEpisodeAlert.value = null
+        dismissCurrentEpisodeAlert()
+    }
+
+    fun dismissAllEpisodeAlerts() {
+        _newEpisodeAlerts.value = emptyList()
     }
 
     private val prefs = application.getSharedPreferences("showhub_prefs", android.content.Context.MODE_PRIVATE)
@@ -223,13 +239,20 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                         if (totalEps > 0) {
                             val newCount = historyManager.updateKnownTotalEpisodes(detailed.id, totalEps)
                             val alertCount = if (newCount > 0) newCount else historyManager.getNewEpisodesCount(detailed.id)
-                            if (alertCount > 0 && _newEpisodeAlert.value == null && !historyManager.isSeriesReminderMuted(detailed.id, detailed.title)) {
+                            if (alertCount > 0 && !historyManager.isSeriesReminderMuted(detailed.id, detailed.title)) {
                                 com.example.tvmediaapp.data.notifications.EpisodeNotificationManager.notifyNewEpisodes(
                                     getApplication(),
                                     detailed,
                                     alertCount
                                 )
-                                _newEpisodeAlert.value = NewEpisodeAlert(detailed, alertCount)
+                                val alertItem = NewEpisodeAlert(detailed, alertCount)
+                                _newEpisodeAlerts.update { currentList ->
+                                    if (currentList.none { it.movie.id == detailed.id }) {
+                                        currentList + alertItem
+                                    } else {
+                                        currentList
+                                    }
+                                }
                             }
                         }
                     }

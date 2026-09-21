@@ -80,7 +80,8 @@ class WatchHistoryManager(context: Context) {
         list.add(0, item)
         saveList(list.take(200))
 
-        if (movie.isSeries || season > 1 || episode > 1) {
+        val isSeriesItem = movie.isSeries || movie.seasons.isNotEmpty() || season >= 1 || episode >= 1
+        if (isSeriesItem) {
             saveEpisodeProgress(movie.id, season, episode, positionMs, durationMs, movie.title)
             if (percentage >= 85) {
                 markEpisodeWatched(movie.id, season, episode, movie.title)
@@ -136,6 +137,16 @@ class WatchHistoryManager(context: Context) {
                 if (p > 0) return p
             }
         }
+
+        // Direct fallback to history item if current season and episode match
+        val histMatch = getHistory().firstOrNull {
+            (seriesId.isNotBlank() && it.id == seriesId) ||
+            (cleanT.isNotBlank() && normalizeTitle(it.title) == cleanT)
+        }
+        if (histMatch != null && (histMatch.season ?: 1) == season && (histMatch.episode ?: 1) == episode) {
+            if (histMatch.percentage > 0) return histMatch.percentage
+        }
+
         return 0
     }
 
@@ -183,6 +194,16 @@ class WatchHistoryManager(context: Context) {
                 if (watched.contains("s${season}e${episode}")) return true
             }
         }
+
+        // Direct fallback to history item if marked watched (>= 85%)
+        val histMatch = getHistory().firstOrNull {
+            (seriesId.isNotBlank() && it.id == seriesId) ||
+            (cleanT.isNotBlank() && normalizeTitle(it.title) == cleanT)
+        }
+        if (histMatch != null && (histMatch.season ?: 1) == season && (histMatch.episode ?: 1) == episode) {
+            if (histMatch.percentage >= 85) return true
+        }
+
         return false
     }
 

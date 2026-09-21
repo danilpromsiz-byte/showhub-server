@@ -413,6 +413,9 @@ fun DetailsScreen(
     DisposableEffect(lifecycleOwner, detailsPreviewPlayer) {
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
             when (event) {
+                androidx.lifecycle.Lifecycle.Event.ON_RESUME -> {
+                    com.example.tvmediaapp.data.history.WatchHistoryManager.notifyHistoryChanged()
+                }
                 androidx.lifecycle.Lifecycle.Event.ON_PAUSE, androidx.lifecycle.Lifecycle.Event.ON_STOP -> {
                     detailsPreviewPlayer?.pause()
                 }
@@ -497,7 +500,8 @@ fun DetailsScreen(
 
                 if (matched.url.isNotBlank() && matched.url.startsWith("http")) {
                     streamStatus = "Найден поток ${matched.quality}! Запуск..."
-                    onPlayClick(currentMovie, matched.url, startPos, targetSeason, targetEpisode, targetAudioId)
+                    val movieToPlay = if (isContentSeries) currentMovie.copy(isSeries = true) else currentMovie
+                    onPlayClick(movieToPlay, matched.url, startPos, targetSeason, targetEpisode, targetAudioId)
                 } else {
                     streamStatus = "Поток недоступен для выбранной серии. Попробуйте другую озвучку."
                 }
@@ -1825,26 +1829,32 @@ fun DetailsScreen(
                                         ),
                                         shape = ButtonDefaults.shape(RoundedCornerShape(6.dp)),
                                         scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
-                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                        contentPadding = PaddingValues(0.dp),
                                         modifier = Modifier
                                             .height(34.dp)
-                                            .defaultMinSize(minWidth = 60.dp)
+                                            .defaultMinSize(minWidth = 64.dp)
                                             .then(epFocusMod)
                                             .onFocusChanged { isButtonFocused = it.isFocused }
                                             .focusedGlow(isFocused = isButtonFocused, color = focusColor, radius = 6.dp, shapeRadius = 6.dp)
                                     ) {
-                                        Box(
-                                            modifier = Modifier.fillMaxSize(),
-                                            contentAlignment = Alignment.Center
+                                        Column(
+                                            modifier = Modifier
+                                                .fillMaxHeight()
+                                                .defaultMinSize(minWidth = 64.dp)
+                                                .clip(RoundedCornerShape(6.dp)),
+                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                            verticalArrangement = Arrangement.SpaceBetween
                                         ) {
                                             Row(
                                                 verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                                modifier = Modifier.padding(bottom = 5.dp, start = 4.dp, end = 4.dp)
+                                                horizontalArrangement = Arrangement.Center,
+                                                modifier = Modifier
+                                                    .weight(1f)
+                                                    .padding(horizontal = 10.dp)
                                             ) {
                                                 if (isWatched || epProgress >= 85) {
                                                     Text(
-                                                        text = "✓",
+                                                        text = "✓ ",
                                                         fontSize = 11.sp,
                                                         fontWeight = FontWeight.ExtraBold,
                                                         color = if (isSelected) Color.Black else Color(0xFF22C55E)
@@ -1852,20 +1862,24 @@ fun DetailsScreen(
                                                 }
                                                 Text(
                                                     text = ep.title,
-                                                    fontSize = 10.sp,
-                                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                                    fontSize = 11.sp,
+                                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                                    maxLines = 1
                                                 )
                                             }
 
-                                            // Visible Timeline Progress Track & Fill anchored along entire button bottom edge
-                                            val progressPct = if (isWatched || epProgress >= 85) 1.0f else if (epProgress > 0) (epProgress.coerceIn(5, 100) / 100f) else 0f
+                                            val progressPct = if (isWatched || epProgress >= 85) 1.0f
+                                                              else if (epProgress > 0) (epProgress / 100f).coerceIn(0.08f, 1.0f)
+                                                              else 0f
+
                                             Box(
                                                 modifier = Modifier
-                                                    .align(Alignment.BottomCenter)
                                                     .fillMaxWidth()
-                                                    .height(3.5.dp)
-                                                    .clip(RoundedCornerShape(bottomStart = 6.dp, bottomEnd = 6.dp))
-                                                    .background(Color.White.copy(alpha = 0.22f))
+                                                    .height(4.dp)
+                                                    .background(
+                                                        if (progressPct > 0f) Color.Black.copy(alpha = 0.50f)
+                                                        else Color.White.copy(alpha = 0.10f)
+                                                    )
                                             ) {
                                                 if (progressPct > 0f) {
                                                     Box(
@@ -1875,7 +1889,7 @@ fun DetailsScreen(
                                                             .background(
                                                                 if (isSelected) Color(0xFF0F172A)
                                                                 else if (isWatched || epProgress >= 85) Color(0xFF22C55E)
-                                                                else Color(0xFFFFB300)
+                                                                else Color(0xFFFF9800)
                                                             )
                                                     )
                                                 }

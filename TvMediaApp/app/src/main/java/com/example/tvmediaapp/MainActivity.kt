@@ -227,12 +227,11 @@ fun TvAppNavHost(activity: MainActivity) {
 
     var currentScreen by remember {
         mutableStateOf(
-            when {
-                restoredSession?.screen == Screen.PLAYER && restoredSession.videoUrl.isNotBlank() -> Screen.PLAYER
-                restoredSession != null -> Screen.DETAILS
-                else -> Screen.HOME
-            }
+            if (restoredSession != null) Screen.DETAILS else Screen.HOME
         )
+    }
+    LaunchedEffect(currentScreen) {
+        CrashReporter.lastScreen = currentScreen.name
     }
     var selectedMovie by remember { mutableStateOf<Movie?>(restoredSession?.movie) }
     var activeVideoUrl by remember { mutableStateOf(restoredSession?.videoUrl ?: "") }
@@ -1015,7 +1014,7 @@ fun TvAppNavHost(activity: MainActivity) {
         }
 
         // NEW EPISODE STACKED MODAL NOTIFICATIONS (Festive Deck)
-        if (episodeAlerts.isNotEmpty()) {
+        if (isEpisodeAlertVisible) {
             val totalAlerts = episodeAlerts.size
             val activeAlert = episodeAlerts.first()
             val historyManager = remember { com.example.tvmediaapp.data.history.WatchHistoryManager(activity) }
@@ -1023,6 +1022,20 @@ fun TvAppNavHost(activity: MainActivity) {
             val laterFocusRequester = remember { FocusRequester() }
             val checkboxFocusRequester = remember { FocusRequester() }
             var dontRemindAgain by remember { mutableStateOf(false) }
+
+            val userAccent = com.example.tvmediaapp.ui.theme.LocalAccentColor.current
+            val userFocus = com.example.tvmediaapp.ui.theme.LocalFocusColor.current
+
+            val primaryCardTheme = remember(userAccent) {
+                ModalCardTheme(
+                    name = "SettingsAccent",
+                    primaryColor = userAccent,
+                    bgCardColor = Color(0xFF151923),
+                    badgeBg = userAccent.copy(alpha = 0.22f),
+                    badgeTextColor = userAccent,
+                    buttonContentColor = Color.Black
+                )
+            }
 
             // Festive color themes: Amber/Yellow, Pink, Cyan, Green, Violet/Purple, Coral/Orange
             val cardThemes = remember {
@@ -1085,6 +1098,7 @@ fun TvAppNavHost(activity: MainActivity) {
             }
 
             fun getThemeForAlert(seriesId: String, offsetIndex: Int): ModalCardTheme {
+                if (offsetIndex == 0) return primaryCardTheme
                 val seed = kotlin.math.abs(seriesId.hashCode()) + offsetIndex
                 return cardThemes[seed % cardThemes.size]
             }
@@ -1373,13 +1387,13 @@ fun TvAppNavHost(activity: MainActivity) {
                             contentPadding = PaddingValues(horizontal = 14.dp, vertical = 7.dp),
                             colors = ButtonDefaults.colors(
                                 containerColor = if (dontRemindAgain) activeTheme.primaryColor.copy(alpha = 0.15f) else Color.White.copy(alpha = 0.05f),
-                                focusedContainerColor = activeTheme.primaryColor.copy(alpha = 0.22f),
+                                focusedContainerColor = userFocus.copy(alpha = 0.20f),
                                 contentColor = Color.LightGray,
                                 focusedContentColor = Color.White
                             ),
                             border = ButtonDefaults.border(
                                 border = Border(BorderStroke(1.dp, if (dontRemindAgain) activeTheme.primaryColor.copy(alpha = 0.5f) else Color.White.copy(alpha = 0.15f))),
-                                focusedBorder = Border(BorderStroke(2.dp, activeTheme.primaryColor))
+                                focusedBorder = Border(BorderStroke(2.dp, userFocus))
                             ),
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -1444,9 +1458,13 @@ fun TvAppNavHost(activity: MainActivity) {
                                 contentPadding = PaddingValues(horizontal = 24.dp, vertical = 0.dp),
                                 colors = ButtonDefaults.colors(
                                     containerColor = activeTheme.primaryColor,
-                                    focusedContainerColor = Color.White,
+                                    focusedContainerColor = userFocus,
                                     contentColor = activeTheme.buttonContentColor,
                                     focusedContentColor = Color.Black
+                                ),
+                                border = ButtonDefaults.border(
+                                    border = Border.None,
+                                    focusedBorder = Border.None
                                 ),
                                 modifier = Modifier
                                     .height(38.dp)
@@ -1475,9 +1493,13 @@ fun TvAppNavHost(activity: MainActivity) {
                                 contentPadding = PaddingValues(horizontal = 20.dp, vertical = 0.dp),
                                 colors = ButtonDefaults.colors(
                                     containerColor = Color.White.copy(alpha = 0.12f),
-                                    focusedContainerColor = Color.White.copy(alpha = 0.25f),
+                                    focusedContainerColor = userFocus.copy(alpha = 0.25f),
                                     contentColor = Color.LightGray,
                                     focusedContentColor = Color.White
+                                ),
+                                border = ButtonDefaults.border(
+                                    border = Border.None,
+                                    focusedBorder = Border(BorderStroke(2.dp, userFocus))
                                 ),
                                 modifier = Modifier
                                     .height(38.dp)

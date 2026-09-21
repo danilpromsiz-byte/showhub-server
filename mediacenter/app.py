@@ -702,43 +702,6 @@ def check_updates() -> Dict[str, Any]:
         "changelog": "ShowHub TV v2.8.16: Мгновенный захват фокуса карточкой каталога при старте, динамический фокус на активных кнопках фильтров, снятие изолирующих focusGroup-ловушек, и мгновенное автоопределение обновлений через jsDelivr CDN."
     }
 
-CRASHES_FILE = os.path.join(CURRENT_DIR, "data", "crashes.json")
-crashes_lock = threading.Lock()
-
-@app.post("/api/analytics/crash")
-def record_crash(payload: Dict[str, Any]):
-    """Receives crash dumps from ShowHub TV and saves to data/crashes.json."""
-    os.makedirs(os.path.dirname(CRASHES_FILE), exist_ok=True)
-    with crashes_lock:
-        crashes = []
-        if os.path.exists(CRASHES_FILE):
-            try:
-                with open(CRASHES_FILE, "r", encoding="utf-8") as f:
-                    crashes = json.load(f)
-            except Exception:
-                crashes = []
-        crashes.insert(0, payload)
-        crashes = crashes[:100]
-        try:
-            with open(CRASHES_FILE, "w", encoding="utf-8") as f:
-                json.dump(crashes, f, ensure_ascii=False, indent=2)
-        except Exception as e:
-            logger.warning(f"Failed to write crash dump: {e}")
-    return {"success": True, "message": "Crash dump recorded"}
-
-@app.get("/api/analytics/crashes")
-def get_crashes(limit: int = 50):
-    """Returns recorded crash dumps."""
-    with crashes_lock:
-        if os.path.exists(CRASHES_FILE):
-            try:
-                with open(CRASHES_FILE, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                    return {"count": len(data), "crashes": data[:limit]}
-            except Exception:
-                pass
-    return {"count": 0, "crashes": []}
-
 _actor_photo_cache: Dict[str, Optional[str]] = {}
 
 def resolve_actor_photo(actor_name: str) -> Optional[str]:
@@ -817,35 +780,6 @@ def resolve_actor_photo(actor_name: str) -> Optional[str]:
 
     _actor_photo_cache[name_clean] = None
     return None
-
-@app.post("/api/analytics/crash")
-def report_crash(crash_data: Dict[str, Any]):
-    try:
-        os.makedirs(os.path.join(CURRENT_DIR, "data"), exist_ok=True)
-        crashes = []
-        if os.path.exists(CRASHES_FILE):
-            with open(CRASHES_FILE, "r", encoding="utf-8") as f:
-                crashes = json.load(f)
-        crash_data["server_timestamp"] = int(time.time())
-        crashes.append(crash_data)
-        crashes = crashes[-100:]
-        with open(CRASHES_FILE, "w", encoding="utf-8") as f:
-            json.dump(crashes, f, ensure_ascii=False, indent=2)
-        return {"success": True, "count": len(crashes)}
-    except Exception as e:
-        logger.error(f"Failed to record crash: {e}")
-        return {"success": False, "error": str(e)}
-
-@app.get("/api/analytics/crashes")
-def get_crashes(limit: int = 50):
-    try:
-        if os.path.exists(CRASHES_FILE):
-            with open(CRASHES_FILE, "r", encoding="utf-8") as f:
-                crashes = json.load(f)
-            return crashes[-limit:]
-    except Exception:
-        pass
-    return []
 
 @app.get("/api/catalog/stats")
 def get_catalog_stats() -> Dict[str, Any]:
@@ -2871,6 +2805,79 @@ def get_user_stats() -> Dict[str, Any]:
         "active_today": active_today,
         "active_month": active_month
     }
+
+@app.post("/api/analytics/crash")
+async def report_crash(request: Request) -> Dict[str, Any]:
+    """Receives crash reports from ShowHub TV client and stores them in Upstash Redis."""
+    try:
+        crash_data = await request.json()
+    except Exception:
+        crash_data = {}
+
+    if not crash_data:
+        return {"status": "error", "message": "empty body"}
+
+    crash_data["server_received_at"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    client_ip = request.headers.get("x-forwarded-for", "").split(",")[0].strip() or (request.client.host if request.client else "unknown")
+    crash_data["client_ip"] = client_ip
+
+    crash_str = json.dumps(crash_data, ensure_ascii=False)
+
+    # 1. Save to Upstash Redis: LPUSH to 'showhub:crashes', keep last 100
+    try:
+        _upstash_command(["LPUSH", "showhub:crashes", crash_str])
+        _upstash_command(["LTRIM", "showhub:crashes", 0, 99])
+    except Exception as e:
+        print(f"[CrashReport] Upstash error: {e}")
+
+    # 2. Local file backup
+    try:
+        crashes_file = os.path.join(CURRENT_DIR, "data", "crashes.json")
+        os.makedirs(os.path.dirname(crashes_file), exist_ok=True)
+        local_crashes = []
+        if os.path.exists(crashes_file):
+            try:
+                with open(crashes_file, "r", encoding="utf-8") as f:
+                    local_crashes = json.load(f)
+            except Exception:
+                local_crashes = []
+        local_crashes.insert(0, crash_data)
+        local_crashes = local_crashes[:100]
+        with open(crashes_file, "w", encoding="utf-8") as f:
+            json.dump(local_crashes, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print(f"[CrashReport] Local file backup error: {e}")
+
+    return {"status": "ok", "saved": True}
+
+@app.get("/api/admin/crashes")
+@app.get("/api/analytics/crashes")
+def get_admin_crashes(limit: int = 50) -> List[Dict[str, Any]]:
+    """Returns recent crash reports from Upstash Redis or local storage."""
+    # 1. Try Upstash Redis
+    raw_list = _upstash_command(["LRANGE", "showhub:crashes", 0, limit - 1])
+    if raw_list and isinstance(raw_list, list):
+        parsed = []
+        for item in raw_list:
+            try:
+                if isinstance(item, str):
+                    parsed.append(json.loads(item))
+                elif isinstance(item, dict):
+                    parsed.append(item)
+            except Exception:
+                pass
+        if parsed:
+            return parsed
+
+    # 2. Fallback to local file
+    crashes_file = os.path.join(CURRENT_DIR, "data", "crashes.json")
+    if os.path.exists(crashes_file):
+        try:
+            with open(crashes_file, "r", encoding="utf-8") as f:
+                return json.load(f)[:limit]
+        except Exception:
+            pass
+    return []
 
 @app.get("/api/debug/stream-diag")
 def debug_stream_diag(title: str = "Интерстеллар", year: Optional[str] = "2014"):

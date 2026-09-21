@@ -410,19 +410,37 @@ fun DetailsScreen(
                             volume = 0f
                             repeatMode = Player.REPEAT_MODE_ALL
                             addListener(object : Player.Listener {
+                                private fun performSafeSeek() {
+                                    if (hasSeeked) return
+                                    if (duration > 0) {
+                                        hasSeeked = true
+                                        val safeSeek = when {
+                                            duration <= 60_000L -> (duration * 0.15).toLong()
+                                            duration <= 15 * 60 * 1000L -> (duration * 0.20).toLong()
+                                            duration > targetSeekMs + 20_000L -> targetSeekMs
+                                            else -> (duration * 0.25).toLong()
+                                        }
+                                        seekTo(safeSeek)
+                                    }
+                                }
+
+                                override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) {
+                                    try {
+                                        performSafeSeek()
+                                    } catch (_: Exception) {}
+                                }
+
                                 override fun onPlaybackStateChanged(state: Int) {
                                     if (state == Player.STATE_READY) {
-                                        if (!hasSeeked) {
-                                            hasSeeked = true
-                                            if (duration > 0 && duration > targetSeekMs + 20_000L) {
-                                                seekTo(targetSeekMs)
-                                            } else if (duration > 0) {
-                                                seekTo((duration * 0.25).toLong())
-                                            }
-                                        }
+                                        performSafeSeek()
                                         isDetailsPreviewPlaying = true
                                     } else if (state == Player.STATE_ENDED) {
-                                        seekTo(0L)
+                                        val loopSeek = if (duration in 1..(15 * 60 * 1000L)) {
+                                            (duration * 0.15).toLong()
+                                        } else if (duration > 0) {
+                                            minOf(targetSeekMs, (duration * 0.25).toLong())
+                                        } else 0L
+                                        seekTo(loopSeek)
                                         play()
                                     }
                                 }

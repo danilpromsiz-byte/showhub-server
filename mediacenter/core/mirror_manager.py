@@ -16,10 +16,10 @@ class MirrorManager:
 
     # Tested and working mirrors from HDrezkaTV v1.4.0 (LR8/o; enum) and KinoHD remote config
     HDREZKA_APK_MIRRORS = [
-        "https://hdrezka-home.tv",
         "https://rezka.ag",
         "https://omnirezka.tv",
         "https://hdrezka.me",
+        "https://hdrezka-home.tv",
         "https://hdrezka.name",
         "https://hdrezka.sh",
         "https://hdrezka.in",

@@ -19,9 +19,13 @@ object CrashReporter {
     private const val TAG = "CrashReporter"
     private const val CRASH_FILE = "crash_dump.json"
     private const val SERVER_BASE = "https://showhub-server.onrender.com"
+    private const val UPSTASH_REST_URL = "https://pleased-goose-289810.upstash.io"
+    private const val UPSTASH_TOKEN = "gQAAAAAABGwSAAIgcDE3YzQ5ODk0NzNhMmI0ZjUwOTdhMDgwMjcxYWEzY2Q3Yg"
 
     private var originalHandler: Thread.UncaughtExceptionHandler? = null
     private var isInitialized = false
+    @Volatile
+    var lastScreen: String = "INITIAL"
 
     fun init(context: Context) {
         if (isInitialized) return
@@ -47,7 +51,7 @@ object CrashReporter {
                     sendCrashToServer(crashJson)
                 }
                 sendThread.start()
-                sendThread.join(1200)
+                sendThread.join(1500)
             } catch (e: Exception) {
                 Log.e(TAG, "Error handling uncaught exception", e)
             } finally {
@@ -62,6 +66,7 @@ object CrashReporter {
             put("timestamp", System.currentTimeMillis())
             put("date", dateFormat.format(Date()))
             put("thread", thread.name)
+            put("last_screen", lastScreen)
             put("exception_class", throwable.javaClass.name)
             put("message", throwable.message ?: "No message")
             put("stacktrace", Log.getStackTraceString(throwable))
@@ -104,26 +109,58 @@ object CrashReporter {
     }
 
     private fun sendCrashToServer(json: JSONObject): Boolean {
-        return try {
+        var upstashSuccess = false
+        var serverSuccess = false
+
+        // 1. Direct send to Upstash Redis REST API (guaranteed fast serverless ingestion)
+        try {
+            val commandArr = org.json.JSONArray().apply {
+                put("LPUSH")
+                put("showhub:crashes")
+                put(json.toString())
+            }
+            val url = URL(UPSTASH_REST_URL)
+            val conn = url.openConnection() as HttpURLConnection
+            conn.requestMethod = "POST"
+            conn.connectTimeout = 4000
+            conn.readTimeout = 4000
+            conn.doOutput = true
+            conn.setRequestProperty("Content-Type", "application/json; charset=UTF-8")
+            conn.setRequestProperty("Authorization", "Bearer $UPSTASH_TOKEN")
+
+            OutputStreamWriter(conn.outputStream, "UTF-8").use {
+                it.write(commandArr.toString())
+                it.flush()
+            }
+            if (conn.responseCode in 200..299) {
+                upstashSuccess = true
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Upstash crash send failed: ${e.message}")
+        }
+
+        // 2. Also send to main server backend endpoint as secondary channel
+        try {
             val url = URL("$SERVER_BASE/api/analytics/crash")
             val conn = url.openConnection() as HttpURLConnection
             conn.requestMethod = "POST"
-            conn.connectTimeout = 8000
-            conn.readTimeout = 8000
+            conn.connectTimeout = 5000
+            conn.readTimeout = 5000
             conn.doOutput = true
             conn.setRequestProperty("Content-Type", "application/json; charset=UTF-8")
-            conn.setRequestProperty("User-Agent", "ShowHubTV-CrashReporter/2.7.2")
+            conn.setRequestProperty("User-Agent", "ShowHubTV-CrashReporter/${com.example.tvmediaapp.BuildConfig.VERSION_NAME}")
 
             OutputStreamWriter(conn.outputStream, "UTF-8").use {
                 it.write(json.toString())
                 it.flush()
             }
-
-            val code = conn.responseCode
-            code in 200..299
+            if (conn.responseCode in 200..299) {
+                serverSuccess = true
+            }
         } catch (e: Exception) {
-            Log.w(TAG, "Crash send failed: ${e.message}")
-            false
+            Log.w(TAG, "Server crash send failed: ${e.message}")
         }
+
+        return upstashSuccess || serverSuccess
     }
 }

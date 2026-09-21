@@ -204,23 +204,41 @@ fun MovieCard(
                                 volume = 0f // strictly silent
                                 repeatMode = Player.REPEAT_MODE_ALL
                                 addListener(object : Player.Listener {
+                                    private fun performSafeSeek() {
+                                        if (hasSeeked) return
+                                        if (duration > 0) {
+                                            hasSeeked = true
+                                            val targetSeek = when {
+                                                duration <= 60_000L -> (duration * 0.15).toLong()
+                                                duration <= 15 * 60 * 1000L -> (duration * 0.20).toLong()
+                                                duration > baseSeekMs + 20_000L -> baseSeekMs
+                                                else -> (duration * 0.25).toLong()
+                                            }
+                                            seekTo(targetSeek)
+                                        }
+                                    }
+
+                                    override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) {
+                                        try {
+                                            performSafeSeek()
+                                        } catch (_: Exception) {}
+                                    }
+
                                     override fun onPlaybackStateChanged(state: Int) {
                                         try {
                                             if (state == Player.STATE_READY) {
-                                                if (!hasSeeked) {
-                                                    hasSeeked = true
-                                                    if (duration > 0 && duration > baseSeekMs + 20_000L) {
-                                                        seekTo(baseSeekMs)
-                                                    } else if (duration > 0) {
-                                                        seekTo((duration * 0.25).toLong())
-                                                    }
-                                                }
+                                                performSafeSeek()
                                                 isPreviewBuffering = false
                                                 isPreviewPlaying = true
                                             } else if (state == Player.STATE_BUFFERING) {
                                                 isPreviewBuffering = true
                                             } else if (state == Player.STATE_ENDED) {
-                                                seekTo(baseSeekMs)
+                                                val loopSeek = if (duration in 1..(15 * 60 * 1000L)) {
+                                                    (duration * 0.15).toLong()
+                                                } else if (duration > 0) {
+                                                    minOf(baseSeekMs, (duration * 0.25).toLong())
+                                                } else 0L
+                                                seekTo(loopSeek)
                                                 play()
                                             }
                                         } catch (_: Exception) {

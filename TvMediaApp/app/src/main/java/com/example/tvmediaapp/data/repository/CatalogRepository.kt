@@ -660,7 +660,11 @@ class CatalogRepository(context: Context? = null) {
                 if (isDefaultMainCatalog) {
                     com.example.tvmediaapp.data.cache.MediaDiskCache.putCachedCatalog(liveMovies)
                 }
-                val masterMovies = (com.example.tvmediaapp.data.cache.MediaDiskCache.getCachedCatalog() ?: liveMovies)
+                val masterMovies = if (isDefaultMainCatalog) {
+                    (com.example.tvmediaapp.data.cache.MediaDiskCache.getCachedCatalog() ?: liveMovies)
+                } else {
+                    liveMovies
+                }
                 val liveCategories = buildCategories(masterMovies)
                 if (liveCategories.isNotEmpty()) {
                     emit(liveCategories)

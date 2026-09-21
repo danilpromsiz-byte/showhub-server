@@ -87,11 +87,31 @@ class HDRezkaSource(BaseSource):
         return r_pass
 
     def _get_with_anubis(self, url: str, base_url: str) -> requests.Response:
-        headers = {"Referer": f"{base_url}/"}
-        r = self.session.get(url, headers=headers, timeout=6)
-        if "anubis_challenge" in r.text:
-            r = self._solve_anubis(base_url, r.text, url)
-        return r
+        candidate_mirrors = [base_url] + [m for m in mirror_manager.get_mirrors("hdrezka") if m != base_url]
+        last_error = None
+        last_resp = None
+        for mirror in candidate_mirrors[:5]:
+            current_url = url.replace(base_url, mirror) if base_url != mirror else url
+            headers = {"Referer": f"{mirror}/"}
+            try:
+                r = self.session.get(current_url, headers=headers, timeout=6)
+                if r.status_code in [500, 502, 503, 403, 429] and "anubis_challenge" not in r.text:
+                    last_resp = r
+                    continue
+                if "anubis_challenge" in r.text:
+                    r = self._solve_anubis(mirror, r.text, current_url)
+                if r.status_code == 200:
+                    self.active_mirror = mirror
+                    return r
+                last_resp = r
+            except Exception as e:
+                last_error = e
+                continue
+        if last_resp is not None:
+            return last_resp
+        if last_error:
+            raise last_error
+        return requests.Response()
 
     GENRE_MAP = {
         "боевик": "action",

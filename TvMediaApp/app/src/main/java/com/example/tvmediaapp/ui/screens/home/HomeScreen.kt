@@ -1,7 +1,8 @@
 @file:OptIn(
     androidx.tv.material3.ExperimentalTvMaterial3Api::class,
     androidx.compose.foundation.ExperimentalFoundationApi::class,
-    androidx.tv.foundation.ExperimentalTvFoundationApi::class
+    androidx.tv.foundation.ExperimentalTvFoundationApi::class,
+    androidx.compose.ui.ExperimentalComposeUiApi::class
 )
 
 package com.example.tvmediaapp.ui.screens.home
@@ -139,7 +140,11 @@ fun HomeScreen(
             focusDownRequester = filterRow1FocusRequester
         )
 
-        val currentDownRequester = if (displayMovies.isEmpty()) emptyResetFocusRequester else targetCardFocusRequester
+        val currentDownRequester = when {
+            isLoading && displayMovies.isEmpty() -> FocusRequester.Cancel
+            displayMovies.isEmpty() -> emptyResetFocusRequester
+            else -> targetCardFocusRequester
+        }
 
         // FILTER & SORT RIBBON
         FilterBar(
@@ -222,7 +227,7 @@ fun HomeScreen(
                 verticalArrangement = Arrangement.spacedBy(10.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
-                itemsIndexed(displayMovies, key = { _, movie -> movie.id }) { index, movie ->
+                itemsIndexed(displayMovies, key = { index, movie -> if (movie.id.isNotBlank()) "${movie.id}_$index" else "idx_$index" }) { index, movie ->
                     val isTarget = index == viewModel.lastFocusedIndex.coerceIn(0, (displayMovies.size - 1).coerceAtLeast(0))
                     val isLeftmost = index % 6 == 0
                     val isRightmost = index % 6 == 5 || index == displayMovies.size - 1

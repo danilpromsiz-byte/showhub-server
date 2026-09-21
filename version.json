@@ -1,10 +1,10 @@
 {
   "success": true,
-  "version_name": "2.8.34",
-  "version_code": 93,
+  "version_name": "2.8.37",
+  "version_code": 96,
   "force_update": true,
-  "min_version_code": 93,
+  "min_version_code": 96,
   "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
   "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
-  "changelog": "ShowHub TV v2.8.34: Исправлен краш (IllegalStateException: FocusRequester is not initialized) при переходе на вкладку «Описание и детали» и навигации пультом. Добавлена глобальная защита от ошибок фокуса. Подключена постоянная облачная база Upstash Redis для надежного хранения статистики устройств."
+  "changelog": "ShowHub TV v2.8.37: 1) В модалке новых серий активный и сфокусированный элемент теперь окрашивается в цвета, выбранные пользователем в Настройках (LocalFocusColor и LocalAccentColor). 2) Исправлен предпросмотр для короткометражных фильмов и мультфильмов (например, «Очень старая сказка» 1983) — перемотка адаптируется под длительность видео. В сервере включен автономный failover зеркал HDRezka. 3) Исправлен краш при выборе Южной Кореи в фильтрах. 4) Устранено внезапное автовоспроизведение при холодном старте. 5) Блокировка всплывающих окон во время просмотра в плеере. 6) Автоматическая отправка краш-репортов в Upstash Redis."
 }

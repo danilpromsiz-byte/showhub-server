@@ -979,8 +979,8 @@ fun TvAppNavHost(activity: MainActivity) {
             }
 
             LaunchedEffect(alert) {
-                repeat(8) {
-                    delay(60)
+                repeat(5) {
+                    delay(80)
                     try { playFocusRequester.requestFocus() } catch (_: Exception) {}
                 }
             }
@@ -989,10 +989,6 @@ fun TvAppNavHost(activity: MainActivity) {
                 modifier = Modifier
                     .fillMaxSize()
                     .background(Color.Black.copy(alpha = 0.88f))
-                    .onKeyEvent {
-                        // Absorb any unhandled TV remote D-Pad events so they never bubble to background
-                        true
-                    }
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null
@@ -1015,9 +1011,9 @@ fun TvAppNavHost(activity: MainActivity) {
                             .padding(horizontal = 14.dp, vertical = 6.dp)
                     ) {
                         Text(
-                            text = "⚡ ВЫШЛА НОВАЯ СЕРИЯ!",
+                            text = "ВЫШЛА НОВАЯ СЕРИЯ",
                             fontSize = 13.sp,
-                            fontWeight = FontWeight.ExtraBold,
+                            fontWeight = FontWeight.Bold,
                             color = accent,
                             letterSpacing = 1.sp
                         )
@@ -1065,10 +1061,10 @@ fun TvAppNavHost(activity: MainActivity) {
                             .onFocusChanged { isCheckboxFocused = it.isFocused }
                             .focusRequester(checkboxFocusRequester)
                             .focusProperties {
-                                up = FocusRequester.Cancel
+                                up = checkboxFocusRequester
                                 down = playFocusRequester
-                                left = FocusRequester.Cancel
-                                right = FocusRequester.Cancel
+                                left = checkboxFocusRequester
+                                right = checkboxFocusRequester
                             }
                             .focusable()
                             .clickable {
@@ -1077,15 +1073,19 @@ fun TvAppNavHost(activity: MainActivity) {
                             .onKeyEvent { keyEvent ->
                                 if (keyEvent.nativeKeyEvent.action == KeyEvent.ACTION_DOWN) {
                                     when (keyEvent.nativeKeyEvent.keyCode) {
+                                        KeyEvent.KEYCODE_BACK -> {
+                                            if (dontRemindAgain) {
+                                                historyManager.setSeriesReminderMuted(alert.movie.id, alert.movie.title, true)
+                                            }
+                                            homeViewModel.dismissNewEpisodeAlert()
+                                            return@onKeyEvent true
+                                        }
                                         KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
                                             dontRemindAgain = !dontRemindAgain
                                             return@onKeyEvent true
                                         }
                                         KeyEvent.KEYCODE_DPAD_DOWN -> {
                                             try { playFocusRequester.requestFocus(); return@onKeyEvent true } catch (_: Exception) {}
-                                        }
-                                        KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT -> {
-                                            return@onKeyEvent true
                                         }
                                     }
                                 }
@@ -1155,19 +1155,23 @@ fun TvAppNavHost(activity: MainActivity) {
                                     right = laterFocusRequester
                                     left = laterFocusRequester
                                     up = checkboxFocusRequester
-                                    down = FocusRequester.Cancel
+                                    down = playFocusRequester
                                 }
                                 .onKeyEvent { keyEvent ->
                                     if (keyEvent.nativeKeyEvent.action == KeyEvent.ACTION_DOWN) {
                                         when (keyEvent.nativeKeyEvent.keyCode) {
+                                            KeyEvent.KEYCODE_BACK -> {
+                                                if (dontRemindAgain) {
+                                                    historyManager.setSeriesReminderMuted(alert.movie.id, alert.movie.title, true)
+                                                }
+                                                homeViewModel.dismissNewEpisodeAlert()
+                                                return@onKeyEvent true
+                                            }
                                             KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_DPAD_LEFT -> {
                                                 try { laterFocusRequester.requestFocus(); return@onKeyEvent true } catch (_: Exception) {}
                                             }
                                             KeyEvent.KEYCODE_DPAD_UP -> {
                                                 try { checkboxFocusRequester.requestFocus(); return@onKeyEvent true } catch (_: Exception) {}
-                                            }
-                                            KeyEvent.KEYCODE_DPAD_DOWN -> {
-                                                return@onKeyEvent true
                                             }
                                         }
                                     }
@@ -1204,19 +1208,23 @@ fun TvAppNavHost(activity: MainActivity) {
                                     left = playFocusRequester
                                     right = playFocusRequester
                                     up = checkboxFocusRequester
-                                    down = FocusRequester.Cancel
+                                    down = laterFocusRequester
                                 }
                                 .onKeyEvent { keyEvent ->
                                     if (keyEvent.nativeKeyEvent.action == KeyEvent.ACTION_DOWN) {
                                         when (keyEvent.nativeKeyEvent.keyCode) {
+                                            KeyEvent.KEYCODE_BACK -> {
+                                                if (dontRemindAgain) {
+                                                    historyManager.setSeriesReminderMuted(alert.movie.id, alert.movie.title, true)
+                                                }
+                                                homeViewModel.dismissNewEpisodeAlert()
+                                                return@onKeyEvent true
+                                            }
                                             KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT -> {
                                                 try { playFocusRequester.requestFocus(); return@onKeyEvent true } catch (_: Exception) {}
                                             }
                                             KeyEvent.KEYCODE_DPAD_UP -> {
                                                 try { checkboxFocusRequester.requestFocus(); return@onKeyEvent true } catch (_: Exception) {}
-                                            }
-                                            KeyEvent.KEYCODE_DPAD_DOWN -> {
-                                                return@onKeyEvent true
                                             }
                                         }
                                     }

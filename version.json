@@ -1,10 +1,10 @@
 {
   "success": true,
-  "version_name": "2.8.28",
-  "version_code": 87,
+  "version_name": "2.8.29",
+  "version_code": 88,
   "force_update": true,
-  "min_version_code": 87,
+  "min_version_code": 88,
   "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
   "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
-  "changelog": "ShowHub TV v2.8.28: Полная изоляция фокуса в модальном окне новых серий (фокус не улетает в верхнее меню), показ найденных фильмов в поиске под историей без дублирования главного экрана, восстановление предпросмотра для фильмов с подзаголовками и двоеточиями ('Дюна: Пророчество', 'Дюна: Часть вторая')."
+  "changelog": "ShowHub TV v2.8.29: Исправлена блокировка управления в модальном окне новых серий, восстановлена работа кнопки 'Назад' на пульте ТВ, удалена иконка молнии, обеспечена плавная навигация между кнопками и чекбоксом."
 }

@@ -105,41 +105,49 @@ fun MovieCard(
 
     val timelineProgress by animateFloatAsState(
         targetValue = targetTimelineProgress,
-        animationSpec = tween(durationMillis = 1500),
+        animationSpec = tween(durationMillis = 3000),
         label = "previewProgress"
     )
 
-    // Handle focus preview timer & stream loading
+    // Handle focus preview timer & stream loading (3.0s timeout as requested)
     LaunchedEffect(isFocused) {
         if (isFocused) {
             targetTimelineProgress = 1f
-            // Wait 1.1 seconds before starting preview
-            delay(1100)
+            // Wait 3.0 seconds before starting preview
+            delay(3000)
             if (isFocused) {
                 isPreviewBuffering = true
                 var streamUrl: String? = null
-                try {
-                    withContext(kotlinx.coroutines.Dispatchers.IO) {
-                        val nativeStreams = RezkaNativeResolver.resolveStreams(
-                            title = movie.title,
-                            year = movie.releaseYear,
-                            isSeries = movie.isSeries
-                        )
-                        val nonPremium = nativeStreams.filter {
-                            val q = it.quality.lowercase()
-                            val u = it.url.lowercase()
-                            !q.contains("ultra") && !q.contains("4k") && !q.contains("vip") && !q.contains("premium") &&
-                            !u.contains("rhtie") && !u.contains("trial") && !u.contains("preview") &&
-                            !u.contains("teaser") && !u.contains("promo") && !u.contains("vip") && !u.contains("ultra") &&
-                            isDirectVideoStream(it.url)
+
+                if (!movie.videoUrl.isNullOrBlank() && isDirectVideoStream(movie.videoUrl)) {
+                    streamUrl = movie.videoUrl
+                }
+
+                if (streamUrl.isNullOrEmpty()) {
+                    try {
+                        withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            val nativeStreams = RezkaNativeResolver.resolveStreams(
+                                title = movie.title,
+                                year = movie.releaseYear,
+                                isSeries = movie.isSeries,
+                                mediaUrl = movie.id
+                            )
+                            val nonPremium = nativeStreams.filter {
+                                val q = it.quality.lowercase()
+                                val u = it.url.lowercase()
+                                !q.contains("ultra") && !q.contains("4k") && !q.contains("vip") && !q.contains("premium") &&
+                                !u.contains("rhtie") && !u.contains("trial") && !u.contains("preview") &&
+                                !u.contains("teaser") && !u.contains("promo") && !u.contains("vip") && !u.contains("ultra") &&
+                                isDirectVideoStream(it.url)
+                            }
+                            streamUrl = nonPremium.firstOrNull { it.quality.contains("720") }?.url
+                                ?: nonPremium.firstOrNull { it.quality.contains("1080") }?.url
+                                ?: nonPremium.firstOrNull { it.quality.contains("480") }?.url
+                                ?: nonPremium.firstOrNull()?.url
                         }
-                        streamUrl = nonPremium.firstOrNull { it.quality.contains("720") }?.url
-                            ?: nonPremium.firstOrNull { it.quality.contains("1080") }?.url
-                            ?: nonPremium.firstOrNull { it.quality.contains("480") }?.url
-                            ?: nonPremium.firstOrNull()?.url
+                    } catch (e: Exception) {
+                        // fallback to server
                     }
-                } catch (e: Exception) {
-                    // fallback to server
                 }
 
                 if (streamUrl.isNullOrEmpty()) {
@@ -160,71 +168,70 @@ fun MovieCard(
                     val baseSeekMs = baseStartMin * 60 * 1000L
 
                     try {
-                        val player = withContext(kotlinx.coroutines.Dispatchers.IO) {
-                            val httpDataSourceFactory = DefaultHttpDataSource.Factory()
-                                .setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
-                                .setDefaultRequestProperties(mapOf("Referer" to "https://hdrezka.ag/"))
-                                .setConnectTimeoutMs(8000)
-                                .setReadTimeoutMs(15000)
-                                .setAllowCrossProtocolRedirects(true)
-                            val mediaSourceFactory = DefaultMediaSourceFactory(httpDataSourceFactory)
+                        // Create ExoPlayer strictly on Main thread (ExoPlayer requires a Looper)
+                        val httpDataSourceFactory = DefaultHttpDataSource.Factory()
+                            .setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
+                            .setDefaultRequestProperties(mapOf("Referer" to "https://hdrezka.ag/"))
+                            .setConnectTimeoutMs(8000)
+                            .setReadTimeoutMs(15000)
+                            .setAllowCrossProtocolRedirects(true)
+                        val mediaSourceFactory = DefaultMediaSourceFactory(httpDataSourceFactory)
 
-                            val loadControl = DefaultLoadControl.Builder()
-                                .setBufferDurationsMs(
-                                    /* minBufferMs = */ 8000,
-                                    /* maxBufferMs = */ 20000,
-                                    /* bufferForPlaybackMs = */ 1500,
-                                    /* bufferForPlaybackAfterRebufferMs = */ 2500
-                                )
-                                .setBackBuffer(3000, true)
-                                .build()
-                            val renderersFactory = DefaultRenderersFactory(context)
-                                .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF)
+                        val loadControl = DefaultLoadControl.Builder()
+                            .setBufferDurationsMs(
+                                /* minBufferMs = */ 8000,
+                                /* maxBufferMs = */ 20000,
+                                /* bufferForPlaybackMs = */ 1500,
+                                /* bufferForPlaybackAfterRebufferMs = */ 2500
+                            )
+                            .setBackBuffer(3000, true)
+                            .build()
+                        val renderersFactory = DefaultRenderersFactory(context)
+                            .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF)
 
-                            var hasSeeked = false
-                            ExoPlayer.Builder(context, renderersFactory)
-                                .setMediaSourceFactory(mediaSourceFactory)
-                                .setLoadControl(loadControl)
-                                .build()
-                                .apply {
-                                    setMediaItem(MediaItem.fromUri(validStreamUrl))
-                                    volume = 0f // strictly silent
-                                    repeatMode = Player.REPEAT_MODE_ALL
-                                    addListener(object : Player.Listener {
-                                        override fun onPlaybackStateChanged(state: Int) {
-                                            try {
-                                                if (state == Player.STATE_READY) {
-                                                    if (!hasSeeked) {
-                                                        hasSeeked = true
-                                                        if (duration > 0 && duration > baseSeekMs + 20_000L) {
-                                                            seekTo(baseSeekMs)
-                                                        } else if (duration > 0) {
-                                                            seekTo((duration * 0.25).toLong())
-                                                        }
+                        var hasSeeked = false
+                        val player = ExoPlayer.Builder(context, renderersFactory)
+                            .setMediaSourceFactory(mediaSourceFactory)
+                            .setLoadControl(loadControl)
+                            .build()
+                            .apply {
+                                setMediaItem(MediaItem.fromUri(validStreamUrl))
+                                volume = 0f // strictly silent
+                                repeatMode = Player.REPEAT_MODE_ALL
+                                addListener(object : Player.Listener {
+                                    override fun onPlaybackStateChanged(state: Int) {
+                                        try {
+                                            if (state == Player.STATE_READY) {
+                                                if (!hasSeeked) {
+                                                    hasSeeked = true
+                                                    if (duration > 0 && duration > baseSeekMs + 20_000L) {
+                                                        seekTo(baseSeekMs)
+                                                    } else if (duration > 0) {
+                                                        seekTo((duration * 0.25).toLong())
                                                     }
-                                                    isPreviewBuffering = false
-                                                    isPreviewPlaying = true
-                                                } else if (state == Player.STATE_BUFFERING) {
-                                                    isPreviewBuffering = true
-                                                } else if (state == Player.STATE_ENDED) {
-                                                    seekTo(baseSeekMs)
-                                                    play()
                                                 }
-                                            } catch (_: Exception) {
                                                 isPreviewBuffering = false
-                                                isPreviewPlaying = false
+                                                isPreviewPlaying = true
+                                            } else if (state == Player.STATE_BUFFERING) {
+                                                isPreviewBuffering = true
+                                            } else if (state == Player.STATE_ENDED) {
+                                                seekTo(baseSeekMs)
+                                                play()
                                             }
-                                        }
-
-                                        override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                                        } catch (_: Exception) {
                                             isPreviewBuffering = false
                                             isPreviewPlaying = false
                                         }
-                                    })
-                                    prepare()
-                                    playWhenReady = true
-                                }
-                        }
+                                    }
+
+                                    override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                                        isPreviewBuffering = false
+                                        isPreviewPlaying = false
+                                    }
+                                })
+                                prepare()
+                                playWhenReady = true
+                            }
                         previewPlayer = player
 
                         // Smooth continuous preview loop while focused
@@ -247,13 +254,11 @@ fun MovieCard(
             val playerToRelease = previewPlayer
             previewPlayer = null
             if (playerToRelease != null) {
-                kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
-                    try {
-                        playerToRelease.stop()
-                        playerToRelease.clearMediaItems()
-                        playerToRelease.release()
-                    } catch (_: Exception) {}
-                }
+                try {
+                    playerToRelease.clearMediaItems()
+                    playerToRelease.stop()
+                    playerToRelease.release()
+                } catch (_: Exception) {}
             }
         }
     }
@@ -279,13 +284,11 @@ fun MovieCard(
             val playerToRelease = previewPlayer
             previewPlayer = null
             if (playerToRelease != null) {
-                kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
-                    try {
-                        playerToRelease.stop()
-                        playerToRelease.clearMediaItems()
-                        playerToRelease.release()
-                    } catch (_: Exception) {}
-                }
+                try {
+                    playerToRelease.clearMediaItems()
+                    playerToRelease.stop()
+                    playerToRelease.release()
+                } catch (_: Exception) {}
             }
         }
     }
@@ -417,6 +420,9 @@ fun MovieCard(
                                     descendantFocusability = android.view.ViewGroup.FOCUS_BLOCK_DESCENDANTS
                                     isClickable = false
                                 }
+                            },
+                            update = { view ->
+                                view.player = previewPlayer
                             },
                             modifier = Modifier
                                 .fillMaxSize()

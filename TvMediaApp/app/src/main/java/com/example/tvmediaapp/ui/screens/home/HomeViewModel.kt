@@ -223,7 +223,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                         if (totalEps > 0) {
                             val newCount = historyManager.updateKnownTotalEpisodes(detailed.id, totalEps)
                             val alertCount = if (newCount > 0) newCount else historyManager.getNewEpisodesCount(detailed.id)
-                            if (alertCount > 0 && _newEpisodeAlert.value == null) {
+                            if (alertCount > 0 && _newEpisodeAlert.value == null && !historyManager.isSeriesReminderMuted(detailed.id, detailed.title)) {
                                 com.example.tvmediaapp.data.notifications.EpisodeNotificationManager.notifyNewEpisodes(
                                     getApplication(),
                                     detailed,

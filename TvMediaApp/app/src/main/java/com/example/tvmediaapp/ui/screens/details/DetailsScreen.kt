@@ -340,12 +340,15 @@ fun DetailsScreen(
         }
     }
 
-    // Video preview in details screen (starts after 2.2s delay, ensuring text metadata is fully rendered first)
-    LaunchedEffect(currentMovie.id, streamOptions.isNotEmpty()) {
-        delay(2200)
+    // Video preview in details screen (starts after 3.0s delay as requested by user)
+    LaunchedEffect(currentMovie.id) {
+        delay(3000)
         if (detailsPreviewPlayer == null) {
             val streamUrl = withContext(Dispatchers.IO) {
                 var sUrl: String? = pickSafePreviewStream(streamOptions)
+                if (sUrl.isNullOrEmpty() && !currentMovie.videoUrl.isNullOrBlank() && isDirectVideoStream(currentMovie.videoUrl)) {
+                    sUrl = currentMovie.videoUrl
+                }
                 if (sUrl.isNullOrEmpty()) {
                     try {
                         val nativeStreams = RezkaNativeResolver.resolveStreams(
@@ -371,62 +374,60 @@ fun DetailsScreen(
             val validStreamUrl = streamUrl
             if (!validStreamUrl.isNullOrEmpty() && isDirectVideoStream(validStreamUrl)) {
                 try {
-                    val player = withContext(Dispatchers.IO) {
-                        val httpDataSourceFactory = DefaultHttpDataSource.Factory()
-                            .setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
-                            .setDefaultRequestProperties(mapOf("Referer" to "https://hdrezka.ag/"))
-                            .setConnectTimeoutMs(8000)
-                            .setReadTimeoutMs(15000)
-                            .setAllowCrossProtocolRedirects(true)
-                        val mediaSourceFactory = DefaultMediaSourceFactory(httpDataSourceFactory)
+                    val httpDataSourceFactory = DefaultHttpDataSource.Factory()
+                        .setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
+                        .setDefaultRequestProperties(mapOf("Referer" to "https://hdrezka.ag/"))
+                        .setConnectTimeoutMs(8000)
+                        .setReadTimeoutMs(15000)
+                        .setAllowCrossProtocolRedirects(true)
+                    val mediaSourceFactory = DefaultMediaSourceFactory(httpDataSourceFactory)
 
-                        val loadControl = DefaultLoadControl.Builder()
-                            .setBufferDurationsMs(
-                                /* minBufferMs = */ 8000,
-                                /* maxBufferMs = */ 20000,
-                                /* bufferForPlaybackMs = */ 1500,
-                                /* bufferForPlaybackAfterRebufferMs = */ 2500
-                            )
-                            .setBackBuffer(2000, true)
-                            .build()
-                        val renderersFactory = DefaultRenderersFactory(context)
-                            .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF)
+                    val loadControl = DefaultLoadControl.Builder()
+                        .setBufferDurationsMs(
+                            /* minBufferMs = */ 8000,
+                            /* maxBufferMs = */ 20000,
+                            /* bufferForPlaybackMs = */ 1500,
+                            /* bufferForPlaybackAfterRebufferMs = */ 2500
+                        )
+                        .setBackBuffer(2000, true)
+                        .build()
+                    val renderersFactory = DefaultRenderersFactory(context)
+                        .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF)
 
-                        var hasSeeked = false
-                        ExoPlayer.Builder(context, renderersFactory)
-                            .setMediaSourceFactory(mediaSourceFactory)
-                            .setLoadControl(loadControl)
-                            .build().apply {
-                                val targetSeekMs = if (currentMovie.isSeries) 12 * 60 * 1000L else 22 * 60 * 1000L
-                                setMediaItem(MediaItem.fromUri(validStreamUrl))
-                                volume = 0f
-                                repeatMode = Player.REPEAT_MODE_ALL
-                                addListener(object : Player.Listener {
-                                    override fun onPlaybackStateChanged(state: Int) {
-                                        if (state == Player.STATE_READY) {
-                                            if (!hasSeeked) {
-                                                hasSeeked = true
-                                                if (duration > 0 && duration > targetSeekMs + 20_000L) {
-                                                    seekTo(targetSeekMs)
-                                                } else if (duration > 0) {
-                                                    seekTo((duration * 0.25).toLong())
-                                                }
+                    var hasSeeked = false
+                    val player = ExoPlayer.Builder(context, renderersFactory)
+                        .setMediaSourceFactory(mediaSourceFactory)
+                        .setLoadControl(loadControl)
+                        .build().apply {
+                            val targetSeekMs = if (currentMovie.isSeries) 12 * 60 * 1000L else 22 * 60 * 1000L
+                            setMediaItem(MediaItem.fromUri(validStreamUrl))
+                            volume = 0f
+                            repeatMode = Player.REPEAT_MODE_ALL
+                            addListener(object : Player.Listener {
+                                override fun onPlaybackStateChanged(state: Int) {
+                                    if (state == Player.STATE_READY) {
+                                        if (!hasSeeked) {
+                                            hasSeeked = true
+                                            if (duration > 0 && duration > targetSeekMs + 20_000L) {
+                                                seekTo(targetSeekMs)
+                                            } else if (duration > 0) {
+                                                seekTo((duration * 0.25).toLong())
                                             }
-                                            isDetailsPreviewPlaying = true
-                                        } else if (state == Player.STATE_ENDED) {
-                                            seekTo(0L)
-                                            play()
                                         }
+                                        isDetailsPreviewPlaying = true
+                                    } else if (state == Player.STATE_ENDED) {
+                                        seekTo(0L)
+                                        play()
                                     }
+                                }
 
-                                    override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
-                                        isDetailsPreviewPlaying = false
-                                    }
-                                })
-                                prepare()
-                                playWhenReady = true
-                            }
-                    }
+                                override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                                    isDetailsPreviewPlaying = false
+                                }
+                            })
+                            prepare()
+                            playWhenReady = true
+                        }
                     detailsPreviewPlayer = player
                 } catch (e: Exception) {
                     e.printStackTrace()
@@ -461,8 +462,8 @@ fun DetailsScreen(
             detailsPreviewPlayer = null
             if (playerToRelease != null) {
                 try {
-                    playerToRelease.stop()
                     playerToRelease.clearMediaItems()
+                    playerToRelease.stop()
                     playerToRelease.release()
                 } catch (_: Exception) {}
             }
@@ -655,6 +656,9 @@ fun DetailsScreen(
                                         descendantFocusability = android.view.ViewGroup.FOCUS_BLOCK_DESCENDANTS
                                         isClickable = false
                                     }
+                                },
+                                update = { view ->
+                                    view.player = detailsPreviewPlayer
                                 },
                                 modifier = Modifier
                                     .fillMaxSize()

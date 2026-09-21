@@ -1,10 +1,10 @@
 {
   "success": true,
-  "version_name": "2.8.26",
-  "version_code": 85,
+  "version_name": "2.8.27",
+  "version_code": 86,
   "force_update": true,
-  "min_version_code": 85,
+  "min_version_code": 86,
   "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
   "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
-  "changelog": "ShowHub TV v2.8.26: Полное восстановление видео-предпросмотра, возврат озвучек, сезонов, серий и источников через прямой резолвер Rezka, плавное воспроизведение видео, мгновенный выход назад с одного нажатия, всплывающие уведомления о новых сериях."
+  "changelog": "ShowHub TV v2.8.27: Восстановление видео-предпросмотра на обложках главного экрана и в карточке фильма (инициализация на UI-потоке), 3-секундный таймаут предпросмотра, чекбокс 'Больше не напоминать об этом сериале' в модальном окне новых серий, периодическая фоновая проверка обновлений."
 }

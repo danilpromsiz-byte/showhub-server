@@ -78,6 +78,9 @@ import com.example.tvmediaapp.ui.theme.CyanNeon
 import com.example.tvmediaapp.ui.theme.LocalAccentColor
 import com.example.tvmediaapp.ui.theme.ThemeManager
 import com.example.tvmediaapp.ui.theme.TvMediaAppTheme
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.foundation.focusable
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -370,13 +373,19 @@ fun TvAppNavHost(activity: MainActivity) {
         }
     }
 
-    // Auto-check on launch with safety delay and follow-up retry
+    // Auto-check on launch with safety delay and periodic background check every 2 minutes
     LaunchedEffect(Unit) {
         delay(600)
         triggerUpdateCheck()
         delay(3000)
         if (updateInfo == null) {
             triggerUpdateCheck()
+        }
+        while (isActive) {
+            delay(120_000L) // every 2 minutes auto-check in background
+            if (updateInfo == null && !isDownloadingUpdate) {
+                triggerUpdateCheck()
+            }
         }
     }
 
@@ -952,8 +961,19 @@ fun TvAppNavHost(activity: MainActivity) {
         // NEW EPISODE MODAL NOTIFICATION
         episodeAlert?.let { alert ->
             val accent = LocalAccentColor.current
+            val historyManager = remember { com.example.tvmediaapp.data.history.WatchHistoryManager(activity) }
             val playFocusRequester = remember { FocusRequester() }
             val laterFocusRequester = remember { FocusRequester() }
+            val checkboxFocusRequester = remember { FocusRequester() }
+            var dontRemindAgain by remember { mutableStateOf(false) }
+            var isCheckboxFocused by remember { mutableStateOf(false) }
+
+            BackHandler {
+                if (dontRemindAgain) {
+                    historyManager.setSeriesReminderMuted(alert.movie.id, alert.movie.title, true)
+                }
+                homeViewModel.dismissNewEpisodeAlert()
+            }
 
             LaunchedEffect(alert) {
                 repeat(6) {
@@ -1019,7 +1039,78 @@ fun TvAppNavHost(activity: MainActivity) {
                         lineHeight = 20.sp
                     )
 
-                    Spacer(modifier = Modifier.height(24.dp))
+                    Spacer(modifier = Modifier.height(18.dp))
+
+                    // Checkbox: "Больше не напоминать об этом сериале"
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .border(
+                                width = if (isCheckboxFocused) 2.dp else 1.dp,
+                                color = if (isCheckboxFocused) accent else Color.White.copy(alpha = 0.15f),
+                                shape = RoundedCornerShape(8.dp)
+                            )
+                            .background(
+                                if (isCheckboxFocused) accent.copy(alpha = 0.15f) else Color.White.copy(alpha = 0.05f)
+                            )
+                            .onFocusChanged { isCheckboxFocused = it.isFocused }
+                            .focusRequester(checkboxFocusRequester)
+                            .focusProperties {
+                                down = playFocusRequester
+                            }
+                            .focusable()
+                            .clickable {
+                                dontRemindAgain = !dontRemindAgain
+                            }
+                            .onKeyEvent { keyEvent ->
+                                if (keyEvent.nativeKeyEvent.action == KeyEvent.ACTION_DOWN) {
+                                    when (keyEvent.nativeKeyEvent.keyCode) {
+                                        KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
+                                            dontRemindAgain = !dontRemindAgain
+                                            return@onKeyEvent true
+                                        }
+                                        KeyEvent.KEYCODE_DPAD_DOWN -> {
+                                            try { playFocusRequester.requestFocus(); return@onKeyEvent true } catch (_: Exception) {}
+                                        }
+                                    }
+                                }
+                                false
+                            }
+                            .padding(horizontal = 14.dp, vertical = 8.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(20.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                                .border(
+                                    1.5.dp,
+                                    if (dontRemindAgain) accent else Color.White.copy(alpha = 0.6f),
+                                    RoundedCornerShape(4.dp)
+                                )
+                                .background(if (dontRemindAgain) accent else Color.Transparent),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (dontRemindAgain) {
+                                Text(
+                                    text = "✓",
+                                    color = Color.Black,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = "Больше не напоминать об этом сериале",
+                            color = if (isCheckboxFocused) Color.White else Color.LightGray,
+                            fontSize = 13.sp,
+                            fontWeight = if (isCheckboxFocused) FontWeight.Bold else FontWeight.Medium
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(20.dp))
 
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -1028,6 +1119,9 @@ fun TvAppNavHost(activity: MainActivity) {
                     ) {
                         Button(
                             onClick = {
+                                if (dontRemindAgain) {
+                                    historyManager.setSeriesReminderMuted(alert.movie.id, alert.movie.title, true)
+                                }
                                 val targetMovie = alert.movie
                                 homeViewModel.dismissNewEpisodeAlert()
                                 navigateTo(Screen.DETAILS, movie = targetMovie)
@@ -1047,13 +1141,15 @@ fun TvAppNavHost(activity: MainActivity) {
                                 .focusProperties {
                                     right = laterFocusRequester
                                     left = laterFocusRequester
-                                    up = playFocusRequester
+                                    up = checkboxFocusRequester
                                     down = playFocusRequester
                                 }
                                 .onKeyEvent { keyEvent ->
                                     if (keyEvent.nativeKeyEvent.action == KeyEvent.ACTION_DOWN) {
                                         if (keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_RIGHT || keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
                                             try { laterFocusRequester.requestFocus(); return@onKeyEvent true } catch (_: Exception) {}
+                                        } else if (keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_UP) {
+                                            try { checkboxFocusRequester.requestFocus(); return@onKeyEvent true } catch (_: Exception) {}
                                         }
                                     }
                                     false
@@ -1068,6 +1164,9 @@ fun TvAppNavHost(activity: MainActivity) {
 
                         Button(
                             onClick = {
+                                if (dontRemindAgain) {
+                                    historyManager.setSeriesReminderMuted(alert.movie.id, alert.movie.title, true)
+                                }
                                 homeViewModel.dismissNewEpisodeAlert()
                             },
                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
@@ -1085,13 +1184,15 @@ fun TvAppNavHost(activity: MainActivity) {
                                 .focusProperties {
                                     left = playFocusRequester
                                     right = playFocusRequester
-                                    up = laterFocusRequester
+                                    up = checkboxFocusRequester
                                     down = laterFocusRequester
                                 }
                                 .onKeyEvent { keyEvent ->
                                     if (keyEvent.nativeKeyEvent.action == KeyEvent.ACTION_DOWN) {
                                         if (keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_LEFT || keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
                                             try { playFocusRequester.requestFocus(); return@onKeyEvent true } catch (_: Exception) {}
+                                        } else if (keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_UP) {
+                                            try { checkboxFocusRequester.requestFocus(); return@onKeyEvent true } catch (_: Exception) {}
                                         }
                                     }
                                     false

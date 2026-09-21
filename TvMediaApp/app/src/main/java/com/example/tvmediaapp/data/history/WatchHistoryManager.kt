@@ -340,6 +340,31 @@ class WatchHistoryManager(context: Context) {
         prefs.edit().remove("new_episodes_$seriesId").apply()
     }
 
+    fun isSeriesReminderMuted(seriesId: String, title: String? = null): Boolean {
+        if (seriesId.isNotBlank() && prefs.getBoolean("mute_reminders_$seriesId", false)) {
+            return true
+        }
+        val cleanT = normalizeTitle(title)
+        if (cleanT.isNotBlank() && prefs.getBoolean("mute_reminders_$cleanT", false)) {
+            return true
+        }
+        return false
+    }
+
+    fun setSeriesReminderMuted(seriesId: String, title: String? = null, muted: Boolean = true) {
+        val editor = prefs.edit()
+        if (seriesId.isNotBlank()) {
+            if (muted) editor.putBoolean("mute_reminders_$seriesId", true)
+            else editor.remove("mute_reminders_$seriesId")
+        }
+        val cleanT = normalizeTitle(title)
+        if (cleanT.isNotBlank()) {
+            if (muted) editor.putBoolean("mute_reminders_$cleanT", true)
+            else editor.remove("mute_reminders_$cleanT")
+        }
+        editor.apply()
+    }
+
     fun getProgress(movieId: String, title: String? = null): HistoryItem? {
         val cleanT = normalizeTitle(title)
         return getHistory().firstOrNull {

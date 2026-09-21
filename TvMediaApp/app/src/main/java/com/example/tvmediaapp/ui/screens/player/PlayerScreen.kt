@@ -472,13 +472,14 @@ private fun NativeExoPlayerScreen(
         val loadControl = DefaultLoadControl.Builder()
             .setAllocator(DefaultAllocator(true, C.DEFAULT_BUFFER_SEGMENT_SIZE))
             .setBufferDurationsMs(
-                60000, // minBufferMs (60s)
-                120000, // maxBufferMs (120s / 2 minutes)
-                2500,  // bufferForPlaybackMs (2.5s)
-                5000   // bufferForPlaybackAfterRebufferMs (5s)
+                25000, // minBufferMs (25s)
+                60000, // maxBufferMs (60s)
+                2000,  // bufferForPlaybackMs (2s)
+                3500   // bufferForPlaybackAfterRebufferMs (3.5s)
             )
-            .setTargetBufferBytes(64 * 1024 * 1024) // 64 MB video buffer pool
-            .setBackBuffer(30000, true) // Retain 30s back buffer for smooth rewinds
+            .setTargetBufferBytes(C.LENGTH_UNSET)
+            .setPrioritizeTimeOverSizeThresholds(true)
+            .setBackBuffer(15000, true)
             .build()
 
         val renderersFactory = DefaultRenderersFactory(context).apply {
@@ -822,8 +823,9 @@ private fun NativeExoPlayerScreen(
         } catch (_: Exception) {}
     }
 
-    // Monitor playback progress & periodically save to WatchHistoryManager (throttled when controls hidden)
+    // Monitor playback progress & periodically save to WatchHistoryManager (throttled to 5s to prevent disk I/O stalls)
     LaunchedEffect(exoPlayer, isControlsVisible) {
+        var lastSavedMs = 0L
         while (true) {
             if (!isTimelineFocused && pendingTimelineSeekPos == null) {
                 currentPosition = exoPlayer.currentPosition
@@ -832,7 +834,9 @@ private fun NativeExoPlayerScreen(
             bufferedPosition = exoPlayer.bufferedPosition
             isPlaying = exoPlayer.isPlaying
 
-            if (currentPosition > 3000L && duration > 0L) {
+            val now = System.currentTimeMillis()
+            if (currentPosition > 3000L && duration > 0L && (now - lastSavedMs >= 5000L)) {
+                lastSavedMs = now
                 historyManager.saveProgress(
                     movie = currentMovieState,
                     positionMs = currentPosition,
@@ -842,7 +846,7 @@ private fun NativeExoPlayerScreen(
                     audioId = currentAudioId
                 )
             }
-            delay(if (isControlsVisible) 1000L else 3500L)
+            delay(if (isControlsVisible) 1000L else 2000L)
         }
     }
 

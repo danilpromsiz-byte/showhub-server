@@ -78,6 +78,11 @@ import androidx.tv.foundation.lazy.list.TvLazyRow
 import androidx.tv.foundation.lazy.list.items
 import androidx.tv.foundation.lazy.list.itemsIndexed
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.async
 import androidx.tv.material3.Border
 import androidx.tv.material3.Button
 import androidx.tv.material3.ButtonDefaults
@@ -273,9 +278,12 @@ fun DetailsScreen(
 
     // Fetch deep metadata (seasons, episodes, translators, KP rating) in background
     LaunchedEffect(movie.id) {
-        val detailed = ShowHubApiClient.fetchMediaDetails(movie)
+        val detailed = withContext(Dispatchers.IO) {
+            val d = ShowHubApiClient.fetchMediaDetails(movie)
+            com.example.tvmediaapp.data.cache.MediaDiskCache.putCachedDetails(d)
+            d
+        }
         currentMovie = detailed
-        com.example.tvmediaapp.data.cache.MediaDiskCache.putCachedDetails(detailed)
         if (detailed.seasons.isNotEmpty() && savedHistory == null) {
             selectedSeason = detailed.seasons.first().seasonNumber
         }
@@ -291,36 +299,40 @@ fun DetailsScreen(
 
     // Pre-fetch streams in background: query native Rezka and server in parallel
     LaunchedEffect(currentMovie.id, selectedSeason, selectedEpisode, selectedAudioId) {
-        try {
-            val isContentSeries = currentMovie.isSeries || currentMovie.seasons.isNotEmpty() || selectedSeason > 1 || selectedEpisode > 1
-            val nativeDeferred = async {
-                RezkaNativeResolver.resolveStreams(
-                    title = currentMovie.title,
-                    year = currentMovie.releaseYear,
-                    isSeries = isContentSeries,
-                    season = selectedSeason,
-                    episode = selectedEpisode,
-                    translatorId = selectedAudioId.ifEmpty { null },
-                    mediaUrl = currentMovie.id
-                )
+        withContext(Dispatchers.IO) {
+            try {
+                val isContentSeries = currentMovie.isSeries || currentMovie.seasons.isNotEmpty() || selectedSeason > 1 || selectedEpisode > 1
+                val nativeDeferred = async {
+                    RezkaNativeResolver.resolveStreams(
+                        title = currentMovie.title,
+                        year = currentMovie.releaseYear,
+                        isSeries = isContentSeries,
+                        season = selectedSeason,
+                        episode = selectedEpisode,
+                        translatorId = selectedAudioId.ifEmpty { null },
+                        mediaUrl = currentMovie.id
+                    )
+                }
+                val serverDeferred = async {
+                    ShowHubApiClient.fetchStreams(
+                        movie = currentMovie.copy(isSeries = isContentSeries),
+                        season = if (isContentSeries) selectedSeason else null,
+                        episode = if (isContentSeries) selectedEpisode else null,
+                        audioId = selectedAudioId
+                    )
+                }
+                val nativeStreams = nativeDeferred.await()
+                val serverStreams = serverDeferred.await()
+                val combined = (nativeStreams + serverStreams).distinctBy { it.url }
+                val sorted = combined.sortedByDescending { isDirectVideoStream(it.url) }
+                if (sorted.isNotEmpty()) {
+                    withContext(Dispatchers.Main) {
+                        streamOptions = sorted
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
-            val serverDeferred = async {
-                ShowHubApiClient.fetchStreams(
-                    movie = currentMovie.copy(isSeries = isContentSeries),
-                    season = if (isContentSeries) selectedSeason else null,
-                    episode = if (isContentSeries) selectedEpisode else null,
-                    audioId = selectedAudioId
-                )
-            }
-            val nativeStreams = nativeDeferred.await()
-            val serverStreams = serverDeferred.await()
-            val combined = (nativeStreams + serverStreams).distinctBy { it.url }
-            val sorted = combined.sortedByDescending { isDirectVideoStream(it.url) }
-            if (sorted.isNotEmpty()) {
-                streamOptions = sorted
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
         }
     }
 
@@ -328,83 +340,92 @@ fun DetailsScreen(
     LaunchedEffect(currentMovie.id, streamOptions.isNotEmpty()) {
         delay(2200)
         if (detailsPreviewPlayer == null) {
-            var streamUrl: String? = pickSafePreviewStream(streamOptions)
-            if (streamUrl.isNullOrEmpty()) {
-                try {
-                    val nativeStreams = RezkaNativeResolver.resolveStreams(
-                        title = currentMovie.title,
-                        year = currentMovie.releaseYear,
-                        isSeries = currentMovie.isSeries,
-                        season = if (currentMovie.isSeries) selectedSeason else 1,
-                        episode = if (currentMovie.isSeries) selectedEpisode else 1,
-                        mediaUrl = currentMovie.id
-                    )
-                    streamUrl = pickSafePreviewStream(nativeStreams)
-                } catch (_: Exception) {}
-            }
-            if (streamUrl.isNullOrEmpty()) {
-                val candidate = ShowHubApiClient.fetchPreviewStream(currentMovie)
-                if (candidate != null && isDirectVideoStream(candidate)) {
-                    streamUrl = candidate
-                }
-            }
-
-            if (!streamUrl.isNullOrEmpty() && isDirectVideoStream(streamUrl)) {
-                try {
-                    val httpDataSourceFactory = DefaultHttpDataSource.Factory()
-                        .setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
-                        .setDefaultRequestProperties(mapOf("Referer" to "https://hdrezka.ag/"))
-                        .setConnectTimeoutMs(8000)
-                        .setReadTimeoutMs(15000)
-                        .setAllowCrossProtocolRedirects(true)
-                    val mediaSourceFactory = DefaultMediaSourceFactory(httpDataSourceFactory)
-
-                    val loadControl = DefaultLoadControl.Builder()
-                        .setBufferDurationsMs(
-                            /* minBufferMs = */ 3000,
-                            /* maxBufferMs = */ 6000,
-                            /* bufferForPlaybackMs = */ 1000,
-                            /* bufferForPlaybackAfterRebufferMs = */ 1500
+            val streamUrl = withContext(Dispatchers.IO) {
+                var sUrl: String? = pickSafePreviewStream(streamOptions)
+                if (sUrl.isNullOrEmpty()) {
+                    try {
+                        val nativeStreams = RezkaNativeResolver.resolveStreams(
+                            title = currentMovie.title,
+                            year = currentMovie.releaseYear,
+                            isSeries = currentMovie.isSeries,
+                            season = if (currentMovie.isSeries) selectedSeason else 1,
+                            episode = if (currentMovie.isSeries) selectedEpisode else 1,
+                            mediaUrl = currentMovie.id
                         )
-                        .setBackBuffer(2000, true)
-                        .build()
-                    val renderersFactory = DefaultRenderersFactory(context)
-                        .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF)
+                        sUrl = pickSafePreviewStream(nativeStreams)
+                    } catch (_: Exception) {}
+                }
+                if (sUrl.isNullOrEmpty()) {
+                    val candidate = ShowHubApiClient.fetchPreviewStream(currentMovie)
+                    if (candidate != null && isDirectVideoStream(candidate)) {
+                        sUrl = candidate
+                    }
+                }
+                sUrl
+            }
 
-                    var hasSeeked = false
-                    val player = ExoPlayer.Builder(context, renderersFactory)
-                        .setMediaSourceFactory(mediaSourceFactory)
-                        .setLoadControl(loadControl)
-                        .build().apply {
-                            val targetSeekMs = if (currentMovie.isSeries) 12 * 60 * 1000L else 22 * 60 * 1000L
-                            setMediaItem(MediaItem.fromUri(streamUrl))
-                            volume = 0f
-                            repeatMode = Player.REPEAT_MODE_ALL
-                            addListener(object : Player.Listener {
-                                override fun onPlaybackStateChanged(state: Int) {
-                                    if (state == Player.STATE_READY) {
-                                        if (!hasSeeked) {
-                                            hasSeeked = true
-                                            if (duration > 0 && duration > targetSeekMs + 20_000L) {
-                                                seekTo(targetSeekMs)
-                                            } else if (duration > 0) {
-                                                seekTo((duration * 0.25).toLong())
+            val validStreamUrl = streamUrl
+            if (!validStreamUrl.isNullOrEmpty() && isDirectVideoStream(validStreamUrl)) {
+                try {
+                    val player = withContext(Dispatchers.IO) {
+                        val httpDataSourceFactory = DefaultHttpDataSource.Factory()
+                            .setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
+                            .setDefaultRequestProperties(mapOf("Referer" to "https://hdrezka.ag/"))
+                            .setConnectTimeoutMs(8000)
+                            .setReadTimeoutMs(15000)
+                            .setAllowCrossProtocolRedirects(true)
+                        val mediaSourceFactory = DefaultMediaSourceFactory(httpDataSourceFactory)
+
+                        val loadControl = DefaultLoadControl.Builder()
+                            .setBufferDurationsMs(
+                                /* minBufferMs = */ 8000,
+                                /* maxBufferMs = */ 20000,
+                                /* bufferForPlaybackMs = */ 1500,
+                                /* bufferForPlaybackAfterRebufferMs = */ 2500
+                            )
+                            .setBackBuffer(2000, true)
+                            .build()
+                        val renderersFactory = DefaultRenderersFactory(context)
+                            .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF)
+
+                        var hasSeeked = false
+                        ExoPlayer.Builder(context, renderersFactory)
+                            .setMediaSourceFactory(mediaSourceFactory)
+                            .setLoadControl(loadControl)
+                            .build().apply {
+                                trackSelectionParameters = trackSelectionParameters.buildUpon()
+                                    .setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_AUDIO, true)
+                                    .build()
+                                val targetSeekMs = if (currentMovie.isSeries) 12 * 60 * 1000L else 22 * 60 * 1000L
+                                setMediaItem(MediaItem.fromUri(validStreamUrl))
+                                volume = 0f
+                                repeatMode = Player.REPEAT_MODE_ALL
+                                addListener(object : Player.Listener {
+                                    override fun onPlaybackStateChanged(state: Int) {
+                                        if (state == Player.STATE_READY) {
+                                            if (!hasSeeked) {
+                                                hasSeeked = true
+                                                if (duration > 0 && duration > targetSeekMs + 20_000L) {
+                                                    seekTo(targetSeekMs)
+                                                } else if (duration > 0) {
+                                                    seekTo((duration * 0.25).toLong())
+                                                }
                                             }
+                                            isDetailsPreviewPlaying = true
+                                        } else if (state == Player.STATE_ENDED) {
+                                            seekTo(0L)
+                                            play()
                                         }
-                                        isDetailsPreviewPlaying = true
-                                    } else if (state == Player.STATE_ENDED) {
-                                        seekTo(0L)
-                                        play()
                                     }
-                                }
 
-                                override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
-                                    isDetailsPreviewPlaying = false
-                                }
-                            })
-                            prepare()
-                            playWhenReady = true
-                        }
+                                    override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                                        isDetailsPreviewPlaying = false
+                                    }
+                                })
+                                prepare()
+                                playWhenReady = true
+                            }
+                    }
                     detailsPreviewPlayer = player
                 } catch (e: Exception) {
                     e.printStackTrace()
@@ -435,10 +456,17 @@ fun DetailsScreen(
     DisposableEffect(Unit) {
         onDispose {
             isDetailsPreviewPlaying = false
-            detailsPreviewPlayer?.stop()
-            detailsPreviewPlayer?.clearMediaItems()
-            detailsPreviewPlayer?.release()
+            val playerToRelease = detailsPreviewPlayer
             detailsPreviewPlayer = null
+            if (playerToRelease != null) {
+                playerToRelease.stop()
+                CoroutineScope(Dispatchers.IO).launch {
+                    try {
+                        playerToRelease.clearMediaItems()
+                        playerToRelease.release()
+                    } catch (_: Exception) {}
+                }
+            }
         }
     }
 
@@ -820,19 +848,30 @@ fun DetailsScreen(
                 )
 
                 if (newEpisodesCount > 0) {
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(Color(0xFFE53935).copy(alpha = 0.25f))
-                            .border(1.dp, Color(0xFFE53935), RoundedCornerShape(6.dp))
-                            .padding(horizontal = 10.dp, vertical = 4.dp)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Button(
+                        onClick = {
+                            val targetSeason = currentMovie.seasons.lastOrNull()?.seasonNumber ?: selectedSeason
+                            val targetEp = currentMovie.seasons.lastOrNull()?.episodes?.lastOrNull()?.episodeNumber ?: selectedEpisode
+                            selectedSeason = targetSeason
+                            selectedEpisode = targetEp
+                            historyManager.clearNewEpisodes(currentMovie.id)
+                            newEpisodesCount = 0
+                            startPlayback(targetSeason = targetSeason, targetEpisode = targetEp, startPos = 0L)
+                        },
+                        colors = ButtonDefaults.colors(
+                            containerColor = Color(0xFFE53935),
+                            focusedContainerColor = Color(0xFFFF5252),
+                            contentColor = Color.White,
+                            focusedContentColor = Color.White
+                        ),
+                        shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
                     ) {
                         Text(
-                            text = "🔥 Вышли новые серии! (+$newEpisodesCount новых)",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFFFF8A80)
+                            text = "⚡ Доступно +$newEpisodesCount новых серий — Смотреть новейшую!",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.ExtraBold
                         )
                     }
                 }

@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.size
 import androidx.compose.ui.draw.clip
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -174,6 +175,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun TvAppNavHost(activity: MainActivity) {
     val homeViewModel: HomeViewModel = viewModel()
+    val episodeAlert by homeViewModel.newEpisodeAlert.collectAsState()
     val lifecycleOwner = LocalLifecycleOwner.current
     val coroutineScope = rememberCoroutineScope()
 
@@ -370,6 +372,7 @@ fun TvAppNavHost(activity: MainActivity) {
 
     val isUpdateDialogVisible = updateInfo?.let { it.versionCode > activity.getInstalledVersionCode() } == true
     val isMandatoryUpdate = updateInfo?.isForceUpdate == true
+    val isEpisodeAlertVisible = episodeAlert != null
 
     // Hardware Back button handling for Android TV remotes
     BackHandler(enabled = isUpdateDialogVisible) {
@@ -379,19 +382,23 @@ fun TvAppNavHost(activity: MainActivity) {
         }
     }
 
-    BackHandler(enabled = showExitDialog) {
+    BackHandler(enabled = isEpisodeAlertVisible && !isUpdateDialogVisible) {
+        homeViewModel.dismissNewEpisodeAlert()
+    }
+
+    BackHandler(enabled = showExitDialog && !isUpdateDialogVisible && !isEpisodeAlertVisible) {
         showExitDialog = false
     }
 
-    BackHandler(enabled = !isUpdateDialogVisible && !showExitDialog) {
+    BackHandler(enabled = !isUpdateDialogVisible && !isEpisodeAlertVisible && !showExitDialog) {
         navigateBack()
     }
 
     val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
 
     // Auto-restore focus when dialogs close
-    LaunchedEffect(showExitDialog, isUpdateDialogVisible) {
-        if (!showExitDialog && !isUpdateDialogVisible) {
+    LaunchedEffect(showExitDialog, isUpdateDialogVisible, isEpisodeAlertVisible) {
+        if (!showExitDialog && !isUpdateDialogVisible && !isEpisodeAlertVisible) {
             delay(80)
             try {
                 activity.window.decorView.requestFocus()
@@ -409,7 +416,7 @@ fun TvAppNavHost(activity: MainActivity) {
             modifier = Modifier
                 .fillMaxSize()
                 .focusProperties {
-                    canFocus = !isUpdateDialogVisible && !showExitDialog
+                    canFocus = !isUpdateDialogVisible && !showExitDialog && !isEpisodeAlertVisible
                 }
         ) {
             when (currentScreen) {
@@ -907,6 +914,165 @@ fun TvAppNavHost(activity: MainActivity) {
                         ) {
                             Text(
                                 text = "Выйти",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // NEW EPISODE MODAL NOTIFICATION
+        episodeAlert?.let { alert ->
+            val accent = LocalAccentColor.current
+            val playFocusRequester = remember { FocusRequester() }
+            val laterFocusRequester = remember { FocusRequester() }
+
+            LaunchedEffect(alert) {
+                repeat(6) {
+                    delay(60)
+                    try { playFocusRequester.requestFocus() } catch (_: Exception) {}
+                }
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.88f))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) {},
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    modifier = Modifier
+                        .width(480.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Color(0xFF1E293B))
+                        .border(1.dp, accent.copy(alpha = 0.4f), RoundedCornerShape(16.dp))
+                        .padding(28.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(accent.copy(alpha = 0.15f))
+                            .padding(horizontal = 14.dp, vertical = 6.dp)
+                    ) {
+                        Text(
+                            text = "⚡ ВЫШЛА НОВАЯ СЕРИЯ!",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = accent,
+                            letterSpacing = 1.sp
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Text(
+                        text = alert.movie.title,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        maxLines = 2,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    val episodeCountText = if (alert.newCount > 1) "+${alert.newCount} новых серий" else "Новая серия"
+                    Text(
+                        text = "В отслеживаемом сериале доступно: $episodeCountText.\nХотите перейти к просмотру сейчас?",
+                        fontSize = 14.sp,
+                        color = Color.LightGray,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        lineHeight = 20.sp
+                    )
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.focusGroup()
+                    ) {
+                        Button(
+                            onClick = {
+                                val targetMovie = alert.movie
+                                homeViewModel.dismissNewEpisodeAlert()
+                                navigateTo(Screen.DETAILS, movie = targetMovie)
+                            },
+                            shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.05f),
+                            contentPadding = PaddingValues(horizontal = 22.dp, vertical = 0.dp),
+                            colors = ButtonDefaults.colors(
+                                containerColor = accent,
+                                focusedContainerColor = Color.White,
+                                contentColor = Color.Black,
+                                focusedContentColor = Color.Black
+                            ),
+                            modifier = Modifier
+                                .height(38.dp)
+                                .focusRequester(playFocusRequester)
+                                .focusProperties {
+                                    right = laterFocusRequester
+                                    left = laterFocusRequester
+                                    up = playFocusRequester
+                                    down = playFocusRequester
+                                }
+                                .onKeyEvent { keyEvent ->
+                                    if (keyEvent.nativeKeyEvent.action == KeyEvent.ACTION_DOWN) {
+                                        if (keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_RIGHT || keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
+                                            try { laterFocusRequester.requestFocus(); return@onKeyEvent true } catch (_: Exception) {}
+                                        }
+                                    }
+                                    false
+                                }
+                        ) {
+                            Text(
+                                text = "Смотреть серию",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        Button(
+                            onClick = {
+                                homeViewModel.dismissNewEpisodeAlert()
+                            },
+                            shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.05f),
+                            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 0.dp),
+                            colors = ButtonDefaults.colors(
+                                containerColor = Color.White.copy(alpha = 0.12f),
+                                focusedContainerColor = Color.White.copy(alpha = 0.25f),
+                                contentColor = Color.LightGray,
+                                focusedContentColor = Color.White
+                            ),
+                            modifier = Modifier
+                                .height(38.dp)
+                                .focusRequester(laterFocusRequester)
+                                .focusProperties {
+                                    left = playFocusRequester
+                                    right = playFocusRequester
+                                    up = laterFocusRequester
+                                    down = laterFocusRequester
+                                }
+                                .onKeyEvent { keyEvent ->
+                                    if (keyEvent.nativeKeyEvent.action == KeyEvent.ACTION_DOWN) {
+                                        if (keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_LEFT || keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
+                                            try { playFocusRequester.requestFocus(); return@onKeyEvent true } catch (_: Exception) {}
+                                        }
+                                    }
+                                    false
+                                }
+                        ) {
+                            Text(
+                                text = "Позже",
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.SemiBold
                             )

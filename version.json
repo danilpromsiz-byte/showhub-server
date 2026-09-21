@@ -1,10 +1,10 @@
 {
   "success": true,
-  "version_name": "2.8.23",
-  "version_code": 82,
+  "version_name": "2.8.24",
+  "version_code": 83,
   "force_update": true,
-  "min_version_code": 82,
+  "min_version_code": 83,
   "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
   "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
-  "changelog": "ShowHub TV v2.8.23: Асинхронная оптимизация карточки фильма: инициализация ExoPlayer вынесена в фоновый пул потоков (IO), устранены задержки и фризы интерфейса при переключении фокуса между кнопками."
+  "changelog": "ShowHub TV v2.8.24: Интерактивное TV-модальное окно при выходе новой серии с прямым переходом к просмотру; устранение задержек D-pad на главном экране и в карточке; плавная скорость воспроизведения видео без рывков."
 }

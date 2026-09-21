@@ -145,7 +145,9 @@ fun MovieCard(
                 if (streamUrl.isNullOrEmpty()) {
                     val prefs = context.getSharedPreferences("showhub_prefs", android.content.Context.MODE_PRIVATE)
                     val configuredStartMin = prefs.getInt("pref_preview_start_min", if (movie.isSeries) 12 else 22)
-                    val candidate = ShowHubApiClient.fetchPreviewStream(movie, configuredStartMin)
+                    val candidate = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        ShowHubApiClient.fetchPreviewStream(movie, configuredStartMin)
+                    }
                     if (candidate != null && isDirectVideoStream(candidate)) {
                         streamUrl = candidate
                     }
@@ -169,12 +171,12 @@ fun MovieCard(
 
                             val loadControl = DefaultLoadControl.Builder()
                                 .setBufferDurationsMs(
-                                    /* minBufferMs = */ 3000,
-                                    /* maxBufferMs = */ 6000,
-                                    /* bufferForPlaybackMs = */ 1000,
-                                    /* bufferForPlaybackAfterRebufferMs = */ 1500
+                                    /* minBufferMs = */ 8000,
+                                    /* maxBufferMs = */ 20000,
+                                    /* bufferForPlaybackMs = */ 1500,
+                                    /* bufferForPlaybackAfterRebufferMs = */ 2500
                                 )
-                                .setBackBuffer(2000, true)
+                                .setBackBuffer(3000, true)
                                 .build()
                             val renderersFactory = DefaultRenderersFactory(context)
                                 .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF)
@@ -185,6 +187,9 @@ fun MovieCard(
                                 .setLoadControl(loadControl)
                                 .build()
                                 .apply {
+                                    trackSelectionParameters = trackSelectionParameters.buildUpon()
+                                        .setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_AUDIO, true)
+                                        .build()
                                     setMediaItem(MediaItem.fromUri(validStreamUrl))
                                     volume = 0f // strictly silent
                                     repeatMode = Player.REPEAT_MODE_ALL
@@ -225,42 +230,34 @@ fun MovieCard(
                         }
                         previewPlayer = player
 
-                        // Triple sequential preview: Phase 0 (T), Phase 1 (T+10m), Phase 2 (T+20m) cycling every 12s
-                        var currentPhase = 0
+                        // Smooth continuous preview loop while focused
                         while (isFocused && previewPlayer != null) {
-                            delay(12_000)
-                            if (!isFocused) break
-                            currentPhase = (currentPhase + 1) % 3
-                            val nextSeekMin = baseStartMin + (currentPhase * 10)
-                            val nextSeekMs = nextSeekMin * 60 * 1000L
-                            previewPlayer?.let { p ->
-                                if (p.duration > 0 && p.duration > nextSeekMs + 15_000L) {
-                                    p.seekTo(nextSeekMs)
-                                } else if (p.duration > 0) {
-                                    p.seekTo(baseSeekMs.coerceAtMost((p.duration * 0.5).toLong()))
-                                    currentPhase = 0
-                                }
-                            }
+                            delay(1000)
                         }
                     } catch (e: Exception) {
-                        e.printStackTrace()
                         isPreviewBuffering = false
+                        isPreviewPlaying = false
                     }
                 } else {
                     isPreviewBuffering = false
+                    isPreviewPlaying = false
                 }
             }
         } else {
-            // Cancel preview & release player immediately
             targetTimelineProgress = 0f
             isPreviewBuffering = false
             isPreviewPlaying = false
-            previewPlayer?.let { player ->
-                player.stop()
-                player.clearMediaItems()
-                player.release()
-            }
+            val playerToRelease = previewPlayer
             previewPlayer = null
+            if (playerToRelease != null) {
+                playerToRelease.stop()
+                kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                    try {
+                        playerToRelease.clearMediaItems()
+                        playerToRelease.release()
+                    } catch (_: Exception) {}
+                }
+            }
         }
     }
 
@@ -282,12 +279,17 @@ fun MovieCard(
         onDispose {
             isPreviewBuffering = false
             isPreviewPlaying = false
-            previewPlayer?.let { player ->
-                player.stop()
-                player.clearMediaItems()
-                player.release()
-            }
+            val playerToRelease = previewPlayer
             previewPlayer = null
+            if (playerToRelease != null) {
+                playerToRelease.stop()
+                kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                    try {
+                        playerToRelease.clearMediaItems()
+                        playerToRelease.release()
+                    } catch (_: Exception) {}
+                }
+            }
         }
     }
 

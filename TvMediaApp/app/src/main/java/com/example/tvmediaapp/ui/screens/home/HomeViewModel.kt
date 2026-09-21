@@ -16,6 +16,11 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
+data class NewEpisodeAlert(
+    val movie: Movie,
+    val newCount: Int
+)
+
 class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     val repository: CatalogRepository = CatalogRepository(application.applicationContext)
@@ -46,7 +51,14 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     @OptIn(androidx.tv.foundation.ExperimentalTvFoundationApi::class)
     val gridState = androidx.tv.foundation.lazy.grid.TvLazyGridState()
-    var lastFocusedIndex by mutableIntStateOf(0)
+    var lastFocusedIndex: Int = 0
+
+    private val _newEpisodeAlert = MutableStateFlow<NewEpisodeAlert?>(null)
+    val newEpisodeAlert: StateFlow<NewEpisodeAlert?> = _newEpisodeAlert.asStateFlow()
+
+    fun dismissNewEpisodeAlert() {
+        _newEpisodeAlert.value = null
+    }
 
     private val prefs = application.getSharedPreferences("showhub_prefs", android.content.Context.MODE_PRIVATE)
     private val prefsListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
@@ -191,9 +203,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 try {
                     val isTrackedSeries = movie.isSeries && (movie.id in targetSeriesIds || targetSeriesIds.any { id -> id.isNotBlank() && (movie.id.contains(id) || id.contains(movie.id)) })
                     val cached = com.example.tvmediaapp.data.cache.MediaDiskCache.getCachedDetails(movie.id, movie.title, movie.releaseYear)
-                    val detailed = if (cached != null && !isTrackedSeries && (cached.ratingKp > 0 || cached.country.isNotBlank())) {
-                        cached
-                    } else {
+                    val detailed = if (isTrackedSeries) {
                         val fetched = com.example.tvmediaapp.data.api.ShowHubApiClient.fetchMediaDetails(movie)
                         if (fetched.seasons.isNotEmpty() || fetched.audioTracks.isNotEmpty() || fetched.cast.isNotEmpty()) {
                             com.example.tvmediaapp.data.cache.MediaDiskCache.putCachedDetails(fetched)
@@ -201,6 +211,8 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                         } else {
                             cached ?: fetched
                         }
+                    } else {
+                        cached ?: movie
                     }
 
                     // Check if newly released episodes appeared for started or favorite series
@@ -216,11 +228,12 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                                     detailed,
                                     newCount
                                 )
+                                _newEpisodeAlert.value = NewEpisodeAlert(detailed, newCount)
                             }
                         }
                     }
 
-                    // Requirement 10: Check if an episode airs TODAY
+                    // Check if an episode airs TODAY
                     if (detailed.isSeries && detailed.episodesSchedule.isNotEmpty()) {
                         val todayItem = detailed.episodesSchedule.firstOrNull {
                             val s = (it.date + " " + it.status).lowercase()
@@ -240,7 +253,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                         batchUpdates[detailed.id] = detailed
                     }
 
-                    kotlinx.coroutines.delay(120)
+                    if (isTrackedSeries) {
+                        kotlinx.coroutines.delay(200)
+                    }
                 } catch (_: Exception) {}
             }
 

@@ -670,9 +670,10 @@ class CatalogRepository(context: Context? = null) {
 
                 // STEP 3: Progressive non-blocking background pagination to load and cache full catalog into TV memory
                 if (isDefaultMainCatalog) {
+                    var hasNewMovies = false
                     for (p in 2..15) {
                         try {
-                            kotlinx.coroutines.delay(1200L)
+                            kotlinx.coroutines.delay(1500L)
                             val nextBatch = ShowHubApiClient.fetchCatalog(
                                 category = category,
                                 genre = genre,
@@ -684,14 +685,21 @@ class CatalogRepository(context: Context? = null) {
                                 excludedGenres = if (excludedGenresStr.isNotBlank()) excludedGenresStr else null
                             )
                             if (nextBatch.isEmpty()) break
+                            val prevCount = (com.example.tvmediaapp.data.cache.MediaDiskCache.getCachedCatalog() ?: emptyList()).size
                             com.example.tvmediaapp.data.cache.MediaDiskCache.putCachedCatalog(nextBatch)
-                            val updatedMaster = com.example.tvmediaapp.data.cache.MediaDiskCache.getCachedCatalog() ?: emptyList()
-                            val updatedCategories = buildCategories(updatedMaster)
-                            if (updatedCategories.isNotEmpty()) {
-                                emit(updatedCategories)
+                            val newCount = (com.example.tvmediaapp.data.cache.MediaDiskCache.getCachedCatalog() ?: emptyList()).size
+                            if (newCount > prevCount) {
+                                hasNewMovies = true
                             }
                         } catch (_: Exception) {
                             break
+                        }
+                    }
+                    if (hasNewMovies) {
+                        val updatedMaster = com.example.tvmediaapp.data.cache.MediaDiskCache.getCachedCatalog() ?: emptyList()
+                        val updatedCategories = buildCategories(updatedMaster)
+                        if (updatedCategories.isNotEmpty()) {
+                            emit(updatedCategories)
                         }
                     }
                 }

@@ -1,10 +1,10 @@
 {
   "success": true,
-  "version_name": "2.8.19",
-  "version_code": 78,
+  "version_name": "2.8.20",
+  "version_code": 79,
   "force_update": true,
-  "min_version_code": 78,
+  "min_version_code": 79,
   "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
   "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
-  "changelog": "ShowHub TV v2.8.19: Отображение прогрессбара просмотренности на кнопках серий, мгновенное сохранение прогресса при выходе из плеера и переключении серий, учет прогресса первой серии и синхронизация истории просмотра."
+  "changelog": "ShowHub TV v2.8.20: Гарантированная аппаратная отрисовка прогрессбара на кнопках серий (drawWithContent), видимый слот-трек для неначатых серий, цветовые индикаторы просмотренности и моментальное обновление прогресса."
 }

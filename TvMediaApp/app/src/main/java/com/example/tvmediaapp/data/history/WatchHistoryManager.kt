@@ -36,9 +36,13 @@ class WatchHistoryManager(context: Context) {
 
         fun normalizeTitle(title: String?): String {
             if (title.isNullOrBlank()) return ""
-            return title.trim().lowercase()
+            var t = title.trim().lowercase()
                 .replace("ё", "е")
                 .replace(Regex("\\(.*?\\)|\\[.*?\\]"), "")
+            // Strip standalone season/part indicators like "1 сезон", "2 season", "часть 1"
+            t = t.replace(Regex("""\b\d+[-–\s]*(?:сезон[а-я]*|сез\.?|season[s]?|part[s]?|част[а-я]*)\b""", RegexOption.IGNORE_CASE), "")
+                .replace(Regex("""\b(?:сезон[а-я]*|сез\.?|season[s]?|part[s]?|част[а-я]*)\s*\d+\b""", RegexOption.IGNORE_CASE), "")
+            return t
                 .replace(Regex("[^a-zа-я0-9]"), "_")
                 .replace(Regex("_+"), "_")
                 .trim('_')
@@ -180,6 +184,9 @@ class WatchHistoryManager(context: Context) {
             val key = "watched_episodes_$seriesId"
             val watched = prefs.getStringSet(key, emptySet()) ?: emptySet()
             if (watched.contains("s${season}e${episode}")) return true
+
+            val pctKey = "ep_pct_${seriesId}_s${season}e${episode}"
+            if (prefs.getInt(pctKey, 0) >= 85) return true
         }
         val cleanT = normalizeTitle(title)
         if (cleanT.isNotBlank()) {
@@ -187,11 +194,17 @@ class WatchHistoryManager(context: Context) {
             val tWatched = prefs.getStringSet(tKey, emptySet()) ?: emptySet()
             if (tWatched.contains("s${season}e${episode}")) return true
 
+            val tPctKey = "ep_pct_t_${cleanT}_s${season}e${episode}"
+            if (prefs.getInt(tPctKey, 0) >= 85) return true
+
             val histItem = getHistory().firstOrNull { normalizeTitle(it.title) == cleanT }
             if (histItem != null && histItem.id != seriesId) {
                 val key = "watched_episodes_${histItem.id}"
                 val watched = prefs.getStringSet(key, emptySet()) ?: emptySet()
                 if (watched.contains("s${season}e${episode}")) return true
+
+                val hPctKey = "ep_pct_${histItem.id}_s${season}e${episode}"
+                if (prefs.getInt(hPctKey, 0) >= 85) return true
             }
         }
 
@@ -294,8 +307,12 @@ class WatchHistoryManager(context: Context) {
         prefs.edit().remove("new_episodes_$seriesId").apply()
     }
 
-    fun getProgress(movieId: String): HistoryItem? {
-        return getHistory().firstOrNull { it.id == movieId }
+    fun getProgress(movieId: String, title: String? = null): HistoryItem? {
+        val cleanT = normalizeTitle(title)
+        return getHistory().firstOrNull {
+            (movieId.isNotBlank() && it.id == movieId) ||
+            (cleanT.isNotBlank() && normalizeTitle(it.title) == cleanT)
+        }
     }
 
     fun getHistory(): List<HistoryItem> {

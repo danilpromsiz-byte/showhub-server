@@ -48,6 +48,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
@@ -129,11 +132,6 @@ fun DetailsScreen(
     val accent = LocalAccentColor.current
     val focusColor = LocalFocusColor.current
 
-    val historyManager = remember { WatchHistoryManager(context) }
-    val savedHistory = remember(movie.id) {
-        historyManager.getProgress(movie.id)
-    }
-
     val prefs = remember { context.getSharedPreferences("showhub_prefs", Context.MODE_PRIVATE) }
     val rightPaneScrollState = rememberScrollState()
     var isFav by remember(movie.id, isFavorite) { mutableStateOf(isFavorite) }
@@ -142,6 +140,12 @@ fun DetailsScreen(
             com.example.tvmediaapp.data.cache.MediaDiskCache.getCachedDetails(movie.id, movie.title, movie.releaseYear) ?: movie
         )
     }
+
+    val historyManager = remember { WatchHistoryManager(context) }
+    val savedHistory = remember(movie.id, currentMovie.title, com.example.tvmediaapp.data.history.WatchHistoryManager.historyVersion) {
+        historyManager.getProgress(movie.id, currentMovie.title)
+    }
+
     var selectedSeason by remember { mutableStateOf(savedHistory?.season ?: 1) }
     var selectedEpisode by remember { mutableStateOf(savedHistory?.episode ?: 1) }
     var selectedAudioId by remember { mutableStateOf(savedHistory?.audioId ?: "") }
@@ -1796,8 +1800,18 @@ fun DetailsScreen(
                                 itemsIndexed(activeEpisodes) { epIdx, ep ->
                                     val hVer = com.example.tvmediaapp.data.history.WatchHistoryManager.historyVersion
                                     val isSelected = ep.episodeNumber == selectedEpisode
-                                    val isWatched = historyManager.isEpisodeWatched(currentMovie.id, selectedSeason, ep.episodeNumber, currentMovie.title)
-                                    val epProgress = historyManager.getEpisodeProgress(currentMovie.id, selectedSeason, ep.episodeNumber, currentMovie.title)
+                                    val histProgress = if (savedHistory?.season == selectedSeason && savedHistory?.episode == ep.episodeNumber) {
+                                        savedHistory?.percentage ?: 0
+                                    } else 0
+                                    val epProgress = maxOf(
+                                        historyManager.getEpisodeProgress(currentMovie.id, selectedSeason, ep.episodeNumber, currentMovie.title),
+                                        histProgress
+                                    )
+                                    val isEpWatched = historyManager.isEpisodeWatched(currentMovie.id, selectedSeason, ep.episodeNumber, currentMovie.title) || epProgress >= 85
+                                    val progressPct = if (isEpWatched) 1.0f
+                                                      else if (epProgress > 0) (epProgress / 100f).coerceIn(0.08f, 1.0f)
+                                                      else 0f
+
                                     var isButtonFocused by remember { mutableStateOf(false) }
                                     val epFocusMod = if (epIdx == 0) {
                                         Modifier.focusRequester(episodesFocusRequester).focusProperties {
@@ -1836,64 +1850,60 @@ fun DetailsScreen(
                                             .then(epFocusMod)
                                             .onFocusChanged { isButtonFocused = it.isFocused }
                                             .focusedGlow(isFocused = isButtonFocused, color = focusColor, radius = 6.dp, shapeRadius = 6.dp)
-                                    ) {
-                                        Column(
-                                            modifier = Modifier
-                                                .fillMaxHeight()
-                                                .defaultMinSize(minWidth = 64.dp)
-                                                .clip(RoundedCornerShape(6.dp)),
-                                            horizontalAlignment = Alignment.CenterHorizontally,
-                                            verticalArrangement = Arrangement.SpaceBetween
-                                        ) {
-                                            Row(
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.Center,
-                                                modifier = Modifier
-                                                    .weight(1f)
-                                                    .padding(horizontal = 10.dp)
-                                            ) {
-                                                if (isWatched || epProgress >= 85) {
-                                                    Text(
-                                                        text = "✓ ",
-                                                        fontSize = 11.sp,
-                                                        fontWeight = FontWeight.ExtraBold,
-                                                        color = if (isSelected) Color.Black else Color(0xFF22C55E)
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .drawWithContent {
+                                                drawContent()
+                                                val barHeight = 4.dp.toPx()
+                                                val y = size.height - barHeight
+                                                val w = size.width
+
+                                                // Background slot/track across the entire bottom edge
+                                                drawRect(
+                                                    color = Color.Black.copy(alpha = 0.55f),
+                                                    topLeft = Offset(0f, y),
+                                                    size = Size(w, barHeight)
+                                                )
+                                                drawRect(
+                                                    color = Color.White.copy(alpha = 0.20f),
+                                                    topLeft = Offset(0f, y),
+                                                    size = Size(w, barHeight)
+                                                )
+
+                                                // Active progress fill
+                                                if (progressPct > 0f) {
+                                                    val fillCol = when {
+                                                        isSelected -> Color(0xFF0F172A)
+                                                        isEpWatched -> Color(0xFF22C55E)
+                                                        else -> Color(0xFFFF9800)
+                                                    }
+                                                    drawRect(
+                                                        color = fillCol,
+                                                        topLeft = Offset(0f, y),
+                                                        size = Size(w * progressPct, barHeight)
                                                     )
                                                 }
+                                            }
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.Center,
+                                            modifier = Modifier
+                                                .padding(start = 10.dp, end = 10.dp, top = 2.dp, bottom = 4.dp)
+                                        ) {
+                                            if (isEpWatched) {
                                                 Text(
-                                                    text = ep.title,
+                                                    text = "✓ ",
                                                     fontSize = 11.sp,
-                                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                                    maxLines = 1
+                                                    fontWeight = FontWeight.ExtraBold,
+                                                    color = if (isSelected) Color.Black else Color(0xFF22C55E)
                                                 )
                                             }
-
-                                            val progressPct = if (isWatched || epProgress >= 85) 1.0f
-                                                              else if (epProgress > 0) (epProgress / 100f).coerceIn(0.08f, 1.0f)
-                                                              else 0f
-
-                                            Box(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .height(4.dp)
-                                                    .background(
-                                                        if (progressPct > 0f) Color.Black.copy(alpha = 0.50f)
-                                                        else Color.White.copy(alpha = 0.10f)
-                                                    )
-                                            ) {
-                                                if (progressPct > 0f) {
-                                                    Box(
-                                                        modifier = Modifier
-                                                            .fillMaxHeight()
-                                                            .fillMaxWidth(progressPct)
-                                                            .background(
-                                                                if (isSelected) Color(0xFF0F172A)
-                                                                else if (isWatched || epProgress >= 85) Color(0xFF22C55E)
-                                                                else Color(0xFFFF9800)
-                                                            )
-                                                    )
-                                                }
-                                            }
+                                            Text(
+                                                text = ep.title,
+                                                fontSize = 11.sp,
+                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                                maxLines = 1
+                                            )
                                         }
                                     }
                                 }

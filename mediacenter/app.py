@@ -2699,30 +2699,110 @@ def refresh_health() -> Dict[str, Any]:
     health_checker.run_checks()
     return health_checker.get_summary()
 
-# User Analytics & Telemetry
+# User Analytics & Telemetry with Upstash Redis Persistence
 USERS_STATS_FILE = os.path.join(CURRENT_DIR, "data", "users_stats.json")
 users_stats_lock = threading.Lock()
+_users_stats_cache: Dict[str, Any] = {}
+_users_stats_cache_time: float = 0.0
 
-def _load_users_stats() -> Dict[str, Any]:
-    if os.path.exists(USERS_STATS_FILE):
+def _upstash_command(cmd: List[Any]) -> Any:
+    """Executes a command on Upstash Redis via REST API."""
+    url = os.environ.get("UPSTASH_REDIS_REST_URL", "").strip().rstrip("/")
+    token = os.environ.get("UPSTASH_REDIS_REST_TOKEN", "").strip()
+    if not url or not token:
+        return None
+    try:
+        resp = requests.post(
+            url,
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json"
+            },
+            json=cmd,
+            timeout=3.0
+        )
+        if resp.status_code == 200:
+            return resp.json().get("result")
+        else:
+            print(f"[Upstash] HTTP {resp.status_code}: {resp.text[:100]}")
+    except Exception as e:
+        print(f"[Upstash] Request failed: {e}")
+    return None
+
+def _load_users_stats(force_refresh: bool = False) -> Dict[str, Any]:
+    global _users_stats_cache, _users_stats_cache_time
+    now = time.time()
+    if not force_refresh and _users_stats_cache and (now - _users_stats_cache_time < 20):
+        return dict(_users_stats_cache)
+
+    stats: Dict[str, Any] = {}
+    loaded_from_redis = False
+
+    # 1. Try loading from Upstash Redis if configured
+    url = os.environ.get("UPSTASH_REDIS_REST_URL", "").strip()
+    if url:
+        redis_data = _upstash_command(["HGETALL", "showhub:devices"])
+        if redis_data is not None:
+            loaded_from_redis = True
+            pairs: Dict[str, Any] = {}
+            if isinstance(redis_data, dict):
+                pairs = redis_data
+            elif isinstance(redis_data, list):
+                it = iter(redis_data)
+                pairs = dict(zip(it, it))
+
+            for dev_id, entry_raw in pairs.items():
+                try:
+                    if isinstance(entry_raw, str):
+                        entry = json.loads(entry_raw)
+                    elif isinstance(entry_raw, dict):
+                        entry = entry_raw
+                    else:
+                        continue
+                    if isinstance(entry, dict):
+                        stats[dev_id] = entry
+                except Exception:
+                    pass
+
+    # 2. Fallback to local file if Redis is not configured or returned nothing
+    if not loaded_from_redis and os.path.exists(USERS_STATS_FILE):
         try:
             with open(USERS_STATS_FILE, "r", encoding="utf-8") as f:
                 data = json.load(f)
                 if data and isinstance(data, dict):
                     # Filter out any old fabricated test devices if they were persisted
                     cleaned = {k: v for k, v in data.items() if not k.startswith("device_") or len(k) > 25}
-                    return cleaned
+                    stats = cleaned
         except Exception:
             pass
-    return {}
 
-def _save_users_stats(data: Dict[str, Any]):
+    # If Redis is configured and was empty, sync existing local stats to Redis
+    if not loaded_from_redis and stats and url:
+        def _sync_to_redis(data_to_sync):
+            for d_id, d_entry in data_to_sync.items():
+                _upstash_command(["HSET", "showhub:devices", d_id, json.dumps(d_entry, ensure_ascii=False)])
+        threading.Thread(target=_sync_to_redis, args=(dict(stats),), daemon=True).start()
+
+    _users_stats_cache = dict(stats)
+    _users_stats_cache_time = now
+    return stats
+
+def _save_users_stats(data: Dict[str, Any], updated_device_id: Optional[str] = None):
+    # Save locally to JSON file
     os.makedirs(os.path.dirname(USERS_STATS_FILE), exist_ok=True)
     try:
         with open(USERS_STATS_FILE, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
     except Exception as e:
         print(f"[Analytics] Error saving user stats: {e}")
+
+    # Asynchronously save to Upstash Redis
+    url = os.environ.get("UPSTASH_REDIS_REST_URL", "").strip()
+    if url and updated_device_id and updated_device_id in data:
+        device_entry = data[updated_device_id]
+        def _save_remote(dev_id, dev_entry):
+            _upstash_command(["HSET", "showhub:devices", dev_id, json.dumps(dev_entry, ensure_ascii=False)])
+        threading.Thread(target=_save_remote, args=(updated_device_id, device_entry), daemon=True).start()
 
 def _record_device_activity(device_id: str, version: str):
     if not device_id or device_id in ("unknown", "null"):
@@ -2740,7 +2820,8 @@ def _record_device_activity(device_id: str, version: str):
         device_entry["version"] = version or "2.8.33"
         device_entry["updated_at"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         stats[device_id] = device_entry
-        _save_users_stats(stats)
+        _users_stats_cache[device_id] = device_entry
+        _save_users_stats(stats, updated_device_id=device_id)
 
 @app.get("/api/analytics/ping")
 def analytics_ping(device_id: str = Query(..., description="Unique device ID"), version: Optional[str] = "2.8.33") -> Dict[str, Any]:

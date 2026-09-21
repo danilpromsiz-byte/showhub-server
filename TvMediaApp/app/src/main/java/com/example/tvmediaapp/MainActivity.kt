@@ -451,7 +451,10 @@ fun TvAppNavHost(activity: MainActivity) {
             modifier = Modifier
                 .fillMaxSize()
                 .focusProperties {
-                    canFocus = !isUpdateDialogVisible && !showExitDialog && !isEpisodeAlertVisible
+                    if (isUpdateDialogVisible || showExitDialog || isEpisodeAlertVisible) {
+                        canFocus = false
+                        enter = { FocusRequester.Cancel }
+                    }
                 }
         ) {
             when (currentScreen) {
@@ -976,7 +979,7 @@ fun TvAppNavHost(activity: MainActivity) {
             }
 
             LaunchedEffect(alert) {
-                repeat(6) {
+                repeat(8) {
                     delay(60)
                     try { playFocusRequester.requestFocus() } catch (_: Exception) {}
                 }
@@ -986,6 +989,10 @@ fun TvAppNavHost(activity: MainActivity) {
                 modifier = Modifier
                     .fillMaxSize()
                     .background(Color.Black.copy(alpha = 0.88f))
+                    .onKeyEvent {
+                        // Absorb any unhandled TV remote D-Pad events so they never bubble to background
+                        true
+                    }
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null
@@ -1058,7 +1065,10 @@ fun TvAppNavHost(activity: MainActivity) {
                             .onFocusChanged { isCheckboxFocused = it.isFocused }
                             .focusRequester(checkboxFocusRequester)
                             .focusProperties {
+                                up = FocusRequester.Cancel
                                 down = playFocusRequester
+                                left = FocusRequester.Cancel
+                                right = FocusRequester.Cancel
                             }
                             .focusable()
                             .clickable {
@@ -1073,6 +1083,9 @@ fun TvAppNavHost(activity: MainActivity) {
                                         }
                                         KeyEvent.KEYCODE_DPAD_DOWN -> {
                                             try { playFocusRequester.requestFocus(); return@onKeyEvent true } catch (_: Exception) {}
+                                        }
+                                        KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                                            return@onKeyEvent true
                                         }
                                     }
                                 }
@@ -1142,14 +1155,20 @@ fun TvAppNavHost(activity: MainActivity) {
                                     right = laterFocusRequester
                                     left = laterFocusRequester
                                     up = checkboxFocusRequester
-                                    down = playFocusRequester
+                                    down = FocusRequester.Cancel
                                 }
                                 .onKeyEvent { keyEvent ->
                                     if (keyEvent.nativeKeyEvent.action == KeyEvent.ACTION_DOWN) {
-                                        if (keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_RIGHT || keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
-                                            try { laterFocusRequester.requestFocus(); return@onKeyEvent true } catch (_: Exception) {}
-                                        } else if (keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_UP) {
-                                            try { checkboxFocusRequester.requestFocus(); return@onKeyEvent true } catch (_: Exception) {}
+                                        when (keyEvent.nativeKeyEvent.keyCode) {
+                                            KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_DPAD_LEFT -> {
+                                                try { laterFocusRequester.requestFocus(); return@onKeyEvent true } catch (_: Exception) {}
+                                            }
+                                            KeyEvent.KEYCODE_DPAD_UP -> {
+                                                try { checkboxFocusRequester.requestFocus(); return@onKeyEvent true } catch (_: Exception) {}
+                                            }
+                                            KeyEvent.KEYCODE_DPAD_DOWN -> {
+                                                return@onKeyEvent true
+                                            }
                                         }
                                     }
                                     false
@@ -1185,14 +1204,20 @@ fun TvAppNavHost(activity: MainActivity) {
                                     left = playFocusRequester
                                     right = playFocusRequester
                                     up = checkboxFocusRequester
-                                    down = laterFocusRequester
+                                    down = FocusRequester.Cancel
                                 }
                                 .onKeyEvent { keyEvent ->
                                     if (keyEvent.nativeKeyEvent.action == KeyEvent.ACTION_DOWN) {
-                                        if (keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_LEFT || keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
-                                            try { playFocusRequester.requestFocus(); return@onKeyEvent true } catch (_: Exception) {}
-                                        } else if (keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_UP) {
-                                            try { checkboxFocusRequester.requestFocus(); return@onKeyEvent true } catch (_: Exception) {}
+                                        when (keyEvent.nativeKeyEvent.keyCode) {
+                                            KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                                                try { playFocusRequester.requestFocus(); return@onKeyEvent true } catch (_: Exception) {}
+                                            }
+                                            KeyEvent.KEYCODE_DPAD_UP -> {
+                                                try { checkboxFocusRequester.requestFocus(); return@onKeyEvent true } catch (_: Exception) {}
+                                            }
+                                            KeyEvent.KEYCODE_DPAD_DOWN -> {
+                                                return@onKeyEvent true
+                                            }
                                         }
                                     }
                                     false

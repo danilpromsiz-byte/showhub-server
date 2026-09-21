@@ -55,12 +55,14 @@ object RezkaNativeResolver {
     fun cleanTitle(title: String): String {
         var clean = title
             .replace(Regex("\\(.*?\\)|\\[.*?\\]"), "")
-            .split(":")[0]
-            .split(" - ")[0]
+            .replace(":", " ")
+            .replace(" - ", " ")
+            .replace(Regex("\\s+"), " ")
             .trim()
         clean = clean.replace(Regex("\\b\\d+\\s+(сери[йия]|сезон(а|ов)?)\\b", RegexOption.IGNORE_CASE), "")
             .replace(Regex("\\b(сезон|серия)\\s+\\d+\\b", RegexOption.IGNORE_CASE), "")
             .replace(Regex("\\b(19\\d\\d|20\\d\\d)\\b"), "")
+            .replace(Regex("\\s+"), " ")
             .trim()
         return clean
     }
@@ -75,7 +77,7 @@ object RezkaNativeResolver {
         if (clean.isEmpty() && mediaUrl.isNullOrEmpty()) return@withContext null
 
         for (baseUrl in MIRRORS) {
-            val details = tryResolveDetailsFromMirror(baseUrl, clean, year, isSeries, mediaUrl)
+            val details = tryResolveDetailsFromMirror(baseUrl, clean, year, isSeries, mediaUrl, rawTitle = title)
             if (details != null && (details.audioTracks.isNotEmpty() || details.seasons.isNotEmpty())) {
                 return@withContext details
             }
@@ -90,19 +92,20 @@ object RezkaNativeResolver {
         cleanTitle: String,
         year: String?,
         isSeries: Boolean,
-        mediaUrl: String?
+        mediaUrl: String?,
+        rawTitle: String? = null
     ): PageInfo? {
         var dataId: String? = null
         var pageUrl: String? = null
 
         // 0. Direct URL bypass if mediaUrl is an HDRezka page
-        if (!mediaUrl.isNullOrEmpty() && (mediaUrl.startsWith("http") || mediaUrl.contains("hdrezka"))) {
-            val path = mediaUrl.substringAfter(".tv").substringAfter(".me").substringAfter(".ag").substringAfter(".org").substringAfter(".com")
+        if (!mediaUrl.isNullOrEmpty() && (mediaUrl.startsWith("http") || mediaUrl.contains("hdrezka") || mediaUrl.startsWith("rezka:"))) {
+            val path = mediaUrl.substringAfter(".tv").substringAfter(".me").substringAfter(".ag").substringAfter(".org").substringAfter(".com").substringAfter("rezka:")
             val cleanPath = if (path.startsWith("/")) path else "/$path"
-            val idMatch = Pattern.compile("(\\d+)-[^/]+\\.html").matcher(cleanPath)
+            val idMatch = Pattern.compile("(\\d+)").matcher(cleanPath)
             if (idMatch.find()) {
                 dataId = idMatch.group(1)
-                pageUrl = "$baseUrl$cleanPath"
+                pageUrl = if (cleanPath.contains(".html")) "$baseUrl$cleanPath" else null
             }
         }
 
@@ -126,7 +129,8 @@ object RezkaNativeResolver {
                     var score = 10
 
                     // Year matching
-                    val yearMatcher = Pattern.compile("\\b(19\\d\\d|20\\d\\d)\\b").matcher(snippet)
+                    val textForYear = if (Pattern.compile("\\b(19\\d\\d|20\\d\\d)\\b").matcher(snippet).find()) snippet else fullUrl
+                    val yearMatcher = Pattern.compile("\\b(19\\d\\d|20\\d\\d)\\b").matcher(textForYear)
                     if (yearMatcher.find()) {
                         val candYear = yearMatcher.group(1).toIntOrNull()
                         if (targetYearInt != null && candYear != null) {
@@ -153,7 +157,7 @@ object RezkaNativeResolver {
                 parseCandidates(searchHtml)
             }
 
-            // Fallback search with ё -> е if no candidates found
+            // Fallback 1: ё -> е if no candidates found
             if (candidates.isEmpty() && (cleanTitle.contains("ё") || cleanTitle.contains("Ё"))) {
                 val altTitle = cleanTitle.replace("ё", "е").replace("Ё", "Е")
                 val altSearchUrl = "$baseUrl/search/?do=search&subaction=search&q=" + URLEncoder.encode(altTitle, "UTF-8")
@@ -161,6 +165,20 @@ object RezkaNativeResolver {
                 if (altHtml.isNotEmpty()) {
                     searchHtml = altHtml
                     parseCandidates(altHtml)
+                }
+            }
+
+            // Fallback 2: base title before colon if original title contained subtitle
+            val orig = rawTitle ?: ""
+            if (candidates.isEmpty() && orig.contains(":")) {
+                val baseTitle = cleanTitle(orig.split(":")[0])
+                if (baseTitle.isNotEmpty() && baseTitle != cleanTitle) {
+                    val baseSearchUrl = "$baseUrl/search/?do=search&subaction=search&q=" + URLEncoder.encode(baseTitle, "UTF-8")
+                    val baseHtml = httpGet(baseSearchUrl, "$baseUrl/", baseUrl = baseUrl) ?: ""
+                    if (baseHtml.isNotEmpty()) {
+                        searchHtml = baseHtml
+                        parseCandidates(baseHtml)
+                    }
                 }
             }
 
@@ -196,9 +214,10 @@ object RezkaNativeResolver {
         cleanTitle: String,
         year: String?,
         isSeries: Boolean,
-        mediaUrl: String?
+        mediaUrl: String?,
+        rawTitle: String? = null
     ): RezkaDetails? {
-        val pageInfo = findPageUrlAndDataId(baseUrl, cleanTitle, year, isSeries, mediaUrl) ?: return null
+        val pageInfo = findPageUrlAndDataId(baseUrl, cleanTitle, year, isSeries, mediaUrl, rawTitle = rawTitle) ?: return null
         val dataId = pageInfo.dataId
         val pageUrl = pageInfo.pageUrl
 
@@ -319,7 +338,7 @@ object RezkaNativeResolver {
 
         // Try primary and fallback mirrors
         for (baseUrl in MIRRORS) {
-            val result = tryResolveFromMirror(baseUrl, cleanTitle, year, isSeries, season, episode, translatorId, mediaUrl)
+            val result = tryResolveFromMirror(baseUrl, cleanTitle, year, isSeries, season, episode, translatorId, mediaUrl, rawTitle = title)
             if (result.isNotEmpty()) {
                 return@withContext result
             }
@@ -335,11 +354,12 @@ object RezkaNativeResolver {
         season: Int,
         episode: Int,
         translatorId: String? = null,
-        mediaUrl: String? = null
+        mediaUrl: String? = null,
+        rawTitle: String? = null
     ): List<StreamOption> {
         val streams = mutableListOf<StreamOption>()
         try {
-            val pageInfo = findPageUrlAndDataId(baseUrl, cleanTitle, year, isSeries, mediaUrl) ?: return emptyList()
+            val pageInfo = findPageUrlAndDataId(baseUrl, cleanTitle, year, isSeries, mediaUrl, rawTitle = rawTitle) ?: return emptyList()
             val dataId = pageInfo.dataId
             val pageUrl = pageInfo.pageUrl
 

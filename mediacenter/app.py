@@ -1304,10 +1304,8 @@ def _fetch_media_details(
     is_ser_bool = bool(int(is_series)) if str(is_series).isdigit() else (bool(is_series) if is_series is not None else None)
 
     clean_title = re.sub(r'\(.*?\)|\[.*?\]', '', title).strip() if title else ""
-    if clean_title and ":" in clean_title:
-        clean_title = clean_title.split(":")[0].strip()
-    if clean_title and " - " in clean_title:
-        clean_title = clean_title.split(" - ")[0].strip()
+    clean_title = clean_title.replace(":", " ").replace(" - ", " ")
+    clean_title = re.sub(r'\s+', ' ', clean_title).strip()
     clean_title = re.sub(r'\b\d+\s+(сери[йия]|сезон(а|ов)?)\b', '', clean_title, flags=re.I).strip()
     clean_title = re.sub(r'\b(сезон|серия)\s+\d+\b', '', clean_title, flags=re.I).strip()
 
@@ -1865,10 +1863,8 @@ def _fetch_media_streams(
         resolved_kp = str(media_id)
 
     clean_title = re.sub(r'\(.*?\)|\[.*?\]', '', title).strip() if title else ""
-    if clean_title and ":" in clean_title:
-        clean_title = clean_title.split(":")[0].strip()
-    if clean_title and " - " in clean_title:
-        clean_title = clean_title.split(" - ")[0].strip()
+    clean_title = clean_title.replace(":", " ").replace(" - ", " ")
+    clean_title = re.sub(r'\s+', ' ', clean_title).strip()
     clean_title = re.sub(r'\b\d+\s+(сери[йия]|сезон(а|ов)?)\b', '', clean_title, flags=re.I).strip()
     clean_title = re.sub(r'\b(сезон|серия)\s+\d+\b', '', clean_title, flags=re.I).strip()
 
@@ -1878,6 +1874,10 @@ def _fetch_media_streams(
         no_year = re.sub(r'\b(19\d\d|20\d\d)\b', '', clean_title).strip()
         if no_year and no_year not in titles_to_try:
             titles_to_try.append(no_year)
+    if title and ":" in title:
+        base_t = re.sub(r'\(.*?\)|\[.*?\]', '', title.split(":")[0]).strip()
+        if base_t and base_t not in titles_to_try:
+            titles_to_try.append(base_t)
     if title and title not in titles_to_try:
         titles_to_try.append(title)
 
@@ -2341,9 +2341,8 @@ def get_media_trailer(title: str = Query(...), year: Optional[str] = None, kp_id
     import urllib.request
     import re
 
-    clean_title = title.split(":")[0].strip() if ":" in title else title
-    if " - " in clean_title:
-        clean_title = clean_title.split(" - ")[0].strip()
+    clean_title = title.replace(":", " ").replace(" - ", " ")
+    clean_title = re.sub(r'\s+', ' ', clean_title).strip()
 
     search_query = f"{clean_title} {year or ''} русский трейлер".strip()
     encoded = urllib.parse.quote(search_query)
@@ -2396,11 +2395,10 @@ def get_media_preview_stream(
     # Try to find direct stream (HDRezka, Filmix, Bazon)
     # Prefer lightweight SD 480p/360p/720p or standard 1080p, strictly excluding Ultra/4K/2160p/1440p
     clean_title = re.sub(r'\(.*?\)|\[.*?\]', '', title).strip() if title else ""
-    if clean_title and ":" in clean_title:
-        clean_title = clean_title.split(":")[0].strip()
-    if clean_title and " - " in clean_title:
-        clean_title = clean_title.split(" - ")[0].strip()
+    clean_title = clean_title.replace(":", " ").replace(" - ", " ")
+    clean_title = re.sub(r'\s+', ' ', clean_title).strip()
     clean_title_no_season = re.sub(r'\s+\d+$', '', clean_title).strip()
+    base_title = re.sub(r'\(.*?\)|\[.*?\]', '', title.split(":")[0]).strip() if (title and ":" in title) else ""
 
     candidate_streams = []
 
@@ -2432,9 +2430,13 @@ def get_media_preview_stream(
     except Exception:
         pass
 
-    # Source 2: Search HDRezka by title & year (with season suffix fallback)
+    # Source 2: Search HDRezka by title & year (with subtitle and base title fallback)
     if not candidate_streams and clean_title:
-        for t_query in ([clean_title, clean_title_no_season] if clean_title_no_season != clean_title else [clean_title]):
+        search_queries = []
+        for q in [clean_title, clean_title_no_season, base_title]:
+            if q and q not in search_queries:
+                search_queries.append(q)
+        for t_query in search_queries:
             try:
                 rz_items = hdrezka.search(t_query)
                 rz_match = find_best_match(rz_items, year, is_series, target_title=t_query)

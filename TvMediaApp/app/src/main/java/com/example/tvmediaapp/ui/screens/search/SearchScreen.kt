@@ -125,8 +125,11 @@ fun SearchScreen(
         recentQueries = loadHistory()
     }
 
-    var query by remember { mutableStateOf(initialQuery) }
-    var results by remember { mutableStateOf(initialMovies) }
+    val initialActiveQuery = remember {
+        if (initialQuery.isNotBlank()) initialQuery else (recentQueries.firstOrNull() ?: "")
+    }
+    var query by remember { mutableStateOf(initialActiveQuery) }
+    var results by remember { mutableStateOf<List<Movie>>(emptyList()) }
     var isSearching by remember { mutableStateOf(false) }
     var searchJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     val coroutineScope = rememberCoroutineScope()
@@ -146,7 +149,7 @@ fun SearchScreen(
         searchJob?.cancel()
         if (q.trim().isEmpty()) {
             isSearching = false
-            results = initialMovies
+            results = emptyList()
             return
         }
         isSearching = true
@@ -170,9 +173,9 @@ fun SearchScreen(
         }
     }
 
-    LaunchedEffect(initialQuery) {
-        if (initialQuery.isNotBlank()) {
-            performSearch(initialQuery, byActor = isActorSearch, debounceMs = 0L)
+    LaunchedEffect(initialActiveQuery) {
+        if (initialActiveQuery.isNotBlank()) {
+            performSearch(initialActiveQuery, byActor = isActorSearch, debounceMs = 0L)
         }
     }
 
@@ -439,6 +442,19 @@ fun SearchScreen(
                     text = "По запросу '$query' ничего не найдено",
                     color = TextGray,
                     fontSize = 15.sp
+                )
+            }
+        } else if (results.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(48.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = if (recentQueries.isNotEmpty()) "Выберите запрос из истории выше или введите название фильма" else "Введите название фильма или сериала для поиска",
+                    color = TextGray,
+                    fontSize = 14.sp
                 )
             }
         } else {

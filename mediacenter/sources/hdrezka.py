@@ -187,7 +187,7 @@ class HDRezkaSource(BaseSource):
     def search(self, query: str, year: Optional[int] = None, kp_id: Optional[str] = None) -> List[MediaItem]:
         items = []
         base = self._get_base()
-        url = f"{base}/search/?do=search&subaction=search&q={query}"
+        url = f"{base}/search/?do=search&subaction=search&q={urllib.parse.quote(query)}"
 
         try:
             res = self._get_with_anubis(url, base)

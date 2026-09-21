@@ -1,10 +1,10 @@
 {
   "success": true,
-  "version_name": "2.8.27",
-  "version_code": 86,
+  "version_name": "2.8.28",
+  "version_code": 87,
   "force_update": true,
-  "min_version_code": 86,
+  "min_version_code": 87,
   "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
   "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
-  "changelog": "ShowHub TV v2.8.27: Восстановление видео-предпросмотра на обложках главного экрана и в карточке фильма (инициализация на UI-потоке), 3-секундный таймаут предпросмотра, чекбокс 'Больше не напоминать об этом сериале' в модальном окне новых серий, периодическая фоновая проверка обновлений."
+  "changelog": "ShowHub TV v2.8.28: Полная изоляция фокуса в модальном окне новых серий (фокус не улетает в верхнее меню), показ найденных фильмов в поиске под историей без дублирования главного экрана, восстановление предпросмотра для фильмов с подзаголовками и двоеточиями ('Дюна: Пророчество', 'Дюна: Часть вторая')."
 }

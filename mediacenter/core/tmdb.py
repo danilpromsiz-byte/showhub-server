@@ -154,18 +154,20 @@ class TMDbClient:
                 parts = [p.strip() for p in clean_title.split("/") if p.strip()]
                 queries.extend(parts)
             else:
-                if ":" in clean_title:
-                    clean_title = clean_title.split(":")[0].strip()
-                if " - " in clean_title:
-                    clean_title = clean_title.split(" - ")[0].strip()
-                if clean_title:
-                    queries.append(clean_title)
-                    # Expand Russian numerals e.g. "Сто девушек" -> "100 девушек"
-                    num_cand = clean_title
-                    for w, num in NUM_WORD_MAP.items():
-                        num_cand = re.sub(rf'\b{w}\b', num, num_cand, flags=re.IGNORECASE)
-                    if num_cand != clean_title and num_cand not in queries:
-                        queries.append(num_cand)
+                full_cand = clean_title.replace(":", " ").replace(" - ", " ")
+                full_cand = re.sub(r'\s+', ' ', full_cand).strip()
+                if full_cand:
+                    queries.append(full_cand)
+                base_cand = clean_title.split(":")[0].split(" - ")[0].strip()
+                if base_cand and base_cand not in queries:
+                    queries.append(base_cand)
+                clean_title = full_cand
+                # Expand Russian numerals e.g. "Сто девушек" -> "100 девушек"
+                num_cand = clean_title
+                for w, num in NUM_WORD_MAP.items():
+                    num_cand = re.sub(rf'\b{w}\b', num, num_cand, flags=re.IGNORECASE)
+                if num_cand != clean_title and num_cand not in queries:
+                    queries.append(num_cand)
 
             # Extract any original Latin title contained in parens or brackets
             m_parens = re.findall(r'\(([^)]+)\)|\[([^\]]+)\]', title)

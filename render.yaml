@@ -9,3 +9,5 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: 3.10.12
+      - key: UPSTASH_REDIS_REST_URL
+        value: https://pleased-goose-289810.upstash.io

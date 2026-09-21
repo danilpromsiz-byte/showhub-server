@@ -1,10 +1,10 @@
 {
   "success": true,
-  "version_name": "2.8.21",
-  "version_code": 80,
+  "version_name": "2.8.22",
+  "version_code": 81,
   "force_update": true,
-  "min_version_code": 80,
+  "min_version_code": 81,
   "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
   "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
-  "changelog": "ShowHub TV v2.8.21: Исправлена контрастность прогрессбара на выбранных сериях (яркий янтарный/зеленый цвет вместо затемнения), кросс-балансерный поиск прогресса по всем озвучкам и источникам, расчет прогресса при неизвестной длительности потока."
+  "changelog": "ShowHub TV v2.8.22: Исправлено ложное определение просмотренности серии: частичный прогресс (1-84%) всегда отображает янтарный индикатор текущей позиции, убрана ошибочная пометка просмотренности при клике на серию."
 }

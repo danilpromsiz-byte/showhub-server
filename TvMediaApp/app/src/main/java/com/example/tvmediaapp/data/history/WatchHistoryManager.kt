@@ -135,8 +135,7 @@ class WatchHistoryManager(context: Context) {
         notifyHistoryChanged()
     }
 
-    fun getEpisodeProgress(seriesId: String, season: Int, episode: Int, title: String? = null): Int {
-        if (isEpisodeWatched(seriesId, season, episode, title)) return 100
+    fun getEpisodeProgressRaw(seriesId: String, season: Int, episode: Int, title: String? = null): Int {
         if (seriesId.isNotBlank()) {
             val key = "ep_pct_${seriesId}_s${season}e${episode}"
             val p = prefs.getInt(key, 0)
@@ -171,12 +170,19 @@ class WatchHistoryManager(context: Context) {
                 val calcPct = if (histMatch.durationMs > 0L) {
                     ((histMatch.positionMs * 100) / histMatch.durationMs).toInt()
                 } else {
-                    ((histMatch.positionMs * 100) / (45 * 60 * 1000L)).toInt()
+                    ((histMatch.positionMs * 100) / (60 * 60 * 1000L)).toInt()
                 }
                 return calcPct.coerceIn(1, 100)
             }
         }
 
+        return 0
+    }
+
+    fun getEpisodeProgress(seriesId: String, season: Int, episode: Int, title: String? = null): Int {
+        val raw = getEpisodeProgressRaw(seriesId, season, episode, title)
+        if (raw in 1..84) return raw
+        if (raw >= 85 || isEpisodeWatched(seriesId, season, episode, title)) return 100
         return 0
     }
 
@@ -208,13 +214,15 @@ class WatchHistoryManager(context: Context) {
     }
 
     fun isEpisodeWatched(seriesId: String, season: Int, episode: Int, title: String? = null): Boolean {
+        // If there is recorded partial progress (1..84%), the episode is in progress, NOT fully watched!
+        val raw = getEpisodeProgressRaw(seriesId, season, episode, title)
+        if (raw in 1..84) return false
+        if (raw >= 85) return true
+
         if (seriesId.isNotBlank()) {
             val key = "watched_episodes_$seriesId"
             val watched = prefs.getStringSet(key, emptySet()) ?: emptySet()
             if (watched.contains("s${season}e${episode}")) return true
-
-            val pctKey = "ep_pct_${seriesId}_s${season}e${episode}"
-            if (prefs.getInt(pctKey, 0) >= 85) return true
         }
         val cleanT = normalizeTitle(title)
         if (cleanT.isNotBlank()) {
@@ -222,22 +230,15 @@ class WatchHistoryManager(context: Context) {
             val tWatched = prefs.getStringSet(tKey, emptySet()) ?: emptySet()
             if (tWatched.contains("s${season}e${episode}")) return true
 
-            val tPctKey = "ep_pct_t_${cleanT}_s${season}e${episode}"
-            if (prefs.getInt(tPctKey, 0) >= 85) return true
-
             val allHistory = getHistory()
             for (histItem in allHistory) {
                 if (normalizeTitle(histItem.title) == cleanT && histItem.id != seriesId) {
                     val key = "watched_episodes_${histItem.id}"
                     val watched = prefs.getStringSet(key, emptySet()) ?: emptySet()
                     if (watched.contains("s${season}e${episode}")) return true
-
-                    val hPctKey = "ep_pct_${histItem.id}_s${season}e${episode}"
-                    if (prefs.getInt(hPctKey, 0) >= 85) return true
                 }
             }
 
-            // Direct fallback to history item if marked watched (>= 85%)
             val histMatch = allHistory.firstOrNull { item ->
                 val idMatch = (seriesId.isNotBlank() && item.id == seriesId)
                 val titleMatch = (normalizeTitle(item.title) == cleanT)
@@ -246,7 +247,6 @@ class WatchHistoryManager(context: Context) {
             if (histMatch != null) {
                 if (histMatch.percentage >= 85) return true
                 if (histMatch.durationMs > 0L && ((histMatch.positionMs * 100) / histMatch.durationMs) >= 85) return true
-                if (histMatch.positionMs >= (45 * 60 * 1000L * 0.85)) return true
             }
         }
 

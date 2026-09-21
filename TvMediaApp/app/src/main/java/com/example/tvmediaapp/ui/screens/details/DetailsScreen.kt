@@ -1808,18 +1808,18 @@ fun DetailsScreen(
                                             val calcPct = if (savedHistory.durationMs > 0L) {
                                                 ((savedHistory.positionMs * 100) / savedHistory.durationMs).toInt()
                                             } else {
-                                                ((savedHistory.positionMs * 100) / (45 * 60 * 1000L)).toInt()
+                                                ((savedHistory.positionMs * 100) / (60 * 60 * 1000L)).toInt()
                                             }
                                             calcPct.coerceIn(1, 100)
                                         } else 0
                                     } else 0
                                     val epProgress = maxOf(
-                                        historyManager.getEpisodeProgress(currentMovie.id, selectedSeason, ep.episodeNumber, currentMovie.title),
+                                        historyManager.getEpisodeProgressRaw(currentMovie.id, selectedSeason, ep.episodeNumber, currentMovie.title),
                                         histProgress
                                     )
-                                    val isEpWatched = historyManager.isEpisodeWatched(currentMovie.id, selectedSeason, ep.episodeNumber, currentMovie.title) || epProgress >= 85
+                                    val isEpWatched = if (epProgress in 1..84) false else (epProgress >= 85 || historyManager.isEpisodeWatched(currentMovie.id, selectedSeason, ep.episodeNumber, currentMovie.title))
                                     val progressPct = if (isEpWatched) 1.0f
-                                                      else if (epProgress > 0) (epProgress / 100f).coerceIn(0.08f, 1.0f)
+                                                      else if (epProgress > 0) (epProgress / 100f).coerceIn(0.08f, 0.95f)
                                                       else 0f
 
                                     var isButtonFocused by remember { mutableStateOf(false) }
@@ -1834,7 +1834,6 @@ fun DetailsScreen(
                                     Button(
                                         onClick = {
                                             selectedEpisode = ep.episodeNumber
-                                            historyManager.markEpisodeWatched(currentMovie.id, selectedSeason, ep.episodeNumber, currentMovie.title)
                                             if (newEpisodesCount > 0) {
                                                 historyManager.clearNewEpisodes(currentMovie.id)
                                                 newEpisodesCount = 0

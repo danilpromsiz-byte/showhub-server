@@ -5,8 +5,10 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.tv.material3.Border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -417,9 +419,6 @@ fun TvAppNavHost(activity: MainActivity) {
         }
     }
 
-    BackHandler(enabled = isEpisodeAlertVisible && !isUpdateDialogVisible) {
-        homeViewModel.dismissNewEpisodeAlert()
-    }
 
     BackHandler(enabled = showExitDialog && !isUpdateDialogVisible && !isEpisodeAlertVisible) {
         showExitDialog = false
@@ -969,7 +968,6 @@ fun TvAppNavHost(activity: MainActivity) {
             val laterFocusRequester = remember { FocusRequester() }
             val checkboxFocusRequester = remember { FocusRequester() }
             var dontRemindAgain by remember { mutableStateOf(false) }
-            var isCheckboxFocused by remember { mutableStateOf(false) }
 
             BackHandler {
                 if (dontRemindAgain) {
@@ -979,9 +977,12 @@ fun TvAppNavHost(activity: MainActivity) {
             }
 
             LaunchedEffect(alert) {
-                repeat(5) {
-                    delay(80)
-                    try { playFocusRequester.requestFocus() } catch (_: Exception) {}
+                for (i in 0 until 5) {
+                    delay(60)
+                    try {
+                        playFocusRequester.requestFocus()
+                        break
+                    } catch (_: Exception) {}
                 }
             }
 
@@ -1001,7 +1002,21 @@ fun TvAppNavHost(activity: MainActivity) {
                         .clip(RoundedCornerShape(16.dp))
                         .background(Color(0xFF1E293B))
                         .border(1.dp, accent.copy(alpha = 0.4f), RoundedCornerShape(16.dp))
-                        .padding(28.dp),
+                        .padding(28.dp)
+                        .focusGroup()
+                        .onKeyEvent { keyEvent ->
+                            if (keyEvent.nativeKeyEvent.action == KeyEvent.ACTION_DOWN &&
+                                keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_BACK
+                            ) {
+                                if (dontRemindAgain) {
+                                    historyManager.setSeriesReminderMuted(alert.movie.id, alert.movie.title, true)
+                                }
+                                homeViewModel.dismissNewEpisodeAlert()
+                                true
+                            } else {
+                                false
+                            }
+                        },
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Box(
@@ -1044,91 +1059,69 @@ fun TvAppNavHost(activity: MainActivity) {
 
                     Spacer(modifier = Modifier.height(18.dp))
 
-                    // Checkbox: "Больше не напоминать об этом сериале"
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center,
+                    // Checkbox button: "Больше не напоминать об этом сериале"
+                    Button(
+                        onClick = {
+                            dontRemindAgain = !dontRemindAgain
+                        },
+                        shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                        scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.02f),
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
+                        colors = ButtonDefaults.colors(
+                            containerColor = if (dontRemindAgain) accent.copy(alpha = 0.15f) else Color.White.copy(alpha = 0.05f),
+                            focusedContainerColor = accent.copy(alpha = 0.22f),
+                            contentColor = Color.LightGray,
+                            focusedContentColor = Color.White
+                        ),
+                        border = ButtonDefaults.border(
+                            border = Border(BorderStroke(1.dp, if (dontRemindAgain) accent.copy(alpha = 0.5f) else Color.White.copy(alpha = 0.15f))),
+                            focusedBorder = Border(BorderStroke(2.dp, accent))
+                        ),
                         modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .border(
-                                width = if (isCheckboxFocused) 2.dp else 1.dp,
-                                color = if (isCheckboxFocused) accent else Color.White.copy(alpha = 0.15f),
-                                shape = RoundedCornerShape(8.dp)
-                            )
-                            .background(
-                                if (isCheckboxFocused) accent.copy(alpha = 0.15f) else Color.White.copy(alpha = 0.05f)
-                            )
-                            .onFocusChanged { isCheckboxFocused = it.isFocused }
                             .focusRequester(checkboxFocusRequester)
                             .focusProperties {
-                                up = checkboxFocusRequester
                                 down = playFocusRequester
-                                left = checkboxFocusRequester
-                                right = checkboxFocusRequester
                             }
-                            .focusable()
-                            .clickable {
-                                dontRemindAgain = !dontRemindAgain
-                            }
-                            .onKeyEvent { keyEvent ->
-                                if (keyEvent.nativeKeyEvent.action == KeyEvent.ACTION_DOWN) {
-                                    when (keyEvent.nativeKeyEvent.keyCode) {
-                                        KeyEvent.KEYCODE_BACK -> {
-                                            if (dontRemindAgain) {
-                                                historyManager.setSeriesReminderMuted(alert.movie.id, alert.movie.title, true)
-                                            }
-                                            homeViewModel.dismissNewEpisodeAlert()
-                                            return@onKeyEvent true
-                                        }
-                                        KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
-                                            dontRemindAgain = !dontRemindAgain
-                                            return@onKeyEvent true
-                                        }
-                                        KeyEvent.KEYCODE_DPAD_DOWN -> {
-                                            try { playFocusRequester.requestFocus(); return@onKeyEvent true } catch (_: Exception) {}
-                                        }
-                                    }
-                                }
-                                false
-                            }
-                            .padding(horizontal = 14.dp, vertical = 8.dp)
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(20.dp)
-                                .clip(RoundedCornerShape(4.dp))
-                                .border(
-                                    1.5.dp,
-                                    if (dontRemindAgain) accent else Color.White.copy(alpha = 0.6f),
-                                    RoundedCornerShape(4.dp)
-                                )
-                                .background(if (dontRemindAgain) accent else Color.Transparent),
-                            contentAlignment = Alignment.Center
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
                         ) {
-                            if (dontRemindAgain) {
-                                Text(
-                                    text = "✓",
-                                    color = Color.Black,
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
+                            Box(
+                                modifier = Modifier
+                                    .size(20.dp)
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .border(
+                                        1.5.dp,
+                                        if (dontRemindAgain) accent else Color.White.copy(alpha = 0.6f),
+                                        RoundedCornerShape(4.dp)
+                                    )
+                                    .background(if (dontRemindAgain) accent else Color.Transparent),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (dontRemindAgain) {
+                                    Text(
+                                        text = "✓",
+                                        color = Color.Black,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
                             }
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                text = "Больше не напоминать об этом сериале",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium
+                            )
                         }
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Text(
-                            text = "Больше не напоминать об этом сериале",
-                            color = if (isCheckboxFocused) Color.White else Color.LightGray,
-                            fontSize = 13.sp,
-                            fontWeight = if (isCheckboxFocused) FontWeight.Bold else FontWeight.Medium
-                        )
                     }
 
                     Spacer(modifier = Modifier.height(20.dp))
 
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.focusGroup()
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         Button(
                             onClick = {
@@ -1152,30 +1145,8 @@ fun TvAppNavHost(activity: MainActivity) {
                                 .height(38.dp)
                                 .focusRequester(playFocusRequester)
                                 .focusProperties {
-                                    right = laterFocusRequester
-                                    left = laterFocusRequester
                                     up = checkboxFocusRequester
-                                    down = playFocusRequester
-                                }
-                                .onKeyEvent { keyEvent ->
-                                    if (keyEvent.nativeKeyEvent.action == KeyEvent.ACTION_DOWN) {
-                                        when (keyEvent.nativeKeyEvent.keyCode) {
-                                            KeyEvent.KEYCODE_BACK -> {
-                                                if (dontRemindAgain) {
-                                                    historyManager.setSeriesReminderMuted(alert.movie.id, alert.movie.title, true)
-                                                }
-                                                homeViewModel.dismissNewEpisodeAlert()
-                                                return@onKeyEvent true
-                                            }
-                                            KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_DPAD_LEFT -> {
-                                                try { laterFocusRequester.requestFocus(); return@onKeyEvent true } catch (_: Exception) {}
-                                            }
-                                            KeyEvent.KEYCODE_DPAD_UP -> {
-                                                try { checkboxFocusRequester.requestFocus(); return@onKeyEvent true } catch (_: Exception) {}
-                                            }
-                                        }
-                                    }
-                                    false
+                                    right = laterFocusRequester
                                 }
                         ) {
                             Text(
@@ -1205,30 +1176,8 @@ fun TvAppNavHost(activity: MainActivity) {
                                 .height(38.dp)
                                 .focusRequester(laterFocusRequester)
                                 .focusProperties {
-                                    left = playFocusRequester
-                                    right = playFocusRequester
                                     up = checkboxFocusRequester
-                                    down = laterFocusRequester
-                                }
-                                .onKeyEvent { keyEvent ->
-                                    if (keyEvent.nativeKeyEvent.action == KeyEvent.ACTION_DOWN) {
-                                        when (keyEvent.nativeKeyEvent.keyCode) {
-                                            KeyEvent.KEYCODE_BACK -> {
-                                                if (dontRemindAgain) {
-                                                    historyManager.setSeriesReminderMuted(alert.movie.id, alert.movie.title, true)
-                                                }
-                                                homeViewModel.dismissNewEpisodeAlert()
-                                                return@onKeyEvent true
-                                            }
-                                            KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT -> {
-                                                try { playFocusRequester.requestFocus(); return@onKeyEvent true } catch (_: Exception) {}
-                                            }
-                                            KeyEvent.KEYCODE_DPAD_UP -> {
-                                                try { checkboxFocusRequester.requestFocus(); return@onKeyEvent true } catch (_: Exception) {}
-                                            }
-                                        }
-                                    }
-                                    false
+                                    left = playFocusRequester
                                 }
                         ) {
                             Text(

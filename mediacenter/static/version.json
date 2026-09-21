@@ -1,10 +1,10 @@
 {
   "success": true,
-  "version_name": "2.8.29",
-  "version_code": 88,
+  "version_name": "2.8.30",
+  "version_code": 89,
   "force_update": true,
-  "min_version_code": 88,
+  "min_version_code": 89,
   "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
   "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
-  "changelog": "ShowHub TV v2.8.29: Исправлена блокировка управления в модальном окне новых серий, восстановлена работа кнопки 'Назад' на пульте ТВ, удалена иконка молнии, обеспечена плавная навигация между кнопками и чекбоксом."
+  "changelog": "ShowHub TV v2.8.30: Исправлена работа чекбокса 'Больше не напоминать' в окне новых серий, улучшена 2D-навигация пультом и обеспечена полная стабильность перемещения фокуса по кнопкам."
 }

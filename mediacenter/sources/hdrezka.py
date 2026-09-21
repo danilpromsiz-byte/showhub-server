@@ -8,6 +8,7 @@ import time
 import json
 import hashlib
 import re
+import html
 import urllib.parse
 import requests
 from bs4 import BeautifulSoup
@@ -114,9 +115,9 @@ class HDRezkaSource(BaseSource):
             return None
 
         item_id = link.get("href", "")
-        title = link.text.strip()
+        title = html.unescape(link.text.strip())
         poster = cover.get("src") if cover else None
-        desc = misc.text.strip() if misc else None
+        desc = html.unescape(misc.text.strip()) if misc else None
 
         item_year = default_year
         if not item_year and desc:
@@ -298,7 +299,7 @@ class HDRezkaSource(BaseSource):
 
             # 3. Description & Metadata
             desc = soup.select_one(".b-post__description_text")
-            description = desc.text.strip() if desc else None
+            description = html.unescape(desc.text.strip()) if desc else None
 
             rating_kp = None
             vote_kp = None
@@ -332,13 +333,13 @@ class HDRezkaSource(BaseSource):
                 tds = tr.select("td")
                 if len(tds) == 2:
                     label = tds[0].text.strip().lower()
-                    val = tds[1].text.strip()
+                    val = html.unescape(tds[1].text.strip())
                     if "режиссер" in label:
                         director = val
                     elif "в ролях" in label:
                         actors = val
                     elif "жанр" in label:
-                        genres = [g.strip() for g in val.split(",") if g.strip()]
+                        genres = [html.unescape(g.strip()) for g in val.split(",") if g.strip()]
                     elif "страна" in label:
                         country = val
 

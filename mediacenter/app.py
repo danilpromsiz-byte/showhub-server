@@ -9,6 +9,7 @@ import datetime
 import time
 import json
 import re
+import html
 import threading
 import logging
 import urllib.parse
@@ -16,6 +17,18 @@ import urllib.request
 import requests
 from typing import List, Dict, Any, Optional, Tuple
 from concurrent.futures import ThreadPoolExecutor
+
+def clean_html_text(val: Optional[str]) -> Optional[str]:
+    """Decodes HTML entities (e.g., &#233; -> é, &amp; -> &, &quot; -> \") with double unescape support."""
+    if not val or not isinstance(val, str):
+        return val
+    try:
+        res = html.unescape(val)
+        if "&" in res:
+            res = html.unescape(res)
+        return res.strip()
+    except Exception:
+        return val
 
 logger = logging.getLogger("mediacenter")
 
@@ -222,6 +235,11 @@ def get_popular() -> List[Dict[str, Any]]:
                 items.append(c)
     except Exception:
         pass
+
+    for it in items:
+        for f in ("title", "original_title", "description"):
+            if it.get(f):
+                it[f] = clean_html_text(it[f])
 
     return items[:40]
 
@@ -576,6 +594,10 @@ def search_media(q: str = Query(..., min_length=1), type: Optional[str] = Query(
         return overlap * 100 - len(t)
 
     res_list.sort(key=search_relevance, reverse=True)
+    for it in res_list:
+        for f in ("title", "original_title", "description"):
+            if it.get(f):
+                it[f] = clean_html_text(it[f])
     return res_list
 
 _poster_cache: Dict[str, str] = {}
@@ -1263,6 +1285,10 @@ def get_catalog(
             raw_limit=it.get("age_limit")
         )
 
+        for f in ("title", "original_title", "description", "director", "actors"):
+            if it.get(f):
+                it[f] = clean_html_text(it[f])
+
     _catalog_cache[cache_key] = (now_ts, all_items)
     return all_items
 
@@ -1845,6 +1871,11 @@ def _fetch_media_details(
             if not c_str or any(bad in c_str for bad in ["неизвестно", "украина", "null", "none"]):
                 if not any(a in str(details.get("country") or "").lower() for a in ["китай", "коре", "япони"]):
                     details["country"] = "Китай"
+
+    if details:
+        for field in ("title", "original_title", "description", "director", "actors"):
+            if details.get(field):
+                details[field] = clean_html_text(details[field])
 
     if details.get("seasons") or details.get("translators") or details.get("description"):
         _details_cache[cache_key] = (now_ts, details)
@@ -2678,20 +2709,12 @@ def _load_users_stats() -> Dict[str, Any]:
             with open(USERS_STATS_FILE, "r", encoding="utf-8") as f:
                 data = json.load(f)
                 if data and isinstance(data, dict):
-                    return data
+                    # Filter out any old fabricated test devices if they were persisted
+                    cleaned = {k: v for k, v in data.items() if not k.startswith("device_") or len(k) > 25}
+                    return cleaned
         except Exception:
             pass
-    now_ts = int(time.time())
-    baseline = {
-        "device_livingroom_4k": {"first_seen": now_ts - 86400 * 20, "last_seen": now_ts - 120, "version": "2.8.32", "created_at": "2026-09-01 10:15:00", "updated_at": "2026-09-21 18:20:00"},
-        "device_bedroom_tv": {"first_seen": now_ts - 86400 * 18, "last_seen": now_ts - 450, "version": "2.8.31", "created_at": "2026-09-03 12:30:00", "updated_at": "2026-09-21 18:15:00"},
-        "device_kitchen_screen": {"first_seen": now_ts - 86400 * 14, "last_seen": now_ts - 1800, "version": "2.8.31", "created_at": "2026-09-07 15:45:00", "updated_at": "2026-09-21 17:50:00"},
-        "device_mibox_tv": {"first_seen": now_ts - 86400 * 10, "last_seen": now_ts - 3600, "version": "2.8.30", "created_at": "2026-09-11 20:00:00", "updated_at": "2026-09-21 17:20:00"},
-        "device_guest_room": {"first_seen": now_ts - 86400 * 7, "last_seen": now_ts - 10800, "version": "2.8.31", "created_at": "2026-09-14 18:10:00", "updated_at": "2026-09-21 15:20:00"},
-        "device_cottage_tv": {"first_seen": now_ts - 86400 * 4, "last_seen": now_ts - 25000, "version": "2.8.31", "created_at": "2026-09-17 14:00:00", "updated_at": "2026-09-21 11:25:00"}
-    }
-    _save_users_stats(baseline)
-    return baseline
+    return {}
 
 def _save_users_stats(data: Dict[str, Any]):
     os.makedirs(os.path.dirname(USERS_STATS_FILE), exist_ok=True)
@@ -2702,6 +2725,8 @@ def _save_users_stats(data: Dict[str, Any]):
         print(f"[Analytics] Error saving user stats: {e}")
 
 def _record_device_activity(device_id: str, version: str):
+    if not device_id or device_id in ("unknown", "null"):
+        return
     now_ts = int(time.time())
     with users_stats_lock:
         stats = _load_users_stats()
@@ -2712,15 +2737,15 @@ def _record_device_activity(device_id: str, version: str):
                 "created_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             }
         device_entry["last_seen"] = now_ts
-        device_entry["version"] = version or "2.8.32"
+        device_entry["version"] = version or "2.8.33"
         device_entry["updated_at"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         stats[device_id] = device_entry
         _save_users_stats(stats)
 
 @app.get("/api/analytics/ping")
-def analytics_ping(device_id: str = Query(..., description="Unique device ID"), version: Optional[str] = "2.8.32") -> Dict[str, Any]:
+def analytics_ping(device_id: str = Query(..., description="Unique device ID"), version: Optional[str] = "2.8.33") -> Dict[str, Any]:
     """Records device heartbeat and returns aggregate user counts."""
-    _record_device_activity(device_id, version or "2.8.32")
+    _record_device_activity(device_id, version or "2.8.33")
     now_ts = int(time.time())
     with users_stats_lock:
         stats = _load_users_stats()
@@ -2730,9 +2755,9 @@ def analytics_ping(device_id: str = Query(..., description="Unique device ID"), 
 
     return {
         "status": "ok",
-        "total_users": max(total_users, 6),
-        "active_today": max(active_today, 4),
-        "active_month": max(active_month, 6)
+        "total_users": total_users,
+        "active_today": active_today,
+        "active_month": active_month
     }
 
 @app.get("/api/analytics/users")
@@ -2746,9 +2771,9 @@ def get_user_stats() -> Dict[str, Any]:
         active_month = sum(1 for d in stats.values() if now_ts - d.get("last_seen", 0) <= 30 * 86400)
     return {
         "status": "ok",
-        "total_users": max(total_users, 6),
-        "active_today": max(active_today, 4),
-        "active_month": max(active_month, 6)
+        "total_users": total_users,
+        "active_today": active_today,
+        "active_month": active_month
     }
 
 @app.get("/api/debug/stream-diag")

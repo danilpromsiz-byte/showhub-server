@@ -33,6 +33,7 @@ import androidx.tv.material3.OutlinedButton
 import androidx.tv.material3.Text
 import coil.compose.AsyncImage
 import com.example.tvmediaapp.data.models.Movie
+import com.example.tvmediaapp.util.unescapeHtml
 import com.example.tvmediaapp.ui.theme.BackgroundDark
 import com.example.tvmediaapp.ui.theme.CyanDark
 import com.example.tvmediaapp.ui.theme.CyanNeon
@@ -115,8 +116,9 @@ fun FeaturedMovieBanner(
                 .padding(start = 48.dp, top = 20.dp, bottom = 20.dp),
             verticalArrangement = Arrangement.Center
         ) {
+            val cleanTitle = movie.title.unescapeHtml()
             Text(
-                text = movie.title,
+                text = cleanTitle,
                 fontSize = 32.sp,
                 fontWeight = FontWeight.ExtraBold,
                 color = TextWhite,
@@ -124,8 +126,8 @@ fun FeaturedMovieBanner(
                 overflow = TextOverflow.Ellipsis
             )
 
-            val origTitle = movie.originalTitle.trim()
-            if (origTitle.isNotBlank() && !origTitle.equals("null", ignoreCase = true) && origTitle != movie.title.trim()) {
+            val origTitle = movie.originalTitle.unescapeHtml()
+            if (origTitle.isNotBlank() && !origTitle.equals("null", ignoreCase = true) && origTitle != cleanTitle) {
                 Text(
                     text = origTitle,
                     fontSize = 15.sp,
@@ -207,7 +209,7 @@ fun FeaturedMovieBanner(
 
             // Description
             Text(
-                text = movie.description,
+                text = movie.description.unescapeHtml(),
                 fontSize = 14.sp,
                 lineHeight = 20.sp,
                 color = TextGray,

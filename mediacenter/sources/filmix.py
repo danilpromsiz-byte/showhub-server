@@ -9,6 +9,7 @@ import re
 import time
 import json
 import base64
+import html
 import requests
 from bs4 import BeautifulSoup
 from typing import List, Dict, Optional, Any
@@ -222,9 +223,10 @@ class FilmixSource(BaseSource):
 
                 if not title:
                     continue
+                title = html.unescape(title).strip()
 
                 m_orig = re.search(r'itemprop=[\x22\x27]alternativeHeadline[\x22\x27][^>]*content=[\x22\x27]([^\x22\x27]+)[\x22\x27]', art)
-                orig_title = m_orig.group(1).strip() if m_orig else None
+                orig_title = html.unescape(m_orig.group(1).strip()) if m_orig else None
 
                 m_poster = re.search(r'<img[^>]*src=[\x22\x27](https?://[^\x22\x27]+)[\x22\x27]', art)
                 poster = m_poster.group(1) if m_poster else None
@@ -307,7 +309,7 @@ class FilmixSource(BaseSource):
                     continue
 
                 name_el = art.select_one(".name a") or art.select_one(".name")
-                title = name_el.text.strip() if name_el else ""
+                title = html.unescape(name_el.text.strip()) if name_el else ""
                 if not title:
                     continue
 
@@ -575,11 +577,11 @@ class FilmixSource(BaseSource):
                     rating_el = c.select_one(".comment-rating")
                     
                     if text:
-                        clean_text = text.text.strip().replace("\r", " ").replace("\n", " ")
+                        clean_text = html.unescape(text.text.strip().replace("\r", " ").replace("\n", " "))
                         clean_text = re.sub(r'\s+', ' ', clean_text)
                         if clean_text:
                             comments.append(CommentItem(
-                                author=author.text.strip() if author else "Зритель",
+                                author=html.unescape(author.text.strip()) if author else "Зритель",
                                 date=date.text.strip() if date else "",
                                 text=clean_text,
                                 rating=rating_el.text.strip() if rating_el else None

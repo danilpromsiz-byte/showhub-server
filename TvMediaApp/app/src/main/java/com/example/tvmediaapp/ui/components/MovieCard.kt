@@ -38,6 +38,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.onFocusChanged
+import com.example.tvmediaapp.util.unescapeHtml
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -344,7 +345,7 @@ fun MovieCard(
                             modifier = Modifier.padding(12.dp)
                         ) {
                             Text(
-                                text = movie.title,
+                                text = movie.title.unescapeHtml(),
                                 color = TextWhite,
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold,
@@ -398,7 +399,7 @@ fun MovieCard(
                                     )
                                     Spacer(modifier = Modifier.height(6.dp))
                                     Text(
-                                        text = movie.title,
+                                        text = movie.title.unescapeHtml(),
                                         color = Color.White.copy(alpha = 0.85f),
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.SemiBold,
@@ -651,7 +652,7 @@ fun MovieCard(
             ) {
                 val marqueeMod = if (isFocused) Modifier.basicMarquee(iterations = Int.MAX_VALUE) else Modifier
                 Text(
-                    text = movie.title,
+                    text = movie.title.unescapeHtml(),
                     style = MaterialTheme.typography.titleMedium.copy(
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold,

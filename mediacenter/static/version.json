@@ -1,10 +1,10 @@
 {
   "success": true,
-  "version_name": "2.8.32",
-  "version_code": 91,
+  "version_name": "2.8.33",
+  "version_code": 92,
   "force_update": true,
-  "min_version_code": 91,
+  "min_version_code": 92,
   "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
   "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
-  "changelog": "ShowHub TV v2.8.32: Полное исправление воспроизведения фильма 'Очень вкусно' (2021) и других релизов с альтернативными прокатными названиями (строгая валидация заголовков кандидатов на клиенте и сервере, поиск по оригинальным названиям и алиасам), автоматический фоновый учет активных пользователей и синхронизация статистики в настройках."
+  "changelog": "ShowHub TV v2.8.33: Полное декодирование HTML-спецсимволов (&#233; -> é, &amp;, кавычки и спецзнаки) на бэкенде и в приложении. Удалены все синтетические/фейковые счетчики: честный и точный учет реальных уникальных устройств с постоянным Device-ID (ANDROID_ID) на всех сетевых запросах."
 }

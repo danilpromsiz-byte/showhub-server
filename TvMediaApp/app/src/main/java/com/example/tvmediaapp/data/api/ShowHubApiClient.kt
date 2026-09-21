@@ -8,6 +8,7 @@ import com.example.tvmediaapp.data.models.Movie
 import com.example.tvmediaapp.data.models.PersonInfo
 import com.example.tvmediaapp.data.models.SeasonInfo
 import com.example.tvmediaapp.data.models.StreamOption
+import com.example.tvmediaapp.util.unescapeHtml
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -22,16 +23,46 @@ import java.net.URL
 import java.net.URLEncoder
 
 object ShowHubApiClient {
-    private const val SERVER_BASE = "https://showhub-server.onrender.com"
+    const val DEFAULT_SERVER_BASE = "https://showhub-server.onrender.com"
+    private var activeServerBase: String = DEFAULT_SERVER_BASE
+    @Volatile
+    private var cachedDeviceId: String? = null
+    @Volatile
+    private var cachedAppVersion: String = com.example.tvmediaapp.BuildConfig.VERSION_NAME
+
+    fun init(context: android.content.Context, appVersion: String) {
+        cachedAppVersion = appVersion
+        cachedDeviceId = getOrCreateDeviceId(context)
+        try {
+            val prefs = context.getSharedPreferences("showhub_prefs", android.content.Context.MODE_PRIVATE)
+            val customUrl = prefs.getString("pref_server_url", null)
+            if (!customUrl.isNullOrBlank()) {
+                activeServerBase = customUrl.trimEnd('/')
+            }
+        } catch (_: Exception) {}
+    }
+
+    fun setServerBase(url: String) {
+        if (url.isNotBlank()) {
+            activeServerBase = url.trimEnd('/')
+        }
+    }
+
+    fun getServerBase(): String = activeServerBase
+
+    private fun prepareConnection(conn: HttpURLConnection) {
+        conn.setRequestProperty("User-Agent", "ShowHubTV-Native/$cachedAppVersion")
+        cachedDeviceId?.let { conn.setRequestProperty("X-Device-Id", it) }
+    }
 
     suspend fun fetchPopular(): List<Movie> = withContext(Dispatchers.IO) {
         val movies = mutableListOf<Movie>()
         try {
-            val url = URL("$SERVER_BASE/api/popular")
+            val url = URL("$activeServerBase/api/popular")
             val conn = url.openConnection() as HttpURLConnection
             conn.connectTimeout = 12000
             conn.readTimeout = 12000
-            conn.setRequestProperty("User-Agent", "ShowHubTV-Native/2.3.0")
+            prepareConnection(conn)
             conn.connect()
             if (conn.responseCode == 200) {
                 val body = BufferedReader(InputStreamReader(conn.inputStream, "UTF-8")).use { it.readText() }
@@ -56,7 +87,7 @@ object ShowHubApiClient {
     ): List<Movie> = withContext(Dispatchers.IO) {
         val movies = mutableListOf<Movie>()
         try {
-            val sb = StringBuilder("$SERVER_BASE/api/catalog?category=$category&page=$page")
+            val sb = StringBuilder("$activeServerBase/api/catalog?category=$category&page=$page")
             if (!genre.isNullOrEmpty() && genre != "all" && genre != "\u0412\u0441\u0435 \u0436\u0430\u043d\u0440\u044b") {
                 sb.append("&genre=").append(URLEncoder.encode(genre, "UTF-8"))
             }
@@ -79,7 +110,7 @@ object ShowHubApiClient {
             val conn = url.openConnection() as HttpURLConnection
             conn.connectTimeout = 15000
             conn.readTimeout = 25000
-            conn.setRequestProperty("User-Agent", "ShowHubTV-Native/2.3.0")
+            prepareConnection(conn)
             conn.connect()
             if (conn.responseCode == 200) {
                 val body = BufferedReader(InputStreamReader(conn.inputStream, "UTF-8")).use { it.readText() }
@@ -98,11 +129,11 @@ object ShowHubApiClient {
         try {
             val q = URLEncoder.encode(query.trim(), "UTF-8")
             val typeParam = if (!type.isNullOrBlank()) "&type=" + URLEncoder.encode(type, "UTF-8") else ""
-            val url = URL("$SERVER_BASE/api/search?q=$q$typeParam")
+            val url = URL("$activeServerBase/api/search?q=$q$typeParam")
             val conn = url.openConnection() as HttpURLConnection
             conn.connectTimeout = 12000
             conn.readTimeout = 18000
-            conn.setRequestProperty("User-Agent", "ShowHubTV-Native/2.3.0")
+            prepareConnection(conn)
             conn.connect()
             if (conn.responseCode == 200) {
                 val body = BufferedReader(InputStreamReader(conn.inputStream, "UTF-8")).use { it.readText() }
@@ -186,11 +217,11 @@ object ShowHubApiClient {
             val srcParam = if (movie.source.isNotBlank()) movie.source else "hdrezka"
             val kpParam = if (movie.kinopoiskId.isNotBlank()) movie.kinopoiskId else if (movie.source == "bazon" && movie.id.all { it.isDigit() }) movie.id else ""
             val kpQuery = if (kpParam.isNotBlank()) "&kp_id=$kpParam" else ""
-            val urlStr = "$SERVER_BASE/api/media/details?source=$srcParam&media_id=$encId&title=$q&original_title=$origQ&year=${movie.releaseYear}&is_series=${if (movie.isSeries) "1" else "0"}$kpQuery"
+            val urlStr = "$activeServerBase/api/media/details?source=$srcParam&media_id=$encId&title=$q&original_title=$origQ&year=${movie.releaseYear}&is_series=${if (movie.isSeries) "1" else "0"}$kpQuery"
             val conn = URL(urlStr).openConnection() as HttpURLConnection
             conn.connectTimeout = 10000
             conn.readTimeout = 15000
-            conn.setRequestProperty("User-Agent", "ShowHubTV-Native/${com.example.tvmediaapp.BuildConfig.VERSION_NAME}")
+            prepareConnection(conn)
             conn.connect()
             if (conn.responseCode == 200) {
                 val body = BufferedReader(InputStreamReader(conn.inputStream, "UTF-8")).use { it.readText() }
@@ -333,18 +364,24 @@ object ShowHubApiClient {
 
                 val kpRating = obj.optDouble("rating_kp", movie.ratingKp)
                 val imdbRating = obj.optDouble("rating_imdb", movie.ratingImdb)
+                val rawTitle = obj.optString("title", movie.title)
+                val title = (if (rawTitle.isBlank() || rawTitle.equals("null", ignoreCase = true)) movie.title else rawTitle).unescapeHtml()
+                val rawOrig = obj.optString("original_title", movie.originalTitle)
+                val orig = (if (rawOrig.isBlank() || rawOrig.equals("null", ignoreCase = true)) movie.originalTitle else rawOrig).unescapeHtml()
                 val rawDirector = obj.optString("director", movie.director)
-                val director = if (rawDirector.isBlank() || rawDirector.equals("null", ignoreCase = true)) movie.director else rawDirector
+                val director = (if (rawDirector.isBlank() || rawDirector.equals("null", ignoreCase = true)) movie.director else rawDirector).unescapeHtml()
                 val rawCountry = obj.optString("country", movie.country)
-                val country = if (rawCountry.isBlank() || rawCountry.equals("null", ignoreCase = true)) movie.country else rawCountry
+                val country = (if (rawCountry.isBlank() || rawCountry.equals("null", ignoreCase = true)) movie.country else rawCountry).unescapeHtml()
                 val rawActors = obj.optString("actors", movie.actors)
-                val actors = if (rawActors.isBlank() || rawActors.equals("null", ignoreCase = true)) movie.actors else rawActors
+                val actors = (if (rawActors.isBlank() || rawActors.equals("null", ignoreCase = true)) movie.actors else rawActors).unescapeHtml()
                 val rawDesc = obj.optString("description", movie.description).ifEmpty { movie.description }
-                val desc = if (rawDesc.isBlank() || rawDesc.equals("null", ignoreCase = true)) movie.description else rawDesc
+                val desc = (if (rawDesc.isBlank() || rawDesc.equals("null", ignoreCase = true)) movie.description else rawDesc).unescapeHtml()
 
                 val isSeriesDetected = movie.isSeries || obj.optBoolean("is_series", false) || seasonsList.isNotEmpty() || scheduleList.isNotEmpty()
 
                 return@withContext movie.copy(
+                    title = if (title.isNotBlank()) title else movie.title,
+                    originalTitle = if (orig.isNotBlank()) orig else movie.originalTitle,
                     posterUrl = updatedPoster,
                     backdropUrl = updatedPoster,
                     ratingKp = if (kpRating > 0) kpRating else movie.ratingKp,
@@ -386,11 +423,11 @@ object ShowHubApiClient {
             val kpParam = if (movie.kinopoiskId.isNotBlank()) movie.kinopoiskId else if (movie.source == "bazon" && movie.id.all { it.isDigit() }) movie.id else ""
             val kpQuery = if (kpParam.isNotBlank()) "&kp_id=$kpParam" else ""
             val isSer = if (movie.isSeries) "1" else "0"
-            val urlStr = "$SERVER_BASE/api/media/episodes?source=$srcParam&media_id=$encId&translator_id=$encTrans&title=$encTitle&original_title=$encOrig&year=${movie.releaseYear}&is_series=$isSer$kpQuery"
+            val urlStr = "$activeServerBase/api/media/episodes?source=$srcParam&media_id=$encId&translator_id=$encTrans&title=$encTitle&original_title=$encOrig&year=${movie.releaseYear}&is_series=$isSer$kpQuery"
             val conn = URL(urlStr).openConnection() as HttpURLConnection
             conn.connectTimeout = 8000
             conn.readTimeout = 12000
-            conn.setRequestProperty("User-Agent", "ShowHubTV-Native/${com.example.tvmediaapp.BuildConfig.VERSION_NAME}")
+            prepareConnection(conn)
             conn.connect()
             if (conn.responseCode == 200) {
                 val body = BufferedReader(InputStreamReader(conn.inputStream, "UTF-8")).use { it.readText() }
@@ -399,13 +436,13 @@ object ShowHubApiClient {
                 for (sIdx in 0 until arr.length()) {
                     val sObj = arr.getJSONObject(sIdx)
                     val sNum = sObj.optInt("season_number", sObj.optInt("season_id", sIdx + 1))
-                    val sTitle = sObj.optString("title", "Сезон $sNum")
+                    val sTitle = sObj.optString("title", "Сезон $sNum").unescapeHtml()
                     val epArr = sObj.optJSONArray("episodes") ?: JSONArray()
                     val episodes = mutableListOf<EpisodeInfo>()
                     for (eIdx in 0 until epArr.length()) {
                         val eObj = epArr.getJSONObject(eIdx)
                         val epNum = eObj.optInt("episode_number", eObj.optInt("episode_id", eIdx + 1))
-                        val epTitle = eObj.optString("title", "Серия $epNum")
+                        val epTitle = eObj.optString("title", "Серия $epNum").unescapeHtml()
                         episodes.add(EpisodeInfo(episodeNumber = epNum, title = epTitle))
                     }
                     seasons.add(SeasonInfo(seasonNumber = sNum, title = sTitle, episodes = episodes))
@@ -439,7 +476,7 @@ object ShowHubApiClient {
             val srcParam = if (!source.isNullOrEmpty()) source.lowercase().trim() else if (movie.source.isNotBlank()) movie.source else "all"
             val kpParam = if (movie.kinopoiskId.isNotBlank()) movie.kinopoiskId else if (movie.source == "bazon" && movie.id.all { it.isDigit() }) movie.id else ""
             val kpQuery = if (kpParam.isNotBlank()) "&kp_id=$kpParam" else ""
-            val sb = StringBuilder("$SERVER_BASE/api/media/streams?source=$srcParam&media_id=$encId$kpQuery&title=$q&original_title=$origQ&year=${movie.releaseYear}&is_series=$isSeriesStr")
+            val sb = StringBuilder("$activeServerBase/api/media/streams?source=$srcParam&media_id=$encId$kpQuery&title=$q&original_title=$origQ&year=${movie.releaseYear}&is_series=$isSeriesStr")
             if (season != null) sb.append("&season=$season")
             if (episode != null) sb.append("&episode=$episode")
             if (!audioId.isNullOrEmpty()) sb.append("&audio_id=").append(URLEncoder.encode(audioId, "UTF-8"))
@@ -447,7 +484,7 @@ object ShowHubApiClient {
             val conn = URL(sb.toString()).openConnection() as HttpURLConnection
             conn.connectTimeout = 15000
             conn.readTimeout = 25000
-            conn.setRequestProperty("User-Agent", "ShowHubTV-Native/${com.example.tvmediaapp.BuildConfig.VERSION_NAME}")
+            prepareConnection(conn)
             conn.connect()
             if (conn.responseCode == 200) {
                 val body = BufferedReader(InputStreamReader(conn.inputStream, "UTF-8")).use { it.readText() }
@@ -526,11 +563,11 @@ object ShowHubApiClient {
             val q = URLEncoder.encode(movie.title, "UTF-8")
             val kpParam = if (movie.kinopoiskId.isNotBlank()) movie.kinopoiskId else if (movie.source == "bazon" && movie.id.all { it.isDigit() }) movie.id else ""
             val kpQuery = if (kpParam.isNotBlank()) "&kp_id=$kpParam" else ""
-            val url = URL("$SERVER_BASE/api/media/trailer?title=$q&year=${movie.releaseYear}$kpQuery")
+            val url = URL("$activeServerBase/api/media/trailer?title=$q&year=${movie.releaseYear}$kpQuery")
             val conn = url.openConnection() as HttpURLConnection
             conn.connectTimeout = 8000
             conn.readTimeout = 8000
-            conn.setRequestProperty("User-Agent", "ShowHubTV-Native/${com.example.tvmediaapp.BuildConfig.VERSION_NAME}")
+            prepareConnection(conn)
             conn.connect()
             if (conn.responseCode == 200) {
                 val body = BufferedReader(InputStreamReader(conn.inputStream, "UTF-8")).use { it.readText() }
@@ -552,7 +589,7 @@ object ShowHubApiClient {
             val srcParam = if (movie.source.isNotBlank()) movie.source else "all"
             val kpParam = if (movie.kinopoiskId.isNotBlank()) movie.kinopoiskId else if (movie.source == "bazon" && movie.id.all { it.isDigit() }) movie.id else ""
             val kpQuery = if (kpParam.isNotBlank()) "&kp_id=$kpParam" else ""
-            val sb = StringBuilder("$SERVER_BASE/api/media/preview-stream?title=$q&source=$srcParam&media_id=$encId$kpQuery&year=${movie.releaseYear}&is_series=$isSeries")
+            val sb = StringBuilder("$activeServerBase/api/media/preview-stream?title=$q&source=$srcParam&media_id=$encId$kpQuery&year=${movie.releaseYear}&is_series=$isSeries")
             if (startMin != null && startMin > 0) {
                 sb.append("&start_min=").append(startMin)
             }
@@ -560,7 +597,7 @@ object ShowHubApiClient {
             val conn = url.openConnection() as HttpURLConnection
             conn.connectTimeout = 6000
             conn.readTimeout = 8000
-            conn.setRequestProperty("User-Agent", "ShowHubTV-Native/${com.example.tvmediaapp.BuildConfig.VERSION_NAME}")
+            prepareConnection(conn)
             conn.connect()
             if (conn.responseCode == 200) {
                 val body = BufferedReader(InputStreamReader(conn.inputStream, "UTF-8")).use { it.readText() }
@@ -586,20 +623,20 @@ object ShowHubApiClient {
         try {
             val q = URLEncoder.encode(movie.title, "UTF-8")
             val encId = URLEncoder.encode(movie.id, "UTF-8")
-            val url = URL("$SERVER_BASE/api/media/comments?source=filmix&media_id=$encId&title=$q")
+            val url = URL("$activeServerBase/api/media/comments?source=filmix&media_id=$encId&title=$q")
             val conn = url.openConnection() as HttpURLConnection
             conn.connectTimeout = 8000
             conn.readTimeout = 12000
-            conn.setRequestProperty("User-Agent", "ShowHubTV-Native/2.5.2")
+            prepareConnection(conn)
             conn.connect()
             if (conn.responseCode == 200) {
                 val body = BufferedReader(InputStreamReader(conn.inputStream, "UTF-8")).use { it.readText() }
                 val arr = JSONArray(body)
                 for (i in 0 until arr.length()) {
                     val cObj = arr.getJSONObject(i)
-                    val author = cObj.optString("author", "Зритель")
+                    val author = cObj.optString("author", "Зритель").unescapeHtml()
                     val date = cObj.optString("date", "")
-                    val text = cObj.optString("text", "")
+                    val text = cObj.optString("text", "").unescapeHtml()
                     val rating = cObj.optString("rating", "")
                     if (text.isNotEmpty()) {
                         comments.add(
@@ -668,9 +705,9 @@ object ShowHubApiClient {
             val it = arr.getJSONObject(i)
             val id = it.optString("id", i.toString())
             val rawTitle = it.optString("title", "").ifEmpty { it.optString("original_title", "") }
-            var title = if (rawTitle.isBlank() || rawTitle.equals("null", ignoreCase = true)) "" else rawTitle
+            var title = (if (rawTitle.isBlank() || rawTitle.equals("null", ignoreCase = true)) "" else rawTitle).unescapeHtml()
             val rawOrig = it.optString("original_title", "")
-            val orig = if (rawOrig.isBlank() || rawOrig.equals("null", ignoreCase = true)) "" else rawOrig
+            val orig = (if (rawOrig.isBlank() || rawOrig.equals("null", ignoreCase = true)) "" else rawOrig).unescapeHtml()
             if (title.contains("\ufffd") || title.trim().isEmpty() || title.contains("???")) {
                 if (orig.isNotEmpty() && !orig.contains("\ufffd") && !orig.contains("???")) {
                     title = orig
@@ -680,9 +717,9 @@ object ShowHubApiClient {
             }
 
             val rawDesc = it.optString("description", "")
-            val desc = if (rawDesc.isBlank() || rawDesc.equals("null", ignoreCase = true)) "" else rawDesc
+            val desc = (if (rawDesc.isBlank() || rawDesc.equals("null", ignoreCase = true)) "" else rawDesc).unescapeHtml()
             val poster = it.optString("poster", "")
-            val posterUrl = if (poster.startsWith("http")) poster else if (poster.isNotEmpty()) "$SERVER_BASE$poster" else ""
+            val posterUrl = if (poster.startsWith("http")) poster else if (poster.isNotEmpty()) "$activeServerBase$poster" else ""
             val kpRating = if (it.has("rating_kp") && !it.isNull("rating_kp")) it.optDouble("rating_kp", 7.5) else 0.0
             val imdbRating = if (it.has("rating_imdb") && !it.isNull("rating_imdb")) it.optDouble("rating_imdb", 7.2) else 0.0
             val rating = if (kpRating > 0) kpRating else if (imdbRating > 0) imdbRating else it.optDouble("rating", 7.5)
@@ -709,7 +746,7 @@ object ShowHubApiClient {
                     else -> ""
                 }
             }
-            val country = if (rawCountry.isBlank() || rawCountry.equals("null", ignoreCase = true)) "" else rawCountry
+            val country = (if (rawCountry.isBlank() || rawCountry.equals("null", ignoreCase = true)) "" else rawCountry).unescapeHtml()
 
             val rawDirector = it.optString("director", "").ifEmpty {
                 extraObj?.optString("director", "") ?: ""
@@ -717,7 +754,7 @@ object ShowHubApiClient {
                 val dArr = extraObj?.optJSONArray("directors") ?: it.optJSONArray("directors")
                 if (dArr != null && dArr.length() > 0) dArr.getString(0) else ""
             }
-            val director = if (rawDirector.isBlank() || rawDirector.equals("null", ignoreCase = true)) "" else rawDirector
+            val director = (if (rawDirector.isBlank() || rawDirector.equals("null", ignoreCase = true)) "" else rawDirector).unescapeHtml()
 
             val rawActors = it.optString("actors", "").ifEmpty {
                 extraObj?.optString("actors", "") ?: ""
@@ -732,7 +769,7 @@ object ShowHubApiClient {
                     sb.toString()
                 } else ""
             }
-            val actors = if (rawActors.isBlank() || rawActors.equals("null", ignoreCase = true)) "" else rawActors
+            val actors = (if (rawActors.isBlank() || rawActors.equals("null", ignoreCase = true)) "" else rawActors).unescapeHtml()
 
             val rawEpisodesInfo = it.optString("episodes_info", "").ifEmpty { extraObj?.optString("episodes_info", "") ?: "" }
             val episodesInfo = if (rawEpisodesInfo.isBlank() || rawEpisodesInfo.equals("null", ignoreCase = true)) "" else rawEpisodesInfo
@@ -810,21 +847,21 @@ object ShowHubApiClient {
         currentScreen: String = "settings"
     ): Boolean = withContext(Dispatchers.IO) {
         try {
-            val url = URL("$SERVER_BASE/api/feedback/bug-report")
+            val url = URL("$activeServerBase/api/feedback/bug-report")
             val conn = url.openConnection() as HttpURLConnection
             conn.requestMethod = "POST"
             conn.connectTimeout = 8000
             conn.readTimeout = 10000
             conn.doOutput = true
             conn.setRequestProperty("Content-Type", "application/json; charset=UTF-8")
-            conn.setRequestProperty("User-Agent", "ShowHubTV-Native/2.6.8")
+            prepareConnection(conn)
 
             val payload = JSONObject().apply {
                 put("text", reportText.trim())
                 put("category", category)
                 put("device", "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL} (Android ${android.os.Build.VERSION.RELEASE})")
-                put("app_version", "2.6.8")
-                put("version_code", 47)
+                put("app_version", cachedAppVersion)
+                put("version_code", com.example.tvmediaapp.BuildConfig.VERSION_CODE)
                 put("current_screen", currentScreen)
             }
 
@@ -841,15 +878,19 @@ object ShowHubApiClient {
         }
     }
 
-    @Volatile
-    private var cachedDeviceId: String? = null
-
     fun getOrCreateDeviceId(context: android.content.Context): String {
         cachedDeviceId?.let { return it }
         val prefs = context.getSharedPreferences("showhub_prefs", android.content.Context.MODE_PRIVATE)
         var id = prefs.getString("pref_device_id", null)
         if (id.isNullOrBlank()) {
-            id = java.util.UUID.randomUUID().toString()
+            val androidId = try {
+                android.provider.Settings.Secure.getString(context.contentResolver, android.provider.Settings.Secure.ANDROID_ID)
+            } catch (_: Exception) { null }
+            id = if (!androidId.isNullOrBlank() && androidId != "9774d56d682e549c") {
+                "tv_$androidId"
+            } else {
+                "tv_" + java.util.UUID.randomUUID().toString().replace("-", "")
+            }
             prefs.edit().putString("pref_device_id", id).apply()
         }
         cachedDeviceId = id
@@ -869,12 +910,11 @@ object ShowHubApiClient {
     suspend fun pingAndGetUserStats(context: android.content.Context, appVersion: String): UserStats? = withContext(Dispatchers.IO) {
         try {
             val deviceId = getOrCreateDeviceId(context)
-            val url = URL("$SERVER_BASE/api/analytics/ping?device_id=$deviceId&version=$appVersion")
+            val url = URL("$activeServerBase/api/analytics/ping?device_id=$deviceId&version=$appVersion")
             val conn = url.openConnection() as HttpURLConnection
             conn.connectTimeout = 8000
             conn.readTimeout = 8000
-            conn.setRequestProperty("User-Agent", "ShowHubTV-Native/$appVersion")
-            conn.setRequestProperty("X-Device-Id", deviceId)
+            prepareConnection(conn)
             conn.connect()
             if (conn.responseCode == 200) {
                 val body = BufferedReader(InputStreamReader(conn.inputStream, "UTF-8")).use { it.readText() }

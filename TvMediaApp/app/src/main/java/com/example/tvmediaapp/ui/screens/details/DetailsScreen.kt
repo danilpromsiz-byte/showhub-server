@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.defaultMinSize
 import com.example.tvmediaapp.ui.components.focusedGlow
+import com.example.tvmediaapp.util.unescapeHtml
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -843,10 +844,11 @@ fun DetailsScreen(
                     .fillMaxHeight()
                     .verticalScroll(rightPaneScrollState)
             ) {
+                val cleanTitle = currentMovie.title.unescapeHtml()
                 val titleWithYear = buildString {
-                    append(currentMovie.title)
+                    append(cleanTitle)
                     val cleanYear = currentMovie.releaseYear.replace("null", "").trim()
-                    if (cleanYear.isNotEmpty() && !currentMovie.title.contains(cleanYear)) {
+                    if (cleanYear.isNotEmpty() && !cleanTitle.contains(cleanYear)) {
                         append(" ($cleanYear)")
                     }
                 }
@@ -858,8 +860,8 @@ fun DetailsScreen(
                     lineHeight = 36.sp
                 )
 
-                val origTitle = currentMovie.originalTitle.trim()
-                if (origTitle.isNotBlank() && !origTitle.equals("null", ignoreCase = true) && origTitle != currentMovie.title.trim()) {
+                val origTitle = currentMovie.originalTitle.unescapeHtml()
+                if (origTitle.isNotBlank() && !origTitle.equals("null", ignoreCase = true) && origTitle != cleanTitle) {
                     Text(
                         text = origTitle,
                         fontSize = 15.sp,
@@ -910,7 +912,7 @@ fun DetailsScreen(
                 if (currentMovie.description.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(10.dp))
                     Text(
-                        text = currentMovie.description,
+                        text = currentMovie.description.unescapeHtml(),
                         fontSize = 13.sp,
                         lineHeight = 19.sp,
                         color = TextWhite.copy(alpha = 0.88f),

@@ -5,6 +5,7 @@ Supports search by title and Kinopoisk ID.
 Yields responsive embed player and direct streams.
 """
 import time
+import html
 import requests
 from typing import List, Optional, Dict, Any
 from .base import BaseSource, MediaItem, StreamResult, VideoStream, CanaryReport
@@ -47,7 +48,9 @@ class BazonSource(BaseSource):
                     if year and item_year and abs(year - item_year) > 1:
                         continue
 
-                    title = info.get("rus") or r.get("title") or info.get("orig") or "Без названия"
+                    title = html.unescape(info.get("rus") or r.get("title") or info.get("orig") or "Без названия").strip()
+                    orig = html.unescape(info.get("orig").strip()) if info.get("orig") else None
+                    desc = html.unescape(info.get("description").strip()) if info.get("description") else None
                     vkp_raw = info.get("rating", {}).get("vote_num_kp")
                     vimdb_raw = info.get("rating", {}).get("vote_num_imdb")
                     vkp = int(vkp_raw) if (vkp_raw and str(vkp_raw).isdigit()) else None
@@ -57,11 +60,11 @@ class BazonSource(BaseSource):
                         id=kp if kp else str(r.get("id")),
                         source_name=self.name,
                         title=title,
-                        original_title=info.get("orig"),
+                        original_title=orig,
                         year=item_year,
                         is_series=bool(int(r.get("serial", 0))),
                         poster=info.get("poster"),
-                        description=info.get("description"),
+                        description=desc,
                         rating_kp=float(info.get("rating", {}).get("rating_kp", 0) or 0) or None,
                         rating_imdb=float(info.get("rating", {}).get("rating_imdb", 0) or 0) or None,
                         vote_num_kp=vkp,
@@ -115,7 +118,9 @@ class BazonSource(BaseSource):
                     except ValueError:
                         pass
 
-                    title = info.get("rus") or r.get("title") or info.get("orig") or "Без названия"
+                    title = html.unescape(info.get("rus") or r.get("title") or info.get("orig") or "Без названия").strip()
+                    orig = html.unescape(info.get("orig").strip()) if info.get("orig") else None
+                    desc = html.unescape(info.get("description").strip()) if info.get("description") else None
                     kp = str(r.get("kinopoisk_id") or "")
                     vkp_raw = info.get("rating", {}).get("vote_num_kp")
                     vimdb_raw = info.get("rating", {}).get("vote_num_imdb")
@@ -138,11 +143,11 @@ class BazonSource(BaseSource):
                         id=kp if kp else str(r.get("id")),
                         source_name=self.name,
                         title=title,
-                        original_title=info.get("orig"),
+                        original_title=orig,
                         year=item_year,
                         is_series=is_ser,
                         poster=info.get("poster"),
-                        description=info.get("description"),
+                        description=desc,
                         rating_kp=float(info.get("rating", {}).get("rating_kp", 0) or 0) or None,
                         rating_imdb=float(info.get("rating", {}).get("rating_imdb", 0) or 0) or None,
                         vote_num_kp=vkp,
@@ -179,15 +184,18 @@ class BazonSource(BaseSource):
                     genres = [g.strip() for g in (info.get("genre") or "").split(",") if g.strip()]
                     kp_v = info.get("rating", {}).get("vote_num_kp")
                     imdb_v = info.get("rating", {}).get("vote_num_imdb")
+                    desc = html.unescape(info.get("description").strip()) if info.get("description") else None
+                    director = html.unescape(info.get("director").strip()) if info.get("director") else None
+                    actors = html.unescape(info.get("actors").strip()) if info.get("actors") else None
                     return {
-                        "description": info.get("description"),
+                        "description": desc,
                         "rating_kp": float(info.get("rating", {}).get("rating_kp", 0) or 0) or None,
                         "rating_imdb": float(info.get("rating", {}).get("rating_imdb", 0) or 0) or None,
                         "vote_num_kp": int(kp_v) if kp_v and str(kp_v).isdigit() else None,
                         "vote_num_imdb": int(imdb_v) if imdb_v and str(imdb_v).isdigit() else None,
                         "genres": genres,
-                        "director": info.get("director"),
-                        "actors": info.get("actors"),
+                        "director": director,
+                        "actors": actors,
                         "country": info.get("country"),
                         "year": int(info.get("year", 0)) if info.get("year") else None,
                         "poster": info.get("poster")

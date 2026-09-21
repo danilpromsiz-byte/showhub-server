@@ -163,6 +163,7 @@ class MainActivity : ComponentActivity() {
         MediaDiskCache.init(this)
         CoilSetup.init(this)
         ThemeManager.init(this)
+        ShowHubApiClient.init(this, getInstalledVersionName())
 
         setContent {
             TvMediaAppTheme {

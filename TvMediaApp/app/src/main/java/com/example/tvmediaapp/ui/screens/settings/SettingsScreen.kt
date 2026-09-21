@@ -246,7 +246,8 @@ fun SettingsScreen(
     var userStats by remember { mutableStateOf<com.example.tvmediaapp.data.api.UserStats?>(null) }
     var isLoadingUserStats by remember { mutableStateOf(false) }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(serverUrl) {
+        ShowHubApiClient.setServerBase(serverUrl)
         isLoadingUserStats = true
         userStats = ShowHubApiClient.pingAndGetUserStats(context, appVersion)
         isLoadingUserStats = false

@@ -531,6 +531,7 @@ class CatalogRepository(context: Context? = null) {
         }
 
         val excludedCountriesStr = prefs?.getString("pref_excluded_countries", "") ?: ""
+        val excludedGenresStr = prefs?.getString("pref_excluded_genres", "") ?: ""
         val onlyWithPoster = prefs?.getBoolean("pref_only_with_poster", true) ?: true
 
         fun hasValidPoster(url: String): Boolean {
@@ -554,6 +555,15 @@ class CatalogRepository(context: Context? = null) {
                     effective = effective.filter { m ->
                         val cLow = m.country.lowercase()
                         exList.none { ex -> cLow.contains(ex) }
+                    }
+                }
+            }
+            if (excludedGenresStr.isNotBlank()) {
+                val exGenList = excludedGenresStr.split(",").map { it.trim().lowercase() }.filter { it.isNotEmpty() }
+                if (exGenList.isNotEmpty()) {
+                    effective = effective.filter { m ->
+                        val gLow = m.genres.joinToString(" ").lowercase()
+                        exGenList.none { ex -> gLow.contains(ex) }
                     }
                 }
             }
@@ -620,14 +630,17 @@ class CatalogRepository(context: Context? = null) {
                 sortBy = sortBy,
                 year = year,
                 country = country,
-                excludedCountries = if (excludedCountriesStr.isNotBlank()) excludedCountriesStr else null
+                excludedCountries = if (excludedCountriesStr.isNotBlank()) excludedCountriesStr else null,
+                excludedGenres = if (excludedGenresStr.isNotBlank()) excludedGenresStr else null
             )
             if (liveMovies.isNotEmpty()) {
                 val isDefaultMainCatalog = category == "all" &&
                     (genre.isNullOrEmpty() || genre == "Все жанры" || genre == "all") &&
                     (country.isNullOrEmpty() || country == "all") &&
                     (year.isNullOrEmpty() || year == "all") &&
-                    sortBy == "newest"
+                    sortBy == "newest" &&
+                    excludedCountriesStr.isBlank() &&
+                    excludedGenresStr.isBlank()
                 if (isDefaultMainCatalog) {
                     com.example.tvmediaapp.data.cache.MediaDiskCache.putCachedCatalog(liveMovies)
                 }

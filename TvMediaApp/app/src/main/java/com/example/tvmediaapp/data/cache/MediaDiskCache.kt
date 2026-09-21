@@ -139,6 +139,17 @@ object MediaDiskCache {
         }
     }
 
+    fun clearCachedCatalog() {
+        try {
+            val file = getCatalogFile()
+            if (file.exists()) {
+                file.delete()
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to delete cached catalog: ${e.message}")
+        }
+    }
+
     fun getCachedStreams(movieId: String, season: Int?, episode: Int?, audioId: String?): List<StreamOption>? {
         return try {
             val safeId = movieId.replace(Regex("[^a-zA-Z0-9_-]"), "_")

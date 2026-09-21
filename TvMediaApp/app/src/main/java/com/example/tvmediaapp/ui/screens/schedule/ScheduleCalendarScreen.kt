@@ -143,7 +143,7 @@ fun ScheduleCalendarScreen(
             }
 
             // Concurrently fetch missing details for series that don't have schedule yet
-            val missing = candidateMovies.filter { it.episodesSchedule.isEmpty() && it.seasons.isEmpty() }
+            val missing = candidateMovies.filter { it.episodesSchedule.isEmpty() }
             if (missing.isNotEmpty()) {
                 val updatedMovies = candidateMovies.toMutableList()
                 val fetched = coroutineScope {
@@ -416,12 +416,22 @@ fun CalendarEpisodeCard(
             )
 
             // Date / action label
-            val dateLabel = if (entry.isSummary) "Смотреть сериал →" else entry.scheduleItem.date
+            val nextUpcoming = entry.movie.episodesSchedule.firstOrNull {
+                isDateFuture(it.date) || isDateFuture(it.status) || isDateToday(it.date) || isDateToday(it.status) || isDateTomorrow(it.date) || isDateTomorrow(it.status)
+            }
+            val dateLabel = when {
+                entry.isSummary && nextUpcoming != null -> {
+                    val datePart = if (nextUpcoming.date.isNotBlank() && nextUpcoming.date != "Дата уточняется") nextUpcoming.date else nextUpcoming.status
+                    "След: $datePart"
+                }
+                entry.isSummary -> "Смотреть сериал →"
+                else -> entry.scheduleItem.date
+            }
             if (dateLabel.isNotBlank()) {
                 Text(
                     text = dateLabel,
                     fontSize = 9.sp,
-                    color = if (entry.isSummary) Color(0xFF4ADE80) else TextGray,
+                    color = if (entry.isSummary && nextUpcoming != null) Color(0xFFFFB800) else if (entry.isSummary) Color(0xFF4ADE80) else TextGray,
                     fontWeight = if (entry.isSummary) FontWeight.SemiBold else FontWeight.Normal,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -489,7 +499,7 @@ fun isDateFuture(dateStr: String): Boolean {
         return cal.after(todayEndCal)
     }
     val dLower = dateStr.lowercase()
-    if (dLower.contains("завтра")) return true
+    if (dLower.contains("завтра") || dLower.contains("через") || dLower.contains("ожидается") || dLower.contains("скоро")) return true
     return false
 }
 
@@ -600,6 +610,7 @@ fun buildCalendarGroups(movies: List<Movie>, historyManager: WatchHistoryManager
                 isDateFuture(item.date) -> upcomingSched.add(item)
                 cal == null && isDateToday(item.status) -> todaySched.add(item)
                 cal == null && isDateTomorrow(item.status) -> tomorrowSched.add(item)
+                cal == null && isDateFuture(item.status) -> upcomingSched.add(item)
                 !isAlreadyReleasedOrWatched && dLower.contains("ожидается") -> upcomingSched.add(item)
                 else -> otherSched.add(item)
             }

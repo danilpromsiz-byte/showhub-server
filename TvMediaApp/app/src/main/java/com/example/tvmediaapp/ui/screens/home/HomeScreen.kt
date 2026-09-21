@@ -7,6 +7,11 @@
 package com.example.tvmediaapp.ui.screens.home
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -219,12 +224,37 @@ fun HomeScreen(
             ) {
                 itemsIndexed(displayMovies, key = { _, movie -> movie.id }) { index, movie ->
                     val isTarget = index == viewModel.lastFocusedIndex.coerceIn(0, (displayMovies.size - 1).coerceAtLeast(0))
+                    val isLeftmost = index % 6 == 0
+                    val isRightmost = index % 6 == 5 || index == displayMovies.size - 1
+
                     val targetMod = if (isTarget) Modifier.focusRequester(targetCardFocusRequester) else Modifier
 
                     val edgePropertiesMod = Modifier.focusProperties {
                         if (index < 6) {
                             up = filterRow2FocusRequester
                         }
+                        if (isLeftmost) {
+                            left = topBarSearchFocusRequester
+                        }
+                        if (isRightmost) {
+                            right = topBarSearchFocusRequester
+                        }
+                    }
+                    val edgeKeyMod = Modifier.onKeyEvent { keyEvent ->
+                        if (keyEvent.type == KeyEventType.KeyDown) {
+                            if (isLeftmost && (keyEvent.key == Key.DirectionLeft || keyEvent.key.keyCode == 21L)) {
+                                try {
+                                    topBarSearchFocusRequester.requestFocus()
+                                    return@onKeyEvent true
+                                } catch (_: Exception) {}
+                            } else if (isRightmost && (keyEvent.key == Key.DirectionRight || keyEvent.key.keyCode == 22L)) {
+                                try {
+                                    topBarSearchFocusRequester.requestFocus()
+                                    return@onKeyEvent true
+                                } catch (_: Exception) {}
+                            }
+                        }
+                        false
                     }
 
                     MovieCard(
@@ -236,7 +266,7 @@ fun HomeScreen(
                         onFocus = {
                             viewModel.lastFocusedIndex = index
                         },
-                        cardModifier = targetMod.then(edgePropertiesMod)
+                        cardModifier = targetMod.then(edgePropertiesMod).then(edgeKeyMod)
                     )
                 }
             }

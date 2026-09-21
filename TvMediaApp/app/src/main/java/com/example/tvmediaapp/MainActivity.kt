@@ -63,9 +63,12 @@ import com.example.tvmediaapp.ui.theme.LocalAccentColor
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.shape.RoundedCornerShape
+import android.view.KeyEvent
+import androidx.compose.foundation.focusGroup
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.key.onKeyEvent
 import com.example.tvmediaapp.ui.screens.schedule.ScheduleCalendarScreen
 import com.example.tvmediaapp.ui.screens.search.SearchScreen
 import com.example.tvmediaapp.ui.screens.settings.SettingsScreen
@@ -825,7 +828,8 @@ fun TvAppNavHost(activity: MainActivity) {
                     Spacer(modifier = Modifier.height(24.dp))
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.focusGroup()
                     ) {
                         Button(
                             onClick = {
@@ -845,9 +849,17 @@ fun TvAppNavHost(activity: MainActivity) {
                                 .focusRequester(cancelFocusRequester)
                                 .focusProperties {
                                     right = exitFocusRequester
-                                    up = FocusRequester.Cancel
-                                    down = FocusRequester.Cancel
-                                    left = FocusRequester.Cancel
+                                    left = exitFocusRequester
+                                    up = cancelFocusRequester
+                                    down = cancelFocusRequester
+                                }
+                                .onKeyEvent { keyEvent ->
+                                    if (keyEvent.nativeKeyEvent.action == KeyEvent.ACTION_DOWN) {
+                                        if (keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_RIGHT || keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
+                                            try { exitFocusRequester.requestFocus(); return@onKeyEvent true } catch (_: Exception) {}
+                                        }
+                                    }
+                                    false
                                 }
                         ) {
                             Text(
@@ -876,9 +888,17 @@ fun TvAppNavHost(activity: MainActivity) {
                                 .focusRequester(exitFocusRequester)
                                 .focusProperties {
                                     left = cancelFocusRequester
-                                    up = FocusRequester.Cancel
-                                    down = FocusRequester.Cancel
-                                    right = FocusRequester.Cancel
+                                    right = cancelFocusRequester
+                                    up = exitFocusRequester
+                                    down = exitFocusRequester
+                                }
+                                .onKeyEvent { keyEvent ->
+                                    if (keyEvent.nativeKeyEvent.action == KeyEvent.ACTION_DOWN) {
+                                        if (keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_LEFT || keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
+                                            try { cancelFocusRequester.requestFocus(); return@onKeyEvent true } catch (_: Exception) {}
+                                        }
+                                    }
+                                    false
                                 }
                         ) {
                             Text(

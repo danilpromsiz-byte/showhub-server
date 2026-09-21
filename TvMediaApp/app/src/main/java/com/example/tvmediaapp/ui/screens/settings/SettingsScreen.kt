@@ -56,6 +56,7 @@ import androidx.tv.material3.Text
 import coil.Coil
 import com.example.tvmediaapp.R
 import com.example.tvmediaapp.data.api.ShowHubApiClient
+import com.example.tvmediaapp.data.cache.MediaDiskCache
 import com.example.tvmediaapp.data.history.WatchHistoryManager
 import com.example.tvmediaapp.data.updater.UpdateInfo
 import com.example.tvmediaapp.data.updater.UpdateManager
@@ -149,6 +150,12 @@ val EXCLUDE_COUNTRY_OPTIONS = listOf(
     "Индия", "СССР", "Канада", "Австралия", "Таиланд", "Швеция"
 )
 
+val EXCLUDE_GENRE_OPTIONS = listOf(
+    "Ужасы", "Триллер", "Боевик", "Комедия", "Мелодрама", "Драма",
+    "Фантастика", "Фэнтези", "Детектив", "Криминал", "Военный",
+    "Приключения", "Мультфильм", "Аниме", "Документальный", "История", "Семейный"
+)
+
 val QUALITY_OPTIONS = listOf(
     Pair("1080p", "1080p (Full HD)"),
     Pair("4k", "4K (Ultra HD)"),
@@ -209,6 +216,7 @@ fun SettingsScreen(
     var selectedPreviewStart by remember { mutableStateOf(prefs.getInt("pref_preview_start_min", 12)) }
     var onlyWithPoster by remember { mutableStateOf(prefs.getBoolean("pref_only_with_poster", true)) }
     var excludedCountriesStr by remember { mutableStateOf(prefs.getString("pref_excluded_countries", "") ?: "") }
+    var excludedGenresStr by remember { mutableStateOf(prefs.getString("pref_excluded_genres", "") ?: "") }
 
     // Server States
     var serverUrl by remember { mutableStateOf(prefs.getString("pref_server_url", "https://showhub-server.onrender.com") ?: "https://showhub-server.onrender.com") }
@@ -790,6 +798,7 @@ fun SettingsScreen(
                                                     val newStr = newSet.joinToString(",")
                                                     excludedCountriesStr = newStr
                                                     prefs.edit().putString("pref_excluded_countries", newStr).apply()
+                                                    MediaDiskCache.clearCachedCatalog()
                                                 },
                                                 colors = ButtonDefaults.colors(
                                                     containerColor = if (isExcluded) Color(0xFFE53935).copy(alpha = 0.7f) else ChipBackground,
@@ -809,6 +818,61 @@ fun SettingsScreen(
                                                 val prefix = if (isExcluded) "✖ " else ""
                                                 Text(
                                                     text = "$prefix$cName",
+                                                    fontSize = 10.sp,
+                                                    fontWeight = if (isExcluded) FontWeight.Bold else FontWeight.Normal,
+                                                    lineHeight = 12.sp
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Subtitle: Excluded genres
+                            Text(
+                                text = "Исключить жанры из показа (нажмите, чтобы скрыть фильмы выбранного жанра):",
+                                fontSize = 12.sp,
+                                color = TextGray,
+                                modifier = Modifier.padding(top = 6.dp)
+                            )
+
+                            val excludedGenreSet = remember(excludedGenresStr) {
+                                excludedGenresStr.split(",").map { it.trim() }.filter { it.isNotEmpty() }.toSet()
+                            }
+
+                            // Flow-like 2-row layout of genres
+                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                val chunkedGenres = EXCLUDE_GENRE_OPTIONS.chunked(9)
+                                chunkedGenres.forEach { rowGenres ->
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        rowGenres.forEach { gName ->
+                                            val isExcluded = excludedGenreSet.contains(gName)
+                                            Button(
+                                                onClick = {
+                                                    val newSet = if (isExcluded) excludedGenreSet - gName else excludedGenreSet + gName
+                                                    val newStr = newSet.joinToString(",")
+                                                    excludedGenresStr = newStr
+                                                    prefs.edit().putString("pref_excluded_genres", newStr).apply()
+                                                    MediaDiskCache.clearCachedCatalog()
+                                                },
+                                                colors = ButtonDefaults.colors(
+                                                    containerColor = if (isExcluded) Color(0xFFE53935).copy(alpha = 0.7f) else ChipBackground,
+                                                    focusedContainerColor = LocalFocusColor.current,
+                                                    contentColor = if (isExcluded) Color.White else TextWhite,
+                                                    focusedContentColor = if (isExcluded) Color(0xFFE53935) else Color.Black
+                                                ),
+                                                border = ButtonDefaults.border(
+                                                    border = Border.None,
+                                                    focusedBorder = Border.None
+                                                ),
+                                                shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                                                scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
+                                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                                                modifier = Modifier.height(26.dp)
+                                            ) {
+                                                val prefix = if (isExcluded) "✖ " else ""
+                                                Text(
+                                                    text = "$prefix$gName",
                                                     fontSize = 10.sp,
                                                     fontWeight = if (isExcluded) FontWeight.Bold else FontWeight.Normal,
                                                     lineHeight = 12.sp

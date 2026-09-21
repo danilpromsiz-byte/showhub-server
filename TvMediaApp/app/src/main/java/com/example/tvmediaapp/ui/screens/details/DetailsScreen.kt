@@ -238,6 +238,8 @@ fun DetailsScreen(
     val synopsisBlockFocusRequester = remember { FocusRequester() }
     val firstDirectorFocusRequester = remember { FocusRequester() }
     val firstCastFocusRequester = remember { FocusRequester() }
+    val reviewsTabFocusRequester = remember { FocusRequester() }
+    val firstCommentFocusRequester = remember { FocusRequester() }
     val episodesFocusRequester = remember { FocusRequester() }
     val translatorSeasonsCache = remember { mutableStateMapOf<String, List<SeasonInfo>>() }
 
@@ -1353,8 +1355,8 @@ fun DetailsScreen(
                         when (selectedDetailTab) {
                             0 -> tabsFocusRequester.requestFocus()
                             1 -> if (currentMovie.isSeries) scheduleTabFocusRequester.requestFocus() else descriptionTabFocusRequester.requestFocus()
-                            2 -> if (currentMovie.isSeries) descriptionTabFocusRequester.requestFocus() else tabsFocusRequester.requestFocus()
-                            else -> tabsFocusRequester.requestFocus()
+                            2 -> if (currentMovie.isSeries) descriptionTabFocusRequester.requestFocus() else reviewsTabFocusRequester.requestFocus()
+                            else -> reviewsTabFocusRequester.requestFocus()
                         }
                     } catch (_: Exception) {}
                 }
@@ -1400,9 +1402,21 @@ fun DetailsScreen(
                                         down = synopsisBlockFocusRequester
                                     }
                             } else {
-                                Modifier.height(26.dp).focusProperties { up = favoriteButtonFocusRequester }
+                                Modifier
+                                    .height(26.dp)
+                                    .focusRequester(reviewsTabFocusRequester)
+                                    .focusProperties {
+                                        up = favoriteButtonFocusRequester
+                                        down = firstCommentFocusRequester
+                                    }
                             }
-                            else -> Modifier.height(26.dp).focusProperties { up = favoriteButtonFocusRequester }
+                            else -> Modifier
+                                .height(26.dp)
+                                .focusRequester(reviewsTabFocusRequester)
+                                .focusProperties {
+                                    up = favoriteButtonFocusRequester
+                                    down = firstCommentFocusRequester
+                                }
                         }
                         Button(
                             onClick = { selectedDetailTab = index },
@@ -2047,17 +2061,29 @@ fun DetailsScreen(
                             verticalArrangement = Arrangement.spacedBy(14.dp)
                         ) {
                             // Synopsis Block
+                            var isSynopsisFocused by remember { mutableStateOf(false) }
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(8.dp))
-                                    .background(Color.White.copy(alpha = 0.05f))
+                                    .background(if (isSynopsisFocused) Color.White.copy(alpha = 0.09f) else Color.White.copy(alpha = 0.05f))
                                     .border(
-                                        width = 1.dp,
-                                        color = Color.White.copy(alpha = 0.1f),
+                                        width = if (isSynopsisFocused) 1.5.dp else 1.dp,
+                                        color = if (isSynopsisFocused) focusColor else Color.White.copy(alpha = 0.1f),
                                         shape = RoundedCornerShape(8.dp)
                                     )
-                                    .padding(16.dp),
+                                    .padding(16.dp)
+                                    .focusRequester(synopsisBlockFocusRequester)
+                                    .focusProperties {
+                                        up = descriptionTabFocusRequester
+                                        if (displayDirectors.isNotEmpty()) {
+                                            down = firstDirectorFocusRequester
+                                        } else if (displayCast.isNotEmpty()) {
+                                            down = firstCastFocusRequester
+                                        }
+                                    }
+                                    .focusable()
+                                    .onFocusChanged { isSynopsisFocused = it.isFocused },
                                 verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 Text(
@@ -2093,7 +2119,10 @@ fun DetailsScreen(
                                                 Modifier
                                                     .focusRequester(firstDirectorFocusRequester)
                                                     .focusProperties {
-                                                        up = descriptionTabFocusRequester
+                                                        up = synopsisBlockFocusRequester
+                                                        if (displayCast.isNotEmpty()) {
+                                                            down = firstCastFocusRequester
+                                                        }
                                                     }
                                             } else Modifier
                                             Card(
@@ -2177,7 +2206,7 @@ fun DetailsScreen(
                                                 Modifier
                                                     .focusRequester(firstCastFocusRequester)
                                                     .focusProperties {
-                                                        up = if (displayDirectors.isNotEmpty()) firstDirectorFocusRequester else descriptionTabFocusRequester
+                                                        up = if (displayDirectors.isNotEmpty()) firstDirectorFocusRequester else synopsisBlockFocusRequester
                                                     }
                                             } else Modifier
                                             Card(
@@ -2282,7 +2311,12 @@ fun DetailsScreen(
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(8.dp))
                                     .background(Color.White.copy(alpha = 0.04f))
-                                    .padding(28.dp),
+                                    .padding(28.dp)
+                                    .focusRequester(firstCommentFocusRequester)
+                                    .focusProperties {
+                                        up = reviewsTabFocusRequester
+                                    }
+                                    .focusable(),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
@@ -2298,6 +2332,13 @@ fun DetailsScreen(
                             ) {
                                 comments.forEachIndexed { cIdx, c ->
                                     var isCommentFocused by remember { mutableStateOf(false) }
+                                    val commentMod = if (cIdx == 0) {
+                                        Modifier
+                                            .focusRequester(firstCommentFocusRequester)
+                                            .focusProperties {
+                                                up = reviewsTabFocusRequester
+                                            }
+                                    } else Modifier
                                     Column(
                                         modifier = Modifier
                                             .fillMaxWidth()
@@ -2309,6 +2350,7 @@ fun DetailsScreen(
                                                 shape = RoundedCornerShape(8.dp)
                                             )
                                             .padding(14.dp)
+                                            .then(commentMod)
                                             .focusable()
                                             .onFocusChanged { isCommentFocused = it.isFocused }
                                     ) {

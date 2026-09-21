@@ -1,10 +1,10 @@
 {
   "success": true,
-  "version_name": "2.8.16",
-  "version_code": 75,
+  "version_name": "2.8.17",
+  "version_code": 76,
   "force_update": true,
-  "min_version_code": 75,
+  "min_version_code": 76,
   "download_url": "https://showhub-server.onrender.com/ShowHub.apk",
   "apk_url": "https://showhub-server.onrender.com/ShowHub.apk",
-  "changelog": "ShowHub TV v2.8.16: Мгновенный захват фокуса карточкой каталога при старте, динамический фокус на активных кнопках фильтров, снятие изолирующих focusGroup-ловушек, и мгновенное автоопределение обновлений через jsDelivr CDN."
+  "changelog": "ShowHub TV v2.8.17: Быстрый переход в верхнее меню по краям сетки, дата следующей серии в календаре релизов, исправление страны в карточках (Великобритания), исключение жанров в настройках, мгновенное обновление каталога при смене фильтров, устранение падения фокуса в деталях, встроенный WebView для Bazon, устойчивый фокус диалога выхода."
 }

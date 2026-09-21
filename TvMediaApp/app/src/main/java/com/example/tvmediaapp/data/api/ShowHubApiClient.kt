@@ -51,7 +51,8 @@ object ShowHubApiClient {
         year: String? = null,
         country: String? = null,
         page: Int = 1,
-        excludedCountries: String? = null
+        excludedCountries: String? = null,
+        excludedGenres: String? = null
     ): List<Movie> = withContext(Dispatchers.IO) {
         val movies = mutableListOf<Movie>()
         try {
@@ -70,6 +71,9 @@ object ShowHubApiClient {
             }
             if (!excludedCountries.isNullOrEmpty()) {
                 sb.append("&excluded_countries=").append(URLEncoder.encode(excludedCountries, "UTF-8"))
+            }
+            if (!excludedGenres.isNullOrEmpty()) {
+                sb.append("&excluded_genres=").append(URLEncoder.encode(excludedGenres, "UTF-8"))
             }
             val url = URL(sb.toString())
             val conn = url.openConnection() as HttpURLConnection

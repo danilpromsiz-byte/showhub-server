@@ -821,13 +821,14 @@ def get_catalog(
     min_rating: Optional[float] = None,
     sort_by: Optional[str] = "newest",
     page: int = 1,
-    excluded_countries: Optional[str] = None
+    excluded_countries: Optional[str] = None,
+    excluded_genres: Optional[str] = None
 ) -> List[Dict[str, Any]]:
     """
     Returns dynamic fresh releases (новинки) and catalog items aggregated across live sources.
-    Supports filtering by genre, country, content type (movies/series/cartoons/anime), release year, minimum rating, excluded countries, and sorting.
+    Supports filtering by genre, country, content type (movies/series/cartoons/anime), release year, minimum rating, excluded countries, excluded genres, and sorting.
     """
-    cache_key = f"{category}_{genre}_{year}_{country}_{content_type}_{min_rating}_{sort_by}_{page}_{excluded_countries}"
+    cache_key = f"{category}_{genre}_{year}_{country}_{content_type}_{min_rating}_{sort_by}_{page}_{excluded_countries}_{excluded_genres}"
     now_ts = time.time()
     if cache_key in _catalog_cache:
         cached_time, cached_items = _catalog_cache[cache_key]
@@ -990,6 +991,26 @@ def get_catalog(
                         return False
                 return True
             all_items = [it for it in all_items if is_not_excluded(it)]
+
+    # 4c. Apply Excluded Genres Filter
+    if excluded_genres:
+        ex_g_tokens = [g.strip().lower() for g in excluded_genres.split(",") if g.strip()]
+        if ex_g_tokens:
+            def is_genre_not_excluded(it):
+                meta_genre = str(it.get("extra_data", {}).get("genre") or "").lower()
+                desc = str(it.get("description") or "").lower()
+                genres_arr = " ".join([str(x).lower() for x in (it.get("genres") or [])])
+                text = f"{meta_genre} {desc} {genres_arr}"
+                for ex in ex_g_tokens:
+                    stem = ex
+                    if stem.endswith(("ия", "ии", "ые", "ий", "ка", "ки")):
+                        stem = stem[:-2]
+                    elif stem.endswith(("а", "ы", "и", "я")):
+                        stem = stem[:-1]
+                    if stem in text or ex in text:
+                        return False
+                return True
+            all_items = [it for it in all_items if is_genre_not_excluded(it)]
 
     # 5. Apply Content Type (Movie vs Series) Filtering
     if content_type == "movie":
@@ -1748,23 +1769,30 @@ def _fetch_media_details(
         raw_limit=details.get("age_limit")
     )
 
-    # 7. Final sanity check: detect country mismatch where country says Ukraine/USA/Russia/India but actors or Kodik confirm Asian
+    # 7. Final sanity check: detect country mismatch where country says Ukraine/unknown but actors or Kodik confirm Asian
     act_str = str(details.get("actors") or "").lower()
     c_str = str(details.get("country") or "").lower()
-    asian_surnames = ["чэнь", "тун яо", "линь", "юань", "пань", "ван ян", "сюй", "дун ", "чжан", "ким ", "пак ", "сон ", "ли мин", "минхо", "бай лу", "чжао лусы"]
-    if any(s in act_str for s in asian_surnames) and not any(a in c_str for a in ["китай", "коре", "япони", "тайван", "гонконг", "ази"]):
-        if clean_title:
-            try:
-                k_re = kodik.search(clean_title, year=year_int, kp_id=resolved_kp)
-                for kit in k_re:
-                    k_c = kit.extra_data.get("country")
-                    if k_c and any(a in k_c.lower() for a in ["китай", "коре", "япони", "тайван"]):
-                        details["country"] = k_c
-                        break
-            except Exception:
-                pass
-        if not any(a in str(details.get("country") or "").lower() for a in ["китай", "коре", "япони"]):
-            details["country"] = "Китай"
+    has_authentic_western = any(w in c_str for w in [
+        "великобритан", "испан", "болгар", "франци", "германи", "италь", "италия", "канад", "австрали", "швеци", "норвеги", "дания", "ирланди", "сша"
+    ])
+    if not has_authentic_western:
+        has_asian_actors = bool(re.search(r'\b(чэнь|тун яо|линь|юань|пань|ван ян|сюй|чжан|бай лу|чжао лусы|минхо)\b', act_str) or
+                               re.search(r'\b(ким|пак|сон|ли|чхве|чо|чон)\s+[а-яё]', act_str))
+        if has_asian_actors and not any(a in c_str for a in ["китай", "коре", "япони", "тайван", "гонконг", "ази"]):
+            if clean_title:
+                try:
+                    k_re = kodik.search(clean_title, year=year_int, kp_id=resolved_kp)
+                    for kit in k_re:
+                        if normalize_search_title(kit.title) == normalize_search_title(clean_title):
+                            k_c = kit.extra_data.get("country")
+                            if k_c and any(a in k_c.lower() for a in ["китай", "коре", "япони", "тайван"]):
+                                details["country"] = k_c
+                                break
+                except Exception:
+                    pass
+            if not c_str or any(bad in c_str for bad in ["неизвестно", "украина", "null", "none"]):
+                if not any(a in str(details.get("country") or "").lower() for a in ["китай", "коре", "япони"]):
+                    details["country"] = "Китай"
 
     if details.get("seasons") or details.get("translators") or details.get("description"):
         _details_cache[cache_key] = (now_ts, details)

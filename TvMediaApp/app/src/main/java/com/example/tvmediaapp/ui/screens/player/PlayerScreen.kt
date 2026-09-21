@@ -699,16 +699,24 @@ private fun NativeExoPlayerScreen(
 
                 if (targetStream != null) {
                     currentStreamUrl = targetStream.url
-                    exoPlayer.setMediaItem(MediaItem.fromUri(targetStream.url))
-                    if (isSameEpisode && savedPos > 1000L) {
-                        exoPlayer.seekTo(savedPos)
+                    if (isDirectVideoStream(targetStream.url)) {
+                        exoPlayer.setMediaItem(MediaItem.fromUri(targetStream.url))
+                        if (isSameEpisode && savedPos > 1000L) {
+                            exoPlayer.seekTo(savedPos)
+                        } else {
+                            exoPlayer.seekTo(0L)
+                            currentPosition = 0L
+                            bufferedPosition = 0L
+                        }
+                        exoPlayer.prepare()
+                        exoPlayer.play()
                     } else {
-                        exoPlayer.seekTo(0L)
-                        currentPosition = 0L
-                        bufferedPosition = 0L
+                        // Embed stream (e.g. Bazon) - pause and clear ExoPlayer so it doesn't crash on HTML
+                        try {
+                            exoPlayer.stop()
+                            exoPlayer.clearMediaItems()
+                        } catch (_: Exception) {}
                     }
-                    exoPlayer.prepare()
-                    exoPlayer.play()
                 } else {
                     val trackName = currentMovieState.audioTracks.firstOrNull { it.id == newAudioId }?.name ?: "выбранная озвучка"
                     translatorNoticeBadge = "Серия $epToPlay недоступна в «$trackName»"
@@ -1009,23 +1017,91 @@ private fun NativeExoPlayerScreen(
                 false
             }
     ) {
-        // ExoPlayer View Surface
-        AndroidView(
-            factory = { ctx ->
-                PlayerView(ctx).apply {
-                    player = exoPlayer
-                    useController = false
-                    isFocusable = false
-                    isFocusableInTouchMode = false
-                    isClickable = false
-                    layoutParams = FrameLayout.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        ViewGroup.LayoutParams.MATCH_PARENT
-                    )
-                }
-            },
-            modifier = Modifier.fillMaxSize()
-        )
+        // Video Playback Surface: ExoPlayer for direct streams, WebView for embed players (e.g. Bazon)
+        if (isDirectVideoStream(currentStreamUrl)) {
+            AndroidView(
+                factory = { ctx ->
+                    PlayerView(ctx).apply {
+                        player = exoPlayer
+                        useController = false
+                        isFocusable = false
+                        isFocusableInTouchMode = false
+                        isClickable = false
+                        layoutParams = FrameLayout.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                            ViewGroup.LayoutParams.MATCH_PARENT
+                        )
+                    }
+                },
+                modifier = Modifier.fillMaxSize()
+            )
+        } else if (currentStreamUrl.isNotBlank() && currentStreamUrl.startsWith("http")) {
+            AndroidView(
+                factory = { ctx ->
+                    WebView(ctx).apply {
+                        settings.javaScriptEnabled = true
+                        settings.domStorageEnabled = true
+                        settings.mediaPlaybackRequiresUserGesture = false
+                        webChromeClient = WebChromeClient()
+                        webViewClient = object : WebViewClient() {
+                            override fun onPageFinished(view: WebView?, url: String?) {
+                                view?.evaluateJavascript(
+                                    """
+                                    (function() {
+                                        document.body.style.background = '#000';
+                                        document.body.style.overflow = 'hidden';
+                                        var f = document.querySelector('iframe');
+                                        if (f) {
+                                            f.style.width = '100vw';
+                                            f.style.height = '100vh';
+                                            f.style.border = '0';
+                                        }
+                                    })();
+                                    """.trimIndent(), null
+                                )
+                            }
+                        }
+                        val html = """
+                            <!DOCTYPE html>
+                            <html>
+                            <head>
+                            <meta charset="utf-8">
+                            <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+                            <style>
+                              html, body { margin: 0; padding: 0; width: 100vw; height: 100vh; background: #000; overflow: hidden; }
+                              iframe { width: 100%; height: 100%; border: 0; position: absolute; top: 0; left: 0; }
+                            </style>
+                            </head>
+                            <body>
+                              <iframe src="$currentStreamUrl" allow="autoplay; fullscreen" allowfullscreen></iframe>
+                            </body>
+                            </html>
+                        """.trimIndent()
+                        loadDataWithBaseURL("https://showhub-server.onrender.com", html, "text/html", "UTF-8", null)
+                    }
+                },
+                update = { wv ->
+                    val html = """
+                        <!DOCTYPE html>
+                        <html>
+                        <head>
+                        <meta charset="utf-8">
+                        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+                        <style>
+                          html, body { margin: 0; padding: 0; width: 100vw; height: 100vh; background: #000; overflow: hidden; }
+                          iframe { width: 100%; height: 100%; border: 0; position: absolute; top: 0; left: 0; }
+                        </style>
+                        </head>
+                        <body>
+                          <iframe src="$currentStreamUrl" allow="autoplay; fullscreen" allowfullscreen></iframe>
+                        </body>
+                        </html>
+                    """.trimIndent()
+                    wv.loadDataWithBaseURL("https://showhub-server.onrender.com", html, "text/html", "UTF-8", null)
+                },
+                modifier = Modifier.fillMaxSize()
+            )
+        }
 
         // Quick Seek Delta Badge Overlay (when controls are hidden)
         if (quickSeekBadgeText != null && !isControlsVisible) {

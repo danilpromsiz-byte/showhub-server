@@ -48,7 +48,15 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     val gridState = androidx.tv.foundation.lazy.grid.TvLazyGridState()
     var lastFocusedIndex by mutableIntStateOf(0)
 
+    private val prefs = application.getSharedPreferences("showhub_prefs", android.content.Context.MODE_PRIVATE)
+    private val prefsListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+        if (key in listOf("pref_excluded_countries", "pref_excluded_genres", "pref_only_with_poster")) {
+            loadCatalog()
+        }
+    }
+
     init {
+        prefs.registerOnSharedPreferenceChangeListener(prefsListener)
         loadCatalog()
     }
 
@@ -331,5 +339,12 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 category
             }
         }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        try {
+            prefs.unregisterOnSharedPreferenceChangeListener(prefsListener)
+        } catch (_: Exception) {}
     }
 }

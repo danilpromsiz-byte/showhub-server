@@ -132,6 +132,7 @@ fun PlayerScreen(
     season: Int = 1,
     episode: Int = 1,
     audioId: String = "",
+    onPositionChange: ((Long) -> Unit)? = null,
     onBackPress: () -> Unit
 ) {
     val isEmbedWeb = !isDirectVideoStream(movie.videoUrl) &&
@@ -151,6 +152,7 @@ fun PlayerScreen(
             season = season,
             episode = episode,
             audioId = audioId,
+            onPositionChange = onPositionChange,
             onBackPress = onBackPress
         )
     }
@@ -366,6 +368,7 @@ private fun NativeExoPlayerScreen(
     season: Int = 1,
     episode: Int = 1,
     audioId: String = "",
+    onPositionChange: ((Long) -> Unit)? = null,
     onBackPress: () -> Unit
 ) {
     val accent = LocalAccentColor.current
@@ -546,6 +549,34 @@ private fun NativeExoPlayerScreen(
             }
     }
 
+    fun persistCurrentPlaybackProgress() {
+        try {
+            val pos = exoPlayer.currentPosition
+            val dur = exoPlayer.duration
+            if (pos > 1000L) {
+                historyManager.saveProgress(
+                    movie = currentMovieState,
+                    positionMs = pos,
+                    durationMs = if (dur > 0L) dur else 0L,
+                    season = currentSeason,
+                    episode = currentEpisode,
+                    audioId = currentAudioId
+                )
+                onPositionChange?.invoke(pos)
+                SessionManager.saveSession(
+                    context = context,
+                    movie = currentMovieState,
+                    screen = Screen.PLAYER,
+                    videoUrl = currentStreamUrl,
+                    positionMs = pos,
+                    season = currentSeason,
+                    episode = currentEpisode,
+                    audioId = currentAudioId
+                )
+            }
+        } catch (_: Exception) {}
+    }
+
     fun togglePlayPause() {
         if (exoPlayer.isPlaying) {
             exoPlayer.pause()
@@ -629,20 +660,7 @@ private fun NativeExoPlayerScreen(
     ) {
         val isSameEpisode = (newSeason == currentSeason && newEpisode == currentEpisode)
         if (!isSameEpisode) {
-            try {
-                val pos = exoPlayer.currentPosition
-                val dur = exoPlayer.duration
-                if (pos > 3000L && dur > 0L) {
-                    historyManager.saveProgress(
-                        movie = currentMovieState,
-                        positionMs = pos,
-                        durationMs = dur,
-                        season = currentSeason,
-                        episode = currentEpisode,
-                        audioId = currentAudioId
-                    )
-                }
-            } catch (_: Exception) {}
+            persistCurrentPlaybackProgress()
         }
         currentSeason = newSeason
         currentEpisode = newEpisode
@@ -852,14 +870,7 @@ private fun NativeExoPlayerScreen(
             val now = System.currentTimeMillis()
             if (currentPosition > 3000L && duration > 0L && (now - lastSavedMs >= 5000L)) {
                 lastSavedMs = now
-                historyManager.saveProgress(
-                    movie = currentMovieState,
-                    positionMs = currentPosition,
-                    durationMs = duration,
-                    season = currentSeason,
-                    episode = currentEpisode,
-                    audioId = currentAudioId
-                )
+                persistCurrentPlaybackProgress()
             }
             delay(if (isControlsVisible) 1000L else 2000L)
         }
@@ -896,20 +907,7 @@ private fun NativeExoPlayerScreen(
         } else {
             val now = System.currentTimeMillis()
             if (now - lastBackPressTime < 2000L) {
-                try {
-                    val pos = exoPlayer.currentPosition
-                    val dur = exoPlayer.duration
-                    if (pos > 3000L && dur > 0L) {
-                        historyManager.saveProgress(
-                            movie = currentMovieState,
-                            positionMs = pos,
-                            durationMs = dur,
-                            season = currentSeason,
-                            episode = currentEpisode,
-                            audioId = currentAudioId
-                        )
-                    }
-                } catch (_: Exception) {}
+                persistCurrentPlaybackProgress()
                 onBackPress()
             } else {
                 lastBackPressTime = now
@@ -923,25 +921,11 @@ private fun NativeExoPlayerScreen(
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
                 Lifecycle.Event.ON_PAUSE, Lifecycle.Event.ON_STOP -> {
-                    try {
-                        val pos = exoPlayer.currentPosition
-                        val dur = exoPlayer.duration
-                        if (pos > 3000L && dur > 0L) {
-                            historyManager.saveProgress(
-                                movie = currentMovieState,
-                                positionMs = pos,
-                                durationMs = dur,
-                                season = currentSeason,
-                                episode = currentEpisode,
-                                audioId = currentAudioId
-                            )
-                        }
-                    } catch (e: Exception) {
-                        e.printStackTrace()
-                    }
+                    persistCurrentPlaybackProgress()
                     exoPlayer.pause()
                 }
                 Lifecycle.Event.ON_DESTROY -> {
+                    persistCurrentPlaybackProgress()
                     exoPlayer.stop()
                     exoPlayer.release()
                 }
@@ -951,24 +935,12 @@ private fun NativeExoPlayerScreen(
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
+            persistCurrentPlaybackProgress()
             try {
-                val pos = exoPlayer.currentPosition
-                val dur = exoPlayer.duration
-                if (pos > 3000L && dur > 0L) {
-                    historyManager.saveProgress(
-                        movie = currentMovieState,
-                        positionMs = pos,
-                        durationMs = dur,
-                        season = currentSeason,
-                        episode = currentEpisode,
-                        audioId = currentAudioId
-                    )
-                }
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-            exoPlayer.stop()
-            exoPlayer.release()
+                exoPlayer.stop()
+                exoPlayer.clearMediaItems()
+                exoPlayer.release()
+            } catch (_: Exception) {}
         }
     }
 
@@ -1011,6 +983,7 @@ private fun NativeExoPlayerScreen(
                         }
                         val now = System.currentTimeMillis()
                         if (now - lastBackPressTime < 2000L) {
+                            persistCurrentPlaybackProgress()
                             onBackPress()
                         } else {
                             lastBackPressTime = now

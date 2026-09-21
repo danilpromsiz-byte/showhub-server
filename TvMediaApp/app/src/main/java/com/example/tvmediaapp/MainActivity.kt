@@ -65,6 +65,7 @@ import com.example.tvmediaapp.data.updater.UpdateInfo
 import com.example.tvmediaapp.data.updater.UpdateManager
 import com.example.tvmediaapp.ui.screens.details.DetailsScreen
 import com.example.tvmediaapp.data.history.SessionManager
+import com.example.tvmediaapp.data.history.WatchHistoryManager
 import com.example.tvmediaapp.util.CrashReporter
 import com.example.tvmediaapp.ui.screens.favorites.FavoritesScreen
 import com.example.tvmediaapp.ui.screens.history.HistoryScreen
@@ -210,6 +211,20 @@ fun TvAppNavHost(activity: MainActivity) {
     val coroutineScope = rememberCoroutineScope()
 
     val restoredSession = remember { SessionManager.restoreSession(activity) }
+    val historyManager = remember { WatchHistoryManager(activity) }
+    val restoredPosition = remember {
+        val hItem = restoredSession?.movie?.let { historyManager.getProgress(it.id, it.title) }
+        if (hItem != null && hItem.positionMs > 1000L) {
+            if (!hItem.isSeries || (hItem.season == restoredSession?.season && hItem.episode == restoredSession?.episode)) {
+                hItem.positionMs
+            } else {
+                restoredSession?.positionMs ?: 0L
+            }
+        } else {
+            restoredSession?.positionMs ?: 0L
+        }
+    }
+
     var currentScreen by remember {
         mutableStateOf(
             when {
@@ -221,7 +236,7 @@ fun TvAppNavHost(activity: MainActivity) {
     }
     var selectedMovie by remember { mutableStateOf<Movie?>(restoredSession?.movie) }
     var activeVideoUrl by remember { mutableStateOf(restoredSession?.videoUrl ?: "") }
-    var startPositionMs by remember { mutableLongStateOf(restoredSession?.positionMs ?: 0L) }
+    var startPositionMs by remember { mutableLongStateOf(restoredPosition) }
     var activeSeason by remember { mutableIntStateOf(restoredSession?.season ?: 1) }
     var activeEpisode by remember { mutableIntStateOf(restoredSession?.episode ?: 1) }
     var activeAudioId by remember { mutableStateOf(restoredSession?.audioId ?: "") }
@@ -329,10 +344,19 @@ fun TvAppNavHost(activity: MainActivity) {
             searchInitialQuery = prev.searchQuery
             searchIsActor = prev.searchIsActor
             activeVideoUrl = prev.videoUrl
-            startPositionMs = prev.positionMs
-            activeSeason = prev.season
-            activeEpisode = prev.episode
-            activeAudioId = prev.audioId
+            val prevMovie = prev.movie
+            if (prev.screen == Screen.DETAILS && prevMovie != null) {
+                val latestHist = historyManager.getProgress(prevMovie.id, prevMovie.title)
+                startPositionMs = latestHist?.positionMs ?: prev.positionMs
+                activeSeason = latestHist?.season ?: prev.season
+                activeEpisode = latestHist?.episode ?: prev.episode
+                activeAudioId = latestHist?.audioId?.ifEmpty { prev.audioId } ?: prev.audioId
+            } else {
+                startPositionMs = prev.positionMs
+                activeSeason = prev.season
+                activeEpisode = prev.episode
+                activeAudioId = prev.audioId
+            }
             if (prev.screen == Screen.HOME) {
                 SessionManager.clearSession(activity)
             }
@@ -622,6 +646,9 @@ fun TvAppNavHost(activity: MainActivity) {
                         season = activeSeason,
                         episode = activeEpisode,
                         audioId = activeAudioId,
+                        onPositionChange = { newPos ->
+                            startPositionMs = newPos
+                        },
                         onBackPress = {
                             navigateBack()
                         }

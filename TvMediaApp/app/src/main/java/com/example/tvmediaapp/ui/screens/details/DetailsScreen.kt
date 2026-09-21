@@ -459,9 +459,9 @@ fun DetailsScreen(
             val playerToRelease = detailsPreviewPlayer
             detailsPreviewPlayer = null
             if (playerToRelease != null) {
-                playerToRelease.stop()
                 CoroutineScope(Dispatchers.IO).launch {
                     try {
+                        playerToRelease.stop()
                         playerToRelease.clearMediaItems()
                         playerToRelease.release()
                     } catch (_: Exception) {}
@@ -480,12 +480,19 @@ fun DetailsScreen(
         isResolving = true
         streamStatus = "Поиск прямого HLS потока..."
 
-        // Stop background preview before entering player
-        detailsPreviewPlayer?.stop()
-        detailsPreviewPlayer?.clearMediaItems()
-        detailsPreviewPlayer?.release()
+        // Stop background preview asynchronously before entering player
+        val playerToStop = detailsPreviewPlayer
         detailsPreviewPlayer = null
         isDetailsPreviewPlaying = false
+        if (playerToStop != null) {
+            CoroutineScope(Dispatchers.IO).launch {
+                try {
+                    playerToStop.stop()
+                    playerToStop.clearMediaItems()
+                    playerToStop.release()
+                } catch (_: Exception) {}
+            }
+        }
 
         coroutineScope.launch {
             val isContentSeries = currentMovie.isSeries || currentMovie.seasons.isNotEmpty() || targetSeason > 1 || targetEpisode > 1
@@ -646,12 +653,17 @@ fun DetailsScreen(
                                         player = detailsPreviewPlayer
                                         useController = false
                                         resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                                        isFocusable = false
+                                        isFocusableInTouchMode = false
+                                        descendantFocusability = android.view.ViewGroup.FOCUS_BLOCK_DESCENDANTS
+                                        isClickable = false
                                     }
                                 },
                                 modifier = Modifier
                                     .fillMaxSize()
                                     .alpha(previewAlpha)
                                     .clip(RoundedCornerShape(8.dp))
+                                    .focusProperties { canFocus = false }
                             )
 
                             // Preview Badge

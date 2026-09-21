@@ -150,17 +150,18 @@ class MainActivity : ComponentActivity() {
 
     override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
         if (event.action == android.view.KeyEvent.ACTION_DOWN) {
-            val isDpad = when (event.keyCode) {
+            val isNavigationKey = when (event.keyCode) {
                 android.view.KeyEvent.KEYCODE_DPAD_UP,
                 android.view.KeyEvent.KEYCODE_DPAD_DOWN,
                 android.view.KeyEvent.KEYCODE_DPAD_LEFT,
                 android.view.KeyEvent.KEYCODE_DPAD_RIGHT,
                 android.view.KeyEvent.KEYCODE_DPAD_CENTER,
                 android.view.KeyEvent.KEYCODE_ENTER,
-                android.view.KeyEvent.KEYCODE_NUMPAD_ENTER -> true
+                android.view.KeyEvent.KEYCODE_NUMPAD_ENTER,
+                android.view.KeyEvent.KEYCODE_BACK -> true
                 else -> false
             }
-            if (isDpad) {
+            if (isNavigationKey) {
                 val view = currentFocus
                 if (view == null || !view.hasFocus()) {
                     window.decorView.requestFocus()
@@ -243,7 +244,15 @@ fun TvAppNavHost(activity: MainActivity) {
         activeAudioId = audioId
     }
 
+    var lastBackPressTime by remember { mutableLongStateOf(0L) }
+
     fun navigateBack() {
+        val now = System.currentTimeMillis()
+        if (now - lastBackPressTime < 300L) {
+            return
+        }
+        lastBackPressTime = now
+
         // Pop any trailing redundant states matching current screen, or if on DETAILS, pop all DETAILS entries
         while (backStack.isNotEmpty() && (
             backStack.last().screen == currentScreen ||
@@ -263,7 +272,6 @@ fun TvAppNavHost(activity: MainActivity) {
                 currentScreen = Screen.HOME
                 selectedMovie = null
                 SessionManager.clearSession(activity)
-                homeViewModel.refreshCatalog()
                 return
             }
             currentScreen = prev.screen
@@ -277,14 +285,12 @@ fun TvAppNavHost(activity: MainActivity) {
             activeAudioId = prev.audioId
             if (prev.screen == Screen.HOME) {
                 SessionManager.clearSession(activity)
-                homeViewModel.refreshCatalog()
             }
         } else {
             if (currentScreen != Screen.HOME) {
                 currentScreen = Screen.HOME
                 selectedMovie = null
                 SessionManager.clearSession(activity)
-                homeViewModel.refreshCatalog()
             } else {
                 showExitDialog = true
             }
@@ -308,7 +314,6 @@ fun TvAppNavHost(activity: MainActivity) {
             }
         } else if (currentScreen == Screen.HOME) {
             SessionManager.clearSession(activity)
-            homeViewModel.refreshCatalog()
         }
     }
 

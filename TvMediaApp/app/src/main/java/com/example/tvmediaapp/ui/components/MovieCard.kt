@@ -250,9 +250,9 @@ fun MovieCard(
             val playerToRelease = previewPlayer
             previewPlayer = null
             if (playerToRelease != null) {
-                playerToRelease.stop()
                 kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
                     try {
+                        playerToRelease.stop()
                         playerToRelease.clearMediaItems()
                         playerToRelease.release()
                     } catch (_: Exception) {}
@@ -282,9 +282,9 @@ fun MovieCard(
             val playerToRelease = previewPlayer
             previewPlayer = null
             if (playerToRelease != null) {
-                playerToRelease.stop()
                 kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
                     try {
+                        playerToRelease.stop()
                         playerToRelease.clearMediaItems()
                         playerToRelease.release()
                     } catch (_: Exception) {}

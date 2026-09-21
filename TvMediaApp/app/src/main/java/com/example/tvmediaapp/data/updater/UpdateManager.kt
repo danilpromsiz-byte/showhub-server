@@ -116,89 +116,109 @@ object UpdateManager {
                     onProgress?.invoke("Файл обновления готов ($mb МБ)", 100)
                 }
             } else {
+            val candidateUrls = listOf(
+                apkUrl,
+                "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
+                "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/ShowHub.apk",
+                "https://showhub-server.onrender.com/ShowHub.apk"
+            ).distinct()
+
+            var downloadSuccess = false
+            for (currentUrl in candidateUrls) {
+                if (isCachedValid) {
+                    downloadSuccess = true
+                    break
+                }
+
                 if (apkFile.exists()) {
                     try { apkFile.delete() } catch (_: Exception) {}
                 }
 
-                val url = URL(apkUrl)
-                val conn = url.openConnection() as HttpURLConnection
-                conn.connectTimeout = 20000
-                conn.readTimeout = 60000
-                conn.setRequestProperty("User-Agent", "ShowHubTV-Native/2.8.16")
-                conn.connect()
+                try {
+                    val url = URL(currentUrl)
+                    val conn = url.openConnection() as HttpURLConnection
+                    conn.connectTimeout = 20000
+                    conn.readTimeout = 60000
+                    conn.setRequestProperty("User-Agent", "ShowHubTV-Native/2.8.18")
+                    conn.connect()
 
-                val responseCode = conn.responseCode
-                if (responseCode !in 200..299) {
-                    withContext(Dispatchers.Main) {
-                        onProgress?.invoke("Ошибка сервера ($responseCode)", -1)
+                    val responseCode = conn.responseCode
+                    if (responseCode !in 200..299) {
+                        continue
                     }
-                    return@withContext false
-                }
 
-                val contentLength = conn.contentLength.toLong()
-                var bytesReadTotal = 0L
-                var lastReportTime = 0L
+                    val contentLength = conn.contentLength.toLong()
+                    var bytesReadTotal = 0L
+                    var lastReportTime = 0L
 
-                conn.inputStream.use { input ->
-                    FileOutputStream(apkFile).use { output ->
-                        val buffer = ByteArray(32768)
-                        var bytesRead: Int
-                        while (input.read(buffer).also { bytesRead = it } > 0) {
-                            output.write(buffer, 0, bytesRead)
-                            bytesReadTotal += bytesRead
+                    conn.inputStream.use { input ->
+                        FileOutputStream(apkFile).use { output ->
+                            val buffer = ByteArray(32768)
+                            var bytesRead: Int
+                            while (input.read(buffer).also { bytesRead = it } > 0) {
+                                output.write(buffer, 0, bytesRead)
+                                bytesReadTotal += bytesRead
 
-                            val now = System.currentTimeMillis()
-                            if (now - lastReportTime > 200 || bytesReadTotal == contentLength) {
-                                lastReportTime = now
-                                val percent = if (contentLength > 0) {
-                                    ((bytesReadTotal * 100) / contentLength).toInt().coerceIn(0, 100)
-                                } else {
-                                    -1
-                                }
-                                val mbRead = String.format(java.util.Locale.US, "%.1f", bytesReadTotal / (1024.0 * 1024.0))
-                                val mbTotal = if (contentLength > 0) {
-                                    String.format(java.util.Locale.US, "%.1f", contentLength / (1024.0 * 1024.0))
-                                } else {
-                                    "?"
-                                }
-                                val statusMsg = if (percent >= 0) {
-                                    "Загрузка: $percent% ($mbRead / $mbTotal МБ)"
-                                } else {
-                                    "Загружено: $mbRead МБ"
-                                }
-                                withContext(Dispatchers.Main) {
-                                    onProgress?.invoke(statusMsg, percent)
+                                val now = System.currentTimeMillis()
+                                if (now - lastReportTime > 200 || bytesReadTotal == contentLength) {
+                                    lastReportTime = now
+                                    val percent = if (contentLength > 0) {
+                                        ((bytesReadTotal * 100) / contentLength).toInt().coerceIn(0, 100)
+                                    } else {
+                                        -1
+                                    }
+                                    val mbRead = String.format(java.util.Locale.US, "%.1f", bytesReadTotal / (1024.0 * 1024.0))
+                                    val mbTotal = if (contentLength > 0) {
+                                        String.format(java.util.Locale.US, "%.1f", contentLength / (1024.0 * 1024.0))
+                                    } else {
+                                        "?"
+                                    }
+                                    val statusMsg = if (percent >= 0) {
+                                        "Загрузка: $percent% ($mbRead / $mbTotal МБ)"
+                                    } else {
+                                        "Загружено: $mbRead МБ"
+                                    }
+                                    withContext(Dispatchers.Main) {
+                                        onProgress?.invoke(statusMsg, percent)
+                                    }
                                 }
                             }
+                            output.flush()
                         }
-                        output.flush()
                     }
+
+                    apkFile.setReadable(true, false)
+
+                    if (apkFile.length() < 1_000_000L) {
+                        try { apkFile.delete() } catch (_: Exception) {}
+                        continue
+                    }
+
+                    val archiveInfo = activity.packageManager.getPackageArchiveInfo(apkFile.absolutePath, 0)
+                    val downloadedVersion = if (archiveInfo != null) {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) archiveInfo.longVersionCode.toInt() else archiveInfo.versionCode
+                    } else 0
+
+                    if (targetVersionCode > 0 && downloadedVersion < targetVersionCode) {
+                        try { apkFile.delete() } catch (_: Exception) {}
+                        continue // Try next mirror!
+                    }
+
+                    downloadSuccess = true
+                    break
+                } catch (_: Exception) {
+                    try { apkFile.delete() } catch (_: Exception) {}
                 }
             }
 
-            apkFile.setReadable(true, false)
-
-            if (apkFile.length() < 1_000_000L) {
+            if (!downloadSuccess || !apkFile.exists() || apkFile.length() < 1_000_000L) {
                 withContext(Dispatchers.Main) {
-                    onProgress?.invoke("Файл обновления поврежден (${apkFile.length()} байт). Попробуйте снова.", -1)
-                }
-                return@withContext false
-            }
-
-            // Verify downloaded package archive info
-            val archiveInfo = activity.packageManager.getPackageArchiveInfo(apkFile.absolutePath, 0)
-            val downloadedVersion = if (archiveInfo != null) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) archiveInfo.longVersionCode.toInt() else archiveInfo.versionCode
-            } else 0
-
-            if (targetVersionCode > 0 && downloadedVersion < targetVersionCode) {
-                try { apkFile.delete() } catch (_: Exception) {}
-                withContext(Dispatchers.Main) {
-                    onProgress?.invoke("Сервер вернул старую сборку (код $downloadedVersion). Открываем браузер...", -1)
+                    onProgress?.invoke("Не удалось скачать актуальную сборку. Открываем браузер...", -1)
                     openDownloadUrlInBrowser(activity, apkUrl)
                 }
                 return@withContext false
             }
+        }
 
             // Check Unknown App Sources permission on Android 8.0+ (API 26+)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {

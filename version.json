@@ -4,7 +4,7 @@
   "version_code": 77,
   "force_update": true,
   "min_version_code": 77,
-  "download_url": "https://showhub-server.onrender.com/ShowHub.apk",
-  "apk_url": "https://showhub-server.onrender.com/ShowHub.apk",
+  "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
+  "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
   "changelog": "ShowHub TV v2.8.18: Точный матчинг тайтлов и контента, двойная фильтрация страна+жанр с морфологией, прямое переключение озвучек в плеере, плавный фокус в карточке фильма (табы, источники, переводы, серии), фиксация фокуса в календаре выхода серий, превью длинных сериалов, фоновая загрузка каталога в память ТВ, принудительное обновление."
 }

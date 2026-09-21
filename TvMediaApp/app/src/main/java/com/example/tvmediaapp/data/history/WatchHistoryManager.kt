@@ -39,6 +39,11 @@ class WatchHistoryManager(context: Context) {
             var t = title.trim().lowercase()
                 .replace("ё", "е")
                 .replace(Regex("\\(.*?\\)|\\[.*?\\]"), "")
+            // Strip secondary language or alternate title after slash (e.g. "Замужняя убийца / Yubunyeo killeo")
+            if (t.contains("/")) {
+                val p = t.substringBefore("/").trim()
+                if (p.isNotBlank()) t = p
+            }
             // Strip standalone season/part indicators like "1 сезон", "2 season", "часть 1"
             t = t.replace(Regex("""\b\d+[-–\s]*(?:сезон[а-я]*|сез\.?|season[s]?|part[s]?|част[а-я]*)\b""", RegexOption.IGNORE_CASE), "")
                 .replace(Regex("""\b(?:сезон[а-я]*|сез\.?|season[s]?|part[s]?|част[а-я]*)\s*\d+\b""", RegexOption.IGNORE_CASE), "")
@@ -61,7 +66,13 @@ class WatchHistoryManager(context: Context) {
         audioId: String = ""
     ) {
         if (movie.id.isEmpty() || positionMs <= 3000L) return
-        val percentage = if (durationMs > 0) ((positionMs * 100) / durationMs).toInt().coerceIn(0, 100) else 0
+        val isSeriesItem = movie.isSeries || movie.seasons.isNotEmpty() || season >= 1 || episode >= 1
+        val percentage = if (durationMs > 0) {
+            ((positionMs * 100) / durationMs).toInt().coerceIn(0, 100)
+        } else {
+            val defDur = if (isSeriesItem) 45 * 60 * 1000L else 90 * 60 * 1000L
+            ((positionMs * 100) / defDur).toInt().coerceIn(5, 95)
+        }
 
         val item = HistoryItem(
             id = movie.id,
@@ -84,7 +95,6 @@ class WatchHistoryManager(context: Context) {
         list.add(0, item)
         saveList(list.take(200))
 
-        val isSeriesItem = movie.isSeries || movie.seasons.isNotEmpty() || season >= 1 || episode >= 1
         if (isSeriesItem) {
             saveEpisodeProgress(movie.id, season, episode, positionMs, durationMs, movie.title)
             if (percentage >= 85) {
@@ -104,8 +114,12 @@ class WatchHistoryManager(context: Context) {
     }
 
     fun saveEpisodeProgress(seriesId: String, season: Int, episode: Int, positionMs: Long, durationMs: Long, title: String? = null) {
-        if (durationMs <= 0L || positionMs <= 3000L) return
-        val percentage = ((positionMs * 100) / durationMs).toInt().coerceIn(0, 100)
+        if (positionMs <= 3000L) return
+        val percentage = if (durationMs > 0L) {
+            ((positionMs * 100) / durationMs).toInt().coerceIn(0, 100)
+        } else {
+            ((positionMs * 100) / (45 * 60 * 1000L)).toInt().coerceIn(5, 95)
+        }
         if (seriesId.isNotBlank()) {
             val key = "ep_pct_${seriesId}_s${season}e${episode}"
             prefs.edit().putInt(key, percentage).apply()
@@ -134,21 +148,33 @@ class WatchHistoryManager(context: Context) {
             val tp = prefs.getInt(tKey, 0)
             if (tp > 0) return tp
 
-            val histItem = getHistory().firstOrNull { normalizeTitle(it.title) == cleanT }
-            if (histItem != null && histItem.id != seriesId) {
-                val key = "ep_pct_${histItem.id}_s${season}e${episode}"
-                val p = prefs.getInt(key, 0)
-                if (p > 0) return p
+            val allHistory = getHistory()
+            for (histItem in allHistory) {
+                if (normalizeTitle(histItem.title) == cleanT && histItem.id != seriesId) {
+                    val key = "ep_pct_${histItem.id}_s${season}e${episode}"
+                    val p = prefs.getInt(key, 0)
+                    if (p > 0) return p
+                }
             }
         }
 
-        // Direct fallback to history item if current season and episode match
-        val histMatch = getHistory().firstOrNull {
-            (seriesId.isNotBlank() && it.id == seriesId) ||
-            (cleanT.isNotBlank() && normalizeTitle(it.title) == cleanT)
+        // Direct fallback to all history items if matching season and episode
+        val allHistory = getHistory()
+        val histMatch = allHistory.firstOrNull { item ->
+            val idMatch = (seriesId.isNotBlank() && item.id == seriesId)
+            val titleMatch = (cleanT.isNotBlank() && normalizeTitle(item.title) == cleanT)
+            (idMatch || titleMatch) && item.season == season && item.episode == episode
         }
-        if (histMatch != null && (histMatch.season ?: 1) == season && (histMatch.episode ?: 1) == episode) {
+        if (histMatch != null) {
             if (histMatch.percentage > 0) return histMatch.percentage
+            if (histMatch.positionMs > 10_000L) {
+                val calcPct = if (histMatch.durationMs > 0L) {
+                    ((histMatch.positionMs * 100) / histMatch.durationMs).toInt()
+                } else {
+                    ((histMatch.positionMs * 100) / (45 * 60 * 1000L)).toInt()
+                }
+                return calcPct.coerceIn(1, 100)
+            }
         }
 
         return 0
@@ -168,12 +194,14 @@ class WatchHistoryManager(context: Context) {
             tSet.add("s${season}e${episode}")
             prefs.edit().putStringSet(tKey, tSet).apply()
 
-            val histItem = getHistory().firstOrNull { normalizeTitle(it.title) == cleanT }
-            if (histItem != null && histItem.id != seriesId) {
-                val key = "watched_episodes_${histItem.id}"
-                val existing = prefs.getStringSet(key, emptySet())?.toMutableSet() ?: mutableSetOf()
-                existing.add("s${season}e${episode}")
-                prefs.edit().putStringSet(key, existing).apply()
+            val allHistory = getHistory()
+            for (histItem in allHistory) {
+                if (normalizeTitle(histItem.title) == cleanT && histItem.id != seriesId) {
+                    val key = "watched_episodes_${histItem.id}"
+                    val existing = prefs.getStringSet(key, emptySet())?.toMutableSet() ?: mutableSetOf()
+                    existing.add("s${season}e${episode}")
+                    prefs.edit().putStringSet(key, existing).apply()
+                }
             }
         }
         notifyHistoryChanged()
@@ -197,24 +225,29 @@ class WatchHistoryManager(context: Context) {
             val tPctKey = "ep_pct_t_${cleanT}_s${season}e${episode}"
             if (prefs.getInt(tPctKey, 0) >= 85) return true
 
-            val histItem = getHistory().firstOrNull { normalizeTitle(it.title) == cleanT }
-            if (histItem != null && histItem.id != seriesId) {
-                val key = "watched_episodes_${histItem.id}"
-                val watched = prefs.getStringSet(key, emptySet()) ?: emptySet()
-                if (watched.contains("s${season}e${episode}")) return true
+            val allHistory = getHistory()
+            for (histItem in allHistory) {
+                if (normalizeTitle(histItem.title) == cleanT && histItem.id != seriesId) {
+                    val key = "watched_episodes_${histItem.id}"
+                    val watched = prefs.getStringSet(key, emptySet()) ?: emptySet()
+                    if (watched.contains("s${season}e${episode}")) return true
 
-                val hPctKey = "ep_pct_${histItem.id}_s${season}e${episode}"
-                if (prefs.getInt(hPctKey, 0) >= 85) return true
+                    val hPctKey = "ep_pct_${histItem.id}_s${season}e${episode}"
+                    if (prefs.getInt(hPctKey, 0) >= 85) return true
+                }
             }
-        }
 
-        // Direct fallback to history item if marked watched (>= 85%)
-        val histMatch = getHistory().firstOrNull {
-            (seriesId.isNotBlank() && it.id == seriesId) ||
-            (cleanT.isNotBlank() && normalizeTitle(it.title) == cleanT)
-        }
-        if (histMatch != null && (histMatch.season ?: 1) == season && (histMatch.episode ?: 1) == episode) {
-            if (histMatch.percentage >= 85) return true
+            // Direct fallback to history item if marked watched (>= 85%)
+            val histMatch = allHistory.firstOrNull { item ->
+                val idMatch = (seriesId.isNotBlank() && item.id == seriesId)
+                val titleMatch = (normalizeTitle(item.title) == cleanT)
+                (idMatch || titleMatch) && item.season == season && item.episode == episode
+            }
+            if (histMatch != null) {
+                if (histMatch.percentage >= 85) return true
+                if (histMatch.durationMs > 0L && ((histMatch.positionMs * 100) / histMatch.durationMs) >= 85) return true
+                if (histMatch.positionMs >= (45 * 60 * 1000L * 0.85)) return true
+            }
         }
 
         return false

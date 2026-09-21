@@ -142,8 +142,8 @@ fun DetailsScreen(
     }
 
     val historyManager = remember { WatchHistoryManager(context) }
-    val savedHistory = remember(movie.id, currentMovie.title, com.example.tvmediaapp.data.history.WatchHistoryManager.historyVersion) {
-        historyManager.getProgress(movie.id, currentMovie.title)
+    val savedHistory = remember(movie.id, currentMovie.id, currentMovie.title, com.example.tvmediaapp.data.history.WatchHistoryManager.historyVersion) {
+        historyManager.getProgress(currentMovie.id.ifEmpty { movie.id }, currentMovie.title)
     }
 
     var selectedSeason by remember { mutableStateOf(savedHistory?.season ?: 1) }
@@ -931,7 +931,8 @@ fun DetailsScreen(
                     val hasResume = savedHistory != null && savedHistory.positionMs > 10_000L
                     if (hasResume) {
                         val mins = savedHistory!!.positionMs / 60000L
-                        val resumeLabel = if (currentMovie.isSeries) {
+                        val isContentSeries = currentMovie.isSeries || currentMovie.seasons.isNotEmpty() || (savedHistory != null && (savedHistory.season > 1 || savedHistory.episode > 1))
+                        val resumeLabel = if (isContentSeries) {
                             "Продолжить (S${savedHistory.season} E${savedHistory.episode}, $mins мин)"
                         } else {
                             "Продолжить ($mins мин)"
@@ -1800,8 +1801,17 @@ fun DetailsScreen(
                                 itemsIndexed(activeEpisodes) { epIdx, ep ->
                                     val hVer = com.example.tvmediaapp.data.history.WatchHistoryManager.historyVersion
                                     val isSelected = ep.episodeNumber == selectedEpisode
-                                    val histProgress = if (savedHistory?.season == selectedSeason && savedHistory?.episode == ep.episodeNumber) {
-                                        savedHistory?.percentage ?: 0
+                                    val histProgress = if (savedHistory != null && savedHistory.season == selectedSeason && savedHistory.episode == ep.episodeNumber) {
+                                        if (savedHistory.percentage > 0) {
+                                            savedHistory.percentage
+                                        } else if (savedHistory.positionMs > 10_000L) {
+                                            val calcPct = if (savedHistory.durationMs > 0L) {
+                                                ((savedHistory.positionMs * 100) / savedHistory.durationMs).toInt()
+                                            } else {
+                                                ((savedHistory.positionMs * 100) / (45 * 60 * 1000L)).toInt()
+                                            }
+                                            calcPct.coerceIn(1, 100)
+                                        } else 0
                                     } else 0
                                     val epProgress = maxOf(
                                         historyManager.getEpisodeProgress(currentMovie.id, selectedSeason, ep.episodeNumber, currentMovie.title),
@@ -1859,7 +1869,7 @@ fun DetailsScreen(
 
                                                 // Background slot/track across the entire bottom edge
                                                 drawRect(
-                                                    color = Color.Black.copy(alpha = 0.55f),
+                                                    color = Color.Black.copy(alpha = 0.65f),
                                                     topLeft = Offset(0f, y),
                                                     size = Size(w, barHeight)
                                                 )
@@ -1869,13 +1879,9 @@ fun DetailsScreen(
                                                     size = Size(w, barHeight)
                                                 )
 
-                                                // Active progress fill
+                                                // Active progress fill - always high contrast
                                                 if (progressPct > 0f) {
-                                                    val fillCol = when {
-                                                        isSelected -> Color(0xFF0F172A)
-                                                        isEpWatched -> Color(0xFF22C55E)
-                                                        else -> Color(0xFFFF9800)
-                                                    }
+                                                    val fillCol = if (isEpWatched) Color(0xFF22C55E) else Color(0xFFFF9800)
                                                     drawRect(
                                                         color = fillCol,
                                                         topLeft = Offset(0f, y),

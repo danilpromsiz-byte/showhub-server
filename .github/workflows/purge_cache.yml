@@ -1,0 +1,14 @@
+name: Purge jsDelivr Cache
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  purge:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Purge jsDelivr CDN cache for version.json and APK
+        run: |
+          curl -s "https://purge.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/version.json"
+          curl -s "https://purge.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/version.json"

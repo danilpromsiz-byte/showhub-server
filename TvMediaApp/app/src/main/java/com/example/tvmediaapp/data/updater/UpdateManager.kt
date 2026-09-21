@@ -28,12 +28,13 @@ data class UpdateInfo(
 
 object UpdateManager {
     private val VERSION_URLS = listOf(
-        "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/version.json",
         "https://showhub-server.onrender.com/version.json",
-        "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/version.json"
+        "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/version.json",
+        "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/version.json"
     )
 
     suspend fun checkUpdate(currentVersionCode: Int): UpdateInfo = withContext(Dispatchers.IO) {
+        var fallbackInfo: UpdateInfo? = null
         for (baseUrl in VERSION_URLS) {
             for (attempt in 1..2) {
                 try {
@@ -58,14 +59,21 @@ object UpdateManager {
                         val minVersionCode = json.optInt("min_version_code", 0)
                         val hasUpdate = sCode > currentVersionCode
                         val isForce = hasUpdate && (forceUpdateFlag || currentVersionCode < minVersionCode)
-                        return@withContext UpdateInfo(hasUpdate, sName, sCode, sUrl, sChangelog, isForce)
+                        val info = UpdateInfo(hasUpdate, sName, sCode, sUrl, sChangelog, isForce)
+                        if (hasUpdate) {
+                            return@withContext info
+                        }
+                        if (fallbackInfo == null || sCode > fallbackInfo.versionCode) {
+                            fallbackInfo = info
+                        }
+                        break
                     }
                 } catch (e: Exception) {
                     if (attempt < 2) delay(500)
                 }
             }
         }
-        UpdateInfo(false, "", 0, "", "", false)
+        fallbackInfo ?: UpdateInfo(false, "", 0, "", "", false)
     }
 
     suspend fun downloadAndInstall(

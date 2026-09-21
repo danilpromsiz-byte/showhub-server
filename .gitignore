@@ -11,6 +11,7 @@
 !/README.md
 !/version.json
 !/TvMediaApp/
+!/.github/
 
 # Ignore build artifacts and caches
 TvMediaApp/.gradle/

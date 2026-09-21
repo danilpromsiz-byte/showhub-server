@@ -549,6 +549,24 @@ private fun NativeExoPlayerScreen(
             }
     }
 
+    val mediaSession = remember(exoPlayer) {
+        try {
+            androidx.media3.session.MediaSession.Builder(context, exoPlayer)
+                .setId("ShowHubMediaSession")
+                .build()
+        } catch (_: Throwable) {
+            null
+        }
+    }
+
+    DisposableEffect(mediaSession) {
+        onDispose {
+            try {
+                mediaSession?.release()
+            } catch (_: Throwable) {}
+        }
+    }
+
     fun persistCurrentPlaybackProgress() {
         try {
             val pos = exoPlayer.currentPosition
@@ -994,6 +1012,27 @@ private fun NativeExoPlayerScreen(
                 }
                 if (nativeEvent.action == KeyEvent.ACTION_DOWN) {
                     lastUserInteractionTime = System.currentTimeMillis()
+
+                    // Universal Bluetooth headset and media button handling (active in all UI states)
+                    when (nativeEvent.keyCode) {
+                        KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
+                        KeyEvent.KEYCODE_HEADSETHOOK -> {
+                            togglePlayPause()
+                            return@onKeyEvent true
+                        }
+                        KeyEvent.KEYCODE_MEDIA_PLAY -> {
+                            exoPlayer.play()
+                            playbackActionBadge = "play"
+                            return@onKeyEvent true
+                        }
+                        KeyEvent.KEYCODE_MEDIA_PAUSE,
+                        KeyEvent.KEYCODE_MEDIA_STOP -> {
+                            exoPlayer.pause()
+                            playbackActionBadge = "pause"
+                            return@onKeyEvent true
+                        }
+                    }
+
                     if (!isControlsVisible) {
                         when (nativeEvent.keyCode) {
                             KeyEvent.KEYCODE_DPAD_LEFT -> {
@@ -1048,29 +1087,12 @@ private fun NativeExoPlayerScreen(
                                 }
                                 return@onKeyEvent true
                             }
-                            KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
-                                togglePlayPause()
-                                return@onKeyEvent true
-                            }
-                            KeyEvent.KEYCODE_MEDIA_PLAY -> {
-                                exoPlayer.play()
-                                playbackActionBadge = "play"
-                                return@onKeyEvent true
-                            }
-                            KeyEvent.KEYCODE_MEDIA_PAUSE -> {
-                                exoPlayer.pause()
-                                playbackActionBadge = "pause"
-                                return@onKeyEvent true
-                            }
                             else -> {
                                 isControlsVisible = true
                                 try { timelineFocusRequester.requestFocus() } catch (_: Exception) {}
                                 return@onKeyEvent true
                             }
                         }
-                    } else if (nativeEvent.keyCode == KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE) {
-                        togglePlayPause()
-                        return@onKeyEvent true
                     }
                 }
                 false

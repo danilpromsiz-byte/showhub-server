@@ -1,10 +1,10 @@
 {
   "success": true,
-  "version_name": "2.8.35",
-  "version_code": 94,
+  "version_name": "2.8.36",
+  "version_code": 95,
   "force_update": true,
-  "min_version_code": 94,
+  "min_version_code": 95,
   "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
   "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
-  "changelog": "ShowHub TV v2.8.35: Исправлено возобновление просмотра с точного места остановки (синхронизация сессий плеера и истории просмотров). Позиция сохраняется непрерывно и надежно восстанавливается даже при обновлении приложения или выходе."
+  "changelog": "ShowHub TV v2.8.36: 1) Сохранение карточек фильмов в истории поиска и полка «Недавно просмотренные в поиске». 2) Блокировка всплывающих окон обновлений и новых серий во время просмотра фильма в плеере. 3) Поддержка кнопок Play/Pause Bluetooth-наушников через системную MediaSession."
 }

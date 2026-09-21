@@ -125,6 +125,82 @@ fun SearchScreen(
         recentQueries = loadHistory()
     }
 
+    fun loadRecentMovies(): List<Movie> {
+        val raw = searchPrefs.getString("clicked_movies", "[]") ?: "[]"
+        val list = mutableListOf<Movie>()
+        try {
+            val arr = JSONArray(raw)
+            for (i in 0 until arr.length()) {
+                val obj = arr.getJSONObject(i)
+                val genresList = mutableListOf<String>()
+                val gArr = obj.optJSONArray("genres")
+                if (gArr != null) {
+                    for (g in 0 until gArr.length()) genresList.add(gArr.getString(g))
+                }
+                list.add(
+                    Movie(
+                        id = obj.optString("id", ""),
+                        title = obj.optString("title", ""),
+                        originalTitle = obj.optString("originalTitle", ""),
+                        description = obj.optString("description", ""),
+                        posterUrl = obj.optString("posterUrl", ""),
+                        backdropUrl = obj.optString("backdropUrl", ""),
+                        rating = obj.optDouble("rating", 0.0),
+                        ratingKp = obj.optDouble("ratingKp", 0.0),
+                        ratingImdb = obj.optDouble("ratingImdb", 0.0),
+                        releaseYear = obj.optString("releaseYear", ""),
+                        duration = obj.optString("duration", ""),
+                        country = obj.optString("country", ""),
+                        director = obj.optString("director", ""),
+                        actors = obj.optString("actors", ""),
+                        episodesInfo = obj.optString("episodesInfo", ""),
+                        genres = genresList,
+                        videoUrl = obj.optString("videoUrl", ""),
+                        isSeries = obj.optBoolean("isSeries", false),
+                        source = obj.optString("source", "")
+                    )
+                )
+            }
+        } catch (_: Exception) {}
+        return list
+    }
+
+    var recentMovies by remember { mutableStateOf(loadRecentMovies()) }
+
+    fun saveRecentMovie(movie: Movie) {
+        if (movie.id.isBlank() || movie.title.isBlank()) return
+        val current = loadRecentMovies().toMutableList()
+        current.removeAll { it.id == movie.id || it.title.equals(movie.title, ignoreCase = true) }
+        current.add(0, movie)
+        val arr = JSONArray()
+        current.take(15).forEach { m ->
+            val obj = org.json.JSONObject().apply {
+                put("id", m.id)
+                put("title", m.title)
+                put("originalTitle", m.originalTitle)
+                put("description", m.description)
+                put("posterUrl", m.posterUrl)
+                put("backdropUrl", m.backdropUrl)
+                put("rating", m.rating)
+                put("ratingKp", m.ratingKp)
+                put("ratingImdb", m.ratingImdb)
+                put("releaseYear", m.releaseYear)
+                put("duration", m.duration)
+                put("country", m.country)
+                put("director", m.director)
+                put("actors", m.actors)
+                put("episodesInfo", m.episodesInfo)
+                put("genres", JSONArray(m.genres))
+                put("videoUrl", m.videoUrl)
+                put("isSeries", m.isSeries)
+                put("source", m.source)
+            }
+            arr.put(obj)
+        }
+        searchPrefs.edit().putString("clicked_movies", arr.toString()).apply()
+        recentMovies = loadRecentMovies()
+    }
+
     val initialActiveQuery = remember {
         if (initialQuery.isNotBlank()) initialQuery else (recentQueries.firstOrNull() ?: "")
     }
@@ -328,7 +404,7 @@ fun SearchScreen(
         }
 
         // Search History Chips
-        if (recentQueries.isNotEmpty()) {
+        if (recentQueries.isNotEmpty() || recentMovies.isNotEmpty()) {
             Spacer(modifier = Modifier.height(8.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -394,8 +470,9 @@ fun SearchScreen(
                     item {
                         Button(
                             onClick = {
-                                searchPrefs.edit().remove("queries").apply()
+                                searchPrefs.edit().remove("queries").remove("clicked_movies").apply()
                                 recentQueries = emptyList()
+                                recentMovies = emptyList()
                             },
                             colors = ButtonDefaults.colors(
                                 containerColor = Color.White.copy(alpha = 0.08f),
@@ -445,17 +522,62 @@ fun SearchScreen(
                 )
             }
         } else if (results.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(48.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = if (recentQueries.isNotEmpty()) "Выберите запрос из истории выше или введите название фильма" else "Введите название фильма или сериала для поиска",
-                    color = TextGray,
-                    fontSize = 14.sp
-                )
+            if (recentMovies.isNotEmpty() && query.isBlank()) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(top = 4.dp)
+                ) {
+                    Text(
+                        text = "Недавно просмотренные в поиске",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextWhite,
+                        modifier = Modifier.padding(bottom = 10.dp)
+                    )
+                    TvLazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        contentPadding = PaddingValues(end = 48.dp, bottom = 48.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        itemsIndexed(recentMovies, key = { _, m -> "recent_${m.id}" }) { idx, movie ->
+                            val cardMod = if (idx == 0) {
+                                Modifier
+                                    .focusRequester(resultsFocusRequester)
+                                    .focusProperties {
+                                        up = if (recentQueries.isNotEmpty()) historyFocusRequester else searchInputFocusRequester
+                                    }
+                            } else {
+                                Modifier.focusProperties {
+                                    up = if (recentQueries.isNotEmpty()) historyFocusRequester else searchInputFocusRequester
+                                }
+                            }
+                            MovieCard(
+                                movie = movie,
+                                onClick = {
+                                    commitQuery(movie.title)
+                                    saveRecentMovie(movie)
+                                    onMovieSelect(movie)
+                                },
+                                onFocus = {},
+                                cardModifier = cardMod
+                            )
+                        }
+                    }
+                }
+            } else {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(48.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = if (recentQueries.isNotEmpty()) "Выберите запрос из истории выше или введите название фильма" else "Введите название фильма или сериала для поиска",
+                        color = TextGray,
+                        fontSize = 14.sp
+                    )
+                }
             }
         } else {
             // Results Grid (6 columns) with generous TV bottom padding
@@ -483,7 +605,8 @@ fun SearchScreen(
                     MovieCard(
                         movie = movie,
                         onClick = {
-                            commitQuery(query)
+                            commitQuery(movie.title)
+                            saveRecentMovie(movie)
                             onMovieSelect(movie)
                         },
                         onFocus = {},

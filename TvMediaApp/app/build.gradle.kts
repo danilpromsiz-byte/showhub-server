@@ -11,8 +11,8 @@ android {
         applicationId = "com.showhub.tv"
         minSdk = 21
         targetSdk = 34
-        versionCode = 94
-        versionName = "2.8.35"
+        versionCode = 95
+        versionName = "2.8.36"
 
         vectorDrawables {
             useSupportLibrary = true
@@ -93,6 +93,7 @@ dependencies {
     implementation(libs.androidx.media3.exoplayer.hls)
     implementation(libs.androidx.media3.ui)
     implementation(libs.androidx.media3.common)
+    implementation(libs.androidx.media3.session)
 
     // Coil for Images
     implementation(libs.coil.compose)

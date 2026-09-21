@@ -457,9 +457,10 @@ fun TvAppNavHost(activity: MainActivity) {
         }
     }
 
-    val isUpdateDialogVisible = updateInfo?.let { it.versionCode > activity.getInstalledVersionCode() } == true
+    val isWatchingMovie = (currentScreen == Screen.PLAYER)
+    val isUpdateDialogVisible = !isWatchingMovie && updateInfo?.let { it.versionCode > activity.getInstalledVersionCode() } == true
     val isMandatoryUpdate = updateInfo?.isForceUpdate == true
-    val isEpisodeAlertVisible = episodeAlerts.isNotEmpty()
+    val isEpisodeAlertVisible = !isWatchingMovie && episodeAlerts.isNotEmpty()
 
     // Hardware Back button handling for Android TV remotes
     BackHandler(enabled = isUpdateDialogVisible) {

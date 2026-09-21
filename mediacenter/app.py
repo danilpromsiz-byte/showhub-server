@@ -334,6 +334,12 @@ def compute_title_similarity(s1: str, s2: str) -> float:
         # None of the meaningful content words match!
         return 0.0
 
+    # Recall across both titles: if one title has 2+ words and only 1 matches, it's not a match!
+    recall1 = len(intersection) / len(w1)
+    recall2 = len(intersection) / len(w2)
+    if max(len(w1), len(w2)) >= 2 and min(recall1, recall2) < 0.60:
+        return (len(intersection) / len(w1 | w2)) * 0.4
+
     union = w1 | w2
     jaccard = len(intersection) / len(union)
     overlap = len(intersection) / min(len(w1), len(w2))
@@ -1195,8 +1201,32 @@ def get_catalog(
             it["episodes_info"] = extra.get("episodes_info") or ""
         if not it.get("countries") and extra.get("countries"):
             it["countries"] = extra.get("countries")
-        if not it.get("genres") and extra.get("genres"):
-            it["genres"] = extra.get("genres")
+        # Robustly promote and normalize genres
+        cand_genres = [str(g).strip() for g in (it.get("genres") or []) if str(g).strip()]
+        if not cand_genres and extra.get("genres"):
+            cand_genres = [str(g).strip() for g in extra.get("genres") if str(g).strip()]
+        if not cand_genres and extra.get("genre"):
+            g_raw = str(extra.get("genre"))
+            cand_genres = [g.strip() for g in g_raw.split(",") if g.strip()]
+        if not cand_genres and it.get("description"):
+            desc_val = str(it.get("description"))
+            if "," in desc_val:
+                sp = [p.strip() for p in desc_val.split(",") if p.strip()]
+                if len(sp) >= 3:
+                    cand_genres = [g for g in sp[2:] if len(g) <= 30 and len(g.split()) <= 3 and not any(p in g for p in [".", "!", "?", ";", ":"])]
+        if cand_genres:
+            it["genres"] = cand_genres
+            if not it.get("genre"):
+                it["genre"] = ", ".join(cand_genres)
+
+        # Normalize ratings
+        kp_r = it.get("rating_kp")
+        imdb_r = it.get("rating_imdb")
+        it["rating_kp"] = float(kp_r) if (kp_r and str(kp_r) != "None") else 0.0
+        it["rating_imdb"] = float(imdb_r) if (imdb_r and str(imdb_r) != "None") else 0.0
+        if not it.get("rating") or it.get("rating") == 0:
+            it["rating"] = max(it["rating_kp"], it["rating_imdb"]) or 7.0
+
         if not it.get("actors") and extra.get("actors"):
             it["actors"] = extra.get("actors")
         if not it.get("director") and extra.get("director"):
@@ -1981,7 +2011,7 @@ def _fetch_media_streams(
 
                 if not target_k_id:
                     ranked = rank_matches(k_items, year_int, is_ser_bool, target_title=clean_title)
-                    target_k_id = ranked[0].id if ranked else (k_items[0].id if k_items else None)
+                    target_k_id = ranked[0].id if ranked else None
 
                 if target_k_id:
                     k_res = kodik.get_streams(target_k_id, season=season, episode=episode, audio_id=audio_id)
@@ -2370,6 +2400,7 @@ def get_media_preview_stream(
         clean_title = clean_title.split(":")[0].strip()
     if clean_title and " - " in clean_title:
         clean_title = clean_title.split(" - ")[0].strip()
+    clean_title_no_season = re.sub(r'\s+\d+$', '', clean_title).strip()
 
     candidate_streams = []
 
@@ -2401,21 +2432,25 @@ def get_media_preview_stream(
     except Exception:
         pass
 
-    # Source 2: Search HDRezka by title & year
+    # Source 2: Search HDRezka by title & year (with season suffix fallback)
     if not candidate_streams and clean_title:
-        try:
-            rz_items = hdrezka.search(clean_title)
-            rz_match = find_best_match(rz_items, year, is_series)
-            if rz_match:
-                rz_res = hdrezka.get_streams(rz_match.id, season=1, episode=1)
-                if not rz_res.streams and (is_series or str(is_series) == "1" or getattr(rz_match, "is_series", False)):
-                    rz_res = hdrezka.get_streams(rz_match.id, season=2, episode=1)
-                if rz_res.streams:
-                    valid_rz = [s for s in rz_res.streams if is_usable_preview_stream(s)]
-                    if valid_rz:
-                        candidate_streams.extend(valid_rz)
-        except Exception:
-            pass
+        for t_query in ([clean_title, clean_title_no_season] if clean_title_no_season != clean_title else [clean_title]):
+            try:
+                rz_items = hdrezka.search(t_query)
+                rz_match = find_best_match(rz_items, year, is_series, target_title=t_query)
+                if not rz_match and rz_items and compute_title_similarity(rz_items[0].title, t_query) >= 0.60:
+                    rz_match = rz_items[0]
+                if rz_match:
+                    rz_res = hdrezka.get_streams(rz_match.id, season=1, episode=1)
+                    if not rz_res.streams and (is_series or str(is_series) == "1" or getattr(rz_match, "is_series", False)):
+                        rz_res = hdrezka.get_streams(rz_match.id, season=2, episode=1)
+                    if rz_res.streams:
+                        valid_rz = [s for s in rz_res.streams if is_usable_preview_stream(s)]
+                        if valid_rz:
+                            candidate_streams.extend(valid_rz)
+                            break
+            except Exception:
+                pass
 
     # Source 3: Filmix by numeric media_id or title search
     if not candidate_streams:
@@ -2423,7 +2458,7 @@ def get_media_preview_stream(
             fx_id = media_id if (source == "filmix" and media_id and media_id.isdigit()) else None
             if not fx_id and clean_title:
                 fx_items = filmix.search(clean_title)
-                fx_match = find_best_match(fx_items, year, is_series)
+                fx_match = find_best_match(fx_items, year, is_series, target_title=clean_title)
                 if fx_match:
                     fx_id = fx_match.id
             if fx_id:
@@ -2448,6 +2483,31 @@ def get_media_preview_stream(
                 valid_b = [s for s in b_res.streams if is_usable_preview_stream(s)]
                 if valid_b:
                     candidate_streams.extend(valid_b)
+        except Exception:
+            pass
+
+    # Source 5: Kodik (crucial for anime, donghua, and season-specific catalog entries)
+    if not candidate_streams and (clean_title or target_kp or media_id):
+        try:
+            k_queries = [clean_title]
+            if clean_title_no_season != clean_title:
+                k_queries.append(clean_title_no_season)
+            for kq in k_queries:
+                k_items = kodik.search(kq, kp_id=target_kp)
+                target_k_it = None
+                if k_items:
+                    ranked = rank_matches(k_items, year, is_series, target_title=kq)
+                    if ranked:
+                        target_k_it = ranked[0]
+                    elif compute_title_similarity(k_items[0].title, kq) >= 0.50:
+                        target_k_it = k_items[0]
+                if target_k_it:
+                    k_res = kodik.get_streams(target_k_it.id, season=1, episode=1)
+                    if k_res.streams:
+                        valid_k = [s for s in k_res.streams if is_usable_preview_stream(s)]
+                        if valid_k:
+                            candidate_streams.extend(valid_k)
+                            break
         except Exception:
             pass
 

@@ -129,8 +129,19 @@ object MediaDiskCache {
     fun putCachedCatalog(movies: List<Movie>) {
         try {
             if (movies.isEmpty()) return
-            val arr = JSONArray()
+            val existing = getCachedCatalog() ?: emptyList()
+            // Merge: newly fetched movies update existing items, and previously discovered titles are preserved
+            val map = LinkedHashMap<String, Movie>()
             for (m in movies) {
+                if (m.id.isNotBlank()) map[m.id] = m
+            }
+            for (m in existing) {
+                if (m.id.isNotBlank() && !map.containsKey(m.id)) {
+                    map[m.id] = m
+                }
+            }
+            val arr = JSONArray()
+            for (m in map.values) {
                 arr.put(serializeMovie(m))
             }
             getCatalogFile().writeText(arr.toString())

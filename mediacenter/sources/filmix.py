@@ -356,6 +356,7 @@ class FilmixSource(BaseSource):
                     year=item_year,
                     is_series=is_ser,
                     poster=poster,
+                    genres=genres,
                     extra_data={
                         "genre": ", ".join(genres),
                         "quality": quality,

@@ -323,7 +323,7 @@ fun TvAppNavHost(activity: MainActivity) {
             val myCode = activity.getInstalledVersionCode()
             val info = UpdateManager.checkUpdate(myCode)
             if (info.hasUpdate && info.versionCode > myCode) {
-                if (isUserClick || info.versionCode != dismissedVersionCode) {
+                if (info.isForceUpdate || isUserClick || info.versionCode != dismissedVersionCode) {
                     updateInfo = info
                 }
                 if (isUserClick) {
@@ -369,11 +369,14 @@ fun TvAppNavHost(activity: MainActivity) {
     }
 
     val isUpdateDialogVisible = updateInfo?.let { it.versionCode > activity.getInstalledVersionCode() } == true
+    val isMandatoryUpdate = updateInfo?.isForceUpdate == true
 
     // Hardware Back button handling for Android TV remotes
     BackHandler(enabled = isUpdateDialogVisible) {
-        updateInfo?.let { dismissedVersionCode = it.versionCode }
-        updateInfo = null
+        if (!isMandatoryUpdate) {
+            updateInfo?.let { dismissedVersionCode = it.versionCode }
+            updateInfo = null
+        }
     }
 
     BackHandler(enabled = showExitDialog) {
@@ -602,7 +605,7 @@ fun TvAppNavHost(activity: MainActivity) {
                     )
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
-                        text = "Доступно обновление ShowHub TV v${update.versionName}",
+                        text = if (update.isForceUpdate) "Обязательное обновление ShowHub TV v${update.versionName}" else "Доступно обновление ShowHub TV v${update.versionName}",
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold,
                         color = Color.White
@@ -723,7 +726,7 @@ fun TvAppNavHost(activity: MainActivity) {
                                 .focusRequester(browserFocusRequester)
                                 .focusProperties {
                                     left = updateFocusRequester
-                                    right = remindLaterFocusRequester
+                                    right = if (!update.isForceUpdate) remindLaterFocusRequester else FocusRequester.Default
                                     up = FocusRequester.Cancel
                                     down = FocusRequester.Cancel
                                 }
@@ -735,37 +738,38 @@ fun TvAppNavHost(activity: MainActivity) {
                             )
                         }
 
-                        Spacer(modifier = Modifier.width(14.dp))
-
-                        // Button 3: Remind Later
-                        Button(
-                            onClick = {
-                                dismissedVersionCode = update.versionCode
-                                updateInfo = null
-                            },
-                            shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
-                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
-                            colors = ButtonDefaults.colors(
-                                containerColor = Color.White.copy(alpha = 0.08f),
-                                focusedContainerColor = Color.White,
-                                contentColor = Color.LightGray,
-                                focusedContentColor = Color.Black
-                            ),
-                            modifier = Modifier
-                                .height(32.dp)
-                                .focusRequester(remindLaterFocusRequester)
-                                .focusProperties {
-                                    left = browserFocusRequester
-                                    up = FocusRequester.Cancel
-                                    down = FocusRequester.Cancel
-                                    right = FocusRequester.Cancel
-                                }
-                        ) {
-                            Text(
-                                text = "Напомнить позже",
-                                fontSize = 13.sp
-                            )
+                        // Button 3: Remind Later (hidden when update is mandatory)
+                        if (!update.isForceUpdate) {
+                            Spacer(modifier = Modifier.width(14.dp))
+                            Button(
+                                onClick = {
+                                    dismissedVersionCode = update.versionCode
+                                    updateInfo = null
+                                },
+                                shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                                scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
+                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
+                                colors = ButtonDefaults.colors(
+                                    containerColor = Color.White.copy(alpha = 0.08f),
+                                    focusedContainerColor = Color.White,
+                                    contentColor = Color.LightGray,
+                                    focusedContentColor = Color.Black
+                                ),
+                                modifier = Modifier
+                                    .height(32.dp)
+                                    .focusRequester(remindLaterFocusRequester)
+                                    .focusProperties {
+                                        left = browserFocusRequester
+                                        up = FocusRequester.Cancel
+                                        down = FocusRequester.Cancel
+                                        right = FocusRequester.Cancel
+                                    }
+                            ) {
+                                Text(
+                                    text = "Напомнить позже",
+                                    fontSize = 13.sp
+                                )
+                            }
                         }
                     }
                 }

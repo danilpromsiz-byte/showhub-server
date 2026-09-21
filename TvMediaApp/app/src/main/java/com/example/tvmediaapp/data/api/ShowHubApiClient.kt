@@ -694,11 +694,36 @@ object ShowHubApiClient {
 
             val genresList = mutableListOf<String>()
             val gArr = it.optJSONArray("genres") ?: extraObj?.optJSONArray("genres")
-            if (gArr != null) {
-                for (g in 0 until gArr.length()) genresList.add(gArr.getString(g))
-            } else {
-                val gStr = extraObj?.optString("genre", "") ?: it.optString("genre", "")
-                if (gStr.isNotEmpty()) genresList.addAll(gStr.split(",").map { s -> s.trim() })
+            if (gArr != null && gArr.length() > 0) {
+                for (g in 0 until gArr.length()) {
+                    val gName = gArr.getString(g).trim()
+                    if (gName.isNotBlank() && !genresList.contains(gName)) genresList.add(gName)
+                }
+            }
+            if (genresList.isEmpty()) {
+                val gArrExtra = extraObj?.optJSONArray("genres")
+                if (gArrExtra != null && gArrExtra.length() > 0) {
+                    for (g in 0 until gArrExtra.length()) {
+                        val gName = gArrExtra.getString(g).trim()
+                        if (gName.isNotBlank() && !genresList.contains(gName)) genresList.add(gName)
+                    }
+                }
+            }
+            if (genresList.isEmpty()) {
+                val gStr = extraObj?.optString("genre", "").orEmpty().ifEmpty { it.optString("genre", "") }
+                if (gStr.isNotEmpty()) {
+                    genresList.addAll(gStr.split(",").map { s -> s.trim() }.filter { s -> s.isNotEmpty() && !genresList.contains(s) })
+                }
+            }
+            if (genresList.isEmpty() && desc.isNotBlank() && desc.contains(",")) {
+                val sp = desc.split(",").map { s -> s.trim() }.filter { s -> s.isNotEmpty() }
+                if (sp.size >= 3) {
+                    for (cand in sp.drop(2)) {
+                        if (cand.length <= 30 && cand.split(" ").size <= 3 && !listOf(".", "!", "?", ";", ":").any { cand.contains(it) }) {
+                            if (!genresList.contains(cand)) genresList.add(cand)
+                        }
+                    }
+                }
             }
 
             val givenAge = it.optString("age_limit", extraObj?.optString("age_limit", "") ?: "")

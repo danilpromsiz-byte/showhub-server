@@ -169,6 +169,7 @@ class HDRezkaSource(BaseSource):
                 if valid_genres:
                     extra_info["genres"] = valid_genres
 
+        parsed_genres = extra_info.get("genres", [])
         return MediaItem(
             id=item_id,
             source_name=self.name,
@@ -179,6 +180,7 @@ class HDRezkaSource(BaseSource):
             description=desc,
             date_added=date_added,
             episodes_info=episodes_info,
+            genres=parsed_genres,
             extra_data=extra_info
         )
 

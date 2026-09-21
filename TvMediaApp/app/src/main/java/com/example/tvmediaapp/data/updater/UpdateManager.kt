@@ -22,7 +22,8 @@ data class UpdateInfo(
     val versionName: String,
     val versionCode: Int,
     val downloadUrl: String,
-    val changelog: String
+    val changelog: String,
+    val isForceUpdate: Boolean = false
 )
 
 object UpdateManager {
@@ -42,7 +43,7 @@ object UpdateManager {
                     conn.connectTimeout = 5000
                     conn.readTimeout = 5000
                     conn.useCaches = false
-                    conn.setRequestProperty("User-Agent", "ShowHubTV-Native/2.8.16")
+                    conn.setRequestProperty("User-Agent", "ShowHubTV-Native/2.8.18")
                     conn.setRequestProperty("Cache-Control", "no-cache, no-store, must-revalidate")
                     conn.setRequestProperty("Pragma", "no-cache")
                     conn.connect()
@@ -50,18 +51,21 @@ object UpdateManager {
                         val body = conn.inputStream.bufferedReader().use { it.readText() }
                         val json = JSONObject(body)
                         val sCode = json.optInt("version_code", 0)
-                        val sName = json.optString("version_name", "2.8.16")
+                        val sName = json.optString("version_name", "2.8.18")
                         val sUrl = json.optString("download_url", json.optString("apk_url", "https://showhub-server.onrender.com/ShowHub.apk"))
                         val sChangelog = json.optString("changelog", "Новая версия ShowHub TV")
+                        val forceUpdateFlag = json.optBoolean("force_update", false)
+                        val minVersionCode = json.optInt("min_version_code", 0)
                         val hasUpdate = sCode > currentVersionCode
-                        return@withContext UpdateInfo(hasUpdate, sName, sCode, sUrl, sChangelog)
+                        val isForce = hasUpdate && (forceUpdateFlag || currentVersionCode < minVersionCode)
+                        return@withContext UpdateInfo(hasUpdate, sName, sCode, sUrl, sChangelog, isForce)
                     }
                 } catch (e: Exception) {
                     if (attempt < 2) delay(500)
                 }
             }
         }
-        UpdateInfo(false, "", 0, "", "")
+        UpdateInfo(false, "", 0, "", "", false)
     }
 
     suspend fun downloadAndInstall(

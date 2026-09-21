@@ -466,6 +466,22 @@ class CatalogRepository(context: Context? = null) {
         }
     }
 
+    private fun matchesGenre(movie: Movie, filterGenre: String): Boolean {
+        if (filterGenre.isBlank() || filterGenre == "all" || filterGenre == "Все жанры") return true
+        val fLow = filterGenre.lowercase().trim()
+        val stem = fLow
+            .removeSuffix("ия").removeSuffix("ии").removeSuffix("ые").removeSuffix("ий")
+            .removeSuffix("ка").removeSuffix("ки").removeSuffix("а").removeSuffix("ы")
+            .removeSuffix("и").removeSuffix("я")
+        val inGenres = movie.genres.any { g ->
+            val gLow = g.lowercase().trim()
+            gLow.contains(stem) || stem.contains(gLow) || gLow.contains(fLow) || fLow.contains(gLow)
+        }
+        if (inGenres) return true
+        val descLow = movie.description.lowercase()
+        return descLow.contains(stem) || descLow.contains(fLow)
+    }
+
     private fun filterAndSort(
         list: List<Movie>,
         category: String,
@@ -486,9 +502,9 @@ class CatalogRepository(context: Context? = null) {
             else -> res
         }
 
-        // Genre filter
+        // Genre filter with stem matching
         if (!genre.isNullOrEmpty() && genre != "all" && genre != "Все жанры") {
-            res = res.filter { m -> m.genres.any { g -> g.contains(genre, ignoreCase = true) } }
+            res = res.filter { m -> matchesGenre(m, genre) }
         }
 
         // Year filter
@@ -644,11 +660,40 @@ class CatalogRepository(context: Context? = null) {
                 if (isDefaultMainCatalog) {
                     com.example.tvmediaapp.data.cache.MediaDiskCache.putCachedCatalog(liveMovies)
                 }
-                val liveCategories = buildCategories(liveMovies)
+                val masterMovies = (com.example.tvmediaapp.data.cache.MediaDiskCache.getCachedCatalog() ?: liveMovies)
+                val liveCategories = buildCategories(masterMovies)
                 if (liveCategories.isNotEmpty()) {
                     emit(liveCategories)
                 } else if (initialCats.isEmpty()) {
                     emit(emptyList())
+                }
+
+                // STEP 3: Progressive non-blocking background pagination to load and cache full catalog into TV memory
+                if (isDefaultMainCatalog) {
+                    for (p in 2..15) {
+                        try {
+                            kotlinx.coroutines.delay(1200L)
+                            val nextBatch = ShowHubApiClient.fetchCatalog(
+                                category = category,
+                                genre = genre,
+                                sortBy = sortBy,
+                                year = year,
+                                country = country,
+                                page = p,
+                                excludedCountries = if (excludedCountriesStr.isNotBlank()) excludedCountriesStr else null,
+                                excludedGenres = if (excludedGenresStr.isNotBlank()) excludedGenresStr else null
+                            )
+                            if (nextBatch.isEmpty()) break
+                            com.example.tvmediaapp.data.cache.MediaDiskCache.putCachedCatalog(nextBatch)
+                            val updatedMaster = com.example.tvmediaapp.data.cache.MediaDiskCache.getCachedCatalog() ?: emptyList()
+                            val updatedCategories = buildCategories(updatedMaster)
+                            if (updatedCategories.isNotEmpty()) {
+                                emit(updatedCategories)
+                            }
+                        } catch (_: Exception) {
+                            break
+                        }
+                    }
                 }
             } else if (cachedCatalog.isNullOrEmpty() && initialCats.isEmpty()) {
                 val fallback = buildCategories(sampleMovies)

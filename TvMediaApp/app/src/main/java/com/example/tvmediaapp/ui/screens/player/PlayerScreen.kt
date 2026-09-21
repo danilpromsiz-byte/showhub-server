@@ -624,8 +624,9 @@ private fun NativeExoPlayerScreen(
                     } catch (_: Exception) {}
                 }
                 val savedPos = exoPlayer.currentPosition
+                val isNonRezkaTrack = newAudioId.startsWith("kodik_") || newAudioId.startsWith("filmix_") || (!newSource.equals("HDrezka", ignoreCase = true) && !newSource.equals("Все", ignoreCase = true))
                 val nativeDeferred = async {
-                    if (newSource.equals("HDrezka", ignoreCase = true) || newSource.startsWith("HD", ignoreCase = true) || newSource.equals("Все", ignoreCase = true)) {
+                    if (!isNonRezkaTrack && (newSource.equals("HDrezka", ignoreCase = true) || newSource.startsWith("HD", ignoreCase = true) || newSource.equals("Все", ignoreCase = true))) {
                         RezkaNativeResolver.resolveStreams(
                             title = currentMovieState.title,
                             year = currentMovieState.releaseYear,
@@ -652,7 +653,8 @@ private fun NativeExoPlayerScreen(
                 val serverStreams = serverDeferred.await()
 
                 val isNativeFallback = nativeStreams.isNotEmpty() && nativeStreams.all { it.source.contains("fallback", ignoreCase = true) }
-                val allResolved = if (isNativeFallback && serverStreams.isNotEmpty()) {
+                val prioritizeServer = isNonRezkaTrack || isNativeFallback || !newSource.equals("HDrezka", ignoreCase = true)
+                val allResolved = if (prioritizeServer && serverStreams.isNotEmpty()) {
                     (serverStreams + nativeStreams).distinctBy { it.url }
                 } else {
                     (nativeStreams + serverStreams).distinctBy { it.url }
@@ -701,6 +703,22 @@ private fun NativeExoPlayerScreen(
                     currentStreamUrl = targetStream.url
                     if (isDirectVideoStream(targetStream.url)) {
                         exoPlayer.setMediaItem(MediaItem.fromUri(targetStream.url))
+                        val curTrackObj = currentMovieState.audioTracks.firstOrNull { it.id == newAudioId }
+                        if (curTrackObj != null) {
+                            val tName = curTrackObj.name.lowercase()
+                            val langCode = when {
+                                tName.contains("англ") || tName.contains("orig") || tName.contains("eng") -> "eng"
+                                tName.contains("укр") || tName.contains("ukr") -> "ukr"
+                                tName.contains("рус") || tName.contains("дубл") || tName.contains("rus") -> "rus"
+                                else -> null
+                            }
+                            if (langCode != null) {
+                                exoPlayer.trackSelectionParameters = exoPlayer.trackSelectionParameters
+                                    .buildUpon()
+                                    .setPreferredAudioLanguage(langCode)
+                                    .build()
+                            }
+                        }
                         if (isSameEpisode && savedPos > 1000L) {
                             exoPlayer.seekTo(savedPos)
                         } else {
@@ -1421,7 +1439,8 @@ private fun NativeExoPlayerScreen(
                                     onClick = {
                                         activeDrawer = null
                                         currentAudioId = track.id
-                                        switchStream(currentSeason, currentEpisode, track.id, selectedQuality, selectedSource)
+                                        val targetSource = if (track.source.isNotBlank()) track.source else selectedSource
+                                        switchStream(currentSeason, currentEpisode, track.id, selectedQuality, targetSource)
                                     },
                                     colors = ButtonDefaults.colors(
                                         containerColor = if (isSel) accent.copy(alpha = 0.85f) else ChipBackground,

@@ -26,6 +26,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
@@ -43,6 +44,7 @@ import androidx.tv.foundation.lazy.list.TvLazyColumn
 import androidx.tv.foundation.lazy.list.TvLazyRow
 import androidx.tv.foundation.lazy.list.items
 import androidx.tv.foundation.lazy.list.itemsIndexed
+import androidx.tv.foundation.lazy.list.rememberTvLazyListState
 import androidx.tv.material3.Border
 import androidx.tv.material3.Button
 import androidx.tv.material3.ButtonDefaults
@@ -217,6 +219,9 @@ fun ScheduleCalendarScreen(
                 modifier = Modifier
                     .height(32.dp)
                     .focusRequester(backButtonFocusRequester)
+                    .focusProperties {
+                        down = firstItemFocusRequester
+                    }
             ) {
                 Text(text = "Назад", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
             }
@@ -259,11 +264,13 @@ fun ScheduleCalendarScreen(
                 }
             }
         } else {
+            val listState = rememberTvLazyListState()
             TvLazyColumn(
+                state = listState,
                 verticalArrangement = Arrangement.spacedBy(20.dp),
                 contentPadding = PaddingValues(bottom = 40.dp)
             ) {
-                itemsIndexed(calendarGroups) { gIdx, group ->
+                itemsIndexed(calendarGroups, key = { _, group -> group.dayTitle }) { gIdx, group ->
                     Column {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -289,9 +296,20 @@ fun ScheduleCalendarScreen(
                             horizontalArrangement = Arrangement.spacedBy(14.dp),
                             contentPadding = PaddingValues(vertical = 4.dp)
                         ) {
-                            itemsIndexed(group.entries) { eIdx, entry ->
+                            itemsIndexed(
+                                group.entries,
+                                key = { idx, entry -> "${entry.movie.id}_${entry.scheduleItem.episode}_${entry.scheduleItem.date}_$idx" }
+                            ) { eIdx, entry ->
                                 val cardMod = if (gIdx == 0 && eIdx == 0) {
-                                    Modifier.focusRequester(firstItemFocusRequester)
+                                    Modifier
+                                        .focusRequester(firstItemFocusRequester)
+                                        .focusProperties {
+                                            up = backButtonFocusRequester
+                                        }
+                                } else if (gIdx == 0) {
+                                    Modifier.focusProperties {
+                                        up = backButtonFocusRequester
+                                    }
                                 } else Modifier
                                 CalendarEpisodeCard(
                                     entry = entry,

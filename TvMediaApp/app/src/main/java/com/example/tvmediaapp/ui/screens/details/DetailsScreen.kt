@@ -241,6 +241,9 @@ fun DetailsScreen(
     val reviewsTabFocusRequester = remember { FocusRequester() }
     val firstCommentFocusRequester = remember { FocusRequester() }
     val episodesFocusRequester = remember { FocusRequester() }
+    val firstSourceFocusRequester = remember { FocusRequester() }
+    val firstAudioFocusRequester = remember { FocusRequester() }
+    val firstSeasonFocusRequester = remember { FocusRequester() }
     val translatorSeasonsCache = remember { mutableStateMapOf<String, List<SeasonInfo>>() }
 
     // Automatically focus the primary play button as soon as movie card opens
@@ -1337,115 +1340,6 @@ fun DetailsScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Detail Section Tabs: «Плеер и серии», «График серий», «Описание и детали», «Отзывы (N)»
-                val tabs = remember(currentMovie.isSeries, currentMovie.episodesSchedule.size, comments.size) {
-                    val list = mutableListOf("Плеер и серии")
-                    if (currentMovie.isSeries) {
-                        list.add("График серий" + if (currentMovie.episodesSchedule.isNotEmpty()) " (${currentMovie.episodesSchedule.size})" else "")
-                    }
-                    list.add("Описание и детали")
-                    list.add("Отзывы" + if (comments.isNotEmpty()) " (${comments.size})" else "")
-                    list
-                }
-                val activeTabTitle = tabs.getOrNull(selectedDetailTab) ?: tabs.firstOrNull() ?: "Плеер и серии"
-
-                LaunchedEffect(selectedDetailTab) {
-                    delay(60)
-                    try {
-                        when (selectedDetailTab) {
-                            0 -> tabsFocusRequester.requestFocus()
-                            1 -> if (currentMovie.isSeries) scheduleTabFocusRequester.requestFocus() else descriptionTabFocusRequester.requestFocus()
-                            2 -> if (currentMovie.isSeries) descriptionTabFocusRequester.requestFocus() else reviewsTabFocusRequester.requestFocus()
-                            else -> reviewsTabFocusRequester.requestFocus()
-                        }
-                    } catch (_: Exception) {}
-                }
-
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    tabs.forEachIndexed { index, tabTitle ->
-                        val isSelected = selectedDetailTab == index
-                        val tabMod = when (index) {
-                            0 -> Modifier
-                                .height(26.dp)
-                                .focusRequester(tabsFocusRequester)
-                                .focusProperties {
-                                    up = favoriteButtonFocusRequester
-                                    left = leftPaneFocusRequester
-                                    down = episodesFocusRequester
-                                }
-                            1 -> if (currentMovie.isSeries) {
-                                Modifier
-                                    .height(26.dp)
-                                    .focusRequester(scheduleTabFocusRequester)
-                                    .focusProperties {
-                                        up = favoriteButtonFocusRequester
-                                        down = firstScheduleItemFocusRequester
-                                    }
-                            } else {
-                                Modifier
-                                    .height(26.dp)
-                                    .focusRequester(descriptionTabFocusRequester)
-                                    .focusProperties {
-                                        up = favoriteButtonFocusRequester
-                                        down = synopsisBlockFocusRequester
-                                    }
-                            }
-                            2 -> if (currentMovie.isSeries) {
-                                Modifier
-                                    .height(26.dp)
-                                    .focusRequester(descriptionTabFocusRequester)
-                                    .focusProperties {
-                                        up = favoriteButtonFocusRequester
-                                        down = synopsisBlockFocusRequester
-                                    }
-                            } else {
-                                Modifier
-                                    .height(26.dp)
-                                    .focusRequester(reviewsTabFocusRequester)
-                                    .focusProperties {
-                                        up = favoriteButtonFocusRequester
-                                        down = firstCommentFocusRequester
-                                    }
-                            }
-                            else -> Modifier
-                                .height(26.dp)
-                                .focusRequester(reviewsTabFocusRequester)
-                                .focusProperties {
-                                    up = favoriteButtonFocusRequester
-                                    down = firstCommentFocusRequester
-                                }
-                        }
-                        Button(
-                            onClick = { selectedDetailTab = index },
-                            colors = ButtonDefaults.colors(
-                                containerColor = if (isSelected) accent.copy(alpha = 0.85f) else ChipBackground,
-                                focusedContainerColor = focusColor,
-                                contentColor = if (isSelected) Color.Black else TextWhite,
-                                focusedContentColor = Color.Black
-                            ),
-                            border = ButtonDefaults.border(
-                                border = Border.None,
-                                focusedBorder = Border.None
-                            ),
-                            shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
-                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
-                            modifier = tabMod
-                        ) {
-                            Text(
-                                text = tabTitle,
-                                fontSize = 11.sp,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
-                            )
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-
                 var selectedSourceFilter by remember { mutableStateOf("Все") }
                 val availableSources = remember(currentMovie.sources, currentMovie.audioTracks, currentMovie.seasons, selectedSeason) {
                     val list = mutableListOf<String>()
@@ -1522,6 +1416,119 @@ fun DetailsScreen(
                     }
                 }
 
+                // Detail Section Tabs: «Плеер и серии», «График серий», «Описание и детали», «Отзывы (N)»
+                val tabs = remember(currentMovie.isSeries, currentMovie.episodesSchedule.size, comments.size) {
+                    val list = mutableListOf("Плеер и серии")
+                    if (currentMovie.isSeries) {
+                        list.add("График серий" + if (currentMovie.episodesSchedule.isNotEmpty()) " (${currentMovie.episodesSchedule.size})" else "")
+                    }
+                    list.add("Описание и детали")
+                    list.add("Отзывы" + if (comments.isNotEmpty()) " (${comments.size})" else "")
+                    list
+                }
+                val activeTabTitle = tabs.getOrNull(selectedDetailTab) ?: tabs.firstOrNull() ?: "Плеер и серии"
+
+                LaunchedEffect(selectedDetailTab) {
+                    delay(60)
+                    try {
+                        when (selectedDetailTab) {
+                            0 -> tabsFocusRequester.requestFocus()
+                            1 -> if (currentMovie.isSeries) scheduleTabFocusRequester.requestFocus() else descriptionTabFocusRequester.requestFocus()
+                            2 -> if (currentMovie.isSeries) descriptionTabFocusRequester.requestFocus() else reviewsTabFocusRequester.requestFocus()
+                            else -> reviewsTabFocusRequester.requestFocus()
+                        }
+                    } catch (_: Exception) {}
+                }
+
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    tabs.forEachIndexed { index, tabTitle ->
+                        val isSelected = selectedDetailTab == index
+                        val tabMod = when (index) {
+                            0 -> Modifier
+                                .height(26.dp)
+                                .focusRequester(tabsFocusRequester)
+                                .focusProperties {
+                                    up = favoriteButtonFocusRequester
+                                    left = leftPaneFocusRequester
+                                    down = if (availableSources.size > 2) firstSourceFocusRequester
+                                           else if (filteredAudioTracks.isNotEmpty()) firstAudioFocusRequester
+                                           else if (currentMovie.isSeries && currentMovie.seasons.isNotEmpty()) firstSeasonFocusRequester
+                                           else if (currentMovie.isSeries) episodesFocusRequester
+                                           else FocusRequester.Default
+                                }
+                            1 -> if (currentMovie.isSeries) {
+                                Modifier
+                                    .height(26.dp)
+                                    .focusRequester(scheduleTabFocusRequester)
+                                    .focusProperties {
+                                        up = favoriteButtonFocusRequester
+                                        down = firstScheduleItemFocusRequester
+                                    }
+                            } else {
+                                Modifier
+                                    .height(26.dp)
+                                    .focusRequester(descriptionTabFocusRequester)
+                                    .focusProperties {
+                                        up = favoriteButtonFocusRequester
+                                        down = synopsisBlockFocusRequester
+                                    }
+                            }
+                            2 -> if (currentMovie.isSeries) {
+                                Modifier
+                                    .height(26.dp)
+                                    .focusRequester(descriptionTabFocusRequester)
+                                    .focusProperties {
+                                        up = favoriteButtonFocusRequester
+                                        down = synopsisBlockFocusRequester
+                                    }
+                            } else {
+                                Modifier
+                                    .height(26.dp)
+                                    .focusRequester(reviewsTabFocusRequester)
+                                    .focusProperties {
+                                        up = favoriteButtonFocusRequester
+                                        down = firstCommentFocusRequester
+                                    }
+                            }
+                            else -> Modifier
+                                .height(26.dp)
+                                .focusRequester(reviewsTabFocusRequester)
+                                .focusProperties {
+                                    up = favoriteButtonFocusRequester
+                                    down = firstCommentFocusRequester
+                                }
+                        }
+                        Button(
+                            onClick = { selectedDetailTab = index },
+                            colors = ButtonDefaults.colors(
+                                containerColor = if (isSelected) accent.copy(alpha = 0.85f) else ChipBackground,
+                                focusedContainerColor = focusColor,
+                                contentColor = if (isSelected) Color.Black else TextWhite,
+                                focusedContentColor = Color.Black
+                            ),
+                            border = ButtonDefaults.border(
+                                border = Border.None,
+                                focusedBorder = Border.None
+                            ),
+                            shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                            modifier = tabMod
+                        ) {
+                            Text(
+                                text = tabTitle,
+                                fontSize = 11.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
                 when {
                     activeTabTitle.startsWith("Плеер") -> {
                         // TAB 0: ПЛЕЕР И СЕРИИ
@@ -1535,8 +1542,17 @@ fun DetailsScreen(
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             TvLazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                items(availableSources) { srcLabel ->
+                                itemsIndexed(availableSources) { srcIdx, srcLabel ->
                                     val isSrcSelected = selectedSourceFilter == srcLabel
+                                    val srcMod = if (srcIdx == 0) {
+                                        Modifier.focusRequester(firstSourceFocusRequester).focusProperties {
+                                            up = tabsFocusRequester
+                                            down = if (filteredAudioTracks.isNotEmpty()) firstAudioFocusRequester
+                                                   else if (currentMovie.isSeries && currentMovie.seasons.isNotEmpty()) firstSeasonFocusRequester
+                                                   else if (currentMovie.isSeries) episodesFocusRequester
+                                                   else FocusRequester.Default
+                                        }
+                                    } else Modifier
                                     Button(
                                         onClick = {
                                             selectedSourceFilter = srcLabel
@@ -1598,7 +1614,7 @@ fun DetailsScreen(
                                          shape = ButtonDefaults.shape(RoundedCornerShape(6.dp)),
                                          scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                                          contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                                         modifier = Modifier.height(24.dp)
+                                         modifier = Modifier.height(24.dp).then(srcMod)
                                      ) {
                                          Text(text = srcLabel, fontSize = 10.sp, fontWeight = if (isSrcSelected) FontWeight.Bold else FontWeight.Normal)
                                      }
@@ -1617,8 +1633,16 @@ fun DetailsScreen(
                              )
                              Spacer(modifier = Modifier.height(6.dp))
                              TvLazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                 items(filteredAudioTracks) { track ->
+                                 itemsIndexed(filteredAudioTracks) { trkIdx, track ->
                                      val isSelected = track.id == selectedAudioId
+                                     val audioMod = if (trkIdx == 0) {
+                                         Modifier.focusRequester(firstAudioFocusRequester).focusProperties {
+                                             up = if (availableSources.size > 2) firstSourceFocusRequester else tabsFocusRequester
+                                             down = if (currentMovie.isSeries && currentMovie.seasons.isNotEmpty()) firstSeasonFocusRequester
+                                                    else if (currentMovie.isSeries) episodesFocusRequester
+                                                    else FocusRequester.Default
+                                         }
+                                     } else Modifier
                                      Button(
                                          onClick = {
                                              selectedAudioId = track.id
@@ -1667,7 +1691,7 @@ fun DetailsScreen(
                                          shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                                          scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                                          contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                                         modifier = Modifier.height(26.dp)
+                                         modifier = Modifier.height(26.dp).then(audioMod)
                                      ) {
                                          val cachedSeasonEps = translatorSeasonsCache[track.id]?.firstOrNull { it.seasonNumber == selectedSeason }?.episodes?.size
                                          val seasonEpCount = cachedSeasonEps
@@ -1687,8 +1711,16 @@ fun DetailsScreen(
                             Spacer(modifier = Modifier.height(5.dp))
 
                             TvLazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                items(currentMovie.seasons) { season ->
+                                itemsIndexed(currentMovie.seasons) { sIdx, season ->
                                     val isSelected = season.seasonNumber == selectedSeason
+                                    val seasonMod = if (sIdx == 0) {
+                                        Modifier.focusRequester(firstSeasonFocusRequester).focusProperties {
+                                            up = if (filteredAudioTracks.isNotEmpty()) firstAudioFocusRequester
+                                                   else if (availableSources.size > 2) firstSourceFocusRequester
+                                                   else tabsFocusRequester
+                                            down = episodesFocusRequester
+                                        }
+                                    } else Modifier
                                     Button(
                                         onClick = {
                                             selectedSeason = season.seasonNumber
@@ -1707,7 +1739,7 @@ fun DetailsScreen(
                                         shape = ButtonDefaults.shape(RoundedCornerShape(6.dp)),
                                         scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                                         contentPadding = PaddingValues(horizontal = 7.dp, vertical = 0.dp),
-                                        modifier = Modifier.height(24.dp)
+                                        modifier = Modifier.height(24.dp).then(seasonMod)
                                     ) {
                                         Text(text = season.title, fontSize = 10.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
                                     }
@@ -1764,7 +1796,12 @@ fun DetailsScreen(
                                     val epProgress = historyManager.getEpisodeProgress(currentMovie.id, selectedSeason, ep.episodeNumber, currentMovie.title)
                                     var isButtonFocused by remember { mutableStateOf(false) }
                                     val epFocusMod = if (epIdx == 0) {
-                                        Modifier.focusRequester(episodesFocusRequester).focusProperties { up = tabsFocusRequester }
+                                        Modifier.focusRequester(episodesFocusRequester).focusProperties {
+                                            up = if (currentMovie.seasons.isNotEmpty()) firstSeasonFocusRequester
+                                                 else if (filteredAudioTracks.isNotEmpty()) firstAudioFocusRequester
+                                                 else if (availableSources.size > 2) firstSourceFocusRequester
+                                                 else tabsFocusRequester
+                                        }
                                     } else Modifier
                                     Button(
                                         onClick = {

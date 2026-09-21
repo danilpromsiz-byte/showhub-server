@@ -242,14 +242,6 @@ fun DetailsScreen(
     val backButtonFocusRequester = remember { FocusRequester() }
     val leftPaneFocusRequester = remember { FocusRequester() }
     val tabsFocusRequester = remember { FocusRequester() }
-    val scheduleTabFocusRequester = remember { FocusRequester() }
-    val firstScheduleItemFocusRequester = remember { FocusRequester() }
-    val descriptionTabFocusRequester = remember { FocusRequester() }
-    val synopsisBlockFocusRequester = remember { FocusRequester() }
-    val firstDirectorFocusRequester = remember { FocusRequester() }
-    val firstCastFocusRequester = remember { FocusRequester() }
-    val reviewsTabFocusRequester = remember { FocusRequester() }
-    val firstCommentFocusRequester = remember { FocusRequester() }
     val episodesFocusRequester = remember { FocusRequester() }
     val firstSourceFocusRequester = remember { FocusRequester() }
     val firstAudioFocusRequester = remember { FocusRequester() }
@@ -1519,17 +1511,6 @@ fun DetailsScreen(
                 }
                 val activeTabTitle = tabs.getOrNull(selectedDetailTab) ?: tabs.firstOrNull() ?: "Плеер и серии"
 
-                LaunchedEffect(selectedDetailTab) {
-                    delay(60)
-                    try {
-                        when (selectedDetailTab) {
-                            0 -> tabsFocusRequester.requestFocus()
-                            1 -> if (currentMovie.isSeries) scheduleTabFocusRequester.requestFocus() else descriptionTabFocusRequester.requestFocus()
-                            2 -> if (currentMovie.isSeries) descriptionTabFocusRequester.requestFocus() else reviewsTabFocusRequester.requestFocus()
-                            else -> reviewsTabFocusRequester.requestFocus()
-                        }
-                    } catch (_: Exception) {}
-                }
 
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -1537,61 +1518,15 @@ fun DetailsScreen(
                 ) {
                     tabs.forEachIndexed { index, tabTitle ->
                         val isSelected = selectedDetailTab == index
-                        val tabMod = when (index) {
-                            0 -> Modifier
-                                .height(26.dp)
-                                .focusRequester(tabsFocusRequester)
-                                .focusProperties {
-                                    up = favoriteButtonFocusRequester
+                        val tabMod = Modifier
+                            .height(26.dp)
+                            .then(if (index == 0) Modifier.focusRequester(tabsFocusRequester) else Modifier)
+                            .focusProperties {
+                                up = favoriteButtonFocusRequester
+                                if (index == 0) {
                                     left = leftPaneFocusRequester
-                                    down = if (availableSources.size > 2) firstSourceFocusRequester
-                                           else if (filteredAudioTracks.isNotEmpty()) firstAudioFocusRequester
-                                           else if (currentMovie.isSeries && currentMovie.seasons.isNotEmpty()) firstSeasonFocusRequester
-                                           else if (currentMovie.isSeries) episodesFocusRequester
-                                           else FocusRequester.Default
                                 }
-                            1 -> if (currentMovie.isSeries) {
-                                Modifier
-                                    .height(26.dp)
-                                    .focusRequester(scheduleTabFocusRequester)
-                                    .focusProperties {
-                                        up = favoriteButtonFocusRequester
-                                        down = firstScheduleItemFocusRequester
-                                    }
-                            } else {
-                                Modifier
-                                    .height(26.dp)
-                                    .focusRequester(descriptionTabFocusRequester)
-                                    .focusProperties {
-                                        up = favoriteButtonFocusRequester
-                                        down = synopsisBlockFocusRequester
-                                    }
                             }
-                            2 -> if (currentMovie.isSeries) {
-                                Modifier
-                                    .height(26.dp)
-                                    .focusRequester(descriptionTabFocusRequester)
-                                    .focusProperties {
-                                        up = favoriteButtonFocusRequester
-                                        down = synopsisBlockFocusRequester
-                                    }
-                            } else {
-                                Modifier
-                                    .height(26.dp)
-                                    .focusRequester(reviewsTabFocusRequester)
-                                    .focusProperties {
-                                        up = favoriteButtonFocusRequester
-                                        down = firstCommentFocusRequester
-                                    }
-                            }
-                            else -> Modifier
-                                .height(26.dp)
-                                .focusRequester(reviewsTabFocusRequester)
-                                .focusProperties {
-                                    up = favoriteButtonFocusRequester
-                                    down = firstCommentFocusRequester
-                                }
-                        }
                         Button(
                             onClick = { selectedDetailTab = index },
                             colors = ButtonDefaults.colors(
@@ -1607,7 +1542,11 @@ fun DetailsScreen(
                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                             scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                             contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
-                            modifier = tabMod
+                            modifier = tabMod.onFocusChanged {
+                                if (it.isFocused) {
+                                    selectedDetailTab = index
+                                }
+                            }
                         ) {
                             Text(
                                 text = tabTitle,
@@ -2131,10 +2070,6 @@ fun DetailsScreen(
                                     val statusFg = if (isAired) Color(0xFF81C784) else Color(0xFF90CAF9)
 
                                     var isRowFocused by remember { mutableStateOf(false) }
-                                    val itemFocusMod = if (itemIdx == 0) {
-                                        Modifier.focusRequester(firstScheduleItemFocusRequester).focusProperties { up = scheduleTabFocusRequester }
-                                    } else Modifier
-
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
@@ -2148,7 +2083,6 @@ fun DetailsScreen(
                                                 color = if (isRowFocused) accent else Color.White.copy(alpha = 0.06f),
                                                 shape = RoundedCornerShape(6.dp)
                                             )
-                                            .then(itemFocusMod)
                                             .focusable()
                                             .onFocusChanged { isRowFocused = it.isFocused }
                                             .padding(horizontal = 12.dp, vertical = 8.dp),
@@ -2221,15 +2155,6 @@ fun DetailsScreen(
                                         shape = RoundedCornerShape(8.dp)
                                     )
                                     .padding(16.dp)
-                                    .focusRequester(synopsisBlockFocusRequester)
-                                    .focusProperties {
-                                        up = descriptionTabFocusRequester
-                                        if (displayDirectors.isNotEmpty()) {
-                                            down = firstDirectorFocusRequester
-                                        } else if (displayCast.isNotEmpty()) {
-                                            down = firstCastFocusRequester
-                                        }
-                                    }
                                     .focusable()
                                     .onFocusChanged { isSynopsisFocused = it.isFocused },
                                 verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -2263,16 +2188,6 @@ fun DetailsScreen(
                                     ) {
                                         itemsIndexed(displayDirectors) { dirIdx, director ->
                                             var isDirFocused by remember { mutableStateOf(false) }
-                                            val dirMod = if (dirIdx == 0) {
-                                                Modifier
-                                                    .focusRequester(firstDirectorFocusRequester)
-                                                    .focusProperties {
-                                                        up = synopsisBlockFocusRequester
-                                                        if (displayCast.isNotEmpty()) {
-                                                            down = firstCastFocusRequester
-                                                        }
-                                                    }
-                                            } else Modifier
                                             Card(
                                                 onClick = { onSearchClick(director.name) },
                                                 colors = CardDefaults.colors(
@@ -2287,7 +2202,6 @@ fun DetailsScreen(
                                                 scale = CardDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                                                 modifier = Modifier
                                                     .width(84.dp)
-                                                    .then(dirMod)
                                                     .onFocusChanged { isDirFocused = it.isFocused }
                                             ) {
                                                 Column(
@@ -2350,13 +2264,6 @@ fun DetailsScreen(
                                     ) {
                                         itemsIndexed(displayCast) { actorIdx, actor ->
                                             var isActorFocused by remember { mutableStateOf(false) }
-                                            val castMod = if (actorIdx == 0) {
-                                                Modifier
-                                                    .focusRequester(firstCastFocusRequester)
-                                                    .focusProperties {
-                                                        up = if (displayDirectors.isNotEmpty()) firstDirectorFocusRequester else synopsisBlockFocusRequester
-                                                    }
-                                            } else Modifier
                                             Card(
                                                 onClick = { onSearchClick(actor.name) },
                                                 colors = CardDefaults.colors(
@@ -2371,7 +2278,6 @@ fun DetailsScreen(
                                                 scale = CardDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                                                 modifier = Modifier
                                                     .width(84.dp)
-                                                    .then(castMod)
                                                     .onFocusChanged { isActorFocused = it.isFocused }
                                             ) {
                                                 Column(
@@ -2460,10 +2366,6 @@ fun DetailsScreen(
                                     .clip(RoundedCornerShape(8.dp))
                                     .background(Color.White.copy(alpha = 0.04f))
                                     .padding(28.dp)
-                                    .focusRequester(firstCommentFocusRequester)
-                                    .focusProperties {
-                                        up = reviewsTabFocusRequester
-                                    }
                                     .focusable(),
                                 contentAlignment = Alignment.Center
                             ) {
@@ -2480,13 +2382,6 @@ fun DetailsScreen(
                             ) {
                                 comments.forEachIndexed { cIdx, c ->
                                     var isCommentFocused by remember { mutableStateOf(false) }
-                                    val commentMod = if (cIdx == 0) {
-                                        Modifier
-                                            .focusRequester(firstCommentFocusRequester)
-                                            .focusProperties {
-                                                up = reviewsTabFocusRequester
-                                            }
-                                    } else Modifier
                                     Column(
                                         modifier = Modifier
                                             .fillMaxWidth()
@@ -2498,7 +2393,6 @@ fun DetailsScreen(
                                                 shape = RoundedCornerShape(8.dp)
                                             )
                                             .padding(14.dp)
-                                            .then(commentMod)
                                             .focusable()
                                             .onFocusChanged { isCommentFocused = it.isFocused }
                                     ) {

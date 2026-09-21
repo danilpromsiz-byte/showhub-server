@@ -192,7 +192,12 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
-        return super.dispatchKeyEvent(event)
+        return try {
+            super.dispatchKeyEvent(event)
+        } catch (e: Exception) {
+            android.util.Log.e("MainActivity", "Safely caught unhandled focus navigation error", e)
+            true
+        }
     }
 }
 

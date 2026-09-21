@@ -67,17 +67,44 @@ object RezkaNativeResolver {
         return clean
     }
 
+    private val KNOWN_ALIASES = mapOf(
+        "очень вкусно" to listOf("Восхитительно", "Délicieux", "Delicieux"),
+        "восхитительно" to listOf("Очень вкусно", "Délicieux", "Delicieux"),
+        "delicieux" to listOf("Восхитительно", "Очень вкусно"),
+        "délicieux" to listOf("Восхитительно", "Очень вкусно")
+    )
+
+    fun computeSimilarity(s1: String, s2: String): Double {
+        val c1 = s1.lowercase().replace(Regex("[^a-zа-яё0-9]"), " ").replace(Regex("\\s+"), " ").trim()
+        val c2 = s2.lowercase().replace(Regex("[^a-zа-яё0-9]"), " ").replace(Regex("\\s+"), " ").trim()
+        if (c1.isEmpty() || c2.isEmpty()) return 0.0
+        if (c1 == c2) return 1.0
+        if (c1.contains(c2) || c2.contains(c1)) {
+            val ratio = Math.min(c1.length, c2.length).toDouble() / Math.max(c1.length, c2.length)
+            return Math.max(0.70, ratio)
+        }
+        val w1 = c1.split(" ").filter { it.length > 1 }.toSet()
+        val w2 = c2.split(" ").filter { it.length > 1 }.toSet()
+        if (w1.isEmpty() || w2.isEmpty()) return 0.0
+        val intersect = w1.intersect(w2)
+        if (intersect.isEmpty()) return 0.0
+        val jaccard = intersect.size.toDouble() / w1.union(w2).size
+        val overlap = intersect.size.toDouble() / Math.min(w1.size, w2.size)
+        return Math.max(jaccard, overlap * 0.8)
+    }
+
     suspend fun resolveMediaDetails(
         title: String,
         year: String? = null,
         isSeries: Boolean = false,
-        mediaUrl: String? = null
+        mediaUrl: String? = null,
+        originalTitle: String? = null
     ): RezkaDetails? = withContext(Dispatchers.IO) {
         val clean = cleanTitle(title)
         if (clean.isEmpty() && mediaUrl.isNullOrEmpty()) return@withContext null
 
         for (baseUrl in MIRRORS) {
-            val details = tryResolveDetailsFromMirror(baseUrl, clean, year, isSeries, mediaUrl, rawTitle = title)
+            val details = tryResolveDetailsFromMirror(baseUrl, clean, year, isSeries, mediaUrl, rawTitle = title, originalTitle = originalTitle)
             if (details != null && (details.audioTracks.isNotEmpty() || details.seasons.isNotEmpty())) {
                 return@withContext details
             }
@@ -93,7 +120,8 @@ object RezkaNativeResolver {
         year: String?,
         isSeries: Boolean,
         mediaUrl: String?,
-        rawTitle: String? = null
+        rawTitle: String? = null,
+        originalTitle: String? = null
     ): PageInfo? {
         var dataId: String? = null
         var pageUrl: String? = null
@@ -110,15 +138,11 @@ object RezkaNativeResolver {
         }
 
         if (dataId.isNullOrEmpty() || pageUrl.isNullOrEmpty()) {
-            // 1. Search HDRezka directly from the Android TV's residential IP
-            val searchUrl = "$baseUrl/search/?do=search&subaction=search&q=" + URLEncoder.encode(cleanTitle, "UTF-8")
-            var searchHtml = httpGet(searchUrl, "$baseUrl/", baseUrl = baseUrl) ?: ""
-
             val targetYearInt = year?.toIntOrNull()
             data class RezkaCandidate(val id: String, val url: String, val score: Int)
             val candidates = mutableListOf<RezkaCandidate>()
 
-            fun parseCandidates(html: String) {
+            fun parseCandidates(html: String, queryTitle: String) {
                 val itemPattern = Pattern.compile("class=\"b-content__inline_item\"[^>]*data-id=\"(\\d+)\"[^>]*data-url=\"([^\"]+)\"([\\s\\S]*?)(?=<div class=\"b-content__inline_item\"|$)")
                 val itemMatcher = itemPattern.matcher(html)
                 while (itemMatcher.find()) {
@@ -126,7 +150,37 @@ object RezkaNativeResolver {
                     val rawLink = itemMatcher.group(2) ?: ""
                     val fullUrl = if (rawLink.startsWith("http")) rawLink else "$baseUrl$rawLink"
                     val snippet = itemMatcher.group(3) ?: ""
-                    var score = 10
+
+                    // Candidate title extraction
+                    val titleMatcher = Pattern.compile("<div class=\"b-content__inline_item-link\"[^>]*>\\s*<a[^>]*>([^<]+)</a>").matcher(snippet)
+                    val candTitle = if (titleMatcher.find()) titleMatcher.group(1).trim() else ""
+
+                    // Extra candidate info (original title, country, year)
+                    val extraMatcher = Pattern.compile("<div class=\"b-content__inline_item-link\"[^>]*>[\\s\\S]*?<div>([^<]+)</div>").matcher(snippet)
+                    val candExtra = if (extraMatcher.find()) extraMatcher.group(1).trim() else ""
+
+                    // Strict similarity validation
+                    val targets = listOfNotNull(
+                        queryTitle.ifEmpty { null },
+                        cleanTitle.ifEmpty { null },
+                        rawTitle?.ifEmpty { null },
+                        originalTitle?.ifEmpty { null }
+                    )
+                    var maxSim = 0.0
+                    for (text in listOf(candTitle, candExtra)) {
+                        if (text.isEmpty()) continue
+                        for (target in targets) {
+                            val sim = computeSimilarity(text, target)
+                            if (sim > maxSim) maxSim = sim
+                        }
+                    }
+
+                    // Strict filter: Candidate MUST match the title with similarity >= 0.50!
+                    if (maxSim < 0.50) {
+                        continue
+                    }
+
+                    var score = (maxSim * 200).toInt()
 
                     // Year matching
                     val textForYear = if (Pattern.compile("\\b(19\\d\\d|20\\d\\d)\\b").matcher(snippet).find()) snippet else fullUrl
@@ -137,7 +191,7 @@ object RezkaNativeResolver {
                             val diff = Math.abs(candYear - targetYearInt)
                             if (diff == 0) score += 100
                             else if (diff == 1) score += 50
-                            else score -= diff * 10
+                            else score -= diff * 20
                         }
                     }
 
@@ -146,15 +200,20 @@ object RezkaNativeResolver {
                     if (isSeries == isCandSeries) {
                         score += 60
                     } else {
-                        score -= 30
+                        score -= 50
                     }
 
                     candidates.add(RezkaCandidate(id, fullUrl, score))
                 }
             }
 
-            if (searchHtml.isNotEmpty()) {
-                parseCandidates(searchHtml)
+            // 1. Search HDRezka directly with primary cleanTitle
+            if (cleanTitle.isNotEmpty()) {
+                val searchUrl = "$baseUrl/search/?do=search&subaction=search&q=" + URLEncoder.encode(cleanTitle, "UTF-8")
+                val searchHtml = httpGet(searchUrl, "$baseUrl/", baseUrl = baseUrl) ?: ""
+                if (searchHtml.isNotEmpty()) {
+                    parseCandidates(searchHtml, cleanTitle)
+                }
             }
 
             // Fallback 1: ё -> е if no candidates found
@@ -163,8 +222,7 @@ object RezkaNativeResolver {
                 val altSearchUrl = "$baseUrl/search/?do=search&subaction=search&q=" + URLEncoder.encode(altTitle, "UTF-8")
                 val altHtml = httpGet(altSearchUrl, "$baseUrl/", baseUrl = baseUrl) ?: ""
                 if (altHtml.isNotEmpty()) {
-                    searchHtml = altHtml
-                    parseCandidates(altHtml)
+                    parseCandidates(altHtml, altTitle)
                 }
             }
 
@@ -176,33 +234,51 @@ object RezkaNativeResolver {
                     val baseSearchUrl = "$baseUrl/search/?do=search&subaction=search&q=" + URLEncoder.encode(baseTitle, "UTF-8")
                     val baseHtml = httpGet(baseSearchUrl, "$baseUrl/", baseUrl = baseUrl) ?: ""
                     if (baseHtml.isNotEmpty()) {
-                        searchHtml = baseHtml
-                        parseCandidates(baseHtml)
+                        parseCandidates(baseHtml, baseTitle)
                     }
                 }
             }
 
+            // Fallback 3: originalTitle if provided and differs from cleanTitle
+            val origClean = originalTitle?.let { cleanTitle(it) } ?: ""
+            if (candidates.isEmpty() && origClean.isNotEmpty() && !origClean.equals(cleanTitle, ignoreCase = true)) {
+                val origSearchUrl = "$baseUrl/search/?do=search&subaction=search&q=" + URLEncoder.encode(origClean, "UTF-8")
+                val origHtml = httpGet(origSearchUrl, "$baseUrl/", baseUrl = baseUrl) ?: ""
+                if (origHtml.isNotEmpty()) {
+                    parseCandidates(origHtml, origClean)
+                }
+            }
+
+            // Fallback 4: known aliases (e.g. "Очень вкусно" / "Délicieux" -> "Восхитительно")
+            if (candidates.isEmpty()) {
+                val aliasesToTry = mutableListOf<String>()
+                for ((key, aliasList) in KNOWN_ALIASES) {
+                    val matchesKey = cleanTitle.contains(key, ignoreCase = true) ||
+                            (rawTitle != null && rawTitle.contains(key, ignoreCase = true)) ||
+                            (originalTitle != null && originalTitle.contains(key, ignoreCase = true))
+                    if (matchesKey) {
+                        for (alias in aliasList) {
+                            if (!aliasesToTry.contains(alias) && !alias.equals(cleanTitle, ignoreCase = true)) {
+                                aliasesToTry.add(alias)
+                            }
+                        }
+                    }
+                }
+                for (alias in aliasesToTry) {
+                    val aliasSearchUrl = "$baseUrl/search/?do=search&subaction=search&q=" + URLEncoder.encode(alias, "UTF-8")
+                    val aliasHtml = httpGet(aliasSearchUrl, "$baseUrl/", baseUrl = baseUrl) ?: ""
+                    if (aliasHtml.isNotEmpty()) {
+                        parseCandidates(aliasHtml, alias)
+                        if (candidates.isNotEmpty()) break
+                    }
+                }
+            }
+
+            // Pick the verified best candidate (STRICTLY NO blind regex fallback on unmatched html!)
             if (candidates.isNotEmpty()) {
                 val best = candidates.maxByOrNull { it.score }!!
                 dataId = best.id
                 pageUrl = best.url
-            } else if (searchHtml.isNotEmpty()) {
-                // Pattern B: general data-id and data-url
-                val genMatcher = Pattern.compile("data-id=\"(\\d+)\"\\s+data-url=\"([^\"]+)\"").matcher(searchHtml)
-                if (genMatcher.find()) {
-                    dataId = genMatcher.group(1)
-                    val rawLink = genMatcher.group(2) ?: ""
-                    pageUrl = if (rawLink.startsWith("http")) rawLink else "$baseUrl$rawLink"
-                } else {
-                    // Pattern C: separate data-id and a-href
-                    val idMatcher = Pattern.compile("data-id=\"(\\d+)\"").matcher(searchHtml)
-                    val linkMatcher = Pattern.compile("<div class=\"b-content__inline_item-cover\">\\s*<a href=\"([^\"]+)\"").matcher(searchHtml)
-                    if (idMatcher.find() && linkMatcher.find()) {
-                        dataId = idMatcher.group(1)
-                        val rawLink = linkMatcher.group(1) ?: ""
-                        pageUrl = if (rawLink.startsWith("http")) rawLink else "$baseUrl$rawLink"
-                    }
-                }
             }
         }
 
@@ -215,9 +291,10 @@ object RezkaNativeResolver {
         year: String?,
         isSeries: Boolean,
         mediaUrl: String?,
-        rawTitle: String? = null
+        rawTitle: String? = null,
+        originalTitle: String? = null
     ): RezkaDetails? {
-        val pageInfo = findPageUrlAndDataId(baseUrl, cleanTitle, year, isSeries, mediaUrl, rawTitle = rawTitle) ?: return null
+        val pageInfo = findPageUrlAndDataId(baseUrl, cleanTitle, year, isSeries, mediaUrl, rawTitle = rawTitle, originalTitle = originalTitle) ?: return null
         val dataId = pageInfo.dataId
         val pageUrl = pageInfo.pageUrl
 
@@ -331,14 +408,15 @@ object RezkaNativeResolver {
         season: Int = 1,
         episode: Int = 1,
         translatorId: String? = null,
-        mediaUrl: String? = null
+        mediaUrl: String? = null,
+        originalTitle: String? = null
     ): List<StreamOption> = withContext(Dispatchers.IO) {
         val cleanTitle = cleanTitle(title)
         if (cleanTitle.isEmpty() && mediaUrl.isNullOrEmpty()) return@withContext emptyList()
 
         // Try primary and fallback mirrors
         for (baseUrl in MIRRORS) {
-            val result = tryResolveFromMirror(baseUrl, cleanTitle, year, isSeries, season, episode, translatorId, mediaUrl, rawTitle = title)
+            val result = tryResolveFromMirror(baseUrl, cleanTitle, year, isSeries, season, episode, translatorId, mediaUrl, rawTitle = title, originalTitle = originalTitle)
             if (result.isNotEmpty()) {
                 return@withContext result
             }
@@ -355,11 +433,12 @@ object RezkaNativeResolver {
         episode: Int,
         translatorId: String? = null,
         mediaUrl: String? = null,
-        rawTitle: String? = null
+        rawTitle: String? = null,
+        originalTitle: String? = null
     ): List<StreamOption> {
         val streams = mutableListOf<StreamOption>()
         try {
-            val pageInfo = findPageUrlAndDataId(baseUrl, cleanTitle, year, isSeries, mediaUrl, rawTitle = rawTitle) ?: return emptyList()
+            val pageInfo = findPageUrlAndDataId(baseUrl, cleanTitle, year, isSeries, mediaUrl, rawTitle = rawTitle, originalTitle = originalTitle) ?: return emptyList()
             val dataId = pageInfo.dataId
             val pageUrl = pageInfo.pageUrl
 

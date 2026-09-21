@@ -670,6 +670,9 @@ private fun NativeExoPlayerScreen(
                 val isNonRezkaTrack = newAudioId.startsWith("kodik_") || newAudioId.startsWith("filmix_") || (!newSource.equals("HDrezka", ignoreCase = true) && !newSource.equals("Все", ignoreCase = true))
                 val nativeDeferred = async {
                     if (!isNonRezkaTrack && (newSource.equals("HDrezka", ignoreCase = true) || newSource.startsWith("HD", ignoreCase = true) || newSource.equals("Все", ignoreCase = true))) {
+                        val rezkaMediaUrl = if (currentMovieState.id.startsWith("http") || currentMovieState.id.contains("hdrezka") || currentMovieState.id.startsWith("rezka:")) {
+                            currentMovieState.id
+                        } else null
                         RezkaNativeResolver.resolveStreams(
                             title = currentMovieState.title,
                             year = currentMovieState.releaseYear,
@@ -677,7 +680,8 @@ private fun NativeExoPlayerScreen(
                             season = newSeason,
                             episode = epToPlay,
                             translatorId = newAudioId.ifEmpty { null },
-                            mediaUrl = currentMovieState.id
+                            mediaUrl = rezkaMediaUrl,
+                            originalTitle = currentMovieState.originalTitle
                         )
                     } else {
                         emptyList()
@@ -696,7 +700,7 @@ private fun NativeExoPlayerScreen(
                 val serverStreams = serverDeferred.await()
 
                 val isNativeFallback = nativeStreams.isNotEmpty() && nativeStreams.all { it.source.contains("fallback", ignoreCase = true) }
-                val prioritizeServer = isNonRezkaTrack || isNativeFallback || !newSource.equals("HDrezka", ignoreCase = true)
+                val prioritizeServer = currentMovieState.source == "filmix" || isNonRezkaTrack || isNativeFallback || !newSource.equals("HDrezka", ignoreCase = true)
                 val allResolved = if (prioritizeServer && serverStreams.isNotEmpty()) {
                     (serverStreams + nativeStreams).distinctBy { it.url }
                 } else {
@@ -803,6 +807,9 @@ private fun NativeExoPlayerScreen(
                 )
             }
             val rezkaDeferred = async(Dispatchers.IO) {
+                val rezkaMediaUrl = if (currentMovieState.id.startsWith("http") || currentMovieState.id.contains("hdrezka") || currentMovieState.id.startsWith("rezka:")) {
+                    currentMovieState.id
+                } else null
                 RezkaNativeResolver.resolveStreams(
                     title = currentMovieState.title,
                     year = currentMovieState.releaseYear,
@@ -810,7 +817,8 @@ private fun NativeExoPlayerScreen(
                     season = currentSeason,
                     episode = currentEpisode,
                     translatorId = currentAudioId.ifEmpty { null },
-                    mediaUrl = currentMovieState.id
+                    mediaUrl = rezkaMediaUrl,
+                    originalTitle = currentMovieState.originalTitle
                 )
             }
             val serverStreams = serverDeferred.await()

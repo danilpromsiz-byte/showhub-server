@@ -24,5 +24,6 @@ TvMediaApp/**/*.iml
 **/__pycache__/
 **/*.pyc
 **/*.log
-/mediacenter/data/
+!/mediacenter/data/
+!/mediacenter/data/users_stats.json
 

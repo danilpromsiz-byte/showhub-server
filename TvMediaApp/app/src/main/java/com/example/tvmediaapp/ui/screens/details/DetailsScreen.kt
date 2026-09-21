@@ -306,6 +306,9 @@ fun DetailsScreen(
         withContext(Dispatchers.IO) {
             try {
                 val isContentSeries = currentMovie.isSeries || currentMovie.seasons.isNotEmpty() || selectedSeason > 1 || selectedEpisode > 1
+                val rezkaMediaUrl = if (currentMovie.id.startsWith("http") || currentMovie.id.contains("hdrezka") || currentMovie.id.startsWith("rezka:")) {
+                    currentMovie.id
+                } else null
                 val nativeDeferred = async {
                     RezkaNativeResolver.resolveStreams(
                         title = currentMovie.title,
@@ -314,7 +317,8 @@ fun DetailsScreen(
                         season = selectedSeason,
                         episode = selectedEpisode,
                         translatorId = selectedAudioId.ifEmpty { null },
-                        mediaUrl = currentMovie.id
+                        mediaUrl = rezkaMediaUrl,
+                        originalTitle = currentMovie.originalTitle
                     )
                 }
                 val serverDeferred = async {
@@ -327,7 +331,12 @@ fun DetailsScreen(
                 }
                 val nativeStreams = nativeDeferred.await()
                 val serverStreams = serverDeferred.await()
-                val combined = (nativeStreams + serverStreams).distinctBy { it.url }
+                val isNativeFallback = nativeStreams.isNotEmpty() && nativeStreams.all { it.source.contains("fallback", ignoreCase = true) }
+                val combined = if ((currentMovie.source == "filmix" || isNativeFallback) && serverStreams.isNotEmpty()) {
+                    (serverStreams + nativeStreams).distinctBy { it.url }
+                } else {
+                    (nativeStreams + serverStreams).distinctBy { it.url }
+                }
                 val sorted = combined.sortedByDescending { isDirectVideoStream(it.url) }
                 if (sorted.isNotEmpty()) {
                     withContext(Dispatchers.Main) {
@@ -351,13 +360,17 @@ fun DetailsScreen(
                 }
                 if (sUrl.isNullOrEmpty()) {
                     try {
+                        val rezkaMediaUrl = if (currentMovie.id.startsWith("http") || currentMovie.id.contains("hdrezka") || currentMovie.id.startsWith("rezka:")) {
+                            currentMovie.id
+                        } else null
                         val nativeStreams = RezkaNativeResolver.resolveStreams(
                             title = currentMovie.title,
                             year = currentMovie.releaseYear,
                             isSeries = currentMovie.isSeries,
                             season = if (currentMovie.isSeries) selectedSeason else 1,
                             episode = if (currentMovie.isSeries) selectedEpisode else 1,
-                            mediaUrl = currentMovie.id
+                            mediaUrl = rezkaMediaUrl,
+                            originalTitle = currentMovie.originalTitle
                         )
                         sUrl = pickSafePreviewStream(nativeStreams)
                     } catch (_: Exception) {}
@@ -496,6 +509,9 @@ fun DetailsScreen(
             val isContentSeries = currentMovie.isSeries || currentMovie.seasons.isNotEmpty() || targetSeason > 1 || targetEpisode > 1
             // Priority 1: Query Rezka directly on TV (residential IP) and server concurrently
             val nativeDeferred = async {
+                val rezkaMediaUrl = if (currentMovie.id.startsWith("http") || currentMovie.id.contains("hdrezka") || currentMovie.id.startsWith("rezka:")) {
+                    currentMovie.id
+                } else null
                 RezkaNativeResolver.resolveStreams(
                     title = currentMovie.title,
                     year = currentMovie.releaseYear,
@@ -503,7 +519,8 @@ fun DetailsScreen(
                     season = targetSeason,
                     episode = targetEpisode,
                     translatorId = targetAudioId.ifEmpty { null },
-                    mediaUrl = currentMovie.id
+                    mediaUrl = rezkaMediaUrl,
+                    originalTitle = currentMovie.originalTitle
                 )
             }
             val serverDeferred = async {
@@ -518,7 +535,7 @@ fun DetailsScreen(
             val nativeStreams = nativeDeferred.await()
             val serverStreams = serverDeferred.await()
             val isNativeFallback = nativeStreams.isNotEmpty() && nativeStreams.all { it.source.contains("fallback", ignoreCase = true) }
-            val combined = if (isNativeFallback && serverStreams.isNotEmpty()) {
+            val combined = if ((currentMovie.source == "filmix" || isNativeFallback) && serverStreams.isNotEmpty()) {
                 (serverStreams + nativeStreams).distinctBy { it.url }
             } else {
                 (nativeStreams + serverStreams).distinctBy { it.url }
@@ -1195,6 +1212,9 @@ fun DetailsScreen(
                                 streamStatus = "Получение ссылки для стороннего плеера..."
                                 var streams = streamOptions
                                 if (streams.isEmpty()) {
+                                    val rezkaMediaUrl = if (currentMovie.id.startsWith("http") || currentMovie.id.contains("hdrezka") || currentMovie.id.startsWith("rezka:")) {
+                                        currentMovie.id
+                                    } else null
                                     val nativeDeferred = async {
                                         RezkaNativeResolver.resolveStreams(
                                             title = currentMovie.title,
@@ -1203,7 +1223,8 @@ fun DetailsScreen(
                                             season = selectedSeason,
                                             episode = selectedEpisode,
                                             translatorId = selectedAudioId.ifEmpty { null },
-                                            mediaUrl = currentMovie.id
+                                            mediaUrl = rezkaMediaUrl,
+                                            originalTitle = currentMovie.originalTitle
                                         )
                                     }
                                     val serverDeferred = async {
@@ -1214,7 +1235,14 @@ fun DetailsScreen(
                                             audioId = selectedAudioId
                                         )
                                     }
-                                    streams = (nativeDeferred.await() + serverDeferred.await()).distinctBy { it.url }
+                                    val nativeStreams = nativeDeferred.await()
+                                    val serverStreams = serverDeferred.await()
+                                    val isNativeFallback = nativeStreams.isNotEmpty() && nativeStreams.all { it.source.contains("fallback", ignoreCase = true) }
+                                    streams = if ((currentMovie.source == "filmix" || isNativeFallback) && serverStreams.isNotEmpty()) {
+                                        (serverStreams + nativeStreams).distinctBy { it.url }
+                                    } else {
+                                        (nativeStreams + serverStreams).distinctBy { it.url }
+                                    }
                                 }
                                 if (streams.isNotEmpty()) {
                                     val matched = streams.firstOrNull { matchStreamQuality(it, selectedQuality) }

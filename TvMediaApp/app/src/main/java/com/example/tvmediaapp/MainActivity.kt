@@ -57,6 +57,7 @@ import androidx.tv.material3.ButtonDefaults
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import com.example.tvmediaapp.data.api.ShowHubApiClient
 import com.example.tvmediaapp.data.cache.MediaDiskCache
 import com.example.tvmediaapp.data.image.CoilSetup
 import com.example.tvmediaapp.data.models.Movie
@@ -396,6 +397,8 @@ fun TvAppNavHost(activity: MainActivity) {
     LaunchedEffect(Unit) {
         delay(600)
         triggerUpdateCheck()
+        // Record active device heartbeat in analytics
+        ShowHubApiClient.ping(activity, activity.getInstalledVersionName())
         delay(3000)
         if (updateInfo == null) {
             triggerUpdateCheck()

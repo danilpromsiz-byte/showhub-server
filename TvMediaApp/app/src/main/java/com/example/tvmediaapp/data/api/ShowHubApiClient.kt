@@ -138,14 +138,17 @@ object ShowHubApiClient {
         }
         var result = fetchMediaDetailsFromNetwork(movie)
 
-        // Native fallback if server returned empty audio tracks or seasons
         if (result.audioTracks.isEmpty() || (result.isSeries && result.seasons.isEmpty())) {
             try {
+                val rezkaMediaUrl = if (movie.id.startsWith("http") || movie.id.contains("hdrezka") || movie.id.startsWith("rezka:")) {
+                    movie.id
+                } else null
                 val nativeRes = com.example.tvmediaapp.data.resolver.RezkaNativeResolver.resolveMediaDetails(
                     title = movie.title,
                     year = movie.releaseYear,
                     isSeries = movie.isSeries || result.isSeries,
-                    mediaUrl = movie.id
+                    mediaUrl = rezkaMediaUrl,
+                    originalTitle = movie.originalTitle
                 )
                 if (nativeRes != null) {
                     val mergedTracks = if (nativeRes.audioTracks.isNotEmpty()) nativeRes.audioTracks else result.audioTracks
@@ -838,14 +841,29 @@ object ShowHubApiClient {
         }
     }
 
+    @Volatile
+    private var cachedDeviceId: String? = null
+
     fun getOrCreateDeviceId(context: android.content.Context): String {
+        cachedDeviceId?.let { return it }
         val prefs = context.getSharedPreferences("showhub_prefs", android.content.Context.MODE_PRIVATE)
         var id = prefs.getString("pref_device_id", null)
         if (id.isNullOrBlank()) {
             id = java.util.UUID.randomUUID().toString()
             prefs.edit().putString("pref_device_id", id).apply()
         }
+        cachedDeviceId = id
         return id
+    }
+
+    fun getCachedDeviceId(): String? = cachedDeviceId
+
+    suspend fun ping(context: android.content.Context, appVersion: String) {
+        withContext(Dispatchers.IO) {
+            try {
+                pingAndGetUserStats(context, appVersion)
+            } catch (_: Exception) {}
+        }
     }
 
     suspend fun pingAndGetUserStats(context: android.content.Context, appVersion: String): UserStats? = withContext(Dispatchers.IO) {
@@ -856,6 +874,7 @@ object ShowHubApiClient {
             conn.connectTimeout = 8000
             conn.readTimeout = 8000
             conn.setRequestProperty("User-Agent", "ShowHubTV-Native/$appVersion")
+            conn.setRequestProperty("X-Device-Id", deviceId)
             conn.connect()
             if (conn.responseCode == 200) {
                 val body = BufferedReader(InputStreamReader(conn.inputStream, "UTF-8")).use { it.readText() }

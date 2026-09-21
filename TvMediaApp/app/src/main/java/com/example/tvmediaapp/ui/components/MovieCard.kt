@@ -126,11 +126,15 @@ fun MovieCard(
                 if (streamUrl.isNullOrEmpty()) {
                     try {
                         withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            val rezkaMediaUrl = if (movie.id.startsWith("http") || movie.id.contains("hdrezka") || movie.id.startsWith("rezka:")) {
+                                movie.id
+                            } else null
                             val nativeStreams = RezkaNativeResolver.resolveStreams(
                                 title = movie.title,
                                 year = movie.releaseYear,
                                 isSeries = movie.isSeries,
-                                mediaUrl = movie.id
+                                mediaUrl = rezkaMediaUrl,
+                                originalTitle = movie.originalTitle
                             )
                             val nonPremium = nativeStreams.filter {
                                 val q = it.quality.lowercase()

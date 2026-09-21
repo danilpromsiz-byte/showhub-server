@@ -1,10 +1,10 @@
 {
   "success": true,
-  "version_name": "2.8.31",
-  "version_code": 90,
+  "version_name": "2.8.32",
+  "version_code": 91,
   "force_update": true,
-  "min_version_code": 90,
+  "min_version_code": 91,
   "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
   "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
-  "changelog": "ShowHub TV v2.8.31: Весёлые разноцветные модальные окна карточной стопкой для нескольких сериалов с новыми сериями, постеры сериалов в уведомлении, полное исправление несоответствия видео ('Очень вкусно' и другие релизы) и защита от подмены Kinopoisk ID."
+  "changelog": "ShowHub TV v2.8.32: Полное исправление воспроизведения фильма 'Очень вкусно' (2021) и других релизов с альтернативными прокатными названиями (строгая валидация заголовков кандидатов на клиенте и сервере, поиск по оригинальным названиям и алиасам), автоматический фоновый учет активных пользователей и синхронизация статистики в настройках."
 }

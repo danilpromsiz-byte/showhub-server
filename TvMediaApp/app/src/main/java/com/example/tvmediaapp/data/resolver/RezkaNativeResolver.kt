@@ -1,5 +1,8 @@
 package com.example.tvmediaapp.data.resolver
 
+import com.example.tvmediaapp.data.models.AudioTrackInfo
+import com.example.tvmediaapp.data.models.EpisodeInfo
+import com.example.tvmediaapp.data.models.SeasonInfo
 import com.example.tvmediaapp.data.models.StreamOption
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -43,72 +46,76 @@ object RezkaNativeResolver {
         return q.contains("ultra") || q.contains("4k") || q.contains("2160") || q.contains("vip")
     }
 
-    suspend fun resolveStreams(
-        title: String,
-        year: String? = null,
-        isSeries: Boolean = false,
-        season: Int = 1,
-        episode: Int = 1,
-        translatorId: String? = null,
-        mediaUrl: String? = null
-    ): List<StreamOption> = withContext(Dispatchers.IO) {
-        var cleanTitle = title
+    data class RezkaDetails(
+        val audioTracks: List<AudioTrackInfo>,
+        val seasons: List<SeasonInfo>,
+        val pageUrl: String? = null
+    )
+
+    fun cleanTitle(title: String): String {
+        var clean = title
             .replace(Regex("\\(.*?\\)|\\[.*?\\]"), "")
             .split(":")[0]
             .split(" - ")[0]
             .trim()
-        cleanTitle = cleanTitle.replace(Regex("\\b\\d+\\s+(сери[йия]|сезон(а|ов)?)\\b", RegexOption.IGNORE_CASE), "")
+        clean = clean.replace(Regex("\\b\\d+\\s+(сери[йия]|сезон(а|ов)?)\\b", RegexOption.IGNORE_CASE), "")
             .replace(Regex("\\b(сезон|серия)\\s+\\d+\\b", RegexOption.IGNORE_CASE), "")
             .replace(Regex("\\b(19\\d\\d|20\\d\\d)\\b"), "")
             .trim()
-        if (cleanTitle.isEmpty() && mediaUrl.isNullOrEmpty()) return@withContext emptyList()
-
-        // Try primary and fallback mirrors
-        for (baseUrl in MIRRORS) {
-            val result = tryResolveFromMirror(baseUrl, cleanTitle, year, isSeries, season, episode, translatorId, mediaUrl)
-            if (result.isNotEmpty()) {
-                return@withContext result
-            }
-        }
-        emptyList()
+        return clean
     }
 
-    private fun tryResolveFromMirror(
+    suspend fun resolveMediaDetails(
+        title: String,
+        year: String? = null,
+        isSeries: Boolean = false,
+        mediaUrl: String? = null
+    ): RezkaDetails? = withContext(Dispatchers.IO) {
+        val clean = cleanTitle(title)
+        if (clean.isEmpty() && mediaUrl.isNullOrEmpty()) return@withContext null
+
+        for (baseUrl in MIRRORS) {
+            val details = tryResolveDetailsFromMirror(baseUrl, clean, year, isSeries, mediaUrl)
+            if (details != null && (details.audioTracks.isNotEmpty() || details.seasons.isNotEmpty())) {
+                return@withContext details
+            }
+        }
+        null
+    }
+
+    private data class PageInfo(val dataId: String, val pageUrl: String)
+
+    private fun findPageUrlAndDataId(
         baseUrl: String,
         cleanTitle: String,
         year: String?,
         isSeries: Boolean,
-        season: Int,
-        episode: Int,
-        translatorId: String? = null,
-        mediaUrl: String? = null
-    ): List<StreamOption> {
-        val streams = mutableListOf<StreamOption>()
-        try {
-            var dataId: String? = null
-            var pageUrl: String? = null
+        mediaUrl: String?
+    ): PageInfo? {
+        var dataId: String? = null
+        var pageUrl: String? = null
 
-            // 0. Direct URL bypass if mediaUrl is an HDRezka page
-            if (!mediaUrl.isNullOrEmpty() && (mediaUrl.startsWith("http") || mediaUrl.contains("hdrezka"))) {
-                val path = mediaUrl.substringAfter(".tv").substringAfter(".me").substringAfter(".ag").substringAfter(".org").substringAfter(".com")
-                val cleanPath = if (path.startsWith("/")) path else "/$path"
-                val idMatch = Pattern.compile("(\\d+)-[^/]+\\.html").matcher(cleanPath)
-                if (idMatch.find()) {
-                    dataId = idMatch.group(1)
-                    pageUrl = "$baseUrl$cleanPath"
-                }
+        // 0. Direct URL bypass if mediaUrl is an HDRezka page
+        if (!mediaUrl.isNullOrEmpty() && (mediaUrl.startsWith("http") || mediaUrl.contains("hdrezka"))) {
+            val path = mediaUrl.substringAfter(".tv").substringAfter(".me").substringAfter(".ag").substringAfter(".org").substringAfter(".com")
+            val cleanPath = if (path.startsWith("/")) path else "/$path"
+            val idMatch = Pattern.compile("(\\d+)-[^/]+\\.html").matcher(cleanPath)
+            if (idMatch.find()) {
+                dataId = idMatch.group(1)
+                pageUrl = "$baseUrl$cleanPath"
             }
+        }
 
-            if (dataId.isNullOrEmpty() || pageUrl.isNullOrEmpty()) {
-                // 1. Search HDRezka directly from the Android TV's residential IP
-                var searchUrl = "$baseUrl/search/?do=search&subaction=search&q=" + URLEncoder.encode(cleanTitle, "UTF-8")
-                var searchHtml = httpGet(searchUrl, "$baseUrl/", baseUrl = baseUrl) ?: ""
+        if (dataId.isNullOrEmpty() || pageUrl.isNullOrEmpty()) {
+            // 1. Search HDRezka directly from the Android TV's residential IP
+            val searchUrl = "$baseUrl/search/?do=search&subaction=search&q=" + URLEncoder.encode(cleanTitle, "UTF-8")
+            var searchHtml = httpGet(searchUrl, "$baseUrl/", baseUrl = baseUrl) ?: ""
 
-                val targetYearInt = year?.toIntOrNull()
-                data class RezkaCandidate(val id: String, val url: String, val score: Int)
-                val candidates = mutableListOf<RezkaCandidate>()
+            val targetYearInt = year?.toIntOrNull()
+            data class RezkaCandidate(val id: String, val url: String, val score: Int)
+            val candidates = mutableListOf<RezkaCandidate>()
 
-                fun parseCandidates(html: String) {
+            fun parseCandidates(html: String) {
                 val itemPattern = Pattern.compile("class=\"b-content__inline_item\"[^>]*data-id=\"(\\d+)\"[^>]*data-url=\"([^\"]+)\"([\\s\\S]*?)(?=<div class=\"b-content__inline_item\"|$)")
                 val itemMatcher = itemPattern.matcher(html)
                 while (itemMatcher.find()) {
@@ -181,9 +188,160 @@ object RezkaNativeResolver {
             }
         }
 
-            if (dataId.isNullOrEmpty() || pageUrl.isNullOrEmpty()) {
-                return emptyList()
+        return if (!dataId.isNullOrEmpty() && !pageUrl.isNullOrEmpty()) PageInfo(dataId, pageUrl) else null
+    }
+
+    private fun tryResolveDetailsFromMirror(
+        baseUrl: String,
+        cleanTitle: String,
+        year: String?,
+        isSeries: Boolean,
+        mediaUrl: String?
+    ): RezkaDetails? {
+        val pageInfo = findPageUrlAndDataId(baseUrl, cleanTitle, year, isSeries, mediaUrl) ?: return null
+        val dataId = pageInfo.dataId
+        val pageUrl = pageInfo.pageUrl
+
+        val pageHtml = httpGet(pageUrl, "$baseUrl/", baseUrl = baseUrl) ?: return null
+
+        val audioTracks = mutableListOf<AudioTrackInfo>()
+        // 1. Match translators
+        val trMatcher = Pattern.compile("data-translator_id=\"(\\d+)\"[^>]*title=\"([^\"]+)\"").matcher(pageHtml)
+        while (trMatcher.find()) {
+            val tid = trMatcher.group(1) ?: continue
+            var tname = trMatcher.group(2)?.trim() ?: ""
+            tname = tname.replace(Regex("<[^>]+>"), "").trim()
+            if (tname.isNotEmpty() && audioTracks.none { it.id == tid }) {
+                audioTracks.add(AudioTrackInfo(id = tid, name = tname, episodesCount = 0, source = "hdrezka"))
             }
+        }
+
+        if (audioTracks.isEmpty()) {
+            val fallbackMatcher = Pattern.compile("<li[^>]*class=\"[^\"]*b-translator__item[^\"]*\"[^>]*data-translator_id=\"(\\d+)\"[^>]*>([\\s\\S]*?)</li>").matcher(pageHtml)
+            while (fallbackMatcher.find()) {
+                val tid = fallbackMatcher.group(1) ?: continue
+                val rawInner = fallbackMatcher.group(2)?.replace(Regex("<[^>]+>"), "")?.trim() ?: ""
+                if (rawInner.isNotEmpty() && audioTracks.none { it.id == tid }) {
+                    audioTracks.add(AudioTrackInfo(id = tid, name = rawInner, episodesCount = 0, source = "hdrezka"))
+                }
+            }
+        }
+
+        if (audioTracks.isEmpty()) {
+            val mInit = Pattern.compile("initCDN(?:Movies|Series)Events\\(\\s*\\d+\\s*,\\s*(\\d+)").matcher(pageHtml)
+            if (mInit.find()) {
+                val tid = mInit.group(1) ?: "56"
+                audioTracks.add(AudioTrackInfo(id = tid, name = "Основная озвучка (HDRezka)", episodesCount = 0, source = "hdrezka"))
+            }
+        }
+
+        val actualIsSeries = isSeries || pageUrl.contains("/series/") || pageUrl.contains("/animation/") || pageUrl.contains("/cartoons/") || pageHtml.contains("initCDNSeriesEvents") || pageHtml.contains("b-simple_episodes__list") || pageHtml.contains("id=\"simple-seasons-tabs\"")
+
+        val seasonsList = mutableListOf<SeasonInfo>()
+        if (actualIsSeries) {
+            val defaultTid = audioTracks.firstOrNull()?.id ?: "56"
+            val tNow = System.currentTimeMillis()
+            val ajaxUrl = "$baseUrl/ajax/get_cdn_series/?t=$tNow"
+            val headers = mapOf(
+                "X-Requested-With" to "XMLHttpRequest",
+                "Referer" to pageUrl,
+                "Origin" to baseUrl,
+                "Accept" to "application/json, text/javascript, */*; q=0.01",
+                "Content-Type" to "application/x-www-form-urlencoded"
+            )
+            val postData = "id=$dataId&translator_id=$defaultTid&action=get_episodes"
+            val resp = httpPost(ajaxUrl, postData, headers, baseUrl = baseUrl)
+            if (resp != null && resp.trim().startsWith("{")) {
+                try {
+                    val j = JSONObject(resp)
+                    if (j.optBoolean("success")) {
+                        val epHtml = j.optString("episodes", "")
+                        val sHtml = j.optString("seasons", "")
+                        val sMatcher = Pattern.compile("data-tab_id=\"(\\d+)\"[^>]*>([^<]+)").matcher(sHtml)
+                        val sPairs = mutableListOf<Pair<Int, String>>()
+                        while (sMatcher.find()) {
+                            val sNum = sMatcher.group(1)?.toIntOrNull() ?: continue
+                            val sTitle = sMatcher.group(2)?.trim() ?: "Сезон $sNum"
+                            sPairs.add(Pair(sNum, sTitle))
+                        }
+                        if (sPairs.isEmpty()) {
+                            sPairs.add(Pair(1, "Сезон 1"))
+                        }
+                        for ((sNum, sTitle) in sPairs) {
+                            val epPattern = Pattern.compile("data-season_id=\"$sNum\"\\s+data-episode_id=\"(\\d+)\"[^>]*>([^<]*)")
+                            var epMatcher = epPattern.matcher(epHtml)
+                            val epList = mutableListOf<EpisodeInfo>()
+                            while (epMatcher.find()) {
+                                val epNum = epMatcher.group(1)?.toIntOrNull() ?: continue
+                                val epTitle = epMatcher.group(2)?.trim()?.ifEmpty { "Серия $epNum" } ?: "Серия $epNum"
+                                epList.add(EpisodeInfo(episodeNumber = epNum, title = epTitle))
+                            }
+                            if (epList.isEmpty()) {
+                                val genEp = Pattern.compile("data-episode_id=\"(\\d+)\"[^>]*>([^<]*)").matcher(epHtml)
+                                while (genEp.find()) {
+                                    val epNum = genEp.group(1)?.toIntOrNull() ?: continue
+                                    val epTitle = genEp.group(2)?.trim()?.ifEmpty { "Серия $epNum" } ?: "Серия $epNum"
+                                    epList.add(EpisodeInfo(episodeNumber = epNum, title = epTitle))
+                                }
+                            }
+                            if (epList.isNotEmpty()) {
+                                seasonsList.add(SeasonInfo(seasonNumber = sNum, title = sTitle, episodes = epList))
+                            }
+                        }
+                    }
+                } catch (_: Exception) {}
+            }
+        }
+
+        if (audioTracks.isNotEmpty() && seasonsList.isNotEmpty()) {
+            val totalEps = seasonsList.sumOf { it.episodes.size }
+            val sMap = seasonsList.associate { it.seasonNumber to it.episodes.size }
+            val updated = audioTracks.mapIndexed { idx, tr ->
+                if (idx == 0) tr.copy(episodesCount = totalEps, seasonsEpisodes = sMap) else tr
+            }
+            return RezkaDetails(audioTracks = updated, seasons = seasonsList, pageUrl = pageUrl)
+        }
+
+        return RezkaDetails(audioTracks = audioTracks, seasons = seasonsList, pageUrl = pageUrl)
+    }
+
+    suspend fun resolveStreams(
+        title: String,
+        year: String? = null,
+        isSeries: Boolean = false,
+        season: Int = 1,
+        episode: Int = 1,
+        translatorId: String? = null,
+        mediaUrl: String? = null
+    ): List<StreamOption> = withContext(Dispatchers.IO) {
+        val cleanTitle = cleanTitle(title)
+        if (cleanTitle.isEmpty() && mediaUrl.isNullOrEmpty()) return@withContext emptyList()
+
+        // Try primary and fallback mirrors
+        for (baseUrl in MIRRORS) {
+            val result = tryResolveFromMirror(baseUrl, cleanTitle, year, isSeries, season, episode, translatorId, mediaUrl)
+            if (result.isNotEmpty()) {
+                return@withContext result
+            }
+        }
+        emptyList()
+    }
+
+    private fun tryResolveFromMirror(
+        baseUrl: String,
+        cleanTitle: String,
+        year: String?,
+        isSeries: Boolean,
+        season: Int,
+        episode: Int,
+        translatorId: String? = null,
+        mediaUrl: String? = null
+    ): List<StreamOption> {
+        val streams = mutableListOf<StreamOption>()
+        try {
+            val pageInfo = findPageUrlAndDataId(baseUrl, cleanTitle, year, isSeries, mediaUrl) ?: return emptyList()
+            val dataId = pageInfo.dataId
+            val pageUrl = pageInfo.pageUrl
 
             // 2. Fetch media page to establish session cookies & discover translator ID
             val pageHtml = httpGet(pageUrl, "$baseUrl/", baseUrl = baseUrl) ?: ""

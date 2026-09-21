@@ -122,13 +122,13 @@ object ShowHubApiClient {
         val isSeriesLike = movie.isSeries || cached?.isSeries == true || (cached?.seasons?.isNotEmpty() == true)
         val hasTranslatorSeasons = cached?.audioTracks?.any { it.seasonsEpisodes.isNotEmpty() } == true
 
-        if (cached != null && (cached.seasons.isNotEmpty() || cached.audioTracks.isNotEmpty() || cached.cast.isNotEmpty())) {
+        if (cached != null && (cached.seasons.isNotEmpty() || cached.audioTracks.isNotEmpty())) {
             if (!isSeriesLike || hasTranslatorSeasons) {
                 // Instant 0 ms load from TV disk cache!
                 CoroutineScope(Dispatchers.IO).launch {
                     try {
                         val refreshed = fetchMediaDetailsFromNetwork(movie)
-                        if (refreshed.seasons.isNotEmpty() || refreshed.audioTracks.isNotEmpty() || refreshed.cast.isNotEmpty()) {
+                        if (refreshed.seasons.isNotEmpty() || refreshed.audioTracks.isNotEmpty()) {
                             MediaDiskCache.putCachedDetails(refreshed)
                         }
                     } catch (_: Exception) {}
@@ -136,13 +136,41 @@ object ShowHubApiClient {
                 return@withContext cached
             }
         }
-        val result = fetchMediaDetailsFromNetwork(movie)
+        var result = fetchMediaDetailsFromNetwork(movie)
+
+        // Native fallback if server returned empty audio tracks or seasons
+        if (result.audioTracks.isEmpty() || (result.isSeries && result.seasons.isEmpty())) {
+            try {
+                val nativeRes = com.example.tvmediaapp.data.resolver.RezkaNativeResolver.resolveMediaDetails(
+                    title = movie.title,
+                    year = movie.releaseYear,
+                    isSeries = movie.isSeries || result.isSeries,
+                    mediaUrl = movie.id
+                )
+                if (nativeRes != null) {
+                    val mergedTracks = if (nativeRes.audioTracks.isNotEmpty()) nativeRes.audioTracks else result.audioTracks
+                    val mergedSeasons = if (nativeRes.seasons.isNotEmpty()) nativeRes.seasons else result.seasons
+                    result = result.copy(
+                        audioTracks = mergedTracks,
+                        seasons = mergedSeasons,
+                        isSeries = result.isSeries || mergedSeasons.isNotEmpty()
+                    )
+                }
+            } catch (_: Exception) {}
+        }
+
+        // If still empty but cached had them, preserve cached data
+        if (cached != null) {
+            result = result.copy(
+                seasons = if (result.seasons.isNotEmpty()) result.seasons else cached.seasons,
+                audioTracks = if (result.audioTracks.isNotEmpty()) result.audioTracks else cached.audioTracks,
+                sources = if (result.sources.isNotEmpty()) result.sources else cached.sources,
+                cast = if (result.cast.isNotEmpty()) result.cast else cached.cast
+            )
+        }
+
         if (result.seasons.isNotEmpty() || result.audioTracks.isNotEmpty() || result.cast.isNotEmpty()) {
             MediaDiskCache.putCachedDetails(result)
-            return@withContext result
-        } else if (cached != null) {
-            // Network returned empty or timed out, preserve existing rich cached data!
-            return@withContext cached
         }
         result
     }

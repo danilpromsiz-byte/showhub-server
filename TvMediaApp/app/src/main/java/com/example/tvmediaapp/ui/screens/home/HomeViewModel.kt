@@ -222,13 +222,14 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                         val totalEps = maxOf(seasonTotal, trackMax)
                         if (totalEps > 0) {
                             val newCount = historyManager.updateKnownTotalEpisodes(detailed.id, totalEps)
-                            if (newCount > 0) {
+                            val alertCount = if (newCount > 0) newCount else historyManager.getNewEpisodesCount(detailed.id)
+                            if (alertCount > 0 && _newEpisodeAlert.value == null) {
                                 com.example.tvmediaapp.data.notifications.EpisodeNotificationManager.notifyNewEpisodes(
                                     getApplication(),
                                     detailed,
-                                    newCount
+                                    alertCount
                                 )
-                                _newEpisodeAlert.value = NewEpisodeAlert(detailed, newCount)
+                                _newEpisodeAlert.value = NewEpisodeAlert(detailed, alertCount)
                             }
                         }
                     }

@@ -48,14 +48,23 @@ object MediaDiskCache {
         return dir
     }
 
+    private val memoryDetailsCache = androidx.collection.LruCache<String, Movie>(300)
+
     private fun getTitleKey(title: String, year: String?): String {
         val clean = (title + "_" + (year ?: "")).lowercase().replace(Regex("[^a-zа-я0-9]"), "_")
         return "t_${clean.take(80)}"
     }
 
     fun getCachedDetails(movieId: String, title: String? = null, year: String? = null): Movie? {
+        val safeId = movieId.replace(Regex("[^a-zA-Z0-9_-]"), "_")
+        synchronized(memoryDetailsCache) {
+            memoryDetailsCache.get(safeId)?.let { return it }
+            if (!title.isNullOrBlank()) {
+                val tKey = getTitleKey(title, year)
+                memoryDetailsCache.get(tKey)?.let { return it }
+            }
+        }
         return try {
-            val safeId = movieId.replace(Regex("[^a-zA-Z0-9_-]"), "_")
             var file = File(getDetailsDir(), "$safeId.json")
             if (!file.exists() && !title.isNullOrBlank()) {
                 val tKey = getTitleKey(title, year)
@@ -68,7 +77,16 @@ object MediaDiskCache {
             }
             val content = file.readText()
             val obj = JSONObject(content)
-            deserializeMovie(obj)
+            val movie = deserializeMovie(obj)
+            if (movie != null) {
+                synchronized(memoryDetailsCache) {
+                    memoryDetailsCache.put(safeId, movie)
+                    if (!title.isNullOrBlank()) {
+                        memoryDetailsCache.put(getTitleKey(title, year), movie)
+                    }
+                }
+            }
+            movie
         } catch (e: Exception) {
             Log.w(TAG, "Failed to read cached details for $movieId: ${e.message}")
             null
@@ -77,21 +95,34 @@ object MediaDiskCache {
 
     fun putCachedDetails(movie: Movie) {
         try {
-            // Guard: Never overwrite rich cached details with an empty movie
-            if (movie.seasons.isEmpty() && movie.audioTracks.isEmpty() && movie.cast.isEmpty()) {
-                val existing = getCachedDetails(movie.id, movie.title, movie.releaseYear)
-                if (existing != null && (existing.seasons.isNotEmpty() || existing.audioTracks.isNotEmpty() || existing.cast.isNotEmpty())) {
-                    Log.d(TAG, "Preserving existing rich cache for ${movie.title} (${movie.id}) instead of empty data")
-                    return
+            val existing = getCachedDetails(movie.id, movie.title, movie.releaseYear)
+            // Guard: Never overwrite rich cached details with an empty movie or drop seasons/translators!
+            val movieToSave = if (existing != null) {
+                movie.copy(
+                    seasons = if (movie.seasons.isNotEmpty()) movie.seasons else existing.seasons,
+                    audioTracks = if (movie.audioTracks.isNotEmpty()) movie.audioTracks else existing.audioTracks,
+                    sources = if (movie.sources.isNotEmpty()) movie.sources else existing.sources,
+                    cast = if (movie.cast.isNotEmpty()) movie.cast else existing.cast,
+                    directorsList = if (movie.directorsList.isNotEmpty()) movie.directorsList else existing.directorsList,
+                    episodesSchedule = if (movie.episodesSchedule.isNotEmpty()) movie.episodesSchedule else existing.episodesSchedule
+                )
+            } else {
+                movie
+            }
+
+            val safeId = movieToSave.id.replace(Regex("[^a-zA-Z0-9_-]"), "_")
+            synchronized(memoryDetailsCache) {
+                memoryDetailsCache.put(safeId, movieToSave)
+                if (movieToSave.title.isNotBlank()) {
+                    memoryDetailsCache.put(getTitleKey(movieToSave.title, movieToSave.releaseYear), movieToSave)
                 }
             }
 
-            val safeId = movie.id.replace(Regex("[^a-zA-Z0-9_-]"), "_")
-            val json = serializeMovie(movie)
+            val json = serializeMovie(movieToSave)
             val jsonStr = json.toString()
             File(getDetailsDir(), "$safeId.json").writeText(jsonStr)
-            if (movie.title.isNotBlank()) {
-                val tKey = getTitleKey(movie.title, movie.releaseYear)
+            if (movieToSave.title.isNotBlank()) {
+                val tKey = getTitleKey(movieToSave.title, movieToSave.releaseYear)
                 File(getDetailsDir(), "$tKey.json").writeText(jsonStr)
             }
         } catch (e: Exception) {

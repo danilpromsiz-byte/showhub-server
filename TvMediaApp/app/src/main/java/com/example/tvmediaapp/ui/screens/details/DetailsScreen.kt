@@ -284,11 +284,15 @@ fun DetailsScreen(
             d
         }
         currentMovie = detailed
-        if (detailed.seasons.isNotEmpty() && savedHistory == null) {
-            selectedSeason = detailed.seasons.first().seasonNumber
+        if (detailed.seasons.isNotEmpty()) {
+            if (savedHistory == null || detailed.seasons.none { it.seasonNumber == selectedSeason }) {
+                selectedSeason = detailed.seasons.first().seasonNumber
+            }
         }
-        if (detailed.audioTracks.isNotEmpty() && selectedAudioId.isEmpty()) {
-            selectedAudioId = detailed.audioTracks.first().id
+        if (detailed.audioTracks.isNotEmpty()) {
+            if (selectedAudioId.isEmpty() || detailed.audioTracks.none { it.id == selectedAudioId }) {
+                selectedAudioId = detailed.audioTracks.first().id
+            }
         }
         if (detailed.isSeries && detailed.seasons.isNotEmpty()) {
             val total = detailed.seasons.sumOf { it.episodes.size }
@@ -393,9 +397,6 @@ fun DetailsScreen(
                             .setMediaSourceFactory(mediaSourceFactory)
                             .setLoadControl(loadControl)
                             .build().apply {
-                                trackSelectionParameters = trackSelectionParameters.buildUpon()
-                                    .setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_AUDIO, true)
-                                    .build()
                                 val targetSeekMs = if (currentMovie.isSeries) 12 * 60 * 1000L else 22 * 60 * 1000L
                                 setMediaItem(MediaItem.fromUri(validStreamUrl))
                                 volume = 0f
@@ -459,13 +460,11 @@ fun DetailsScreen(
             val playerToRelease = detailsPreviewPlayer
             detailsPreviewPlayer = null
             if (playerToRelease != null) {
-                CoroutineScope(Dispatchers.IO).launch {
-                    try {
-                        playerToRelease.stop()
-                        playerToRelease.clearMediaItems()
-                        playerToRelease.release()
-                    } catch (_: Exception) {}
-                }
+                try {
+                    playerToRelease.stop()
+                    playerToRelease.clearMediaItems()
+                    playerToRelease.release()
+                } catch (_: Exception) {}
             }
         }
     }
@@ -480,18 +479,16 @@ fun DetailsScreen(
         isResolving = true
         streamStatus = "Поиск прямого HLS потока..."
 
-        // Stop background preview asynchronously before entering player
+        // Stop background preview before entering player
         val playerToStop = detailsPreviewPlayer
         detailsPreviewPlayer = null
         isDetailsPreviewPlaying = false
         if (playerToStop != null) {
-            CoroutineScope(Dispatchers.IO).launch {
-                try {
-                    playerToStop.stop()
-                    playerToStop.clearMediaItems()
-                    playerToStop.release()
-                } catch (_: Exception) {}
-            }
+            try {
+                playerToStop.stop()
+                playerToStop.clearMediaItems()
+                playerToStop.release()
+            } catch (_: Exception) {}
         }
 
         coroutineScope.launch {

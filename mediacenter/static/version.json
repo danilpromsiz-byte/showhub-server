@@ -1,10 +1,10 @@
 {
   "success": true,
-  "version_name": "2.8.25",
-  "version_code": 84,
+  "version_name": "2.8.26",
+  "version_code": 85,
   "force_update": true,
-  "min_version_code": 84,
+  "min_version_code": 85,
   "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
   "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
-  "changelog": "ShowHub TV v2.8.25: Мгновенный выход из карточки фильма на главный экран с одного клика: асинхронная остановка ExoPlayer, устранение избыточной перезагрузки каталога и блокировка перехвата фокуса."
+  "changelog": "ShowHub TV v2.8.26: Полное восстановление видео-предпросмотра, возврат озвучек, сезонов, серий и источников через прямой резолвер Rezka, плавное воспроизведение видео, мгновенный выход назад с одного нажатия, всплывающие уведомления о новых сериях."
 }

@@ -248,27 +248,48 @@ fun TvAppNavHost(activity: MainActivity) {
 
     fun navigateBack() {
         val now = System.currentTimeMillis()
-        if (now - lastBackPressTime < 300L) {
+        if (now - lastBackPressTime < 150L) {
             return
         }
         lastBackPressTime = now
 
-        // Pop any trailing redundant states matching current screen, or if on DETAILS, pop all DETAILS entries
-        while (backStack.isNotEmpty() && (
-            backStack.last().screen == currentScreen ||
-            (currentScreen == Screen.DETAILS && backStack.last().screen == Screen.DETAILS)
-        )) {
+        // Direct, instantaneous exit from DETAILS back to HOME or previous screen
+        if (currentScreen == Screen.DETAILS) {
+            while (backStack.isNotEmpty() && backStack.last().screen == Screen.DETAILS) {
+                backStack.removeAt(backStack.size - 1)
+            }
+            if (backStack.isNotEmpty()) {
+                val prev = backStack.removeAt(backStack.size - 1)
+                currentScreen = prev.screen
+                selectedMovie = prev.movie
+                searchInitialQuery = prev.searchQuery
+                searchIsActor = prev.searchIsActor
+                activeVideoUrl = prev.videoUrl
+                startPositionMs = prev.positionMs
+                activeSeason = prev.season
+                activeEpisode = prev.episode
+                activeAudioId = prev.audioId
+                if (prev.screen == Screen.HOME) {
+                    SessionManager.clearSession(activity)
+                }
+            } else {
+                currentScreen = Screen.HOME
+                selectedMovie = null
+                SessionManager.clearSession(activity)
+            }
+            return
+        }
+
+        // Pop any trailing redundant states matching current screen
+        while (backStack.isNotEmpty() && backStack.last().screen == currentScreen) {
             backStack.removeAt(backStack.size - 1)
         }
         if (backStack.isNotEmpty()) {
             var prev = backStack.removeAt(backStack.size - 1)
-            while (backStack.isNotEmpty() && (
-                prev.screen == currentScreen ||
-                (currentScreen == Screen.DETAILS && prev.screen == Screen.DETAILS)
-            )) {
+            while (backStack.isNotEmpty() && prev.screen == currentScreen) {
                 prev = backStack.removeAt(backStack.size - 1)
             }
-            if (prev.screen == currentScreen || (currentScreen == Screen.DETAILS && prev.screen == Screen.DETAILS)) {
+            if (prev.screen == currentScreen) {
                 currentScreen = Screen.HOME
                 selectedMovie = null
                 SessionManager.clearSession(activity)

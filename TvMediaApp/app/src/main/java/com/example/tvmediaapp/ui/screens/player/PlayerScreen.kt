@@ -474,8 +474,8 @@ private fun NativeExoPlayerScreen(
             .setBufferDurationsMs(
                 25000, // minBufferMs (25s)
                 60000, // maxBufferMs (60s)
-                2000,  // bufferForPlaybackMs (2s)
-                3500   // bufferForPlaybackAfterRebufferMs (3.5s)
+                2500,  // bufferForPlaybackMs (2.5s for smooth jitter-free start)
+                4000   // bufferForPlaybackAfterRebufferMs (4s)
             )
             .setTargetBufferBytes(C.LENGTH_UNSET)
             .setPrioritizeTimeOverSizeThresholds(true)
@@ -495,6 +495,13 @@ private fun NativeExoPlayerScreen(
                 try {
                     setWakeMode(C.WAKE_MODE_NETWORK)
                 } catch (_: Throwable) {}
+                setAudioAttributes(
+                    androidx.media3.common.AudioAttributes.Builder()
+                        .setUsage(androidx.media3.common.C.USAGE_MEDIA)
+                        .setContentType(androidx.media3.common.C.AUDIO_CONTENT_TYPE_MOVIE)
+                        .build(),
+                    true
+                )
                 videoScalingMode = C.VIDEO_SCALING_MODE_SCALE_TO_FIT
                 if (currentStreamUrl.isNotBlank() && isDirectVideoStream(currentStreamUrl)) {
                     try {

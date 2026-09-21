@@ -187,9 +187,6 @@ fun MovieCard(
                                 .setLoadControl(loadControl)
                                 .build()
                                 .apply {
-                                    trackSelectionParameters = trackSelectionParameters.buildUpon()
-                                        .setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_AUDIO, true)
-                                        .build()
                                     setMediaItem(MediaItem.fromUri(validStreamUrl))
                                     volume = 0f // strictly silent
                                     repeatMode = Player.REPEAT_MODE_ALL

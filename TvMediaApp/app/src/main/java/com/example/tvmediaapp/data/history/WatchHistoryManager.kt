@@ -365,6 +365,33 @@ class WatchHistoryManager(context: Context) {
         editor.apply()
     }
 
+    fun snoozeSeriesReminder(seriesId: String, title: String? = null, hours: Int = 24) {
+        val untilMs = System.currentTimeMillis() + hours * 3600 * 1000L
+        val editor = prefs.edit()
+        if (seriesId.isNotBlank()) {
+            editor.putLong("snooze_reminders_$seriesId", untilMs)
+        }
+        val cleanT = normalizeTitle(title)
+        if (cleanT.isNotBlank()) {
+            editor.putLong("snooze_reminders_$cleanT", untilMs)
+        }
+        editor.apply()
+    }
+
+    fun isSeriesReminderSnoozed(seriesId: String, title: String? = null): Boolean {
+        val now = System.currentTimeMillis()
+        if (seriesId.isNotBlank()) {
+            val untilMs = prefs.getLong("snooze_reminders_$seriesId", 0L)
+            if (untilMs > now) return true
+        }
+        val cleanT = normalizeTitle(title)
+        if (cleanT.isNotBlank()) {
+            val untilMs = prefs.getLong("snooze_reminders_$cleanT", 0L)
+            if (untilMs > now) return true
+        }
+        return false
+    }
+
     fun getProgress(movieId: String, title: String? = null): HistoryItem? {
         val cleanT = normalizeTitle(title)
         return getHistory().firstOrNull {

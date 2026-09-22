@@ -1097,18 +1097,18 @@ fun TvAppNavHost(activity: MainActivity) {
                 )
             }
 
-            fun getThemeForAlert(seriesId: String, offsetIndex: Int): ModalCardTheme {
-                if (offsetIndex == 0) return primaryCardTheme
-                val seed = kotlin.math.abs(seriesId.hashCode()) + offsetIndex
+            fun getThemeForAlert(seriesId: String): ModalCardTheme {
+                val seed = kotlin.math.abs(seriesId.hashCode())
                 return cardThemes[seed % cardThemes.size]
             }
 
-            val activeTheme = getThemeForAlert(activeAlert.movie.id, 0)
+            val activeTheme = getThemeForAlert(activeAlert.movie.id)
 
             BackHandler {
                 if (dontRemindAgain) {
                     historyManager.setSeriesReminderMuted(activeAlert.movie.id, activeAlert.movie.title, true)
                 }
+                historyManager.snoozeSeriesReminder(activeAlert.movie.id, activeAlert.movie.title, hours = 24)
                 homeViewModel.dismissCurrentEpisodeAlert()
             }
 
@@ -1141,7 +1141,7 @@ fun TvAppNavHost(activity: MainActivity) {
                     // Peek Card #3 (deep background, offset to top-right)
                     if (totalAlerts >= 3) {
                         val alert3 = episodeAlerts[2]
-                        val theme3 = getThemeForAlert(alert3.movie.id, 2)
+                        val theme3 = getThemeForAlert(alert3.movie.id)
                         Box(
                             modifier = Modifier
                                 .offset(x = 24.dp, y = (-20).dp)
@@ -1191,7 +1191,7 @@ fun TvAppNavHost(activity: MainActivity) {
                     // Peek Card #2 (middle background, offset to top-left)
                     if (totalAlerts >= 2) {
                         val alert2 = episodeAlerts[1]
-                        val theme2 = getThemeForAlert(alert2.movie.id, 1)
+                        val theme2 = getThemeForAlert(alert2.movie.id)
                         Box(
                             modifier = Modifier
                                 .offset(x = (-24).dp, y = (-14).dp)
@@ -1261,6 +1261,7 @@ fun TvAppNavHost(activity: MainActivity) {
                                     if (dontRemindAgain) {
                                         historyManager.setSeriesReminderMuted(activeAlert.movie.id, activeAlert.movie.title, true)
                                     }
+                                    historyManager.snoozeSeriesReminder(activeAlert.movie.id, activeAlert.movie.title, hours = 24)
                                     homeViewModel.dismissCurrentEpisodeAlert()
                                     true
                                 } else {
@@ -1449,6 +1450,8 @@ fun TvAppNavHost(activity: MainActivity) {
                                     if (dontRemindAgain) {
                                         historyManager.setSeriesReminderMuted(activeAlert.movie.id, activeAlert.movie.title, true)
                                     }
+                                    historyManager.clearNewEpisodes(activeAlert.movie.id)
+                                    historyManager.snoozeSeriesReminder(activeAlert.movie.id, activeAlert.movie.title, hours = 24)
                                     val targetMovie = activeAlert.movie
                                     homeViewModel.dismissCurrentEpisodeAlert()
                                     navigateTo(Screen.DETAILS, movie = targetMovie)
@@ -1464,7 +1467,7 @@ fun TvAppNavHost(activity: MainActivity) {
                                 ),
                                 border = ButtonDefaults.border(
                                     border = Border.None,
-                                    focusedBorder = Border.None
+                                    focusedBorder = Border(BorderStroke(2.dp, userFocus))
                                 ),
                                 modifier = Modifier
                                     .height(38.dp)
@@ -1486,6 +1489,7 @@ fun TvAppNavHost(activity: MainActivity) {
                                     if (dontRemindAgain) {
                                         historyManager.setSeriesReminderMuted(activeAlert.movie.id, activeAlert.movie.title, true)
                                     }
+                                    historyManager.snoozeSeriesReminder(activeAlert.movie.id, activeAlert.movie.title, hours = 24)
                                     homeViewModel.dismissCurrentEpisodeAlert()
                                 },
                                 shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),

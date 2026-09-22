@@ -203,14 +203,13 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun prefetchVisibleMovieDetails(data: List<MovieCategory>) {
         prefetchJob?.cancel()
-        val allMovies = data.flatMap { it.movies }.distinctBy { it.id }
+        val favoriteSeries = getFavoriteMovies().filter { it.isSeries }
+        val allMovies = (favoriteSeries + data.flatMap { it.movies }).distinctBy { it.id }
         if (allMovies.isEmpty()) return
 
         prefetchJob = viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             val historyManager = WatchHistoryManager(getApplication())
-            val startedSeriesIds = historyManager.getHistory().filter { it.isSeries }.map { it.id }.toSet()
-            val favoriteSeriesIds = getFavoriteMovies().filter { it.isSeries }.map { it.id }.toSet()
-            val targetSeriesIds = startedSeriesIds + favoriteSeriesIds
+            val targetSeriesIds = favoriteSeries.map { it.id }.toSet()
             val batchUpdates = mutableMapOf<String, Movie>()
             var lastBatchFlush = System.currentTimeMillis()
 
@@ -231,7 +230,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                         cached ?: movie
                     }
 
-                    // Check if newly released episodes appeared for started or favorite series
+                    // Check if newly released episodes appeared for favorite series (strictly favorites only)
                     if (detailed.isSeries && isTrackedSeries) {
                         val seasonTotal = if (detailed.seasons.isNotEmpty()) detailed.seasons.sumOf { it.episodes.size } else 0
                         val trackMax = detailed.audioTracks.mapNotNull { it.seasonsEpisodes.values.maxOrNull() ?: it.episodesCount.takeIf { c -> c > 0 } }.maxOrNull() ?: 0
@@ -239,7 +238,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                         if (totalEps > 0) {
                             val newCount = historyManager.updateKnownTotalEpisodes(detailed.id, totalEps)
                             val alertCount = if (newCount > 0) newCount else historyManager.getNewEpisodesCount(detailed.id)
-                            if (alertCount > 0 && !historyManager.isSeriesReminderMuted(detailed.id, detailed.title)) {
+                            if (alertCount > 0 && !historyManager.isSeriesReminderMuted(detailed.id, detailed.title) && !historyManager.isSeriesReminderSnoozed(detailed.id, detailed.title)) {
                                 com.example.tvmediaapp.data.notifications.EpisodeNotificationManager.notifyNewEpisodes(
                                     getApplication(),
                                     detailed,

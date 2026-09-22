@@ -616,6 +616,16 @@ fun DetailsScreen(
             streamOptions = streams
             isResolving = false
 
+            // Diagnostic: log stream counts
+            val hlsCount = streams.count { isDirectVideoStream(it.url) }
+            val embedCount = streams.size - hlsCount
+            val sourceSummary = streams.groupBy { it.source }.entries.joinToString(", ") { (src, list) ->
+                val h = list.count { isDirectVideoStream(it.url) }
+                val e = list.size - h
+                "$src: ${if (h > 0) "${h} HLS" else ""}${if (h > 0 && e > 0) "+" else ""}${if (e > 0) "${e} embed" else ""}"
+            }
+            android.util.Log.d("StartPlayback", "Found ${streams.size} streams: $hlsCount HLS, $embedCount embed. Sources: $sourceSummary")
+
             val notFoundMsg = if (isContentSeries) {
                 if (currentMovie.audioTracks.size > 1) "Поток недоступен для выбранной серии. Попробуйте другую озвучку."
                 else "Поток недоступен для выбранной серии."
@@ -648,8 +658,11 @@ fun DetailsScreen(
                     ?: candidateStreams.firstOrNull { isDirectVideoStream(it.url) }
                     ?: candidateStreams.first()
 
+                val isHls = isDirectVideoStream(matched.url)
+                android.util.Log.d("StartPlayback", "Selected: ${matched.quality} from ${matched.source} (${if (isHls) "HLS" else "EMBED"}) url=${matched.url.take(80)}")
+
                 if (matched.url.isNotBlank() && matched.url.startsWith("http")) {
-                    streamStatus = "Найден поток ${matched.quality}! Запуск..."
+                    streamStatus = "▶ ${matched.quality} (${matched.source}, ${if (isHls) "HLS" else "IFRAME"}) | Всего: $hlsCount HLS, $embedCount embed"
                     val movieToPlay = if (isContentSeries) currentMovie.copy(isSeries = true) else currentMovie
                     onPlayClick(movieToPlay, matched.url, startPos, targetSeason, targetEpisode, targetAudioId)
                 } else {

@@ -1,10 +1,10 @@
 {
   "success": true,
-  "version_name": "2.8.43",
-  "version_code": 102,
+  "version_name": "2.8.44",
+  "version_code": 103,
   "force_update": true,
-  "min_version_code": 102,
+  "min_version_code": 103,
   "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
   "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
-  "changelog": "ShowHub TV v2.8.43: 1) Полностью устранена дефолтная страница ошибки WebView (перевёрнутый андроид). 2) Возвращён прямой loadUrl для embed-плееров вместо iframe. 3) Реорганизована карточка: Источник (с бейджем HLS/IFRAME и лучшим качеством) → Качество → Озвучка. 4) HLS-источники отображаются первыми."
+  "changelog": "ShowHub TV v2.8.44: 1) Диагностика потоков — показывает сколько HLS и embed потоков найдено, из какого источника и какой выбран. 2) Источник с бейджем HLS/IFRAME и лучшим качеством. 3) Полное подавление дефолтной error page WebView."
 }

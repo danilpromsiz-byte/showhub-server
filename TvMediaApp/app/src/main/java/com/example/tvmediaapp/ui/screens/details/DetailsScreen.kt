@@ -1542,6 +1542,8 @@ fun DetailsScreen(
                     }
                 }
 
+                Spacer(modifier = Modifier.height(16.dp))
+
                 val availableSources = remember(currentMovie.sources, currentMovie.audioTracks, currentMovie.seasons, selectedSeason, streamOptions, currentMovie.isSeries) {
                     val list = mutableListOf<String>()
                     val curSeasonEps = if (currentMovie.isSeries) {
@@ -1884,11 +1886,7 @@ fun DetailsScreen(
                             Spacer(modifier = Modifier.height(4.dp))
                             TvLazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 itemsIndexed(availableQualities) { qIdx, qual ->
-                                    val isQSelected = selectedQuality.equals(qual, ignoreCase = true) ||
-                                            (selectedQuality.contains("1080", ignoreCase = true) && qual.contains("1080", ignoreCase = true)) ||
-                                            (selectedQuality.contains("720", ignoreCase = true) && qual.contains("720", ignoreCase = true)) ||
-                                            (selectedQuality.contains("480", ignoreCase = true) && qual.contains("480", ignoreCase = true)) ||
-                                            (selectedQuality.contains("4K", ignoreCase = true) && qual.contains("4K", ignoreCase = true))
+                                    val isQSelected = selectedQuality.equals(qual, ignoreCase = true)
                                     val qMod = if (qIdx == 0) {
                                         Modifier.focusRequester(firstQualityFocusRequester).focusProperties {
                                             up = if (filteredAudioTracks.isNotEmpty()) firstAudioFocusRequester

@@ -1,10 +1,10 @@
 {
   "success": true,
-  "version_name": "2.8.40",
-  "version_code": 99,
+  "version_name": "2.8.41",
+  "version_code": 100,
   "force_update": true,
-  "min_version_code": 99,
+  "min_version_code": 100,
   "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
   "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
-  "changelog": "ShowHub TV v2.8.40: 1) Исправлена загрузка плеера Kodik («Замужняя убийца» и др.) с получением защищенных ссылок с хэшем. 2) Добавлена динамическая фильтрация доступных озвучек и качества видео при выборе источника. 3) Добавлен переключатель качества прямо в карточке фильма с адаптивной навигацией пульта (D-Pad). 4) Поддержка сторонних cookie и обход SSL-ошибок балансеров в плеере."
+  "changelog": "ShowHub TV v2.8.41: 1) Исправлен плеер Kodik — теперь загружается через iframe-обёртку, устраняя ошибку «Не удалось загрузить плеер источника». 2) Исправлен баг с одновременным выделением двух качеств (1080p и 1080p HD). 3) Исправлен отступ между кнопками Избранное/Назад и вкладками."
 }

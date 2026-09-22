@@ -331,17 +331,39 @@ private fun EmbedWebViewPlayerScreen(
                         }
 
                         val targetUrl = movie.videoUrl.trim()
-                        val headers = HashMap<String, String>()
-                        if (targetUrl.contains("allarknow") || targetUrl.contains("bayas") || targetUrl.contains("videocdn")) {
-                            headers["Referer"] = "https://api.apbugall.org/"
-                        } else if (targetUrl.contains("kodik")) {
-                            headers["Referer"] = "https://kodikplayer.com/"
-                        }
 
-                        if (headers.isNotEmpty()) {
-                            loadUrl(targetUrl, headers)
+                        if (targetUrl.contains("kodik")) {
+                            // Kodik requires being loaded inside an iframe (isIframe() check).
+                            // We create a wrapper HTML page that embeds the Kodik player in an iframe.
+                            val iframeHtml = """
+                                <!DOCTYPE html>
+                                <html><head>
+                                <meta name="viewport" content="width=device-width,initial-scale=1">
+                                <style>*{margin:0;padding:0;overflow:hidden;background:#000}
+                                iframe{width:100%;height:100%;border:0}</style>
+                                </head><body>
+                                <iframe src="$targetUrl" width="100%" height="100%"
+                                    frameborder="0" allowfullscreen
+                                    allow="autoplay *; fullscreen *; encrypted-media *">
+                                </iframe></body></html>
+                            """.trimIndent()
+                            loadDataWithBaseURL(
+                                "https://kodikplayer.com/",
+                                iframeHtml,
+                                "text/html",
+                                "UTF-8",
+                                null
+                            )
                         } else {
-                            loadUrl(targetUrl)
+                            val headers = HashMap<String, String>()
+                            if (targetUrl.contains("allarknow") || targetUrl.contains("bayas") || targetUrl.contains("videocdn")) {
+                                headers["Referer"] = "https://api.apbugall.org/"
+                            }
+                            if (headers.isNotEmpty()) {
+                                loadUrl(targetUrl, headers)
+                            } else {
+                                loadUrl(targetUrl)
+                            }
                         }
                         webViewRef = this
                         requestFocus()

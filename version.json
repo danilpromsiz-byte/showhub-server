@@ -1,10 +1,10 @@
 {
   "success": true,
-  "version_name": "2.8.47",
-  "version_code": 106,
+  "version_name": "2.8.48",
+  "version_code": 107,
   "force_update": true,
-  "min_version_code": 106,
+  "min_version_code": 107,
   "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
   "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
-  "changelog": "v2.8.47: REVERT к рабочему подходу v2.8.40 — прямой loadUrl с Referer для всех embed-плееров. 17 зеркал HDRezka. Убран iframe-обёртка."
+  "changelog": "v2.8.48: 22 зеркала HDRezka (5 новых из LazyMedia/HDRezkaTV), filmix.ac, подготовка к новым источникам"
 }

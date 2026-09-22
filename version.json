@@ -1,10 +1,10 @@
 {
   "success": true,
-  "version_name": "2.8.45",
-  "version_code": 104,
+  "version_name": "2.8.46",
+  "version_code": 105,
   "force_update": true,
-  "min_version_code": 104,
+  "min_version_code": 105,
   "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
   "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
-  "changelog": "v2.8.45: 1) Исправлен WebView — ослаблен error handling, embed-плееры больше не блокируются ложными ошибками. 2) HDRezka и Filmix всегда показываются как HLS. 3) Kodik/VideoCDN/Bazon корректно как IFRAME."
+  "changelog": "v2.8.46: Embed-плееры (Kodik/VideoCDN/Bazon) загружаются через iframe-обёртку. HDRezka зеркала временно недоступны (500), будут работать автоматически при восстановлении."
 }

@@ -1827,8 +1827,8 @@ def _fetch_media_comments(source: str, media_id: str, title: Optional[str] = Non
 
 
 def _fetch_media_streams(
-    source: str,
-    media_id: str,
+    source: str = "all",
+    media_id: Optional[str] = "",
     title: Optional[str] = None,
     season: Optional[int] = None,
     episode: Optional[int] = None,
@@ -1847,12 +1847,13 @@ def _fetch_media_streams(
     if episode and str(episode).isdigit() and int(episode) > 1:
         is_ser_bool = True
 
+    media_id_str = str(media_id or "").strip()
     resolved: Dict[str, Any] = {}
     resolved_kp = kp_id
-    if source in ("filmix", "kodik", "hdrezka") and resolved_kp and str(resolved_kp) == str(media_id):
+    if source in ("filmix", "kodik", "hdrezka") and resolved_kp and str(resolved_kp) == media_id_str:
         resolved_kp = None
-    if not resolved_kp and source in ["bazon", "videocdn", "delivembd", "kinopoisk", "kp"] and media_id and str(media_id).isdigit():
-        resolved_kp = str(media_id)
+    if not resolved_kp and source in ["bazon", "videocdn", "delivembd", "kinopoisk", "kp"] and media_id_str and media_id_str.isdigit():
+        resolved_kp = media_id_str
 
     clean_title = re.sub(r'\(.*?\)|\[.*?\]', '', title).strip() if title else ""
     clean_title = clean_title.replace(":", " ").replace(" - ", " ")
@@ -1923,8 +1924,8 @@ def _fetch_media_streams(
     def _resolve_filmix():
         try:
             candidate_fx_ids = []
-            if source == "filmix" and media_id.isdigit():
-                candidate_fx_ids.append(media_id)
+            if source == "filmix" and media_id_str.isdigit():
+                candidate_fx_ids.append(media_id_str)
             if titles_to_try:
                 for t_query in titles_to_try:
                     fx_items = filmix.search(t_query)
@@ -1946,10 +1947,10 @@ def _fetch_media_streams(
     def _resolve_hdrezka():
         try:
             candidate_rz_ids = []
-            if media_id and (media_id.startswith("http") or "hdrezka" in media_id):
-                candidate_rz_ids.append(media_id)
-            elif source == "hdrezka" and media_id.startswith("http"):
-                candidate_rz_ids.append(media_id)
+            if media_id_str and (media_id_str.startswith("http") or "hdrezka" in media_id_str):
+                candidate_rz_ids.append(media_id_str)
+            elif source == "hdrezka" and media_id_str.startswith("http"):
+                candidate_rz_ids.append(media_id_str)
             if titles_to_try:
                 for t_query in titles_to_try:
                     rz_items = hdrezka.search(t_query)
@@ -2016,13 +2017,13 @@ def _fetch_media_streams(
 
     def _resolve_kodik():
         try:
-            if clean_title or media_id:
+            if clean_title or media_id_str:
                 k_items = kodik.search(clean_title, year=year_int, kp_id=resolved_kp) if clean_title else []
                 target_k_id = None
                 if audio_id and str(audio_id).startswith("kodik_"):
                     target_k_id = str(audio_id).replace("kodik_", "")
-                elif source == "kodik" and media_id:
-                    target_k_id = media_id.replace("kodik_", "")
+                elif source == "kodik" and media_id_str:
+                    target_k_id = media_id_str.replace("kodik_", "")
                 elif audio_id:
                     a_lower = str(audio_id).lower()
                     for it in k_items:
@@ -2066,7 +2067,7 @@ def _fetch_media_streams(
                     ]
                     return ("torrents", {
                         "source_name": "Rutor / TorrServe",
-                        "media_id": media_id,
+                        "media_id": media_id_str,
                         "title": title,
                         "streams": torr_streams,
                         "embed_url": None,
@@ -2338,8 +2339,8 @@ def get_media_trailer(
 
 @app.get("/api/media/streams")
 def get_media_streams_query(
-    source: str = Query(...),
-    media_id: str = Query(...),
+    source: str = Query("all"),
+    media_id: Optional[str] = Query(""),
     title: Optional[str] = None,
     season: Optional[int] = None,
     episode: Optional[int] = None,
@@ -2349,7 +2350,7 @@ def get_media_streams_query(
     kp_id: Optional[str] = None,
     original_title: Optional[str] = None
 ) -> Dict[str, Any]:
-    return _fetch_media_streams(source, media_id, title, season, episode, audio_id, year, is_series, kp_id, original_title=original_title)
+    return _fetch_media_streams(source, media_id or "", title, season, episode, audio_id, year, is_series, kp_id, original_title=original_title)
 
 @app.get("/api/media/{source}/{media_id}/streams")
 def get_media_streams_path(

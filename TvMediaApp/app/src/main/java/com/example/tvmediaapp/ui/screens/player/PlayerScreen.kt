@@ -116,8 +116,9 @@ import kotlinx.coroutines.launch
 
 fun isDirectVideoStream(url: String): Boolean {
     val clean = url.lowercase().trim()
-    if (clean.contains("embed") || clean.contains("allarknow") || clean.contains("bazon.cc") || 
+    if (clean.contains("embed") || clean.contains("allarknow") || clean.contains("bayas") || clean.contains("bazon.cc") || 
         clean.contains("delivembd") || clean.contains("kinobase") || clean.contains("iframe") || 
+        clean.contains("kodikplayer") || clean.contains("kodik.info") ||
         clean.endsWith(".html") || clean.contains(".html?")) {
         return false
     }
@@ -137,8 +138,7 @@ fun PlayerScreen(
 ) {
     val isEmbedWeb = !isDirectVideoStream(movie.videoUrl) &&
             movie.videoUrl.isNotBlank() &&
-            movie.videoUrl.startsWith("http") &&
-            (movie.videoUrl.contains("embed") || movie.videoUrl.contains("iframe") || movie.videoUrl.contains(".html"))
+            movie.videoUrl.startsWith("http")
 
     if (isEmbedWeb) {
         EmbedWebViewPlayerScreen(
@@ -253,6 +253,8 @@ private fun EmbedWebViewPlayerScreen(
                             ViewGroup.LayoutParams.MATCH_PARENT,
                             ViewGroup.LayoutParams.MATCH_PARENT
                         )
+                        isFocusable = true
+                        isFocusableInTouchMode = true
                         settings.apply {
                             javaScriptEnabled = true
                             domStorageEnabled = true
@@ -261,6 +263,7 @@ private fun EmbedWebViewPlayerScreen(
                             loadWithOverviewMode = true
                             useWideViewPort = true
                             allowFileAccess = true
+                            mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
                             setSupportZoom(false)
                             builtInZoomControls = false
                             displayZoomControls = false
@@ -297,38 +300,32 @@ private fun EmbedWebViewPlayerScreen(
                                     """
                                     (function() {
                                         document.body.style.backgroundColor = '#000';
-                                        document.body.style.margin = '0';
-                                        document.body.style.padding = '0';
-                                        document.body.style.overflow = 'hidden';
-                                        var f = document.querySelector('iframe');
-                                        if (f) {
-                                            f.style.width = '100vw';
-                                            f.style.height = '100vh';
-                                            f.style.border = '0';
+                                        var v = document.querySelector('video');
+                                        if (v) {
+                                            v.focus();
+                                            v.play();
                                         }
                                     })();
                                     """.trimIndent(), null
                                 )
                             }
                         }
-                        val html = """
-                            <!DOCTYPE html>
-                            <html>
-                            <head>
-                            <meta charset="utf-8">
-                            <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-                            <style>
-                              html, body { margin: 0; padding: 0; width: 100vw; height: 100vh; background: #000; overflow: hidden; }
-                              iframe { width: 100%; height: 100%; border: 0; position: absolute; top: 0; left: 0; }
-                            </style>
-                            </head>
-                            <body>
-                              <iframe src="${movie.videoUrl}" allow="autoplay; fullscreen" allowfullscreen></iframe>
-                            </body>
-                            </html>
-                        """.trimIndent()
-                        loadDataWithBaseURL("https://showhub-server.onrender.com", html, "text/html", "UTF-8", null)
+
+                        val targetUrl = movie.videoUrl.trim()
+                        val headers = HashMap<String, String>()
+                        if (targetUrl.contains("allarknow") || targetUrl.contains("bayas") || targetUrl.contains("videocdn")) {
+                            headers["Referer"] = "https://api.apbugall.org/"
+                        } else if (targetUrl.contains("kodik")) {
+                            headers["Referer"] = "https://kodikplayer.com/"
+                        }
+
+                        if (headers.isNotEmpty()) {
+                            loadUrl(targetUrl, headers)
+                        } else {
+                            loadUrl(targetUrl)
+                        }
                         webViewRef = this
+                        requestFocus()
                     }
                 },
                 modifier = Modifier.fillMaxSize()

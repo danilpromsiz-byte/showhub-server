@@ -430,9 +430,25 @@ class KodikSource(BaseSource):
         return items
 
     def get_streams(self, media_id: str, season: Optional[int] = None, episode: Optional[int] = None, audio_id: Optional[str] = None) -> StreamResult:
-        embed_url = media_id if media_id.startswith("http") else f"https://kodik.info/video/{media_id}"
+        embed_url = media_id if (media_id.startswith("http") or media_id.startswith("//")) else ""
+        if not embed_url and media_id:
+            try:
+                r = requests.get(f"{self.base_url}/search", params={"token": self.token, "id": media_id}, timeout=4)
+                if r.status_code == 200:
+                    results = r.json().get("results", [])
+                    if results:
+                        embed_url = results[0].get("link", "")
+            except Exception:
+                pass
+
+        if not embed_url:
+            embed_url = f"https://kodikplayer.com/video/{media_id}"
+        elif embed_url.startswith("//"):
+            embed_url = f"https:{embed_url}"
+
         if season and episode:
-            embed_url = f"{embed_url}?season={season}&episode={episode}"
+            separator = "&" if "?" in embed_url else "?"
+            embed_url = f"{embed_url}{separator}season={season}&episode={episode}"
 
         return StreamResult(
             source_name=self.name,
@@ -441,18 +457,18 @@ class KodikSource(BaseSource):
             streams=[
                 VideoStream(
                     quality="1080p",
-                    url=embed_url if embed_url.startswith("http") else f"https:{embed_url}",
+                    url=embed_url,
                     stream_type="embed",
-                    headers={"Referer": "https://kodik.info/"}
+                    headers={"Referer": "https://kodikplayer.com/"}
                 ),
                 VideoStream(
                     quality="720p",
-                    url=embed_url if embed_url.startswith("http") else f"https:{embed_url}",
+                    url=embed_url,
                     stream_type="embed",
-                    headers={"Referer": "https://kodik.info/"}
+                    headers={"Referer": "https://kodikplayer.com/"}
                 )
             ],
-            embed_url=embed_url if embed_url.startswith("http") else f"https:{embed_url}"
+            embed_url=embed_url
         )
 
     def canary_test(self) -> CanaryReport:

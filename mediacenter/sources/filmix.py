@@ -476,6 +476,9 @@ class FilmixSource(BaseSource):
             seasons_list: List[SeasonItem] = []
             is_playlist = (translations.get("pl") == "yes")
 
+            clean_audio_id = str(audio_id).strip() if audio_id is not None else ""
+            filter_audio = clean_audio_id.isdigit() and int(clean_audio_id) < len(video_data) and len(video_data) > 1
+
             for track_idx, (track_name, raw_stream) in enumerate(video_data.items()):
                 audio_tracks.append(AudioTrack(
                     id=str(track_idx),
@@ -483,8 +486,8 @@ class FilmixSource(BaseSource):
                     is_default=(track_idx == 0)
                 ))
 
-                # Filter by selected audio if requested
-                if audio_id is not None and str(track_idx) != str(audio_id):
+                # Filter by selected audio if requested and valid
+                if filter_audio and str(track_idx) != clean_audio_id:
                     continue
 
                 if is_playlist:

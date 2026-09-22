@@ -1,10 +1,10 @@
 {
   "success": true,
-  "version_name": "2.8.38",
-  "version_code": 97,
+  "version_name": "2.8.39",
+  "version_code": 98,
   "force_update": true,
-  "min_version_code": 97,
+  "min_version_code": 98,
   "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
   "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
-  "changelog": "ShowHub TV v2.8.38: 1) Полное обновление иконки и Leanback баннера в меню приложений Android TV — теперь официальный металлический логотип ShowHub (как внутри приложения). 2) Напоминания о новых сериях: если модальное окно пропустить («Позже» / «Следующий» / назад), показ откладывается на 24 часа. 3) Карточки сериалов сохраняют свой уникальный цвет из палитры при перелистывании. 4) Новые серии отслеживаются строго для сериалов из Избранного."
+  "changelog": "ShowHub TV v2.8.39: 1) Исправлена глобальная ошибка воспроизведения фильмов и сериалов: прямая поддержка веб-плееров VideoCDN и Kodik на телевизоре без блокировок фреймов. 2) Добавлено прямое нативное декодирование потоков Filmix на Android TV в обход ограничений дата-центра. 3) Вкладка детальной карточки для фильмов теперь корректно называется «Плеер» (вместо «Плеер и серии»). 4) Улучшены сообщения об ошибках при отсутствии озвучек/потоков."
 }

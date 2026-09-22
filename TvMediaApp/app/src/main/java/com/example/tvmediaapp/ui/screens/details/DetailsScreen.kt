@@ -101,6 +101,7 @@ import com.example.tvmediaapp.data.models.SeasonInfo
 import com.example.tvmediaapp.data.models.EpisodeInfo
 import com.example.tvmediaapp.data.models.StreamOption
 import com.example.tvmediaapp.data.resolver.RezkaNativeResolver
+import com.example.tvmediaapp.data.resolver.FilmixNativeResolver
 import com.example.tvmediaapp.ui.components.AppIcon
 import com.example.tvmediaapp.ui.components.NeonSpinner
 import androidx.compose.foundation.focusable
@@ -303,16 +304,34 @@ fun DetailsScreen(
                     currentMovie.id
                 } else null
                 val nativeDeferred = async {
-                    RezkaNativeResolver.resolveStreams(
-                        title = currentMovie.title,
-                        year = currentMovie.releaseYear,
-                        isSeries = isContentSeries,
-                        season = selectedSeason,
-                        episode = selectedEpisode,
-                        translatorId = selectedAudioId.ifEmpty { null },
-                        mediaUrl = rezkaMediaUrl,
-                        originalTitle = currentMovie.originalTitle
-                    )
+                    val rzJob = async {
+                        try {
+                            RezkaNativeResolver.resolveStreams(
+                                title = currentMovie.title,
+                                year = currentMovie.releaseYear,
+                                isSeries = isContentSeries,
+                                season = selectedSeason,
+                                episode = selectedEpisode,
+                                translatorId = selectedAudioId.ifEmpty { null },
+                                mediaUrl = rezkaMediaUrl,
+                                originalTitle = currentMovie.originalTitle
+                            )
+                        } catch (_: Exception) { emptyList() }
+                    }
+                    val fxJob = async {
+                        try {
+                            FilmixNativeResolver.resolveStreams(
+                                movieId = currentMovie.id,
+                                title = currentMovie.title,
+                                year = currentMovie.releaseYear,
+                                isSeries = isContentSeries,
+                                season = selectedSeason,
+                                episode = selectedEpisode,
+                                audioId = selectedAudioId
+                            )
+                        } catch (_: Exception) { emptyList() }
+                    }
+                    rzJob.await() + fxJob.await()
                 }
                 val serverDeferred = async {
                     ShowHubApiClient.fetchStreams(
@@ -518,21 +537,39 @@ fun DetailsScreen(
 
         coroutineScope.launch {
             val isContentSeries = currentMovie.isSeries || currentMovie.seasons.isNotEmpty() || targetSeason > 1 || targetEpisode > 1
-            // Priority 1: Query Rezka directly on TV (residential IP) and server concurrently
+            // Priority 1: Query Rezka + Filmix directly on TV (residential IP) and server concurrently
             val nativeDeferred = async {
                 val rezkaMediaUrl = if (currentMovie.id.startsWith("http") || currentMovie.id.contains("hdrezka") || currentMovie.id.startsWith("rezka:")) {
                     currentMovie.id
                 } else null
-                RezkaNativeResolver.resolveStreams(
-                    title = currentMovie.title,
-                    year = currentMovie.releaseYear,
-                    isSeries = isContentSeries,
-                    season = targetSeason,
-                    episode = targetEpisode,
-                    translatorId = targetAudioId.ifEmpty { null },
-                    mediaUrl = rezkaMediaUrl,
-                    originalTitle = currentMovie.originalTitle
-                )
+                val rzJob = async {
+                    try {
+                        RezkaNativeResolver.resolveStreams(
+                            title = currentMovie.title,
+                            year = currentMovie.releaseYear,
+                            isSeries = isContentSeries,
+                            season = targetSeason,
+                            episode = targetEpisode,
+                            translatorId = targetAudioId.ifEmpty { null },
+                            mediaUrl = rezkaMediaUrl,
+                            originalTitle = currentMovie.originalTitle
+                        )
+                    } catch (_: Exception) { emptyList() }
+                }
+                val fxJob = async {
+                    try {
+                        FilmixNativeResolver.resolveStreams(
+                            movieId = currentMovie.id,
+                            title = currentMovie.title,
+                            year = currentMovie.releaseYear,
+                            isSeries = isContentSeries,
+                            season = targetSeason,
+                            episode = targetEpisode,
+                            audioId = targetAudioId
+                        )
+                    } catch (_: Exception) { emptyList() }
+                }
+                rzJob.await() + fxJob.await()
             }
             val serverDeferred = async {
                 ShowHubApiClient.fetchStreams(
@@ -557,6 +594,14 @@ fun DetailsScreen(
             streamOptions = streams
             isResolving = false
 
+            val notFoundMsg = if (isContentSeries) {
+                if (currentMovie.audioTracks.size > 1) "Поток недоступен для выбранной серии. Попробуйте другую озвучку."
+                else "Поток недоступен для выбранной серии."
+            } else {
+                if (currentMovie.audioTracks.size > 1) "Поток недоступен для этого фильма. Попробуйте другую озвучку."
+                else "Поток недоступен для этого фильма. Попробуйте другой источник."
+            }
+
             if (streams.isNotEmpty()) {
                 val matched = streams.firstOrNull { matchStreamQuality(it, selectedQuality) }
                     ?: streams.firstOrNull { isDirectVideoStream(it.url) && !it.quality.contains("ultra", ignoreCase = true) && !it.quality.contains("4k", ignoreCase = true) }
@@ -568,10 +613,10 @@ fun DetailsScreen(
                     val movieToPlay = if (isContentSeries) currentMovie.copy(isSeries = true) else currentMovie
                     onPlayClick(movieToPlay, matched.url, startPos, targetSeason, targetEpisode, targetAudioId)
                 } else {
-                    streamStatus = "Поток недоступен для выбранной серии. Попробуйте другую озвучку."
+                    streamStatus = notFoundMsg
                 }
             } else {
-                streamStatus = "Поток недоступен для выбранной серии. Попробуйте другую озвучку."
+                streamStatus = notFoundMsg
             }
         }
     }
@@ -1228,16 +1273,34 @@ fun DetailsScreen(
                                         currentMovie.id
                                     } else null
                                     val nativeDeferred = async {
-                                        RezkaNativeResolver.resolveStreams(
-                                            title = currentMovie.title,
-                                            year = currentMovie.releaseYear,
-                                            isSeries = currentMovie.isSeries,
-                                            season = selectedSeason,
-                                            episode = selectedEpisode,
-                                            translatorId = selectedAudioId.ifEmpty { null },
-                                            mediaUrl = rezkaMediaUrl,
-                                            originalTitle = currentMovie.originalTitle
-                                        )
+                                        val rzJob = async {
+                                            try {
+                                                RezkaNativeResolver.resolveStreams(
+                                                    title = currentMovie.title,
+                                                    year = currentMovie.releaseYear,
+                                                    isSeries = currentMovie.isSeries,
+                                                    season = selectedSeason,
+                                                    episode = selectedEpisode,
+                                                    translatorId = selectedAudioId.ifEmpty { null },
+                                                    mediaUrl = rezkaMediaUrl,
+                                                    originalTitle = currentMovie.originalTitle
+                                                )
+                                            } catch (_: Exception) { emptyList() }
+                                        }
+                                        val fxJob = async {
+                                            try {
+                                                FilmixNativeResolver.resolveStreams(
+                                                    movieId = currentMovie.id,
+                                                    title = currentMovie.title,
+                                                    year = currentMovie.releaseYear,
+                                                    isSeries = currentMovie.isSeries,
+                                                    season = selectedSeason,
+                                                    episode = selectedEpisode,
+                                                    audioId = selectedAudioId
+                                                )
+                                            } catch (_: Exception) { emptyList() }
+                                        }
+                                        rzJob.await() + fxJob.await()
                                     }
                                     val serverDeferred = async {
                                         ShowHubApiClient.fetchStreams(
@@ -1517,9 +1580,10 @@ fun DetailsScreen(
                     }
                 }
 
-                // Detail Section Tabs: «Плеер и серии», «График серий», «Описание и детали», «Отзывы (N)»
+                // Detail Section Tabs: «Плеер и серии» (сериалы) / «Плеер» (фильмы), «График серий», «Описание и детали», «Отзывы (N)»
+                val playerTabTitle = if (currentMovie.isSeries) "Плеер и серии" else "Плеер"
                 val tabs = remember(currentMovie.isSeries, currentMovie.episodesSchedule.size, comments.size) {
-                    val list = mutableListOf("Плеер и серии")
+                    val list = mutableListOf(playerTabTitle)
                     if (currentMovie.isSeries) {
                         list.add("График серий" + if (currentMovie.episodesSchedule.isNotEmpty()) " (${currentMovie.episodesSchedule.size})" else "")
                     }
@@ -1527,7 +1591,7 @@ fun DetailsScreen(
                     list.add("Отзывы" + if (comments.isNotEmpty()) " (${comments.size})" else "")
                     list
                 }
-                val activeTabTitle = tabs.getOrNull(selectedDetailTab) ?: tabs.firstOrNull() ?: "Плеер и серии"
+                val activeTabTitle = tabs.getOrNull(selectedDetailTab) ?: tabs.firstOrNull() ?: playerTabTitle
 
 
                 Row(

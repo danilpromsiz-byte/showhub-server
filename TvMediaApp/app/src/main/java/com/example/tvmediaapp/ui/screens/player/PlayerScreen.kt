@@ -350,25 +350,45 @@ private fun EmbedWebViewPlayerScreen(
                         val targetUrl = movie.videoUrl.trim()
                         android.util.Log.d("EmbedPlayer", "Loading embed URL: $targetUrl")
 
-                        // Load embed URL directly with appropriate Referer headers
-                        // This is the v2.8.40 approach that was confirmed working
-                        val headers = HashMap<String, String>()
-                        when {
-                            targetUrl.contains("allarknow") || targetUrl.contains("bayas") || targetUrl.contains("videocdn") ->
-                                headers["Referer"] = "https://api.apbugall.org/"
-                            targetUrl.contains("kodik") ->
-                                headers["Referer"] = "https://kodikplayer.com/"
-                            targetUrl.contains("bazon") ->
-                                headers["Referer"] = "https://bazon.cc/"
-                            targetUrl.contains("collaps") || targetUrl.contains("delivembd") ->
-                                headers["Referer"] = "https://api.delivembd.ws/"
-                            targetUrl.contains("voidboost") || targetUrl.contains("rezka") ->
-                                headers["Referer"] = "https://hdrezka-home.tv/"
-                        }
-                        if (headers.isNotEmpty()) {
-                            loadUrl(targetUrl, headers)
+                        // Kodik requires isIframe()=true — it checks window.self !== window.top
+                        // VideoCDN also works better inside iframe
+                        val needsIframeWrapper = targetUrl.contains("kodik") ||
+                                targetUrl.contains("allarknow") || targetUrl.contains("bayas") ||
+                                targetUrl.contains("videocdn")
+
+                        if (needsIframeWrapper) {
+                            val iframeHtml = """
+                                <!DOCTYPE html>
+                                <html><head>
+                                <meta name="viewport" content="width=device-width,initial-scale=1">
+                                <style>*{margin:0;padding:0;overflow:hidden}html,body{height:100%;background:#000}
+                                iframe{width:100%;height:100%;border:none}</style>
+                                </head><body>
+                                <iframe src="$targetUrl" allowfullscreen allow="autoplay;encrypted-media" 
+                                    sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-presentation"></iframe>
+                                </body></html>
+                            """.trimIndent()
+                            val baseUrl = when {
+                                targetUrl.contains("kodik") -> "https://kodikplayer.com/"
+                                else -> "https://api.apbugall.org/"
+                            }
+                            loadDataWithBaseURL(baseUrl, iframeHtml, "text/html", "UTF-8", null)
                         } else {
-                            loadUrl(targetUrl)
+                            // Load embed URL directly with appropriate Referer headers
+                            val headers = HashMap<String, String>()
+                            when {
+                                targetUrl.contains("bazon") ->
+                                    headers["Referer"] = "https://bazon.cc/"
+                                targetUrl.contains("collaps") || targetUrl.contains("delivembd") ->
+                                    headers["Referer"] = "https://api.delivembd.ws/"
+                                targetUrl.contains("voidboost") || targetUrl.contains("rezka") ->
+                                    headers["Referer"] = "https://hdrezka-home.tv/"
+                            }
+                            if (headers.isNotEmpty()) {
+                                loadUrl(targetUrl, headers)
+                            } else {
+                                loadUrl(targetUrl)
+                            }
                         }
                         webViewRef = this
                         requestFocus()

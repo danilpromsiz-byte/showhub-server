@@ -1550,7 +1550,7 @@ fun DetailsScreen(
                         Text(
                             text = streamStatus ?: "Поиск наилучшего видеопотока...",
                             fontSize = 13.sp,
-                            color = if (isResolving) accent else if (streamStatus?.contains("Найден") == true) accent else Color(0xFFF87171)
+                            color = if (isResolving) accent else if (streamStatus?.startsWith("▶") == true || streamStatus?.contains("Найден") == true) accent else Color(0xFFF87171)
                         )
                     }
                 }
@@ -1609,7 +1609,13 @@ fun DetailsScreen(
                                 else -> stSrc.contains(sKey)
                             }
                         }
-                        val hasHls = srcStreams.any { isDirectVideoStream(it.url) }
+                        // Determine HLS: if we have actual streams, check them; otherwise use known source types
+                        val hasHls = if (srcStreams.isNotEmpty()) {
+                            srcStreams.any { isDirectVideoStream(it.url) }
+                        } else {
+                            // Known source types — HDRezka and Filmix always provide direct HLS streams
+                            sKey.contains("rezka") || sKey.contains("filmix")
+                        }
                         val bestQ = run {
                             for (q in qualityOrder) {
                                 val match = srcStreams.firstOrNull { it.quality.contains(q, ignoreCase = true) }

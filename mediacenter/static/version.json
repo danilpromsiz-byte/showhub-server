@@ -1,10 +1,10 @@
 {
   "success": true,
-  "version_name": "2.8.44",
-  "version_code": 103,
+  "version_name": "2.8.45",
+  "version_code": 104,
   "force_update": true,
-  "min_version_code": 103,
+  "min_version_code": 104,
   "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
   "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
-  "changelog": "ShowHub TV v2.8.44: 1) Диагностика потоков — показывает сколько HLS и embed потоков найдено, из какого источника и какой выбран. 2) Источник с бейджем HLS/IFRAME и лучшим качеством. 3) Полное подавление дефолтной error page WebView."
+  "changelog": "v2.8.45: 1) Исправлен WebView — ослаблен error handling, embed-плееры больше не блокируются ложными ошибками. 2) HDRezka и Filmix всегда показываются как HLS. 3) Kodik/VideoCDN/Bazon корректно как IFRAME."
 }

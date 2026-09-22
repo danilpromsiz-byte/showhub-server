@@ -295,12 +295,18 @@ private fun EmbedWebViewPlayerScreen(
                                 // (upside-down robot) for ALL frames including iframes
                                 val errCode = error?.errorCode ?: 0
                                 val errUrl = request?.url?.toString() ?: "?"
-                                android.util.Log.e("EmbedPlayer", "Error: code=$errCode main=${request?.isForMainFrame} url=$errUrl")
+                                android.util.Log.e("EmbedPlayer", "Error: code=$errCode main=${request?.isForMainFrame} url=$errUrl desc=${error?.description}")
+                                // Only set hasError for truly fatal main-frame errors
+                                // Many embed players load sub-resources that fail (ads, trackers) — ignore those
                                 if (request?.isForMainFrame == true) {
-                                    if (errCode != -1 && errCode != ERROR_CONNECT && errCode != ERROR_TIMEOUT) {
+                                    // ERROR_HOST_LOOKUP (-2) = DNS failure, ERROR_UNSUPPORTED_SCHEME (-10) = bad URL
+                                    // These are genuinely unrecoverable
+                                    if (errCode == ERROR_HOST_LOOKUP || errCode == ERROR_UNSUPPORTED_SCHEME) {
                                         hasError = true
-                                        errorMessage = "Не удалось загрузить плеер источника"
+                                        errorMessage = "Не удалось загрузить плеер источника (DNS)"
                                     }
+                                    // All other errors (-1 UNKNOWN, -2...-16 various) — let the page try to recover
+                                    // Embed players often handle these internally via JS
                                 }
                             }
 
@@ -309,12 +315,13 @@ private fun EmbedWebViewPlayerScreen(
                                 request: android.webkit.WebResourceRequest?,
                                 errorResponse: android.webkit.WebResourceResponse?
                             ) {
-                                // Don't call super for main frame to avoid error page rendering
+                                // Don't call super to avoid error page rendering
                                 val statusCode = errorResponse?.statusCode ?: 0
                                 android.util.Log.e("EmbedPlayer", "HTTP $statusCode: main=${request?.isForMainFrame} url=${request?.url}")
-                                if (request?.isForMainFrame == true && statusCode >= 400) {
+                                // Only flag truly fatal server errors on main frame
+                                if (request?.isForMainFrame == true && statusCode >= 500) {
                                     hasError = true
-                                    errorMessage = "Ошибка источника (HTTP $statusCode)"
+                                    errorMessage = "Ошибка сервера источника (HTTP $statusCode)"
                                 }
                             }
 

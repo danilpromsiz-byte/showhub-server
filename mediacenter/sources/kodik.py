@@ -50,15 +50,16 @@ class KodikSource(BaseSource):
             if year:
                 params["year"] = str(year)
 
-        for endpoint in self.API_ENDPOINTS:
-            try:
-                url = f"{endpoint}?{urllib.parse.urlencode(params)}"
-                resp = requests.get(url, headers=self.headers, timeout=5)
-                if resp.status_code == 200:
-                    data = resp.json()
-                    results = data.get("results", [])
-                    if results:
-                        for res in results:
+        for attempt in range(2):  # attempt 0 = kp_id or title, attempt 1 = title fallback
+            for endpoint in self.API_ENDPOINTS:
+                try:
+                    url = f"{endpoint}?{urllib.parse.urlencode(params)}"
+                    resp = requests.get(url, headers=self.headers, timeout=5)
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        results = data.get("results", [])
+                        if results:
+                            for res in results:
                             title = res.get("title", query)
                             link = res.get("link", "")
                             r_year = res.get("year")
@@ -103,8 +104,18 @@ class KodikSource(BaseSource):
                                 }
                             ))
                         break
-            except Exception:
-                continue
+                except Exception:
+                    continue
+            if items:
+                break  # Found results, stop attempts
+            # Fallback: if first attempt was by kp_id and returned 0 results, retry by title
+            if attempt == 0 and "kinopoisk_id" in params and query:
+                params.pop("kinopoisk_id", None)
+                params["title"] = query
+                if year:
+                    params["year"] = str(year)
+            else:
+                break  # No fallback available
         return items
 
     def get_catalog(self, category: Optional[str] = None, genre: Optional[str] = None, country: Optional[str] = None, page: int = 1, limit: int = 50) -> List[MediaItem]:
@@ -434,14 +445,16 @@ class KodikSource(BaseSource):
     def get_streams(self, media_id: str, season: Optional[int] = None, episode: Optional[int] = None, audio_id: Optional[str] = None) -> StreamResult:
         embed_url = media_id if (media_id.startswith("http") or media_id.startswith("//")) else ""
         clean_id = media_id.replace("kodik_", "").strip()
+        api_result = None
         if not embed_url and clean_id:
             for token in self.TOKENS:
                 for endpoint in self.API_ENDPOINTS:
                     try:
-                        r = requests.get(endpoint, params={"token": token, "id": clean_id}, headers=self.headers, timeout=4)
+                        r = requests.get(endpoint, params={"token": token, "id": clean_id, "with_episodes": "true"}, headers=self.headers, timeout=4)
                         if r.status_code == 200:
                             results = r.json().get("results", [])
                             if results and results[0].get("link"):
+                                api_result = results[0]
                                 embed_url = results[0]["link"]
                                 break
                     except Exception:
@@ -449,14 +462,30 @@ class KodikSource(BaseSource):
                 if embed_url:
                     break
 
+        # For serials: use episode-specific URL instead of serial-level URL
+        if api_result and season and episode:
+            seasons_data = api_result.get("seasons", {})
+            s_key = str(season)
+            e_key = str(episode)
+            if s_key in seasons_data:
+                episodes_data = seasons_data[s_key].get("episodes", {})
+                if e_key in episodes_data:
+                    embed_url = episodes_data[e_key]
+                else:
+                    # Fallback: season-level URL
+                    season_link = seasons_data[s_key].get("link")
+                    if season_link:
+                        embed_url = season_link
+        elif not api_result and season and episode and embed_url and "/serial/" in embed_url:
+            # If we have a serial URL but no API result, try to construct seria URL
+            # Append season/episode params as last resort
+            separator = "&" if "?" in embed_url else "?"
+            embed_url = f"{embed_url}{separator}season={season}&episode={episode}"
+
         if embed_url.startswith("//"):
             embed_url = f"https:{embed_url}"
         elif not embed_url.startswith("http"):
             embed_url = f"https://kodikplayer.com/video/{clean_id}"
-
-        if season and episode:
-            separator = "&" if "?" in embed_url else "?"
-            embed_url = f"{embed_url}{separator}season={season}&episode={episode}"
 
         return StreamResult(
             source_name=self.name,

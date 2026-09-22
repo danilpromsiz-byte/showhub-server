@@ -291,13 +291,22 @@ private fun EmbedWebViewPlayerScreen(
                                 request: android.webkit.WebResourceRequest?,
                                 error: android.webkit.WebResourceError?
                             ) {
-                                super.onReceivedError(view, request, error)
                                 if (request?.isForMainFrame == true) {
+                                    // Don't call super for main frame — it renders the default
+                                    // Android error page (upside-down robot). We show our own UI.
                                     val errCode = error?.errorCode ?: 0
+                                    val errDesc = error?.description?.toString() ?: "unknown"
+                                    val errUrl = request.url?.toString() ?: "?"
+                                    android.util.Log.e("EmbedPlayer", "Main frame error: code=$errCode desc=$errDesc url=$errUrl")
                                     if (errCode != -1 && errCode != ERROR_CONNECT && errCode != ERROR_TIMEOUT) {
                                         hasError = true
                                         errorMessage = "Не удалось загрузить плеер источника"
                                     }
+                                    // Load blank to clear the error page
+                                    view?.loadUrl("about:blank")
+                                } else {
+                                    // Sub-resource errors — let default handling proceed
+                                    super.onReceivedError(view, request, error)
                                 }
                             }
 
@@ -307,23 +316,40 @@ private fun EmbedWebViewPlayerScreen(
                                 errorResponse: android.webkit.WebResourceResponse?
                             ) {
                                 super.onReceivedHttpError(view, request, errorResponse)
-                                if (request?.isForMainFrame == true && (errorResponse?.statusCode ?: 0) >= 400) {
+                                val statusCode = errorResponse?.statusCode ?: 0
+                                val errUrl = request?.url?.toString() ?: "?"
+                                android.util.Log.e("EmbedPlayer", "HTTP error: status=$statusCode url=$errUrl")
+                                if (request?.isForMainFrame == true && statusCode >= 400) {
                                     hasError = true
-                                    errorMessage = "Ошибка источника (HTTP ${errorResponse?.statusCode})"
+                                    errorMessage = "Ошибка источника (HTTP $statusCode)"
                                 }
+                            }
+
+                            override fun shouldOverrideUrlLoading(
+                                view: WebView?,
+                                request: android.webkit.WebResourceRequest?
+                            ): Boolean {
+                                // Allow all navigation within the WebView (iframes, redirects)
+                                return false
                             }
 
                             override fun onPageFinished(view: WebView?, url: String?) {
                                 super.onPageFinished(view, url)
+                                if (url == "about:blank") return
+                                android.util.Log.d("EmbedPlayer", "Page finished: $url")
                                 view?.evaluateJavascript(
                                     """
                                     (function() {
                                         document.body.style.backgroundColor = '#000';
-                                        var v = document.querySelector('video');
-                                        if (v) {
-                                            v.focus();
-                                            v.play();
+                                        var iframe = document.querySelector('iframe');
+                                        if (iframe && iframe.contentDocument) {
+                                            try {
+                                                var v = iframe.contentDocument.querySelector('video');
+                                                if (v) { v.focus(); v.play(); }
+                                            } catch(e) {}
                                         }
+                                        var v = document.querySelector('video');
+                                        if (v) { v.focus(); v.play(); }
                                     })();
                                     """.trimIndent(), null
                                 )
@@ -331,40 +357,37 @@ private fun EmbedWebViewPlayerScreen(
                         }
 
                         val targetUrl = movie.videoUrl.trim()
+                        android.util.Log.d("EmbedPlayer", "Loading embed URL: $targetUrl")
 
-                        if (targetUrl.contains("kodik")) {
-                            // Kodik requires being loaded inside an iframe (isIframe() check).
-                            // We create a wrapper HTML page that embeds the Kodik player in an iframe.
-                            val iframeHtml = """
-                                <!DOCTYPE html>
-                                <html><head>
-                                <meta name="viewport" content="width=device-width,initial-scale=1">
-                                <style>*{margin:0;padding:0;overflow:hidden;background:#000}
-                                iframe{width:100%;height:100%;border:0}</style>
-                                </head><body>
-                                <iframe src="$targetUrl" width="100%" height="100%"
-                                    frameborder="0" allowfullscreen
-                                    allow="autoplay *; fullscreen *; encrypted-media *">
-                                </iframe></body></html>
-                            """.trimIndent()
-                            loadDataWithBaseURL(
-                                "https://kodikplayer.com/",
-                                iframeHtml,
-                                "text/html",
-                                "UTF-8",
-                                null
-                            )
-                        } else {
-                            val headers = HashMap<String, String>()
-                            if (targetUrl.contains("allarknow") || targetUrl.contains("bayas") || targetUrl.contains("videocdn")) {
-                                headers["Referer"] = "https://api.apbugall.org/"
-                            }
-                            if (headers.isNotEmpty()) {
-                                loadUrl(targetUrl, headers)
-                            } else {
-                                loadUrl(targetUrl)
-                            }
+                        // All embed players are loaded inside an iframe wrapper.
+                        // Many players (Kodik, VideoCDN, Bazon, Collaps) check if they're
+                        // running inside an iframe and refuse to play if loaded directly.
+                        val baseUrl = when {
+                            targetUrl.contains("kodik") -> "https://kodikplayer.com/"
+                            targetUrl.contains("allarknow") || targetUrl.contains("bayas") || targetUrl.contains("videocdn") -> "https://api.apbugall.org/"
+                            targetUrl.contains("bazon") -> "https://bazon.cc/"
+                            targetUrl.contains("collaps") -> "https://api.delivembd.ws/"
+                            else -> "https://showhub.tv/"
                         }
+                        val iframeHtml = """
+                            <!DOCTYPE html>
+                            <html><head>
+                            <meta name="viewport" content="width=device-width,initial-scale=1">
+                            <style>*{margin:0;padding:0;overflow:hidden;background:#000}
+                            iframe{position:fixed;top:0;left:0;width:100%;height:100%;border:0}</style>
+                            </head><body>
+                            <iframe src="$targetUrl" width="100%" height="100%"
+                                frameborder="0" allowfullscreen
+                                allow="autoplay *; fullscreen *; encrypted-media *">
+                            </iframe></body></html>
+                        """.trimIndent()
+                        loadDataWithBaseURL(
+                            baseUrl,
+                            iframeHtml,
+                            "text/html",
+                            "UTF-8",
+                            null
+                        )
                         webViewRef = this
                         requestFocus()
                     }

@@ -1544,14 +1544,10 @@ fun DetailsScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                val availableSources = remember(currentMovie.sources, currentMovie.audioTracks, currentMovie.seasons, selectedSeason, streamOptions, currentMovie.isSeries) {
-                    val list = mutableListOf<String>()
-                    val curSeasonEps = if (currentMovie.isSeries) {
-                        currentMovie.seasons.firstOrNull { it.seasonNumber == selectedSeason }?.episodes?.size
-                            ?: currentMovie.seasons.sumOf { it.episodes.size }
-                    } else 0
-                    list.add(if (curSeasonEps > 0) "Все ($curSeasonEps сер.)" else "Все")
+                // Data class to hold source info with type and best quality
+                data class SourceInfo(val name: String, val isHls: Boolean, val bestQuality: String, val epCount: Int = 0)
 
+                val availableSourcesInfo = remember(currentMovie.sources, currentMovie.audioTracks, currentMovie.seasons, selectedSeason, streamOptions, currentMovie.isSeries) {
                     val detectedSources = linkedSetOf<String>()
                     currentMovie.sources.forEach { if (it.name.isNotBlank()) detectedSources.add(it.name) }
                     currentMovie.audioTracks.forEach { trk ->
@@ -1579,7 +1575,35 @@ fun DetailsScreen(
                         if (name.isNotEmpty()) detectedSources.add(name)
                     }
 
-                    detectedSources.forEach { srcName ->
+                    val curSeasonEps = if (currentMovie.isSeries) {
+                        currentMovie.seasons.firstOrNull { it.seasonNumber == selectedSeason }?.episodes?.size
+                            ?: currentMovie.seasons.sumOf { it.episodes.size }
+                    } else 0
+
+                    val qualityOrder = listOf("4K Ultra", "4K", "2160", "1080p HD", "1080p", "1080", "720p", "720", "480p", "480", "360p", "360")
+
+                    val sourceInfoList = detectedSources.map { srcName ->
+                        val sKey = srcName.lowercase()
+                        val srcStreams = streamOptions.filter { st ->
+                            val stSrc = st.source.lowercase()
+                            when {
+                                sKey.contains("kodik") -> stSrc.contains("kodik")
+                                sKey.contains("rezka") -> stSrc.contains("rezka")
+                                sKey.contains("filmix") -> stSrc.contains("filmix")
+                                sKey.contains("videocdn") -> stSrc.contains("videocdn") || st.url.contains("allarknow") || st.url.contains("bayas")
+                                sKey.contains("bazon") -> stSrc.contains("bazon")
+                                sKey.contains("collaps") -> stSrc.contains("collaps")
+                                else -> stSrc.contains(sKey)
+                            }
+                        }
+                        val hasHls = srcStreams.any { isDirectVideoStream(it.url) }
+                        val bestQ = run {
+                            for (q in qualityOrder) {
+                                val match = srcStreams.firstOrNull { it.quality.contains(q, ignoreCase = true) }
+                                if (match != null) return@run match.quality.replace(Regex("\\(.*?\\)"), "").trim()
+                            }
+                            srcStreams.firstOrNull()?.quality?.replace(Regex("\\(.*?\\)"), "")?.trim() ?: ""
+                        }
                         val epC = if (currentMovie.isSeries) {
                             currentMovie.sources.firstOrNull { it.name.equals(srcName, ignoreCase = true) }?.seasonsEpisodes?.get(selectedSeason)
                                 ?: currentMovie.audioTracks.filter { it.source.contains(srcName, ignoreCase = true) || (srcName.contains("kodik", ignoreCase = true) && it.id.startsWith("kodik_")) }
@@ -1587,11 +1611,16 @@ fun DetailsScreen(
                                     .maxOrNull()
                                 ?: if (curSeasonEps > 0) curSeasonEps else 0
                         } else 0
-                        val label = if (epC > 0) "$srcName ($epC сер.)" else srcName
-                        if (!list.contains(label)) {
-                            list.add(label)
-                        }
-                    }
+                        SourceInfo(srcName, hasHls, bestQ, epC)
+                    }.sortedByDescending { it.isHls } // HLS sources first
+
+                    sourceInfoList
+                }
+
+                // Build flat label list for backward compat (selectedSourceFilter still uses names)
+                val availableSources = remember(availableSourcesInfo) {
+                    val list = mutableListOf("Все")
+                    availableSourcesInfo.forEach { list.add(it.name) }
                     list
                 }
                 val filteredAudioTracks = remember(currentMovie.audioTracks, selectedSourceFilter, selectedSeason) {
@@ -1697,32 +1726,60 @@ fun DetailsScreen(
                     activeTabTitle.startsWith("Плеер") -> {
                         // TAB 0: ПЛЕЕР И СЕРИИ
                         // Resource / Source selector
-                        if (availableSources.size > 1) {
+                        // === 1. SOURCE SELECTOR (HLS first, with type badge + best quality) ===
+                        if (availableSourcesInfo.isNotEmpty()) {
                             Text(
-                                text = "Ресурс / Источник:",
+                                text = "Источник:",
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = TextWhite
                             )
                             Spacer(modifier = Modifier.height(4.dp))
+                            // "Все" chip + source chips
                             TvLazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                itemsIndexed(availableSources) { srcIdx, srcLabel ->
-                                    val isSrcSelected = selectedSourceFilter == srcLabel
-                                    val srcMod = if (srcIdx == 0) {
-                                        Modifier.focusRequester(firstSourceFocusRequester).focusProperties {
-                                            up = tabsFocusRequester
-                                            down = if (filteredAudioTracks.isNotEmpty()) firstAudioFocusRequester
-                                                   else if (availableQualities.isNotEmpty()) firstQualityFocusRequester
-                                                   else if (currentMovie.isSeries && currentMovie.seasons.isNotEmpty()) firstSeasonFocusRequester
-                                                   else if (currentMovie.isSeries) episodesFocusRequester
-                                                   else FocusRequester.Default
-                                        }
-                                    } else Modifier
+                                // "Все" chip at index 0
+                                item {
+                                    val isAllSelected = selectedSourceFilter == "Все"
+                                    val allMod = Modifier.focusRequester(firstSourceFocusRequester).focusProperties {
+                                        up = tabsFocusRequester
+                                        down = if (availableQualities.isNotEmpty()) firstQualityFocusRequester
+                                               else if (filteredAudioTracks.isNotEmpty()) firstAudioFocusRequester
+                                               else if (currentMovie.isSeries && currentMovie.seasons.isNotEmpty()) firstSeasonFocusRequester
+                                               else if (currentMovie.isSeries) episodesFocusRequester
+                                               else FocusRequester.Default
+                                    }
+                                    Button(
+                                        onClick = { selectedSourceFilter = "Все"; streamStatus = "Источник: Все" },
+                                        colors = ButtonDefaults.colors(
+                                            containerColor = if (isAllSelected) accent.copy(alpha = 0.85f) else ChipBackground,
+                                            focusedContainerColor = focusColor,
+                                            contentColor = if (isAllSelected) Color.Black else TextWhite,
+                                            focusedContentColor = Color.Black
+                                        ),
+                                        border = ButtonDefaults.border(Border.None, Border.None),
+                                        shape = ButtonDefaults.shape(RoundedCornerShape(6.dp)),
+                                        scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
+                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                                        modifier = Modifier.height(28.dp).then(allMod)
+                                    ) {
+                                        Text(text = "Все", fontSize = 10.sp, fontWeight = if (isAllSelected) FontWeight.Bold else FontWeight.Normal)
+                                    }
+                                }
+                                // Source chips with type badge and best quality
+                                itemsIndexed(availableSourcesInfo) { _, srcInfo ->
+                                    val isSrcSelected = selectedSourceFilter == srcInfo.name
+                                    val typeBadge = if (srcInfo.isHls) "HLS" else "IFRAME"
+                                    val typeColor = if (srcInfo.isHls) Color(0xFF4ADE80) else Color(0xFFFBBF24)
+                                    val chipLabel = buildString {
+                                        append(srcInfo.name)
+                                        if (srcInfo.bestQuality.isNotEmpty()) append(" · ${srcInfo.bestQuality}")
+                                        if (srcInfo.epCount > 0) append(" (${srcInfo.epCount} сер.)")
+                                    }
                                     Button(
                                         onClick = {
-                                            selectedSourceFilter = srcLabel
-                                            val newTracks = if (srcLabel.startsWith("Все")) currentMovie.audioTracks else {
-                                                val sKey = srcLabel.lowercase()
+                                            selectedSourceFilter = srcInfo.name
+                                            val newTracks = run {
+                                                val sKey = srcInfo.name.lowercase()
                                                 currentMovie.audioTracks.filter { track ->
                                                     val trackSrc = track.source.lowercase()
                                                     when {
@@ -1746,7 +1803,6 @@ fun DetailsScreen(
                                                         selectedSeason = validSeason.seasonNumber
                                                         val maxEp = validSeason.episodes.maxOfOrNull { it.episodeNumber } ?: validSeason.episodes.size
                                                         if (selectedEpisode > maxEp) selectedEpisode = maxEp
-                                                        streamStatus = "Ресурс: $srcLabel | Озвучка: «${targetTrack.name}» (${validSeason.episodes.size} сер.)"
                                                     } else {
                                                         coroutineScope.launch {
                                                             try {
@@ -1763,15 +1819,13 @@ fun DetailsScreen(
                                                                     selectedSeason = validSeason.seasonNumber
                                                                     val maxEp = validSeason.episodes.maxOfOrNull { it.episodeNumber } ?: validSeason.episodes.size
                                                                     if (selectedEpisode > maxEp) selectedEpisode = maxEp
-                                                                    streamStatus = "Ресурс: $srcLabel | Озвучка: «${targetTrack.name}» (${validSeason.episodes.size} сер.)"
                                                                 }
                                                             } catch (_: Exception) {}
                                                         }
                                                     }
                                                 }
-                                            } else {
-                                                streamStatus = "Ресурс: $srcLabel"
                                             }
+                                            streamStatus = "Источник: ${srcInfo.name} ($typeBadge)"
                                         },
                                         colors = ButtonDefaults.colors(
                                             containerColor = if (isSrcSelected) accent.copy(alpha = 0.85f) else ChipBackground,
@@ -1783,16 +1837,72 @@ fun DetailsScreen(
                                         shape = ButtonDefaults.shape(RoundedCornerShape(6.dp)),
                                         scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                                        modifier = Modifier.height(24.dp).then(srcMod)
+                                        modifier = Modifier.height(28.dp)
                                     ) {
-                                        Text(text = srcLabel, fontSize = 10.sp, fontWeight = if (isSrcSelected) FontWeight.Bold else FontWeight.Normal)
+                                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                            Text(text = chipLabel, fontSize = 10.sp, fontWeight = if (isSrcSelected) FontWeight.Bold else FontWeight.Normal)
+                                            // Type badge (HLS = green, IFRAME = yellow)
+                                            Box(
+                                                modifier = Modifier
+                                                    .background(typeColor.copy(alpha = 0.25f), RoundedCornerShape(3.dp))
+                                                    .padding(horizontal = 3.dp, vertical = 1.dp)
+                                            ) {
+                                                Text(text = typeBadge, fontSize = 8.sp, fontWeight = FontWeight.Bold, color = typeColor)
+                                            }
+                                        }
                                     }
                                 }
                             }
                             Spacer(modifier = Modifier.height(8.dp))
                         }
 
-                        // Translators
+                        // === 2. QUALITY SELECTOR ===
+                        if (availableQualities.isNotEmpty()) {
+                            Text(
+                                text = "Качество видео:",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextWhite
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            TvLazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                itemsIndexed(availableQualities) { qIdx, qual ->
+                                    val isQSelected = selectedQuality.equals(qual, ignoreCase = true)
+                                    val qMod = if (qIdx == 0) {
+                                        Modifier.focusRequester(firstQualityFocusRequester).focusProperties {
+                                            up = firstSourceFocusRequester
+                                            down = if (filteredAudioTracks.isNotEmpty()) firstAudioFocusRequester
+                                                   else if (currentMovie.isSeries && currentMovie.seasons.isNotEmpty()) firstSeasonFocusRequester
+                                                   else if (currentMovie.isSeries) episodesFocusRequester
+                                                   else FocusRequester.Default
+                                        }
+                                    } else Modifier
+                                    Button(
+                                        onClick = {
+                                            selectedQuality = qual
+                                            prefs.edit().putString("pref_quality", qual).apply()
+                                            streamStatus = "Выбрано качество: $qual"
+                                        },
+                                        colors = ButtonDefaults.colors(
+                                            containerColor = if (isQSelected) accent.copy(alpha = 0.85f) else ChipBackground,
+                                            focusedContainerColor = focusColor,
+                                            contentColor = if (isQSelected) Color.Black else TextWhite,
+                                            focusedContentColor = Color.Black
+                                        ),
+                                        border = ButtonDefaults.border(Border.None, Border.None),
+                                        shape = ButtonDefaults.shape(RoundedCornerShape(6.dp)),
+                                        scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
+                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                                        modifier = Modifier.height(24.dp).then(qMod)
+                                    ) {
+                                        Text(text = qual, fontSize = 10.sp, fontWeight = if (isQSelected) FontWeight.Bold else FontWeight.Normal)
+                                    }
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
+
+                        // === 3. AUDIO / DUBBING SELECTOR ===
                         if (filteredAudioTracks.isNotEmpty()) {
                             Text(
                                 text = "Озвучка / Перевод:",
@@ -1806,9 +1916,9 @@ fun DetailsScreen(
                                     val isSelected = track.id == selectedAudioId
                                     val audioMod = if (trkIdx == 0) {
                                         Modifier.focusRequester(firstAudioFocusRequester).focusProperties {
-                                            up = if (availableSources.size > 1) firstSourceFocusRequester else tabsFocusRequester
-                                            down = if (availableQualities.isNotEmpty()) firstQualityFocusRequester
-                                                   else if (currentMovie.isSeries && currentMovie.seasons.isNotEmpty()) firstSeasonFocusRequester
+                                            up = if (availableQualities.isNotEmpty()) firstQualityFocusRequester
+                                                 else firstSourceFocusRequester
+                                            down = if (currentMovie.isSeries && currentMovie.seasons.isNotEmpty()) firstSeasonFocusRequester
                                                    else if (currentMovie.isSeries) episodesFocusRequester
                                                    else FocusRequester.Default
                                         }
@@ -1875,53 +1985,6 @@ fun DetailsScreen(
                             Spacer(modifier = Modifier.height(8.dp))
                         }
 
-                        // Quality selector row
-                        if (availableQualities.isNotEmpty()) {
-                            Text(
-                                text = "Качество видео:",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = TextWhite
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            TvLazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                itemsIndexed(availableQualities) { qIdx, qual ->
-                                    val isQSelected = selectedQuality.equals(qual, ignoreCase = true)
-                                    val qMod = if (qIdx == 0) {
-                                        Modifier.focusRequester(firstQualityFocusRequester).focusProperties {
-                                            up = if (filteredAudioTracks.isNotEmpty()) firstAudioFocusRequester
-                                                 else if (availableSources.size > 1) firstSourceFocusRequester
-                                                 else tabsFocusRequester
-                                            down = if (currentMovie.isSeries && currentMovie.seasons.isNotEmpty()) firstSeasonFocusRequester
-                                                   else if (currentMovie.isSeries) episodesFocusRequester
-                                                   else FocusRequester.Default
-                                        }
-                                    } else Modifier
-                                    Button(
-                                        onClick = {
-                                            selectedQuality = qual
-                                            prefs.edit().putString("pref_quality", qual).apply()
-                                            streamStatus = "Выбрано качество: $qual"
-                                        },
-                                        colors = ButtonDefaults.colors(
-                                            containerColor = if (isQSelected) accent.copy(alpha = 0.85f) else ChipBackground,
-                                            focusedContainerColor = focusColor,
-                                            contentColor = if (isQSelected) Color.Black else TextWhite,
-                                            focusedContentColor = Color.Black
-                                        ),
-                                        border = ButtonDefaults.border(Border.None, Border.None),
-                                        shape = ButtonDefaults.shape(RoundedCornerShape(6.dp)),
-                                        scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
-                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                                        modifier = Modifier.height(24.dp).then(qMod)
-                                    ) {
-                                        Text(text = qual, fontSize = 10.sp, fontWeight = if (isQSelected) FontWeight.Bold else FontWeight.Normal)
-                                    }
-                                }
-                            }
-                            Spacer(modifier = Modifier.height(8.dp))
-                        }
-
                         // SERIES: Seasons & Episodes
                         if (currentMovie.isSeries && currentMovie.seasons.isNotEmpty()) {
                             Spacer(modifier = Modifier.height(12.dp))
@@ -1933,9 +1996,9 @@ fun DetailsScreen(
                                     val isSelected = season.seasonNumber == selectedSeason
                                     val seasonMod = if (sIdx == 0) {
                                         Modifier.focusRequester(firstSeasonFocusRequester).focusProperties {
-                                            up = if (availableQualities.isNotEmpty()) firstQualityFocusRequester
-                                                   else if (filteredAudioTracks.isNotEmpty()) firstAudioFocusRequester
-                                                   else if (availableSources.size > 1) firstSourceFocusRequester
+                                            up = if (filteredAudioTracks.isNotEmpty()) firstAudioFocusRequester
+                                                   else if (availableQualities.isNotEmpty()) firstQualityFocusRequester
+                                                   else if (availableSourcesInfo.isNotEmpty()) firstSourceFocusRequester
                                                    else tabsFocusRequester
                                             down = episodesFocusRequester
                                         }

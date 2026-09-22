@@ -1,10 +1,10 @@
 {
   "success": true,
-  "version_name": "2.8.39",
-  "version_code": 98,
+  "version_name": "2.8.40",
+  "version_code": 99,
   "force_update": true,
-  "min_version_code": 98,
+  "min_version_code": 99,
   "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
   "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
-  "changelog": "ShowHub TV v2.8.39: 1) Исправлена глобальная ошибка воспроизведения фильмов и сериалов: прямая поддержка веб-плееров VideoCDN и Kodik на телевизоре без блокировок фреймов. 2) Добавлено прямое нативное декодирование потоков Filmix на Android TV в обход ограничений дата-центра. 3) Вкладка детальной карточки для фильмов теперь корректно называется «Плеер» (вместо «Плеер и серии»). 4) Улучшены сообщения об ошибках при отсутствии озвучек/потоков."
+  "changelog": "ShowHub TV v2.8.40: 1) Исправлена загрузка плеера Kodik («Замужняя убийца» и др.) с получением защищенных ссылок с хэшем. 2) Добавлена динамическая фильтрация доступных озвучек и качества видео при выборе источника. 3) Добавлен переключатель качества прямо в карточке фильма с адаптивной навигацией пульта (D-Pad). 4) Поддержка сторонних cookie и обход SSL-ошибок балансеров в плеере."
 }

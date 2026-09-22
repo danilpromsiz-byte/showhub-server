@@ -28,9 +28,11 @@ class KodikSource(BaseSource):
     ]
 
     def __init__(self):
+        self.base_url = self.API_ENDPOINT
+        self.token = self.TOKENS[0]
         self.headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-            "Referer": "https://kodik.info/"
+            "Referer": "https://kodikplayer.com/"
         }
 
     def search(self, query: str, year: Optional[int] = None, kp_id: Optional[str] = None) -> List[MediaItem]:
@@ -431,20 +433,26 @@ class KodikSource(BaseSource):
 
     def get_streams(self, media_id: str, season: Optional[int] = None, episode: Optional[int] = None, audio_id: Optional[str] = None) -> StreamResult:
         embed_url = media_id if (media_id.startswith("http") or media_id.startswith("//")) else ""
-        if not embed_url and media_id:
-            try:
-                r = requests.get(f"{self.base_url}/search", params={"token": self.token, "id": media_id}, timeout=4)
-                if r.status_code == 200:
-                    results = r.json().get("results", [])
-                    if results:
-                        embed_url = results[0].get("link", "")
-            except Exception:
-                pass
+        clean_id = media_id.replace("kodik_", "").strip()
+        if not embed_url and clean_id:
+            for token in self.TOKENS:
+                for endpoint in self.API_ENDPOINTS:
+                    try:
+                        r = requests.get(endpoint, params={"token": token, "id": clean_id}, headers=self.headers, timeout=4)
+                        if r.status_code == 200:
+                            results = r.json().get("results", [])
+                            if results and results[0].get("link"):
+                                embed_url = results[0]["link"]
+                                break
+                    except Exception:
+                        pass
+                if embed_url:
+                    break
 
-        if not embed_url:
-            embed_url = f"https://kodikplayer.com/video/{media_id}"
-        elif embed_url.startswith("//"):
+        if embed_url.startswith("//"):
             embed_url = f"https:{embed_url}"
+        elif not embed_url.startswith("http"):
+            embed_url = f"https://kodikplayer.com/video/{clean_id}"
 
         if season and episode:
             separator = "&" if "?" in embed_url else "?"
@@ -455,12 +463,6 @@ class KodikSource(BaseSource):
             media_id=media_id,
             title="Kodik Stream",
             streams=[
-                VideoStream(
-                    quality="1080p",
-                    url=embed_url,
-                    stream_type="embed",
-                    headers={"Referer": "https://kodikplayer.com/"}
-                ),
                 VideoStream(
                     quality="720p",
                     url=embed_url,

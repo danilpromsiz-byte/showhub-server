@@ -255,14 +255,22 @@ private fun EmbedWebViewPlayerScreen(
                         )
                         isFocusable = true
                         isFocusableInTouchMode = true
+                        try {
+                            val cm = android.webkit.CookieManager.getInstance()
+                            cm.setAcceptCookie(true)
+                            cm.setAcceptThirdPartyCookies(this, true)
+                        } catch (_: Exception) {}
+
                         settings.apply {
                             javaScriptEnabled = true
                             domStorageEnabled = true
+                            databaseEnabled = true
                             mediaPlaybackRequiresUserGesture = false
                             userAgentString = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
                             loadWithOverviewMode = true
                             useWideViewPort = true
                             allowFileAccess = true
+                            allowContentAccess = true
                             mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
                             setSupportZoom(false)
                             builtInZoomControls = false
@@ -270,6 +278,14 @@ private fun EmbedWebViewPlayerScreen(
                         }
                         webChromeClient = WebChromeClient()
                         webViewClient = object : WebViewClient() {
+                            override fun onReceivedSslError(
+                                view: WebView?,
+                                handler: android.webkit.SslErrorHandler?,
+                                error: android.net.http.SslError?
+                            ) {
+                                handler?.proceed()
+                            }
+
                             override fun onReceivedError(
                                 view: WebView?,
                                 request: android.webkit.WebResourceRequest?,
@@ -277,8 +293,11 @@ private fun EmbedWebViewPlayerScreen(
                             ) {
                                 super.onReceivedError(view, request, error)
                                 if (request?.isForMainFrame == true) {
-                                    hasError = true
-                                    errorMessage = "Не удалось загрузить плеер источника"
+                                    val errCode = error?.errorCode ?: 0
+                                    if (errCode != -1 && errCode != ERROR_CONNECT && errCode != ERROR_TIMEOUT) {
+                                        hasError = true
+                                        errorMessage = "Не удалось загрузить плеер источника"
+                                    }
                                 }
                             }
 

@@ -25,10 +25,23 @@ import java.util.zip.GZIPInputStream
 
 object RezkaNativeResolver {
     private val MIRRORS = listOf(
-        "https://hdrezka-home.tv",
         "https://rezka.ag",
+        "https://omnirezka.tv",
         "https://hdrezka.me",
-        "https://hdrezka-club.com"
+        "https://hdrezka-home.tv",
+        "https://hdrezka.name",
+        "https://hdrezka.sh",
+        "https://hdrezka.in",
+        "https://hdrezka.club",
+        "https://rezka.pub",
+        "https://rezka-kz.tv",
+        "https://rezka-ua.net",
+        "https://rezka-ua.org",
+        "https://rezka-ua.in",
+        "https://rezka-ua.co",
+        "https://hdrezka.kim",
+        "https://rezka-ua.pub",
+        "https://rezkery.com"
     )
 
     private const val USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"

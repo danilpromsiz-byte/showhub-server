@@ -1,10 +1,10 @@
 {
   "success": true,
-  "version_name": "2.8.46",
-  "version_code": 105,
+  "version_name": "2.8.47",
+  "version_code": 106,
   "force_update": true,
-  "min_version_code": 105,
+  "min_version_code": 106,
   "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
   "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
-  "changelog": "v2.8.46: Embed-плееры (Kodik/VideoCDN/Bazon) загружаются через iframe-обёртку. HDRezka зеркала временно недоступны (500), будут работать автоматически при восстановлении."
+  "changelog": "v2.8.47: REVERT к рабочему подходу v2.8.40 — прямой loadUrl с Referer для всех embed-плееров. 17 зеркал HDRezka. Убран iframe-обёртка."
 }

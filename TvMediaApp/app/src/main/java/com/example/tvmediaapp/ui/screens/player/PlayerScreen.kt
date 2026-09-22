@@ -350,38 +350,25 @@ private fun EmbedWebViewPlayerScreen(
                         val targetUrl = movie.videoUrl.trim()
                         android.util.Log.d("EmbedPlayer", "Loading embed URL: $targetUrl")
 
-                        // Some embed players (Kodik, VideoCDN) check window.self !== window.top
-                        // and hide the player when loaded directly. Wrap these in an iframe.
-                        val needsIframe = targetUrl.contains("kodik") || 
-                                          targetUrl.contains("allarknow") || targetUrl.contains("bayas") ||
-                                          targetUrl.contains("bazon") || targetUrl.contains("delivembd") ||
-                                          targetUrl.contains("collaps")
-                        
-                        if (needsIframe) {
-                            val iframeHtml = """
-                                <!DOCTYPE html>
-                                <html><head>
-                                <meta name="viewport" content="width=device-width,initial-scale=1">
-                                <style>*{margin:0;padding:0;overflow:hidden;background:#000}
-                                iframe{position:fixed;top:0;left:0;width:100%;height:100%;border:none}</style>
-                                </head><body>
-                                <iframe src="$targetUrl" allowfullscreen allow="autoplay;encrypted-media" 
-                                    sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-presentation"></iframe>
-                                </body></html>
-                            """.trimIndent()
-                            loadDataWithBaseURL("https://showhub.tv/", iframeHtml, "text/html", "UTF-8", null)
+                        // Load embed URL directly with appropriate Referer headers
+                        // This is the v2.8.40 approach that was confirmed working
+                        val headers = HashMap<String, String>()
+                        when {
+                            targetUrl.contains("allarknow") || targetUrl.contains("bayas") || targetUrl.contains("videocdn") ->
+                                headers["Referer"] = "https://api.apbugall.org/"
+                            targetUrl.contains("kodik") ->
+                                headers["Referer"] = "https://kodikplayer.com/"
+                            targetUrl.contains("bazon") ->
+                                headers["Referer"] = "https://bazon.cc/"
+                            targetUrl.contains("collaps") || targetUrl.contains("delivembd") ->
+                                headers["Referer"] = "https://api.delivembd.ws/"
+                            targetUrl.contains("voidboost") || targetUrl.contains("rezka") ->
+                                headers["Referer"] = "https://hdrezka-home.tv/"
+                        }
+                        if (headers.isNotEmpty()) {
+                            loadUrl(targetUrl, headers)
                         } else {
-                            // Direct load for sources that work without iframe context
-                            val headers = HashMap<String, String>()
-                            when {
-                                targetUrl.contains("voidboost") || targetUrl.contains("rezka") ->
-                                    headers["Referer"] = "https://hdrezka-home.tv/"
-                            }
-                            if (headers.isNotEmpty()) {
-                                loadUrl(targetUrl, headers)
-                            } else {
-                                loadUrl(targetUrl)
-                            }
+                            loadUrl(targetUrl)
                         }
                         webViewRef = this
                         requestFocus()

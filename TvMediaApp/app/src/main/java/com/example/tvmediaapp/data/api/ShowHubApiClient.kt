@@ -504,7 +504,13 @@ object ShowHubApiClient {
                                 val isDirect = sType == "hls" || sType == "mp4" || sType == "torrent" ||
                                         uStr.contains(".m3u8") || uStr.contains(".mp4") || uStr.contains("voidboost") ||
                                         uStr.contains("/stream?link=")
-                                val sourceName = if (sType == "torrent" || src.equals("torrents", ignoreCase = true)) "Торренты (TorrServe)" else src.replaceFirstChar { it.uppercase() }
+                                val sourceName = when {
+                                    sType == "torrent" || src.equals("torrents", ignoreCase = true) -> "Торренты (TorrServe)"
+                                    src.equals("delivembd", ignoreCase = true) || src.equals("collaps", ignoreCase = true) -> "Collaps"
+                                    src.equals("videocdn", ignoreCase = true) -> "VideoCDN"
+                                    src.equals("hdrezka", ignoreCase = true) -> "HDRezka"
+                                    else -> src.replaceFirstChar { it.uppercase() }
+                                }
                                 if (isDirect) {
                                     directStreams.add(
                                         StreamOption(
@@ -528,19 +534,30 @@ object ShowHubApiClient {
                         }
                     }
                     val embedUrl = srcObj.optString("embed_url", "")
-                    if (embedUrl.startsWith("http") && directStreams.none { it.url == embedUrl } && embedStreams.none { it.url == embedUrl }) {
+                    if (embedUrl.startsWith("http") &&
+                        !src.equals("hdrezka", ignoreCase = true) &&
+                        !src.equals("filmix", ignoreCase = true) &&
+                        strArr != null && strArr.length() > 0 &&
+                        directStreams.none { it.url == embedUrl } &&
+                        embedStreams.none { it.url == embedUrl }
+                    ) {
                         val label = when (src) {
                             "videocdn" -> "VideoCDN Player (1080p)"
                             "bazon" -> "Bazon Player (HD)"
-                            "delivembd" -> "Delivembd Player"
+                            "delivembd" -> "Collaps Player (HD)"
                             else -> "${src.replaceFirstChar { it.uppercase() }} Player"
+                        }
+                        val embedSourceName = when (src.lowercase()) {
+                            "delivembd", "collaps" -> "Collaps"
+                            "videocdn" -> "VideoCDN"
+                            else -> src.replaceFirstChar { it.uppercase() }
                         }
                         embedStreams.add(
                             StreamOption(
                                 quality = label,
                                 url = embedUrl,
                                 isHls = false,
-                                source = src.replaceFirstChar { it.uppercase() }
+                                source = embedSourceName
                             )
                         )
                     }

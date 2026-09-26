@@ -121,7 +121,7 @@ object RezkaNativeResolver {
         val clean = cleanTitle(title)
         if (clean.isEmpty() && mediaUrl.isNullOrEmpty()) return@withContext null
 
-        for (baseUrl in MIRRORS) {
+        for (baseUrl in MIRRORS.take(2)) {
             val details = tryResolveDetailsFromMirror(baseUrl, clean, year, isSeries, mediaUrl, rawTitle = title, originalTitle = originalTitle)
             if (details != null && (details.audioTracks.isNotEmpty() || details.seasons.isNotEmpty())) {
                 return@withContext details
@@ -145,13 +145,23 @@ object RezkaNativeResolver {
         var pageUrl: String? = null
 
         // 0. Direct URL bypass if mediaUrl is an HDRezka page
-        if (!mediaUrl.isNullOrEmpty() && (mediaUrl.startsWith("http") || mediaUrl.contains("hdrezka") || mediaUrl.startsWith("rezka:"))) {
-            val path = mediaUrl.substringAfter(".tv").substringAfter(".me").substringAfter(".ag").substringAfter(".org").substringAfter(".com").substringAfter("rezka:")
-            val cleanPath = if (path.startsWith("/")) path else "/$path"
-            val idMatch = Pattern.compile("(\\d+)").matcher(cleanPath)
+        if (!mediaUrl.isNullOrEmpty() && (mediaUrl.startsWith("http") || mediaUrl.startsWith("/") || mediaUrl.contains("rezka"))) {
+            val rawPath = try {
+                if (mediaUrl.startsWith("http")) URI(mediaUrl).path ?: "" else mediaUrl.substringAfter("rezka:")
+            } catch (_: Exception) {
+                mediaUrl.replace(Regex("^https?://[^/]+"), "").substringAfter("rezka:")
+            }
+            val cleanPath = if (rawPath.startsWith("/")) rawPath else "/$rawPath"
+            val idMatch = Pattern.compile("/(\\d+)-").matcher(cleanPath)
             if (idMatch.find()) {
                 dataId = idMatch.group(1)
                 pageUrl = if (cleanPath.contains(".html")) "$baseUrl$cleanPath" else null
+            } else {
+                val anyId = Pattern.compile("(\\d+)").matcher(cleanPath)
+                if (anyId.find()) {
+                    dataId = anyId.group(1)
+                    pageUrl = if (cleanPath.contains(".html")) "$baseUrl$cleanPath" else null
+                }
             }
         }
 
@@ -419,6 +429,32 @@ object RezkaNativeResolver {
         return RezkaDetails(audioTracks = audioTracks, seasons = seasonsList, pageUrl = pageUrl)
     }
 
+    private fun decryptStreamUrl(encrypted: String): String {
+        if (encrypted.isEmpty() || encrypted.contains("[")) return encrypted
+        val trashCodes = listOf(
+            "\$\$!!@\$\$@^!@#\$\$@", "\$\$\$\$##!@#\$\$", "####^!!##!@@", "^^^!@!@@!!", "!!@!@@@!#@!",
+            "//_//",
+            "JCQhIUAkJEBeIUAjJCRA", "JCQkJCMjIUAjJCQ=", "IyMjI14hISMhQEA=", "Xl5eIUAhQEAhIQ==", "ISFAhQEAhI0Ah",
+            "QEBAQEAhIyMhXl5e", "IyMjI15eXiQhIUA=", "JCQhIUAkJEBeIUA=", "Xl5eIUAhQEAhIUA=", "ISFAhQEAhI0AhQA=="
+        )
+        var clean = if (encrypted.startsWith("#h")) encrypted.substring(2) else encrypted
+        repeat(3) {
+            for (tc in trashCodes) {
+                clean = clean.replace(tc, "")
+            }
+        }
+        clean = clean.replace(Regex("[^A-Za-z0-9+/=]"), "")
+        while (clean.length % 4 != 0) {
+            clean += "="
+        }
+        return try {
+            val decoded = String(android.util.Base64.decode(clean, android.util.Base64.DEFAULT), Charsets.UTF_8)
+            if (decoded.contains("[") && decoded.contains("http")) decoded else encrypted
+        } catch (_: Exception) {
+            encrypted
+        }
+    }
+
     suspend fun resolveStreams(
         title: String,
         year: String? = null,
@@ -432,8 +468,8 @@ object RezkaNativeResolver {
         val cleanTitle = cleanTitle(title)
         if (cleanTitle.isEmpty() && mediaUrl.isNullOrEmpty()) return@withContext emptyList()
 
-        // Try primary and fallback mirrors
-        for (baseUrl in MIRRORS) {
+        // Try primary and fallback mirrors (max 2 to never stall UI)
+        for (baseUrl in MIRRORS.take(2)) {
             val result = tryResolveFromMirror(baseUrl, cleanTitle, year, isSeries, season, episode, translatorId, mediaUrl, rawTitle = title, originalTitle = originalTitle)
             if (result.isNotEmpty()) {
                 return@withContext result
@@ -462,6 +498,14 @@ object RezkaNativeResolver {
 
             // 2. Fetch media page to establish session cookies & discover translator ID
             val pageHtml = httpGet(pageUrl, "$baseUrl/", baseUrl = baseUrl) ?: ""
+            if (pageHtml.isEmpty() || pageHtml.contains("<title>Вход</title>") || pageHtml.contains("id=\"check-form\"") || pageHtml.contains("b-player__restricted")) {
+                return emptyList()
+            }
+
+            val favsVal = run {
+                val favsMatcher = Pattern.compile("id=[\"']ctrl_favs[\"']\\s+value=[\"']([^\"']+)[\"']").matcher(pageHtml)
+                if (favsMatcher.find()) favsMatcher.group(1) ?: "" else ""
+            }
             
             // Extract the real default or active translator on this specific page
             val pageDefaultTransId = run {
@@ -521,6 +565,9 @@ object RezkaNativeResolver {
                     .append("id=").append(dataId)
                     .append("&translator_id=").append(targetTransId)
                     .append("&action=").append(if (actualIsSeries) "get_stream" else "get_movie")
+                if (favsVal.isNotEmpty()) {
+                    postData.append("&favs=").append(favsVal)
+                }
                 if (actualIsSeries) {
                     postData.append("&season=").append(sNum).append("&episode=").append(epNum)
                 }
@@ -558,7 +605,8 @@ object RezkaNativeResolver {
                 return emptyList()
             }
 
-            fun parseStreams(raw: String, isFallback: Boolean = false) {
+            fun parseStreams(rawInput: String, isFallback: Boolean = false) {
+                val raw = decryptStreamUrl(rawInput)
                 val parts = raw.split(Regex(",\\s*(?=\\[[^\\]]+\\])"))
                 for (part in parts) {
                     val m = Pattern.compile("\\[([^\\]]+)\\](.*)").matcher(part)
@@ -592,6 +640,9 @@ object RezkaNativeResolver {
                     .append("id=").append(dataId)
                     .append("&translator_id=").append(fbId)
                     .append("&action=").append(if (actualIsSeries) "get_stream" else "get_movie")
+                if (favsVal.isNotEmpty()) {
+                    fbPostData.append("&favs=").append(favsVal)
+                }
                 if (actualIsSeries) {
                     fbPostData.append("&season=").append(season).append("&episode=").append(episode)
                 }
@@ -615,8 +666,8 @@ object RezkaNativeResolver {
             val url = URL(urlStr)
             val conn = url.openConnection() as HttpURLConnection
             conn.requestMethod = "GET"
-            conn.connectTimeout = 8000
-            conn.readTimeout = 10000
+            conn.connectTimeout = 3500
+            conn.readTimeout = 4500
             conn.setRequestProperty("User-Agent", USER_AGENT)
             conn.setRequestProperty("Accept-Encoding", "gzip, deflate")
             if (referer != null) conn.setRequestProperty("Referer", referer)
@@ -660,8 +711,8 @@ object RezkaNativeResolver {
             val url = URL(urlStr)
             val conn = url.openConnection() as HttpURLConnection
             conn.requestMethod = "POST"
-            conn.connectTimeout = 8000
-            conn.readTimeout = 10000
+            conn.connectTimeout = 3500
+            conn.readTimeout = 4500
             conn.doOutput = true
             conn.setRequestProperty("User-Agent", USER_AGENT)
             conn.setRequestProperty("Accept-Encoding", "gzip, deflate")

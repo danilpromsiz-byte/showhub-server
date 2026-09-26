@@ -117,13 +117,26 @@ import kotlinx.coroutines.launch
 fun isDirectVideoStream(url: String): Boolean {
     val clean = url.lowercase().trim()
     if (clean.contains("embed") || clean.contains("allarknow") || clean.contains("bayas") || clean.contains("bazon.cc") || 
-        clean.contains("delivembd") || clean.contains("kinobase") || clean.contains("iframe") || 
+        clean.contains("delivembd") || clean.contains("namy.ws") || clean.contains("embess.ws") || clean.contains("nextembed.ws") ||
+        clean.contains("videoframe") || clean.contains("kinobase") || clean.contains("iframe") || 
         clean.contains("kodikplayer") || clean.contains("kodik.info") ||
         clean.endsWith(".html") || clean.contains(".html?")) {
         return false
     }
     return clean.contains(".m3u8") || clean.contains(".mp4") || clean.contains("voidboost") || 
            clean.contains("/stream/") || clean.contains("/hls/") || clean.contains(".mkv") || clean.contains(".webm")
+}
+
+fun resolveEmbedBaseUrl(streamUrl: String): String {
+    val u = streamUrl.lowercase()
+    return when {
+        u.contains("allarknow") || u.contains("bayas") || u.contains("apbugall") || u.contains("alloha") -> "https://a-apps.net/"
+        u.contains("videoframe") || u.contains("vibix") -> "https://kngo.website/"
+        u.contains("namy.ws") || u.contains("embess.ws") || u.contains("nextembed.ws") || u.contains("delivembd") || u.contains("collaps") -> "https://api.namy.ws/"
+        u.contains("kodik") -> "https://kodikplayer.com/"
+        u.contains("bazon") -> "https://bazon.cc/"
+        else -> "https://showhub-server.onrender.com/"
+    }
 }
 
 @Composable
@@ -350,11 +363,13 @@ private fun EmbedWebViewPlayerScreen(
                         val targetUrl = movie.videoUrl.trim()
                         android.util.Log.d("EmbedPlayer", "Loading embed URL: $targetUrl")
 
-                        // Kodik requires isIframe()=true — it checks window.self !== window.top
-                        // VideoCDN also works better inside iframe
+                        // Kodik, Alloha, Vibix, Collaps work cleanly inside an iframe with domain-matched baseUrl
                         val needsIframeWrapper = targetUrl.contains("kodik") ||
                                 targetUrl.contains("allarknow") || targetUrl.contains("bayas") ||
-                                targetUrl.contains("videocdn")
+                                targetUrl.contains("videocdn") || targetUrl.contains("videoframe") ||
+                                targetUrl.contains("namy.ws") || targetUrl.contains("embess.ws") ||
+                                targetUrl.contains("nextembed.ws") || targetUrl.contains("delivembd") ||
+                                targetUrl.contains("collaps")
 
                         if (needsIframeWrapper) {
                             val iframeHtml = """
@@ -364,14 +379,10 @@ private fun EmbedWebViewPlayerScreen(
                                 <style>*{margin:0;padding:0;overflow:hidden}html,body{height:100%;background:#000}
                                 iframe{width:100%;height:100%;border:none}</style>
                                 </head><body>
-                                <iframe src="$targetUrl" allowfullscreen allow="autoplay;encrypted-media" 
-                                    sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-presentation"></iframe>
+                                <iframe src="$targetUrl" allowfullscreen allow="autoplay; encrypted-media; fullscreen"></iframe>
                                 </body></html>
                             """.trimIndent()
-                            val baseUrl = when {
-                                targetUrl.contains("kodik") -> "https://kodikplayer.com/"
-                                else -> "https://api.apbugall.org/"
-                            }
+                            val baseUrl = resolveEmbedBaseUrl(targetUrl)
                             loadDataWithBaseURL(baseUrl, iframeHtml, "text/html", "UTF-8", null)
                         } else {
                             // Load embed URL directly with appropriate Referer headers
@@ -379,8 +390,8 @@ private fun EmbedWebViewPlayerScreen(
                             when {
                                 targetUrl.contains("bazon") ->
                                     headers["Referer"] = "https://bazon.cc/"
-                                targetUrl.contains("collaps") || targetUrl.contains("delivembd") ->
-                                    headers["Referer"] = "https://api.delivembd.ws/"
+                                targetUrl.contains("collaps") || targetUrl.contains("delivembd") || targetUrl.contains("namy.ws") ->
+                                    headers["Referer"] = "https://api.namy.ws/"
                                 targetUrl.contains("voidboost") || targetUrl.contains("rezka") ->
                                     headers["Referer"] = "https://hdrezka-home.tv/"
                             }
@@ -533,7 +544,24 @@ private fun NativeExoPlayerScreen(
             .setConnectTimeoutMs(15000)
             .setReadTimeoutMs(30000)
             .setAllowCrossProtocolRedirects(true)
-        val mediaSourceFactory = DefaultMediaSourceFactory(httpDataSourceFactory)
+        val resolvingDataSourceFactory = androidx.media3.datasource.ResolvingDataSource.Factory(httpDataSourceFactory) { dataSpec ->
+            val u = dataSpec.uri.toString().lowercase()
+            val headers = HashMap<String, String>(dataSpec.httpRequestHeaders)
+            when {
+                u.contains("interkh") || u.contains("namy.ws") || u.contains("embess.ws") || u.contains("nextembed.ws") -> {
+                    headers["Referer"] = "https://api.namy.ws/"
+                    headers["Origin"] = "https://api.namy.ws"
+                }
+                u.contains("filmix") -> {
+                    headers["Referer"] = "https://filmix.my/"
+                }
+                else -> {
+                    headers["Referer"] = "https://hdrezka.ag/"
+                }
+            }
+            dataSpec.buildUpon().setHttpRequestHeaders(headers).build()
+        }
+        val mediaSourceFactory = DefaultMediaSourceFactory(resolvingDataSourceFactory)
 
         val loadControl = DefaultLoadControl.Builder()
             .setAllocator(DefaultAllocator(true, C.DEFAULT_BUFFER_SEGMENT_SIZE))
@@ -699,7 +727,7 @@ private fun NativeExoPlayerScreen(
                 s.contains("Filmix", ignoreCase = true) -> "Filmix"
                 s.contains("Kodik", ignoreCase = true) -> "Kodik"
                 s.contains("VideoCDN", ignoreCase = true) -> "VideoCDN"
-                s.contains("Collaps", ignoreCase = true) -> "Collaps"
+                s.contains("Collaps", ignoreCase = true) || s.contains("Delivembd", ignoreCase = true) -> "Collaps"
                 s.contains("Bazon", ignoreCase = true) -> "Bazon"
                 s.isNotEmpty() -> s.replaceFirstChar { it.uppercase() }
                 else -> "HDrezka"
@@ -772,16 +800,18 @@ private fun NativeExoPlayerScreen(
                         val rezkaMediaUrl = if (currentMovieState.id.startsWith("http") || currentMovieState.id.contains("hdrezka") || currentMovieState.id.startsWith("rezka:")) {
                             currentMovieState.id
                         } else null
-                        RezkaNativeResolver.resolveStreams(
-                            title = currentMovieState.title,
-                            year = currentMovieState.releaseYear,
-                            isSeries = currentMovieState.isSeries,
-                            season = newSeason,
-                            episode = epToPlay,
-                            translatorId = newAudioId.ifEmpty { null },
-                            mediaUrl = rezkaMediaUrl,
-                            originalTitle = currentMovieState.originalTitle
-                        )
+                        kotlinx.coroutines.withTimeoutOrNull(4500L) {
+                            RezkaNativeResolver.resolveStreams(
+                                title = currentMovieState.title,
+                                year = currentMovieState.releaseYear,
+                                isSeries = currentMovieState.isSeries,
+                                season = newSeason,
+                                episode = epToPlay,
+                                translatorId = newAudioId.ifEmpty { null },
+                                mediaUrl = rezkaMediaUrl,
+                                originalTitle = currentMovieState.originalTitle
+                            )
+                        } ?: emptyList()
                     } else {
                         emptyList()
                     }
@@ -824,6 +854,10 @@ private fun NativeExoPlayerScreen(
                                 s.url.contains(":8090") || s.quality.contains("P2P", ignoreCase = true) || s.source.contains("torrent", ignoreCase = true)
                             newSource.equals("HDrezka", ignoreCase = true) ->
                                 s.source.equals("HDrezka", ignoreCase = true) || s.url.contains("voidboost") || s.url.contains("rezka")
+                            newSource.equals("Collaps", ignoreCase = true) || newSource.equals("Delivembd", ignoreCase = true) ->
+                                s.source.contains("Collaps", ignoreCase = true) || s.source.contains("Delivembd", ignoreCase = true) || s.url.contains("interkh") || s.url.contains("namy.ws")
+                            newSource.equals("VideoCDN", ignoreCase = true) ->
+                                s.source.contains("VideoCDN", ignoreCase = true) || s.url.contains("allarknow") || s.url.contains("bayas") || s.url.contains("videoframe")
                             else ->
                                 s.source.contains(newSource, ignoreCase = true) || s.quality.contains(newSource, ignoreCase = true) || s.url.contains(newSource.lowercase())
                         }
@@ -843,7 +877,13 @@ private fun NativeExoPlayerScreen(
 
                 val targetStream = adjustedStreams.firstOrNull { matchQuality(it.quality, newQuality) && isDirectVideoStream(it.url) }
                     ?: adjustedStreams.firstOrNull { isDirectVideoStream(it.url) }
-                    ?: adjustedStreams.firstOrNull()
+                    ?: if (newSource.equals("HDrezka", ignoreCase = true) || newSource.equals("Все", ignoreCase = true)) {
+                        allResolved.firstOrNull { matchQuality(it.quality, newQuality) && isDirectVideoStream(it.url) }
+                            ?: allResolved.firstOrNull { isDirectVideoStream(it.url) }
+                            ?: adjustedStreams.firstOrNull()
+                    } else {
+                        adjustedStreams.firstOrNull()
+                    }
 
                 if (targetStream != null) {
                     currentStreamUrl = targetStream.url
@@ -1183,11 +1223,29 @@ private fun NativeExoPlayerScreen(
             AndroidView(
                 factory = { ctx ->
                     WebView(ctx).apply {
-                        settings.javaScriptEnabled = true
-                        settings.domStorageEnabled = true
-                        settings.mediaPlaybackRequiresUserGesture = false
+                        try {
+                            val cm = android.webkit.CookieManager.getInstance()
+                            cm.setAcceptCookie(true)
+                            cm.setAcceptThirdPartyCookies(this, true)
+                        } catch (_: Exception) {}
+                        settings.apply {
+                            javaScriptEnabled = true
+                            domStorageEnabled = true
+                            databaseEnabled = true
+                            mediaPlaybackRequiresUserGesture = false
+                            userAgentString = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+                            mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+                        }
                         webChromeClient = WebChromeClient()
                         webViewClient = object : WebViewClient() {
+                            override fun onReceivedSslError(
+                                view: WebView?,
+                                handler: android.webkit.SslErrorHandler?,
+                                error: android.net.http.SslError?
+                            ) {
+                                handler?.proceed()
+                            }
+
                             override fun onPageFinished(view: WebView?, url: String?) {
                                 view?.evaluateJavascript(
                                     """
@@ -1217,31 +1275,35 @@ private fun NativeExoPlayerScreen(
                             </style>
                             </head>
                             <body>
-                              <iframe src="$currentStreamUrl" allow="autoplay; fullscreen" allowfullscreen></iframe>
+                              <iframe src="$currentStreamUrl" allow="autoplay; encrypted-media; fullscreen" allowfullscreen></iframe>
                             </body>
                             </html>
                         """.trimIndent()
-                        loadDataWithBaseURL("https://showhub-server.onrender.com", html, "text/html", "UTF-8", null)
+                        tag = currentStreamUrl
+                        loadDataWithBaseURL(resolveEmbedBaseUrl(currentStreamUrl), html, "text/html", "UTF-8", null)
                     }
                 },
                 update = { wv ->
-                    val html = """
-                        <!DOCTYPE html>
-                        <html>
-                        <head>
-                        <meta charset="utf-8">
-                        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-                        <style>
-                          html, body { margin: 0; padding: 0; width: 100vw; height: 100vh; background: #000; overflow: hidden; }
-                          iframe { width: 100%; height: 100%; border: 0; position: absolute; top: 0; left: 0; }
-                        </style>
-                        </head>
-                        <body>
-                          <iframe src="$currentStreamUrl" allow="autoplay; fullscreen" allowfullscreen></iframe>
-                        </body>
-                        </html>
-                    """.trimIndent()
-                    wv.loadDataWithBaseURL("https://showhub-server.onrender.com", html, "text/html", "UTF-8", null)
+                    if (wv.tag != currentStreamUrl) {
+                        wv.tag = currentStreamUrl
+                        val html = """
+                            <!DOCTYPE html>
+                            <html>
+                            <head>
+                            <meta charset="utf-8">
+                            <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+                            <style>
+                              html, body { margin: 0; padding: 0; width: 100vw; height: 100vh; background: #000; overflow: hidden; }
+                              iframe { width: 100%; height: 100%; border: 0; position: absolute; top: 0; left: 0; }
+                            </style>
+                            </head>
+                            <body>
+                              <iframe src="$currentStreamUrl" allow="autoplay; encrypted-media; fullscreen" allowfullscreen></iframe>
+                            </body>
+                            </html>
+                        """.trimIndent()
+                        wv.loadDataWithBaseURL(resolveEmbedBaseUrl(currentStreamUrl), html, "text/html", "UTF-8", null)
+                    }
                 },
                 modifier = Modifier.fillMaxSize()
             )

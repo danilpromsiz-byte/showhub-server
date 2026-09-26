@@ -1,11 +1,13 @@
 """
-HDRezka Source Adapter with Autonomous Anubis PoW Solver & 20 Internal Mirrors.
-Extracted from 'HDrezka TV' (ru.astroapps.hdrezka v1.4.0, class LR8/o;).
-Automatically solves Techaro Anubis Proof-of-Work challenges on the fly (1-2 ms)
-and extracts direct CDN video streams (360p, 480p, 720p, 1080p, Ultra, 4K).
+HDRezka Source Adapter with Autonomous Anubis PoW Solver, Account Auth, & EU Proxy Fallback.
+Extracted from 'HDrezka TV' (ru.astroapps.hdrezka v1.4.0) and 'Кино HD' (fGrfleDmwo -> 2.2.5).
+Automatically solves Techaro Anubis Proof-of-Work challenges on the fly (1-2 ms),
+decrypts #h trash-obfuscated stream manifests, and extracts direct CDN video streams.
 """
+import os
 import time
 import json
+import base64
 import hashlib
 import re
 import html
@@ -16,27 +18,111 @@ from typing import List, Optional, Tuple, Dict, Any
 from .base import BaseSource, MediaItem, StreamResult, VideoStream, SubtitleTrack, CanaryReport
 from ..core.mirror_manager import mirror_manager
 
+
 class HDRezkaSource(BaseSource):
     name = "hdrezka"
     display_name = "HDRezka"
     source_type = "portal"
 
+    DEFAULT_EU_PROXIES = [
+        "95.3.69.222:8080",
+        "185.196.182.22:8080",
+        "152.53.183.107:8082",
+        "79.106.231.17:8080",
+        "38.49.210.113:8118",
+        "181.119.224.25:8080",
+        "163.181.207.226:9999",
+        "103.172.17.14:8080",
+    ]
+
     def __init__(self):
         self.session = requests.Session()
         self.session.headers.update({
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
         })
+
         self.active_mirror: Optional[str] = None
         self.last_solver_time = 0
+        self.proxy_session: Optional[requests.Session] = None
+        self.active_proxy: Optional[str] = None
+        self._using_proxy_for_ag: bool = False
+
+        data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
+        os.makedirs(data_dir, exist_ok=True)
+        self.session_file = os.path.join(data_dir, "hdrezka_session.json")
+        self._load_session()
+
+    def _load_session(self):
+        if os.path.exists(self.session_file):
+            try:
+                with open(self.session_file, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    for k, v in (data.get("cookies") or {}).items():
+                        self.session.cookies.set(str(k), str(v))
+            except Exception:
+                pass
+
+    def _save_session(self, login_name: str = ""):
+        try:
+            cookies_dict = {c.name: c.value for c in self.session.cookies}
+            with open(self.session_file, "w", encoding="utf-8") as f:
+                json.dump({"login_name": login_name, "cookies": cookies_dict, "updated_at": time.time()}, f, ensure_ascii=False, indent=2)
+        except Exception:
+            pass
+
+    def login(self, login_name: str, login_password: str) -> Dict[str, Any]:
+        """Logs into HDRezka via POST /ajax/login/ and persists dle_user_id & dle_password cookies."""
+        base = self._get_base()
+        login_url = f"{base}/ajax/login/"
+        try:
+            self._get_with_anubis(f"{base}/", base)
+            r = self.session.post(
+                login_url,
+                data={
+                    "login_name": login_name,
+                    "login_password": login_password,
+                    "login_not_save": "0"
+                },
+                headers={
+                    "X-Requested-With": "XMLHttpRequest",
+                    "Referer": f"{base}/"
+                },
+                timeout=8
+            )
+            if r.status_code == 200:
+                res_json = r.json()
+                if res_json.get("success"):
+                    self._save_session(login_name=login_name)
+                    return {"success": True, "message": "Успешный вход в HDRezka"}
+                return {"success": False, "message": res_json.get("message") or "Неверный логин или пароль"}
+        except Exception as e:
+            return {"success": False, "message": f"Ошибка входа: {str(e)}"}
+        return {"success": False, "message": "Не удалось выполнить вход"}
+
+    def set_cookies(self, cookies: Dict[str, str]) -> Dict[str, Any]:
+        for k, v in cookies.items():
+            self.session.cookies.set(str(k), str(v))
+        self._save_session()
+        return {"success": True, "message": "Cookies HDRezka сохранены"}
+
+    def logout(self):
+        self.session.cookies.clear()
+        self.session.cookies.set("hdmbbs", "1")
+        if os.path.exists(self.session_file):
+            try:
+                os.remove(self.session_file)
+            except Exception:
+                pass
 
     def _get_base(self) -> str:
         if self.active_mirror:
             return self.active_mirror
         mirrors = mirror_manager.get_mirrors("hdrezka")
-        return mirrors[0] if mirrors else "https://hdrezka-home.tv"
+        return mirrors[0] if mirrors else "https://rezka.ag"
 
-    def _solve_anubis(self, base_url: str, html_text: str, target_url: str) -> requests.Response:
+    def _solve_anubis(self, base_url: str, html_text: str, target_url: str, session: Optional[requests.Session] = None) -> requests.Response:
         """Solves Techaro Anubis SHA-256 Proof-of-Work in ~1 ms and obtains clearance cookies."""
+        sess = session or self.session
         soup = BeautifulSoup(html_text, "html.parser")
         challenge_tag = soup.find("script", id="anubis_challenge")
         prefix_tag = soup.find("script", id="anubis_base_prefix")
@@ -83,30 +169,128 @@ class HDRezkaSource(BaseSource):
             "elapsedTime": str(elapsed)
         }
 
-        r_pass = self.session.get(pass_url, params=params, timeout=6, allow_redirects=True)
+        r_pass = sess.get(pass_url, params=params, timeout=8, allow_redirects=True)
         return r_pass
 
+    def _get_eu_proxies(self, fetch_remote: bool = False) -> List[str]:
+        proxies = list(self.DEFAULT_EU_PROXIES)
+        if self.active_proxy and self.active_proxy in proxies:
+            proxies.remove(self.active_proxy)
+            proxies.insert(0, self.active_proxy)
+        if fetch_remote:
+            try:
+                r = requests.get(
+                    "https://api.proxyscrape.com/v2/?request=displayproxies&protocol=http&timeout=2500&ssl=yes",
+                    timeout=3.0
+                )
+                if r.status_code == 200:
+                    for p in r.text.strip().splitlines()[:40]:
+                        p_clean = p.strip()
+                        if p_clean and p_clean not in proxies:
+                            proxies.append(p_clean)
+            except Exception:
+                pass
+        return proxies
+
+    def _get_via_eu_proxy(self, path_or_url: str) -> Optional[requests.Response]:
+        """Fetches https://rezka.ag via a non-restricted proxy when direct RU access gets 403 or login gate."""
+        import concurrent.futures
+        parsed = urllib.parse.urlparse(path_or_url)
+        path_and_query = parsed.path + (f"?{parsed.query}" if parsed.query else "")
+        ag_base = "https://rezka.ag"
+        ag_url = f"{ag_base}{path_and_query}"
+
+        # 1. Try cached proxy_session first
+        if self.proxy_session and self.active_proxy:
+            try:
+                r = self.proxy_session.get(ag_url, headers={"Referer": f"{ag_base}/"}, timeout=(2.5, 5.5))
+                if "anubis_challenge" in r.text:
+                    r = self._solve_anubis(ag_base, r.text, ag_url, session=self.proxy_session)
+                if r.status_code == 200 and 'id="check-form"' not in r.text and '<title>Вход</title>' not in r.text and 'b-player__restricted' not in r.text:
+                    self._using_proxy_for_ag = True
+                    return r
+            except Exception:
+                self.proxy_session = None
+                self.active_proxy = None
+
+        # 2. Probe proxies in parallel using ThreadPoolExecutor
+        candidates = self._get_eu_proxies(fetch_remote=True)[:40]
+
+        def _try_single_proxy(p: str):
+            sess = requests.Session()
+            sess.headers.update(self.session.headers)
+            sess.proxies = {"http": f"http://{p}", "https": f"http://{p}"}
+            r = sess.get(ag_url, headers={"Referer": f"{ag_base}/"}, timeout=(2.5, 5.0))
+            if "anubis_challenge" in r.text:
+                r = self._solve_anubis(ag_base, r.text, ag_url, session=sess)
+            if r.status_code == 200 and 'id="check-form"' not in r.text and '<title>Вход</title>' not in r.text and 'b-player__restricted' not in r.text:
+                return (p, sess, r)
+            return None
+
+        executor = concurrent.futures.ThreadPoolExecutor(max_workers=24)
+        futures = [executor.submit(_try_single_proxy, p) for p in candidates]
+        try:
+            for fut in concurrent.futures.as_completed(futures, timeout=7.5):
+                try:
+                    res_tuple = fut.result()
+                    if res_tuple is not None:
+                        win_p, win_sess, win_r = res_tuple
+                        self.proxy_session = win_sess
+                        self.active_proxy = win_p
+                        self._using_proxy_for_ag = True
+                        executor.shutdown(wait=False, cancel_futures=True)
+                        return win_r
+                except Exception:
+                    continue
+        except Exception:
+            pass
+        finally:
+            executor.shutdown(wait=False, cancel_futures=True)
+
+        return None
+
     def _get_with_anubis(self, url: str, base_url: str) -> requests.Response:
+        is_item_page = bool(re.search(r'\.html(?:\?|$)', url))
+        # If we already have an active EU proxy session for item pages, use it immediately!
+        if is_item_page and self._using_proxy_for_ag and self.proxy_session:
+            proxy_r = self._get_via_eu_proxy(url)
+            if proxy_r is not None:
+                return proxy_r
+
         candidate_mirrors = [base_url] + [m for m in mirror_manager.get_mirrors("hdrezka") if m != base_url]
         last_error = None
         last_resp = None
-        for mirror in candidate_mirrors[:5]:
+
+        for mirror in candidate_mirrors[:4]:
             current_url = url.replace(base_url, mirror) if base_url != mirror else url
             headers = {"Referer": f"{mirror}/"}
             try:
-                r = self.session.get(current_url, headers=headers, timeout=6)
+                r = self.session.get(current_url, headers=headers, timeout=4)
                 if r.status_code in [500, 502, 503, 403, 429] and "anubis_challenge" not in r.text:
                     last_resp = r
                     continue
                 if "anubis_challenge" in r.text:
                     r = self._solve_anubis(mirror, r.text, current_url)
                 if r.status_code == 200:
+                    # Check if mirror returned login gate (<title>Вход</title> / id="check-form") for a movie/series page
+                    if is_item_page and ('id="check-form"' in r.text or '<title>Вход</title>' in r.text):
+                        last_resp = r
+                        # All RU mirrors share the same auth gate; break immediately to EU proxy fallback!
+                        break
                     self.active_mirror = mirror
+                    self._using_proxy_for_ag = False
                     return r
                 last_resp = r
             except Exception as e:
                 last_error = e
                 continue
+
+        # If item page was blocked by 403 or login gate across direct mirrors, use EU proxy on rezka.ag!
+        if is_item_page:
+            proxy_r = self._get_via_eu_proxy(url)
+            if proxy_r is not None:
+                return proxy_r
+
         if last_resp is not None:
             return last_resp
         if last_error:
@@ -220,6 +404,54 @@ class HDRezkaSource(BaseSource):
                         items.append(item)
         except Exception:
             pass
+
+        # Fast unblocked AJAX live search fallback (/engine/ajax/search.php works directly from RU without auth gate!)
+        if not items:
+            for ajax_mirror in ["https://hdrezka.cm", "https://rezka.si", base]:
+                try:
+                    r_ajax = self.session.post(
+                        f"{ajax_mirror}/engine/ajax/search.php",
+                        data={"q": query},
+                        headers={"X-Requested-With": "XMLHttpRequest", "Referer": f"{ajax_mirror}/"},
+                        timeout=4
+                    )
+                    if r_ajax.status_code == 200 and "b-search__section_list" in r_ajax.text:
+                        soup_a = BeautifulSoup(r_ajax.text, "html.parser")
+                        for li in soup_a.select(".b-search__section_list li"):
+                            a_tag = li.select_one("a")
+                            if not a_tag:
+                                continue
+                            href = a_tag.get("href", "")
+                            if not href:
+                                continue
+                            enty = a_tag.select_one(".enty")
+                            title_txt = html.unescape(enty.text.strip()) if enty else html.unescape(a_tag.text.strip())
+                            full_txt = html.unescape(a_tag.text.strip())
+                            desc_txt = full_txt.replace(title_txt, "", 1).strip()
+                            item_year = year
+                            y_m = re.search(r'\b(19\d\d|20\d\d)\b', desc_txt or href)
+                            if y_m:
+                                try:
+                                    item_year = int(y_m.group(1))
+                                except ValueError:
+                                    pass
+                            id_m = re.search(r'/(\d+)-', href)
+                            data_id = id_m.group(1) if id_m else None
+                            is_ser = ("/series/" in href) or ("/animation/" in href) or (" - ..." in desc_txt)
+                            items.append(MediaItem(
+                                id=href,
+                                source_name=self.name,
+                                title=title_txt,
+                                year=item_year,
+                                is_series=is_ser,
+                                description=desc_txt,
+                                extra_data={"page_url": href, "data_id": data_id}
+                            ))
+                        if items:
+                            break
+                except Exception:
+                    continue
+
         return items
 
     def get_catalog(self, category: str = "all", genre: Optional[str] = None, page: int = 1) -> List[MediaItem]:
@@ -446,6 +678,57 @@ class HDRezkaSource(BaseSource):
         except Exception:
             return None
 
+    def _post_ajax(self, base: str, page_url: str, post_data: Dict[str, Any]) -> Optional[requests.Response]:
+        t_now = int(time.time() * 1000)
+        parsed_p = urllib.parse.urlparse(page_url)
+
+        if self._using_proxy_for_ag and self.proxy_session:
+            ag_base = "https://rezka.ag"
+            ajax_url = f"{ag_base}/ajax/get_cdn_series/?t={t_now}"
+            headers = {
+                "X-Requested-With": "XMLHttpRequest",
+                "Referer": f"{ag_base}{parsed_p.path}"
+            }
+            try:
+                r = self.proxy_session.post(ajax_url, data=post_data, headers=headers, timeout=8)
+                if r.status_code == 200:
+                    return r
+            except Exception:
+                pass
+
+        ajax_url = f"{base}/ajax/get_cdn_series/?t={t_now}"
+        post_headers = {
+            "X-Requested-With": "XMLHttpRequest",
+            "Referer": page_url
+        }
+        try:
+            r = self.session.post(ajax_url, data=post_data, headers=post_headers, timeout=8)
+            if r.status_code == 200:
+                try:
+                    j = r.json()
+                    if j.get("success") or j.get("url") or j.get("streams") or j.get("episodes"):
+                        return r
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+        # Fallback: initialize proxy_session on rezka.ag if not initialized yet
+        if not self.proxy_session:
+            self._get_via_eu_proxy(page_url)
+        if self.proxy_session:
+            ag_base = "https://rezka.ag"
+            ajax_url = f"{ag_base}/ajax/get_cdn_series/?t={t_now}"
+            headers = {
+                "X-Requested-With": "XMLHttpRequest",
+                "Referer": f"{ag_base}{parsed_p.path}"
+            }
+            try:
+                return self.proxy_session.post(ajax_url, data=post_data, headers=headers, timeout=8)
+            except Exception:
+                pass
+        return None
+
     def get_episodes(self, media_id: str, translator_id: str, title: Optional[str] = None) -> List[Dict[str, Any]]:
         """Fetches authentic translator-specific seasons and episodes via HDRezka CDN AJAX."""
         media_str = str(media_id).strip()
@@ -466,6 +749,7 @@ class HDRezkaSource(BaseSource):
             except Exception:
                 pass
 
+        favs_val = ""
         if media_str.isdigit():
             data_id = media_str
             page_url = f"{base}/"
@@ -483,6 +767,9 @@ class HDRezkaSource(BaseSource):
 
                 id_match = re.search(r'data-id="(\d+)"', res.text)
                 m_init_args = re.search(r'initCDN(?:Movies|Series)Events\(\s*(\d+)\s*,\s*(\d+)', res.text)
+                favs_m = re.search(r'id=["\']ctrl_favs["\']\s+value=["\']([^"\']+)["\']', res.text)
+                if favs_m:
+                    favs_val = favs_m.group(1)
                 data_id = (id_match.group(1) if id_match else None) or (m_init_args.group(1) if m_init_args else None)
                 if not data_id:
                     return []
@@ -490,19 +777,15 @@ class HDRezkaSource(BaseSource):
                 return []
 
         try:
-            t_now = int(time.time() * 1000)
-            ajax_url = f"{base}/ajax/get_cdn_series/?t={t_now}"
             post_data = {
                 "id": data_id,
                 "translator_id": translator_id,
                 "action": "get_episodes"
             }
-            post_headers = {
-                "X-Requested-With": "XMLHttpRequest",
-                "Referer": page_url
-            }
-            r = self.session.post(ajax_url, data=post_data, headers=post_headers, timeout=8)
-            if r.status_code == 200:
+            if favs_val:
+                post_data["favs"] = favs_val
+            r = self._post_ajax(base, page_url, post_data)
+            if r is not None and r.status_code == 200:
                 d = r.json()
                 if d.get("success"):
                     episodes_html = d.get("episodes", "")
@@ -571,10 +854,13 @@ class HDRezkaSource(BaseSource):
 
         try:
             res = self._get_with_anubis(page_url, base)
+            eff_base = "https://rezka.ag" if self._using_proxy_for_ag else base
 
             # Check if streams are already embedded in the HTML via initCDNMoviesEvents / initCDNSeriesEvents
             cdn_m = re.search(r'initCDN(?:Movies|Series)Events\(\s*(\d+)\s*,\s*(\d+).*?,\s*(\{.*?\})\s*\);', res.text, re.DOTALL)
             m_init_args = re.search(r'initCDN(?:Movies|Series)Events\(\s*(\d+)\s*,\s*(\d+)', res.text)
+            favs_m = re.search(r'id=["\']ctrl_favs["\']\s+value=["\']([^"\']+)["\']', res.text)
+            favs_val = favs_m.group(1) if favs_m else ""
             
             id_match = re.search(r'data-id="(\d+)"', res.text)
             trans_match = re.search(r'data-translator_id="(\d+)"', res.text)
@@ -583,17 +869,18 @@ class HDRezkaSource(BaseSource):
             default_trans = (trans_match.group(1) if trans_match else None) or (m_init_args.group(2) if m_init_args else "238")
             trans_id = audio_id or default_trans
 
-            is_series = bool(re.search(r'id="simple-seasons-tabs"', res.text))
+            is_series = bool(re.search(r'id="simple-seasons-tabs"', res.text)) or ("initCDNSeriesEvents" in res.text)
 
-            # If movie or single video, and not requesting a different audio track, parse directly from HTML if available
+            # Parse directly from HTML if available and matches default episode 1 / movie
             parsed_from_html = False
-            if cdn_m and (not audio_id or audio_id == cdn_m.group(2)) and not (is_series and (season or episode)):
+            is_ep1_or_movie = (not is_series) or ((not season or int(season) == 1) and (not episode or int(episode) == 1))
+            if cdn_m and (not audio_id or str(audio_id) == str(cdn_m.group(2))) and is_ep1_or_movie:
                 try:
                     embedded_json = json.loads(cdn_m.group(3))
                     url_str = embedded_json.get("streams") or embedded_json.get("url", "")
                     sub_str = embedded_json.get("subtitle", "")
-                    if url_str:
-                        self._populate_streams_from_string(url_str, sub_str, base, result)
+                    if url_str and isinstance(url_str, str):
+                        self._populate_streams_from_string(url_str, sub_str if isinstance(sub_str, str) else "", eff_base, result)
                         if result.streams:
                             parsed_from_html = True
                 except Exception:
@@ -601,25 +888,19 @@ class HDRezkaSource(BaseSource):
 
             if not parsed_from_html and data_id:
                 action = "get_stream" if is_series else "get_movie"
-
-                t_now = int(time.time() * 1000)
-                ajax_url = f"{base}/ajax/get_cdn_series/?t={t_now}"
                 post_data = {
                     "id": data_id,
                     "translator_id": trans_id,
                     "action": action
                 }
+                if favs_val:
+                    post_data["favs"] = favs_val
                 if is_series:
                     post_data["season"] = str(season or 1)
                     post_data["episode"] = str(episode or 1)
 
-                post_headers = {
-                    "X-Requested-With": "XMLHttpRequest",
-                    "Referer": page_url
-                }
-
-                r_ajax = self.session.post(ajax_url, data=post_data, headers=post_headers, timeout=6)
-                if r_ajax.status_code == 200:
+                r_ajax = self._post_ajax(base, page_url, post_data)
+                if r_ajax is not None and r_ajax.status_code == 200:
                     json_data = r_ajax.json()
                     url_str = json_data.get("url") or json_data.get("streams", "")
                     sub_str = json_data.get("subtitle", "")
@@ -636,15 +917,44 @@ class HDRezkaSource(BaseSource):
                                 skip_dict = {"intro_start": float(sp[0].strip()), "intro_end": float(sp[1].strip())}
                         if skip_dict:
                             result.skip_time = skip_dict
-                    self._populate_streams_from_string(url_str, sub_str, base, result)
+                    self._populate_streams_from_string(url_str, sub_str, eff_base, result)
         except Exception as e:
             result.error = str(e)
 
         return result
 
+    @staticmethod
+    def _decrypt_stream_url(encrypted: str) -> str:
+        """Decrypts HDRezka #h trash-obfuscated base64 stream manifest strings."""
+        if not encrypted or "[" in encrypted:
+            return encrypted
+        trash_codes = [
+            "$$!!@$$@^!@#$$@", "$$$$##!@#$$", "####^!!##!@@", "^^^!@!@@!!", "!!@!@@@!#@!",
+            "//_//",
+            "JCQhIUAkJEBeIUAjJCRA", "JCQkJCMjIUAjJCQ=", "IyMjI14hISMhQEA=", "Xl5eIUAhQEAhIQ==", "ISFAhQEAhI0Ah",
+            "QEBAQEAhIyMhXl5e", "IyMjI15eXiQhIUA=", "JCQhIUAkJEBeIUA=", "Xl5eIUAhQEAhIUA=", "ISFAhQEAhI0AhQA=="
+        ]
+        clean = encrypted
+        if clean.startswith("#h"):
+            clean = clean[2:]
+        for _ in range(3):
+            for tc in trash_codes:
+                clean = clean.replace(tc, "")
+        clean = re.sub(r'[^A-Za-z0-9+/=]', '', clean)
+        while len(clean) % 4 != 0:
+            clean += "="
+        try:
+            decoded = base64.b64decode(clean).decode("utf-8", errors="ignore")
+            if "[" in decoded and "http" in decoded:
+                return decoded
+        except Exception:
+            pass
+        return encrypted
+
     def _populate_streams_from_string(self, url_str: str, sub_str: str, base: str, result: StreamResult):
         if not url_str:
             return
+        url_str = self._decrypt_stream_url(str(url_str))
 
         # Split comma-separated quality blocks: [360p]url1 or url2,[480p]...
         parts = re.split(r',\s*(?=\[[^\]]+\])', url_str)

@@ -1852,7 +1852,7 @@ def _fetch_media_streams(
     resolved_kp = kp_id
     if source in ("filmix", "kodik", "hdrezka") and resolved_kp and str(resolved_kp) == media_id_str:
         resolved_kp = None
-    if not resolved_kp and source in ["bazon", "videocdn", "delivembd", "kinopoisk", "kp"] and media_id_str and media_id_str.isdigit():
+    if not resolved_kp and source in ["bazon", "videocdn", "delivembd", "collaps", "kinopoisk", "kp"] and media_id_str and media_id_str.isdigit():
         resolved_kp = media_id_str
 
     clean_title = re.sub(r'\(.*?\)|\[.*?\]', '', title).strip() if title else ""
@@ -1947,42 +1947,53 @@ def _fetch_media_streams(
     def _resolve_hdrezka():
         try:
             candidate_rz_ids = []
-            if media_id_str and (media_id_str.startswith("http") or "hdrezka" in media_id_str):
+            if media_id_str and (media_id_str.startswith("http") or media_id_str.startswith("/") or "rezka" in media_id_str):
                 candidate_rz_ids.append(media_id_str)
-            elif source == "hdrezka" and media_id_str.startswith("http"):
-                candidate_rz_ids.append(media_id_str)
-            if titles_to_try:
-                for t_query in titles_to_try:
-                    rz_items = hdrezka.search(t_query)
-                    for it in rank_matches(rz_items, year_int, is_ser_bool, target_title=t_query):
-                        if it.id not in candidate_rz_ids:
-                            candidate_rz_ids.append(it.id)
-            for rz_id in candidate_rz_ids[:3]:
-                rz_audio_id = audio_id if (audio_id and str(audio_id).isdigit()) else None
+
+            rz_audio_id = audio_id if (audio_id and str(audio_id).isdigit()) else None
+            for rz_id in candidate_rz_ids:
                 rz_streams = hdrezka.get_streams(rz_id, season=season, episode=episode, audio_id=rz_audio_id)
                 if rz_streams.streams:
                     return ("hdrezka", rz_streams.model_dump())
-                # Fallback to default audio if specific audio returned no streams (e.g. translator didn't voice this episode)
                 if rz_audio_id:
                     rz_streams_fallback = hdrezka.get_streams(rz_id, season=season, episode=episode, audio_id=None)
                     if rz_streams_fallback.streams:
                         return ("hdrezka", rz_streams_fallback.model_dump())
+
+            if titles_to_try:
+                searched_ids = []
+                for t_query in titles_to_try:
+                    rz_items = hdrezka.search(t_query)
+                    for it in rank_matches(rz_items, year_int, is_ser_bool, target_title=t_query):
+                        if it.id not in candidate_rz_ids and it.id not in searched_ids:
+                            searched_ids.append(it.id)
+                    if searched_ids:
+                        break
+                for rz_id in searched_ids[:2]:
+                    rz_streams = hdrezka.get_streams(rz_id, season=season, episode=episode, audio_id=rz_audio_id)
+                    if rz_streams.streams:
+                        return ("hdrezka", rz_streams.model_dump())
+                    if rz_audio_id:
+                        rz_streams_fallback = hdrezka.get_streams(rz_id, season=season, episode=episode, audio_id=None)
+                        if rz_streams_fallback.streams:
+                            return ("hdrezka", rz_streams_fallback.model_dump())
         except Exception:
             pass
         return None
 
     def _resolve_videocdn():
         try:
-            vc_id = resolved_kp
-            if not vc_id and titles_to_try:
-                for t_query in titles_to_try:
-                    vc_items = videocdn.search(t_query)
-                    vc_match = find_best_match(vc_items, year_int, is_ser_bool, target_title=clean_title)
-                    if vc_match and vc_match.kinopoisk_id:
-                        vc_id = vc_match.kinopoisk_id
-                        break
-            if vc_id:
-                vc_streams = videocdn.get_streams(vc_id)
+            vc_id = resolved_kp or ""
+            t_fallback = titles_to_try[0] if titles_to_try else (clean_title or title)
+            if vc_id or t_fallback:
+                vc_streams = videocdn.get_streams(
+                    vc_id,
+                    season=season,
+                    episode=episode,
+                    audio_id=audio_id,
+                    title=t_fallback,
+                    year=year_int
+                )
                 if vc_streams.streams or vc_streams.embed_url:
                     return ("videocdn", vc_streams.model_dump())
         except Exception:
@@ -1990,13 +2001,22 @@ def _fetch_media_streams(
         return None
 
     def _resolve_delivembd():
-        if resolved_kp:
-            try:
-                d_streams = delivembd.get_streams(resolved_kp)
+        try:
+            d_id = resolved_kp or (media_id_str if source in ("delivembd", "collaps") else "")
+            t_fallback = titles_to_try[0] if titles_to_try else (clean_title or title)
+            if d_id or t_fallback:
+                d_streams = delivembd.get_streams(
+                    d_id,
+                    season=season,
+                    episode=episode,
+                    audio_id=audio_id,
+                    title=t_fallback,
+                    year=year_int
+                )
                 if d_streams.streams or d_streams.embed_url:
                     return ("delivembd", d_streams.model_dump())
-            except Exception:
-                pass
+        except Exception:
+            pass
         return None
 
     def _resolve_bazon():
@@ -2077,6 +2097,7 @@ def _fetch_media_streams(
                 pass
         return None
 
+    import concurrent.futures
     with ThreadPoolExecutor(max_workers=7) as executor:
         futures = [
             executor.submit(_resolve_filmix),
@@ -2087,9 +2108,10 @@ def _fetch_media_streams(
             executor.submit(_resolve_bazon),
             executor.submit(_resolve_torrents)
         ]
-        for f in futures:
+        done, _ = concurrent.futures.wait(futures, timeout=12.0)
+        for f in done:
             try:
-                res = f.result(timeout=6.0)
+                res = f.result(timeout=0.1)
                 if res:
                     src_name, src_payload = res
                     resolved[src_name] = src_payload
@@ -2510,7 +2532,18 @@ def get_media_preview_stream(
     if not target_kp and media_id and str(media_id).isdigit():
         target_kp = str(media_id)
 
-    # Source 4: Bazon if real KP ID
+    # Source 4: Collaps / Delivembd direct HLS
+    if not candidate_streams and (target_kp or clean_title):
+        try:
+            d_res = delivembd.get_streams(target_kp or "", season=1, episode=1, title=clean_title, year=safe_parse_year(year))
+            if d_res.streams:
+                valid_d = [s for s in d_res.streams if is_usable_preview_stream(s)]
+                if valid_d:
+                    candidate_streams.extend(valid_d)
+        except Exception:
+            pass
+
+    # Source 4b: Bazon if real KP ID
     if not candidate_streams and (target_kp or (source in ["bazon", "videocdn", "delivembd"] and media_id and media_id.isdigit())):
         target_id = target_kp or media_id
         try:

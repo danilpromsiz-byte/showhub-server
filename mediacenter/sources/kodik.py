@@ -60,50 +60,50 @@ class KodikSource(BaseSource):
                         results = data.get("results", [])
                         if results:
                             for res in results:
-                            title = res.get("title", query)
-                            link = res.get("link", "")
-                            r_year = res.get("year")
-                            trans = res.get("translation", {}).get("title", "Оригинал")
-                            md = res.get("material_data") or {}
-                            poster = md.get("poster_url")
-                            if not poster or "st.kp.yandex.net" in str(poster):
-                                sc = res.get("screenshots", [])
-                                if sc:
-                                    poster = sc[0]
-                            genres_list = md.get("genres") or []
-                            countries_list = md.get("countries") or []
-                            actors_list = md.get("actors") or []
-                            directors_list = md.get("directors") or []
-                            kp_id_val = res.get("kinopoisk_id") or md.get("kinopoisk_id")
-                            imdb_id_val = res.get("imdb_id") or md.get("imdb_id")
-                            kp_rating = md.get("kinopoisk_rating")
-                            imdb_rating = md.get("imdb_rating")
+                                title = res.get("title", query)
+                                link = res.get("link", "")
+                                r_year = res.get("year")
+                                trans = res.get("translation", {}).get("title", "Оригинал")
+                                md = res.get("material_data") or {}
+                                poster = md.get("poster_url")
+                                if not poster or "st.kp.yandex.net" in str(poster):
+                                    sc = res.get("screenshots", [])
+                                    if sc:
+                                        poster = sc[0]
+                                genres_list = md.get("genres") or []
+                                countries_list = md.get("countries") or []
+                                actors_list = md.get("actors") or []
+                                directors_list = md.get("directors") or []
+                                kp_id_val = res.get("kinopoisk_id") or md.get("kinopoisk_id")
+                                imdb_id_val = res.get("imdb_id") or md.get("imdb_id")
+                                kp_rating = md.get("kinopoisk_rating")
+                                imdb_rating = md.get("imdb_rating")
 
-                            items.append(MediaItem(
-                                id=str(res.get("id", link)),
-                                source_name=self.name,
-                                title=title,
-                                year=r_year,
-                                poster=poster,
-                                description=md.get("description") or f"Перевод: {trans}",
-                                rating_kp=float(kp_rating) if kp_rating else None,
-                                rating_imdb=float(imdb_rating) if imdb_rating else None,
-                                kinopoisk_id=str(kp_id_val) if kp_id_val else None,
-                                imdb_id=str(imdb_id_val) if imdb_id_val else None,
-                                extra_data={
-                                    "link": link,
-                                    "translation": trans,
-                                    "type": res.get("type", "movie"),
-                                    "seasons": res.get("seasons", {}),
-                                    "genres": genres_list,
-                                    "countries": countries_list,
-                                    "country": countries_list[0] if countries_list else "",
-                                    "actors": ", ".join(actors_list) if actors_list else "",
-                                    "directors": ", ".join(directors_list) if directors_list else "",
-                                    "director": directors_list[0] if directors_list else ""
-                                }
-                            ))
-                        break
+                                items.append(MediaItem(
+                                    id=str(res.get("id", link)),
+                                    source_name=self.name,
+                                    title=title,
+                                    year=r_year,
+                                    poster=poster,
+                                    description=md.get("description") or f"Перевод: {trans}",
+                                    rating_kp=float(kp_rating) if kp_rating else None,
+                                    rating_imdb=float(imdb_rating) if imdb_rating else None,
+                                    kinopoisk_id=str(kp_id_val) if kp_id_val else None,
+                                    imdb_id=str(imdb_id_val) if imdb_id_val else None,
+                                    extra_data={
+                                        "link": link,
+                                        "translation": trans,
+                                        "type": res.get("type", "movie"),
+                                        "seasons": res.get("seasons", {}),
+                                        "genres": genres_list,
+                                        "countries": countries_list,
+                                        "country": countries_list[0] if countries_list else "",
+                                        "actors": ", ".join(actors_list) if actors_list else "",
+                                        "directors": ", ".join(directors_list) if directors_list else "",
+                                        "director": directors_list[0] if directors_list else ""
+                                    }
+                                ))
+                            break
                 except Exception:
                     continue
             if items:

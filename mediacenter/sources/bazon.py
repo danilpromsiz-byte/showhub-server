@@ -32,7 +32,7 @@ class BazonSource(BaseSource):
             else:
                 url = f"{self.API_BASE}/search?token={self.TOKEN}&title={query}"
 
-            res = requests.get(url, headers=self.headers, timeout=6)
+            res = requests.get(url, headers=self.headers, timeout=(2.0, 2.5))
             if res.status_code == 200:
                 data = res.json()
                 results = data.get("results", [])
@@ -51,6 +51,7 @@ class BazonSource(BaseSource):
                     title = html.unescape(info.get("rus") or r.get("title") or info.get("orig") or "Без названия").strip()
                     orig = html.unescape(info.get("orig").strip()) if info.get("orig") else None
                     desc = html.unescape(info.get("description").strip()) if info.get("description") else None
+                    kp = str(r.get("kinopoisk_id") or "")
                     vkp_raw = info.get("rating", {}).get("vote_num_kp")
                     vimdb_raw = info.get("rating", {}).get("vote_num_imdb")
                     vkp = int(vkp_raw) if (vkp_raw and str(vkp_raw).isdigit()) else None
@@ -69,9 +70,9 @@ class BazonSource(BaseSource):
                         rating_imdb=float(info.get("rating", {}).get("rating_imdb", 0) or 0) or None,
                         vote_num_kp=vkp,
                         vote_num_imdb=vimdb,
-                        kinopoisk_id=str(r.get("kinopoisk_id") or ""),
+                        kinopoisk_id=kp,
                         extra_data={
-                            "embed": r.get("iframe") or r.get("link") or f"https://bazon.cc/embed/kp/{r.get('kinopoisk_id')}",
+                            "embed": r.get("iframe") or r.get("link") or f"https://bazon.cc/embed/kp/{kp}",
                             "max_qual": r.get("max_qual", "1080"),
                             "translation": r.get("translation", ""),
                             "vote_num_kp": vkp,
@@ -175,7 +176,7 @@ class BazonSource(BaseSource):
     def get_details(self, media_id: str) -> Optional[Dict[str, Any]]:
         try:
             url = f"{self.API_BASE}/search?token={self.TOKEN}&kp={media_id}"
-            res = requests.get(url, headers=self.headers, timeout=5)
+            res = requests.get(url, headers=self.headers, timeout=(2.0, 2.5))
             if res.status_code == 200:
                 results = res.json().get("results", [])
                 if results:
@@ -205,34 +206,37 @@ class BazonSource(BaseSource):
         return None
 
     def get_streams(self, media_id: str, season: Optional[int] = None, episode: Optional[int] = None, audio_id: Optional[str] = None) -> StreamResult:
-        embed_url = f"https://bazon.cc/embed/kp/{media_id}" if len(media_id) < 8 else f"https://bazon.cc/embed/{media_id}"
-        
+        embed_url = None
+
         # Query details by ID to get exact embed
         try:
             url = f"{self.API_BASE}/search?token={self.TOKEN}&kp={media_id}"
-            res = requests.get(url, headers=self.headers, timeout=5)
+            res = requests.get(url, headers=self.headers, timeout=(2.0, 2.5))
             if res.status_code == 200:
                 results = res.json().get("results", [])
                 if results:
                     first = results[0]
-                    embed_url = first.get("iframe") or first.get("link") or embed_url
+                    embed_url = first.get("iframe") or first.get("link")
         except Exception:
             pass
 
-        return StreamResult(
+        result = StreamResult(
             source_name=self.name,
             media_id=media_id,
             title=f"Bazon Playback ({media_id})",
             embed_url=embed_url,
-            streams=[
+            streams=[]
+        )
+        if embed_url:
+            result.streams.append(
                 VideoStream(
                     quality="1080p (Embed)",
                     url=embed_url,
                     stream_type="iframe",
                     headers=self.headers
                 )
-            ]
-        )
+            )
+        return result
 
     def canary_test(self) -> CanaryReport:
         start_t = time.time()

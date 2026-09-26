@@ -214,7 +214,8 @@ fun DetailsScreen(
                     sKey.contains("kodik") -> stSrc.contains("kodik")
                     sKey.contains("rezka") -> stSrc.contains("rezka")
                     sKey.contains("filmix") -> stSrc.contains("filmix")
-                    sKey.contains("videocdn") -> stSrc.contains("videocdn") || st.url.contains("allarknow") || st.url.contains("bayas")
+                    sKey.contains("videocdn") -> stSrc.contains("videocdn") || st.url.contains("allarknow") || st.url.contains("bayas") || st.url.contains("videoframe")
+                    sKey.contains("collaps") || sKey.contains("delivembd") -> stSrc.contains("collaps") || stSrc.contains("delivembd") || st.url.contains("interkh") || st.url.contains("namy.ws")
                     sKey.contains("bazon") -> stSrc.contains("bazon")
                     else -> stSrc.contains(sKey)
                 }
@@ -328,29 +329,33 @@ fun DetailsScreen(
                 val nativeDeferred = async {
                     val rzJob = async {
                         try {
-                            RezkaNativeResolver.resolveStreams(
-                                title = currentMovie.title,
-                                year = currentMovie.releaseYear,
-                                isSeries = isContentSeries,
-                                season = selectedSeason,
-                                episode = selectedEpisode,
-                                translatorId = selectedAudioId.ifEmpty { null },
-                                mediaUrl = rezkaMediaUrl,
-                                originalTitle = currentMovie.originalTitle
-                            )
+                            kotlinx.coroutines.withTimeoutOrNull(4500L) {
+                                RezkaNativeResolver.resolveStreams(
+                                    title = currentMovie.title,
+                                    year = currentMovie.releaseYear,
+                                    isSeries = isContentSeries,
+                                    season = selectedSeason,
+                                    episode = selectedEpisode,
+                                    translatorId = selectedAudioId.ifEmpty { null },
+                                    mediaUrl = rezkaMediaUrl,
+                                    originalTitle = currentMovie.originalTitle
+                                )
+                            } ?: emptyList()
                         } catch (_: Exception) { emptyList() }
                     }
                     val fxJob = async {
                         try {
-                            FilmixNativeResolver.resolveStreams(
-                                movieId = currentMovie.id,
-                                title = currentMovie.title,
-                                year = currentMovie.releaseYear,
-                                isSeries = isContentSeries,
-                                season = selectedSeason,
-                                episode = selectedEpisode,
-                                audioId = selectedAudioId
-                            )
+                            kotlinx.coroutines.withTimeoutOrNull(4500L) {
+                                FilmixNativeResolver.resolveStreams(
+                                    movieId = currentMovie.id,
+                                    title = currentMovie.title,
+                                    year = currentMovie.releaseYear,
+                                    isSeries = isContentSeries,
+                                    season = selectedSeason,
+                                    episode = selectedEpisode,
+                                    audioId = selectedAudioId
+                                )
+                            } ?: emptyList()
                         } catch (_: Exception) { emptyList() }
                     }
                     rzJob.await() + fxJob.await()
@@ -566,29 +571,33 @@ fun DetailsScreen(
                 } else null
                 val rzJob = async {
                     try {
-                        RezkaNativeResolver.resolveStreams(
-                            title = currentMovie.title,
-                            year = currentMovie.releaseYear,
-                            isSeries = isContentSeries,
-                            season = targetSeason,
-                            episode = targetEpisode,
-                            translatorId = targetAudioId.ifEmpty { null },
-                            mediaUrl = rezkaMediaUrl,
-                            originalTitle = currentMovie.originalTitle
-                        )
+                        kotlinx.coroutines.withTimeoutOrNull(4500L) {
+                            RezkaNativeResolver.resolveStreams(
+                                title = currentMovie.title,
+                                year = currentMovie.releaseYear,
+                                isSeries = isContentSeries,
+                                season = targetSeason,
+                                episode = targetEpisode,
+                                translatorId = targetAudioId.ifEmpty { null },
+                                mediaUrl = rezkaMediaUrl,
+                                originalTitle = currentMovie.originalTitle
+                            )
+                        } ?: emptyList()
                     } catch (_: Exception) { emptyList() }
                 }
                 val fxJob = async {
                     try {
-                        FilmixNativeResolver.resolveStreams(
-                            movieId = currentMovie.id,
-                            title = currentMovie.title,
-                            year = currentMovie.releaseYear,
-                            isSeries = isContentSeries,
-                            season = targetSeason,
-                            episode = targetEpisode,
-                            audioId = targetAudioId
-                        )
+                        kotlinx.coroutines.withTimeoutOrNull(4500L) {
+                            FilmixNativeResolver.resolveStreams(
+                                movieId = currentMovie.id,
+                                title = currentMovie.title,
+                                year = currentMovie.releaseYear,
+                                isSeries = isContentSeries,
+                                season = targetSeason,
+                                episode = targetEpisode,
+                                audioId = targetAudioId
+                            )
+                        } ?: emptyList()
                     } catch (_: Exception) { emptyList() }
                 }
                 rzJob.await() + fxJob.await()
@@ -645,7 +654,8 @@ fun DetailsScreen(
                             sKey.contains("kodik") -> stSrc.contains("kodik")
                             sKey.contains("rezka") -> stSrc.contains("rezka")
                             sKey.contains("filmix") -> stSrc.contains("filmix")
-                            sKey.contains("videocdn") -> stSrc.contains("videocdn") || st.url.contains("allarknow") || st.url.contains("bayas")
+                            sKey.contains("videocdn") -> stSrc.contains("videocdn") || st.url.contains("allarknow") || st.url.contains("bayas") || st.url.contains("videoframe")
+                            sKey.contains("collaps") || sKey.contains("delivembd") -> stSrc.contains("collaps") || stSrc.contains("delivembd") || st.url.contains("interkh") || st.url.contains("namy.ws")
                             sKey.contains("bazon") -> stSrc.contains("bazon")
                             else -> stSrc.contains(sKey)
                         }
@@ -1579,8 +1589,8 @@ fun DetailsScreen(
                             s.startsWith("HDrezka", ignoreCase = true) || s.startsWith("Rezka", ignoreCase = true) -> "HDRezka"
                             s.contains("Filmix", ignoreCase = true) -> "Filmix"
                             s.contains("Kodik", ignoreCase = true) -> "Kodik"
-                            s.contains("VideoCDN", ignoreCase = true) || st.url.contains("allarknow") || st.url.contains("bayas") -> "VideoCDN"
-                            s.contains("Collaps", ignoreCase = true) -> "Collaps"
+                            s.contains("VideoCDN", ignoreCase = true) || st.url.contains("allarknow") || st.url.contains("bayas") || st.url.contains("videoframe") -> "VideoCDN"
+                            s.contains("Collaps", ignoreCase = true) || s.contains("Delivembd", ignoreCase = true) -> "Collaps"
                             s.contains("Bazon", ignoreCase = true) -> "Bazon"
                             s.isNotEmpty() -> s.replaceFirstChar { it.uppercase() }
                             else -> ""
@@ -1603,9 +1613,9 @@ fun DetailsScreen(
                                 sKey.contains("kodik") -> stSrc.contains("kodik")
                                 sKey.contains("rezka") -> stSrc.contains("rezka")
                                 sKey.contains("filmix") -> stSrc.contains("filmix")
-                                sKey.contains("videocdn") -> stSrc.contains("videocdn") || st.url.contains("allarknow") || st.url.contains("bayas")
+                                sKey.contains("videocdn") -> stSrc.contains("videocdn") || st.url.contains("allarknow") || st.url.contains("bayas") || st.url.contains("videoframe")
                                 sKey.contains("bazon") -> stSrc.contains("bazon")
-                                sKey.contains("collaps") -> stSrc.contains("collaps")
+                                sKey.contains("collaps") || sKey.contains("delivembd") -> stSrc.contains("collaps") || stSrc.contains("delivembd") || st.url.contains("interkh") || st.url.contains("namy.ws")
                                 else -> stSrc.contains(sKey)
                             }
                         }
@@ -1654,11 +1664,12 @@ fun DetailsScreen(
                                 sKey.contains("rezka") -> trackSrc.contains("rezka") || (!track.id.startsWith("kodik_") && !trackSrc.contains("filmix") && !trackSrc.contains("videocdn") && !trackSrc.contains("bazon"))
                                 sKey.contains("filmix") -> trackSrc.contains("filmix")
                                 sKey.contains("videocdn") -> trackSrc.contains("videocdn")
+                                sKey.contains("collaps") || sKey.contains("delivembd") -> trackSrc.contains("collaps") || trackSrc.contains("delivembd")
                                 sKey.contains("bazon") -> trackSrc.contains("bazon")
                                 else -> trackSrc.contains(sKey)
                             }
                         }
-                        if (matched.isNotEmpty()) matched else emptyList()
+                        if (matched.isNotEmpty()) matched else currentMovie.audioTracks
                     }
                     if (currentMovie.isSeries) {
                         val seasonFiltered = sourceFiltered.filter { track ->

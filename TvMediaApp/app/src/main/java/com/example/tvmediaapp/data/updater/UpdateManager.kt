@@ -27,6 +27,104 @@ data class UpdateInfo(
 )
 
 object UpdateManager {
+    @Volatile
+    var isPredownloading: Boolean = false
+        private set
+
+    fun isApkReady(context: Context, targetVersionCode: Int): Boolean {
+        return try {
+            val cacheDir = context.externalCacheDir ?: context.cacheDir
+            val apkFile = File(cacheDir, if (targetVersionCode > 0) "ShowHub-update-v$targetVersionCode.apk" else "ShowHub-update.apk")
+            if (!apkFile.exists() || apkFile.length() < 5_000_000L) return false
+            val archiveInfo = context.packageManager.getPackageArchiveInfo(apkFile.absolutePath, 0) ?: return false
+            val code = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) archiveInfo.longVersionCode.toInt() else archiveInfo.versionCode
+            if (targetVersionCode > 0) code >= targetVersionCode else code > 0
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    suspend fun predownloadUpdate(context: Context, info: UpdateInfo): Boolean = withContext(Dispatchers.IO) {
+        if (isPredownloading) return@withContext false
+        if (isApkReady(context, info.versionCode)) return@withContext true
+        isPredownloading = true
+        try {
+            val cacheDir = context.externalCacheDir ?: context.cacheDir
+            val targetFile = File(cacheDir, if (info.versionCode > 0) "ShowHub-update-v${info.versionCode}.apk" else "ShowHub-update.apk")
+            val partFile = File(cacheDir, if (info.versionCode > 0) "ShowHub-update-v${info.versionCode}.apk.part" else "ShowHub-update.apk.part")
+
+            // Clean older updates
+            try {
+                cacheDir.listFiles()?.forEach { file ->
+                    if (file.name.startsWith("ShowHub-update") && file.name != targetFile.name && file.name != partFile.name) {
+                        file.delete()
+                    }
+                }
+            } catch (_: Exception) {}
+
+            val candidateUrls = listOf(
+                info.downloadUrl,
+                "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
+                "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/ShowHub.apk",
+                "https://showhub-server.onrender.com/ShowHub.apk"
+            ).distinct()
+
+            for (currentUrl in candidateUrls) {
+                if (partFile.exists()) {
+                    try { partFile.delete() } catch (_: Exception) {}
+                }
+                try {
+                    val url = URL(currentUrl)
+                    val conn = url.openConnection() as HttpURLConnection
+                    conn.connectTimeout = 15000
+                    conn.readTimeout = 60000
+                    conn.setRequestProperty("User-Agent", "ShowHubTV-Native/2.8.18")
+                    conn.connect()
+                    if (conn.responseCode !in 200..299) continue
+
+                    conn.inputStream.use { input ->
+                        FileOutputStream(partFile).use { output ->
+                            val buffer = ByteArray(32768)
+                            var bytesRead: Int
+                            while (input.read(buffer).also { bytesRead = it } > 0) {
+                                output.write(buffer, 0, bytesRead)
+                            }
+                            output.flush()
+                        }
+                    }
+
+                    if (partFile.length() < 1_000_000L) {
+                        try { partFile.delete() } catch (_: Exception) {}
+                        continue
+                    }
+
+                    val archiveInfo = context.packageManager.getPackageArchiveInfo(partFile.absolutePath, 0)
+                    val downloadedVersion = if (archiveInfo != null) {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) archiveInfo.longVersionCode.toInt() else archiveInfo.versionCode
+                    } else 0
+
+                    if (info.versionCode > 0 && downloadedVersion < info.versionCode) {
+                        try { partFile.delete() } catch (_: Exception) {}
+                        continue
+                    }
+
+                    if (targetFile.exists()) {
+                        try { targetFile.delete() } catch (_: Exception) {}
+                    }
+                    if (partFile.renameTo(targetFile)) {
+                        targetFile.setReadable(true, false)
+                        return@withContext true
+                    }
+                } catch (_: Exception) {
+                    try { partFile.delete() } catch (_: Exception) {}
+                }
+            }
+            false
+        } finally {
+            isPredownloading = false
+        }
+    }
+
     private val VERSION_URLS = listOf(
         "https://showhub-server.onrender.com/version.json",
         "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/version.json",
@@ -83,6 +181,16 @@ object UpdateManager {
         onProgress: ((status: String, percent: Int) -> Unit)? = null
     ): Boolean = withContext(Dispatchers.IO) {
         try {
+            if (isPredownloading) {
+                withContext(Dispatchers.Main) {
+                    onProgress?.invoke("Завершение фоновой загрузки...", -1)
+                }
+                for (i in 1..40) {
+                    if (!isPredownloading || isApkReady(activity, targetVersionCode)) break
+                    delay(500)
+                }
+            }
+
             withContext(Dispatchers.Main) {
                 onProgress?.invoke("Подключение к серверу...", 0)
             }

@@ -100,6 +100,7 @@ import com.example.tvmediaapp.data.models.Movie
 import com.example.tvmediaapp.data.models.SeasonInfo
 import com.example.tvmediaapp.data.models.EpisodeInfo
 import com.example.tvmediaapp.data.models.StreamOption
+import com.example.tvmediaapp.data.models.AudioTrackInfo
 import com.example.tvmediaapp.data.resolver.RezkaNativeResolver
 import com.example.tvmediaapp.data.resolver.FilmixNativeResolver
 import com.example.tvmediaapp.ui.components.AppIcon
@@ -1653,11 +1654,11 @@ fun DetailsScreen(
                     availableSourcesInfo.forEach { list.add(it.name) }
                     list
                 }
-                val filteredAudioTracks = remember(currentMovie.audioTracks, selectedSourceFilter, selectedSeason) {
+                val filteredAudioTracks = remember(currentMovie.audioTracks, selectedSourceFilter, selectedSeason, streamOptions) {
+                    val sKey = selectedSourceFilter.lowercase()
                     val sourceFiltered = if (selectedSourceFilter == "Все" || selectedSourceFilter.startsWith("Все")) {
                         currentMovie.audioTracks
                     } else {
-                        val sKey = selectedSourceFilter.lowercase()
                         val matched = currentMovie.audioTracks.filter { track ->
                             val trackSrc = track.source.lowercase()
                             when {
@@ -1670,7 +1671,50 @@ fun DetailsScreen(
                                 else -> trackSrc.contains(sKey)
                             }
                         }
-                        if (matched.isNotEmpty()) matched else currentMovie.audioTracks
+                        if (matched.isNotEmpty()) {
+                            matched
+                        } else {
+                            // Synthesize tracks from streamOptions for balancers like Collaps / VideoCDN
+                            val sourceStreams = streamOptions.filter { st ->
+                                val src = st.source.lowercase()
+                                when {
+                                    sKey.contains("collaps") -> src.contains("collaps") || src.contains("delivembd") || st.url.contains("interkh") || st.url.contains("namy.ws")
+                                    sKey.contains("videocdn") -> src.contains("videocdn") || st.url.contains("allarknow") || st.url.contains("bayas")
+                                    sKey.contains("kodik") -> src.contains("kodik")
+                                    sKey.contains("bazon") -> src.contains("bazon")
+                                    else -> src.contains(sKey)
+                                }
+                            }
+                            val synthTracks = sourceStreams.mapNotNull { st ->
+                                Regex("\\(([^)]+)\\)").findAll(st.quality)
+                                    .map { it.groupValues[1].trim() }
+                                    .firstOrNull { v ->
+                                        val lower = v.lowercase()
+                                        !lower.contains("плеер") && !lower.contains("player") &&
+                                        !lower.contains("hls") && !lower.contains("auto") &&
+                                        !lower.contains("сиды") && !lower.contains("peer") &&
+                                        !lower.matches(Regex("\\d+p?")) && lower != "hd" && lower != "fhd" && lower != "4k"
+                                    }?.let { voiceName ->
+                                        AudioTrackInfo(
+                                            id = "synth_${selectedSourceFilter}_${voiceName}",
+                                            name = voiceName,
+                                            source = selectedSourceFilter
+                                        )
+                                    }
+                            }.distinctBy { it.name }
+
+                            if (synthTracks.isNotEmpty()) {
+                                synthTracks
+                            } else {
+                                listOf(
+                                    AudioTrackInfo(
+                                        id = "src_${sKey}_default",
+                                        name = "Озвучка (${selectedSourceFilter})",
+                                        source = selectedSourceFilter
+                                    )
+                                )
+                            }
+                        }
                     }
                     if (currentMovie.isSeries) {
                         val seasonFiltered = sourceFiltered.filter { track ->
@@ -1855,6 +1899,9 @@ fun DetailsScreen(
                                                         }
                                                     }
                                                 }
+                                            } else {
+                                                val sKey = srcInfo.name.lowercase()
+                                                selectedAudioId = "src_${sKey}_default"
                                             }
                                             streamStatus = "Источник: ${srcInfo.name} ($typeBadge)"
                                         },
@@ -2009,7 +2056,12 @@ fun DetailsScreen(
                                             ?: track.seasonsEpisodes[selectedSeason]
                                             ?: (if (track.seasonsEpisodes.isNotEmpty()) 0 else if (currentMovie.seasons.size <= 1) track.episodesCount else 0)
                                         val countSuffix = if (seasonEpCount > 0) " ($seasonEpCount сер.)" else ""
-                                        Text(text = "${track.name}$countSuffix", fontSize = 11.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
+                                        val cleanTrackName = if (!selectedSourceFilter.equals("HDrezka", ignoreCase = true)) {
+                                            track.name.replace(Regex("(?i)\\s*\\(hdrezka\\)"), "").trim()
+                                        } else {
+                                            track.name
+                                        }
+                                        Text(text = "$cleanTrackName$countSuffix", fontSize = 11.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
                                     }
                                 }
                             }

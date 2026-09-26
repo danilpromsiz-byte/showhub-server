@@ -58,6 +58,7 @@ import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import com.example.tvmediaapp.data.api.ShowHubApiClient
+import kotlinx.coroutines.Dispatchers
 import com.example.tvmediaapp.data.cache.MediaDiskCache
 import com.example.tvmediaapp.data.image.CoilSetup
 import com.example.tvmediaapp.data.models.Movie
@@ -403,6 +404,10 @@ fun TvAppNavHost(activity: MainActivity) {
             val myCode = activity.getInstalledVersionCode()
             val info = UpdateManager.checkUpdate(myCode)
             if (info.hasUpdate && info.versionCode > myCode) {
+                // Silently pre-download APK in background so install is instant with 0s wait
+                coroutineScope.launch(Dispatchers.IO) {
+                    UpdateManager.predownloadUpdate(activity.applicationContext, info)
+                }
                 if (info.isForceUpdate || isUserClick || info.versionCode != dismissedVersionCode) {
                     updateInfo = info
                 }
@@ -734,6 +739,10 @@ fun TvAppNavHost(activity: MainActivity) {
                         }
                     }
 
+                    val isApkReady = remember(update.versionCode, isDownloadingUpdate) {
+                        UpdateManager.isApkReady(activity, update.versionCode)
+                    }
+
                     // Status Text Message
                     if (updateStatus != null) {
                         Spacer(modifier = Modifier.height(14.dp))
@@ -742,6 +751,22 @@ fun TvAppNavHost(activity: MainActivity) {
                             style = MaterialTheme.typography.bodyMedium,
                             color = if (updateStatus!!.contains("Ошибка") || updateStatus!!.contains("Сбой") || updateStatus!!.contains("поврежден")) Color(0xFFF87171) else LocalAccentColor.current,
                             fontWeight = FontWeight.SemiBold
+                        )
+                    } else if (isApkReady) {
+                        Spacer(modifier = Modifier.height(14.dp))
+                        Text(
+                            text = "✓ Файл обновления уже загружен в фоне и готов к установке",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color(0xFF4ADE80),
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    } else if (UpdateManager.isPredownloading && !isDownloadingUpdate) {
+                        Spacer(modifier = Modifier.height(14.dp))
+                        Text(
+                            text = "Фоновая загрузка файла обновления...",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color.LightGray,
+                            fontWeight = FontWeight.Normal
                         )
                     }
 
@@ -794,6 +819,8 @@ fun TvAppNavHost(activity: MainActivity) {
                                     if (updatePercent > 0) "Загрузка: $updatePercent%" else "Загрузка..."
                                 } else if (updateStatus != null && (updateStatus!!.contains("Ошибка") || updateStatus!!.contains("Сбой"))) {
                                     "Повторить попытку"
+                                } else if (isApkReady) {
+                                    "Установить сейчас (готово)"
                                 } else {
                                     "Обновить сейчас"
                                 },

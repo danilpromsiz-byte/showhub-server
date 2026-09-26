@@ -80,6 +80,7 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import com.example.tvmediaapp.data.history.WatchHistoryManager
 import com.example.tvmediaapp.data.models.Movie
+import com.example.tvmediaapp.data.models.AudioTrackInfo
 import com.example.tvmediaapp.ui.theme.BackgroundDark
 import com.example.tvmediaapp.ui.theme.CyanNeon
 import com.example.tvmediaapp.ui.theme.LocalAccentColor
@@ -455,6 +456,7 @@ private fun NativeExoPlayerScreen(
     var currentSeason by remember { mutableIntStateOf(season) }
     var currentEpisode by remember { mutableIntStateOf(episode) }
     var currentStreamUrl by remember { mutableStateOf(movie.videoUrl) }
+    var currentStreamQuality by remember { mutableStateOf("") }
     var currentAudioId by remember { mutableStateOf(audioId.ifEmpty { movie.audioTracks.firstOrNull()?.id ?: "" }) }
     var selectedQuality by remember { mutableStateOf(prefs.getString("pref_quality", "1080p") ?: "1080p") }
     val initialSource = remember(movie.videoUrl, movie.source) {
@@ -904,6 +906,7 @@ private fun NativeExoPlayerScreen(
 
                 if (targetStream != null) {
                     currentStreamUrl = targetStream.url
+                    currentStreamQuality = targetStream.quality
                     val actualSource = when {
                         targetStream.url.contains("interkh") || targetStream.url.contains("namy.ws") || targetStream.source.contains("collaps", true) || targetStream.source.contains("delivembd", true) -> "Collaps"
                         targetStream.url.contains("allarknow") || targetStream.url.contains("bayas") || targetStream.url.contains("videoframe") || targetStream.source.contains("videocdn", true) -> "VideoCDN"
@@ -1647,23 +1650,60 @@ private fun NativeExoPlayerScreen(
                             color = TextWhite
                         )
                         Spacer(modifier = Modifier.height(8.dp))
-                        val availableTracks = remember(currentMovieState.audioTracks, currentSeason, currentEpisode, currentMovieState.isSeries) {
-                            if (currentMovieState.isSeries) {
-                                val filtered = currentMovieState.audioTracks.filter { track ->
-                                    if (track.seasonsEpisodes.isEmpty()) {
-                                        if (currentMovieState.seasons.size > 1 && currentSeason > 1) {
-                                            false
-                                        } else {
-                                            track.episodesCount == 0 || track.episodesCount >= currentEpisode
-                                        }
-                                    } else {
-                                        val epCount = track.seasonsEpisodes[currentSeason] ?: 0
-                                        epCount >= currentEpisode
+                        val availableTracks = remember(currentMovieState.audioTracks, currentSeason, currentEpisode, currentMovieState.isSeries, selectedSource, currentStreamQuality) {
+                            val isRezkaSource = selectedSource.equals("HDrezka", ignoreCase = true) || selectedSource.equals("Все", ignoreCase = true)
+                            if (!isRezkaSource) {
+                                val sKey = selectedSource.lowercase()
+                                val matched = currentMovieState.audioTracks.filter { track ->
+                                    val trackSrc = track.source.lowercase()
+                                    when {
+                                        sKey.contains("kodik") -> trackSrc.contains("kodik") || track.id.startsWith("kodik_")
+                                        sKey.contains("filmix") -> trackSrc.contains("filmix")
+                                        sKey.contains("videocdn") -> trackSrc.contains("videocdn")
+                                        sKey.contains("collaps") || sKey.contains("delivembd") -> trackSrc.contains("collaps") || trackSrc.contains("delivembd")
+                                        sKey.contains("bazon") -> trackSrc.contains("bazon")
+                                        else -> trackSrc.contains(sKey)
                                     }
                                 }
-                                if (filtered.isNotEmpty()) filtered else currentMovieState.audioTracks
+                                if (matched.isNotEmpty()) {
+                                    matched.map { it.copy(name = it.name.replace(Regex("(?i)\\s*\\(hdrezka\\)"), "").trim()) }
+                                } else {
+                                    val streamVoice = Regex("\\(([^)]+)\\)").findAll(currentStreamQuality)
+                                        .map { it.groupValues[1].trim() }
+                                        .firstOrNull { v ->
+                                            val lower = v.lowercase()
+                                            !lower.contains("плеер") && !lower.contains("player") &&
+                                            !lower.contains("hls") && !lower.contains("auto") &&
+                                            !lower.contains("сиды") && !lower.contains("peer") &&
+                                            !lower.matches(Regex("\\d+p?")) && lower != "hd" && lower != "fhd" && lower != "4k"
+                                        }
+                                    listOf(
+                                        AudioTrackInfo(
+                                            id = currentAudioId,
+                                            name = streamVoice ?: "Озвучка (${selectedSource})",
+                                            source = selectedSource
+                                        )
+                                    )
+                                }
                             } else {
-                                currentMovieState.audioTracks
+                                val rawTracks = if (currentMovieState.isSeries) {
+                                    val filtered = currentMovieState.audioTracks.filter { track ->
+                                        if (track.seasonsEpisodes.isEmpty()) {
+                                            if (currentMovieState.seasons.size > 1 && currentSeason > 1) {
+                                                false
+                                            } else {
+                                                track.episodesCount == 0 || track.episodesCount >= currentEpisode
+                                            }
+                                        } else {
+                                            val epCount = track.seasonsEpisodes[currentSeason] ?: 0
+                                            epCount >= currentEpisode
+                                        }
+                                    }
+                                    if (filtered.isNotEmpty()) filtered else currentMovieState.audioTracks
+                                } else {
+                                    currentMovieState.audioTracks
+                                }
+                                rawTracks.map { it.copy(name = it.name.replace(Regex("(?i)\\s*\\(hdrezka\\)"), "").trim()) }
                             }
                         }
                         TvLazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -2337,8 +2377,35 @@ private fun NativeExoPlayerScreen(
                         }
 
                         // 6. Audio Tracks Selector Button
-                        if (currentMovieState.audioTracks.isNotEmpty()) {
-                            val curName = currentMovieState.audioTracks.firstOrNull { it.id == currentAudioId }?.name ?: "Озвучка"
+                        if (currentMovieState.audioTracks.isNotEmpty() || currentStreamQuality.isNotEmpty()) {
+                            val streamVoice = remember(currentStreamQuality, selectedSource) {
+                                Regex("\\(([^)]+)\\)").findAll(currentStreamQuality)
+                                    .map { it.groupValues[1].trim() }
+                                    .firstOrNull { v ->
+                                        val lower = v.lowercase()
+                                        !lower.contains("плеер") && !lower.contains("player") &&
+                                        !lower.contains("hls") && !lower.contains("auto") &&
+                                        !lower.contains("сиды") && !lower.contains("peer") &&
+                                        !lower.matches(Regex("\\d+p?")) && lower != "hd" && lower != "fhd" && lower != "4k"
+                                    }
+                            }
+                            val rawName = currentMovieState.audioTracks.firstOrNull { it.id == currentAudioId }?.name
+                            val curName = if (streamVoice != null && !selectedSource.equals("HDrezka", ignoreCase = true)) {
+                                streamVoice
+                            } else if (rawName != null) {
+                                if (!selectedSource.equals("HDrezka", ignoreCase = true)) {
+                                    val clean = rawName.replace(Regex("(?i)\\s*\\(hdrezka\\)"), "").trim()
+                                    if (clean.isEmpty() || clean.equals("Основная дорожка", ignoreCase = true) || clean.equals("Основная озвучка", ignoreCase = true)) {
+                                        streamVoice ?: "Озвучка (${selectedSource})"
+                                    } else {
+                                        clean
+                                    }
+                                } else {
+                                    rawName.replace(Regex("(?i)\\s*\\(hdrezka\\)"), "").trim()
+                                }
+                            } else {
+                                streamVoice ?: "Озвучка"
+                            }
                             val afterAudioFocus = if (currentMovieState.isSeries) {
                                 if (currentEpisode > 1) prevEpisodeFocusRequester else episodesDrawerFocusRequester
                             } else extPlayerFocusRequester

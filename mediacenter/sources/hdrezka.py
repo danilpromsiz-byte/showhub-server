@@ -521,7 +521,7 @@ class HDRezkaSource(BaseSource):
                 if m_init:
                     translators.append({
                         "id": m_init.group(2),
-                        "name": "Основная дорожка (HDRezka)",
+                        "name": "Основная дорожка",
                         "is_default": True
                     })
 
@@ -973,7 +973,7 @@ class HDRezkaSource(BaseSource):
             is_prem = ("rhtie.mp4" in chosen_url) or any(k in quality.lower() for k in ["ultra", "4k", "2160", "1440"])
 
             result.streams.append(VideoStream(
-                quality=f"{quality} (HDRezka)",
+                quality=quality,
                 url=chosen_url,
                 stream_type="hls" if ".m3u8" in chosen_url else "mp4",
                 headers={"User-Agent": "Mozilla/5.0", "Referer": f"{base}/"},

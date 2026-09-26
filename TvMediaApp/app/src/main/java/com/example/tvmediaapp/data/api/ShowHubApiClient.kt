@@ -676,6 +676,15 @@ object ShowHubApiClient {
 
 
     fun classifyAgeRating(title: String, desc: String, genres: List<String>, rawAge: String): String {
+        val fullTxt = "$title $desc ${genres.joinToString(" ")}".lowercase()
+        val r18 = listOf(
+            "18+", "18 плюс", "порно", "эроти", "стрип", "бордел", "проститут", "эскорт",
+            "секс", "интим", "разврат", "орги", "снафф", "расчленен",
+            "пытки", "пыток", "слэшер", "slasher", "людоед", "каннибал",
+            "хентай", "hentai", "бдсм", "bdsm", "куртизанк", "adult", "adults only"
+        )
+        if (r18.any { fullTxt.contains(it) }) return "18+"
+
         val cleanRaw = rawAge.trim().uppercase()
         if (cleanRaw in listOf("18+", "18", "R", "NC-17", "R-18", "X", "TV-MA", "AGE18")) return "18+"
         if (cleanRaw in listOf("16+", "16", "TV-14", "AGE16")) return "16+"
@@ -699,12 +708,6 @@ object ShowHubApiClient {
 
         if (cleanRaw.contains("+")) return cleanRaw
 
-        val fullTxt = "$title $desc ${genres.joinToString(" ")}".lowercase()
-        val r18 = listOf(
-            "18+", "18 плюс", "порно", "эротика", "разврат", "оргии", "снафф", "расчленен",
-            "пытки", "слэшер", "slasher", "людоед", "каннибал"
-        )
-        if (r18.any { fullTxt.contains(it) }) return "18+"
         val r6 = listOf("мультфильм", "детский", "семейный", "сказка", "0+", "6+", "6 плюс")
         if (r6.any { fullTxt.contains(it) }) return "6+"
         val r12 = listOf("12+", "12 плюс", "комедия", "фантастика", "фэнтези", "приключения", "мелодрама", "спорт")

@@ -313,6 +313,25 @@ def classify_age_rating(
     Authoritatively prioritizes official TMDb/Kinopoisk certifications first.
     Never falsely forces regular dramas, detective stories or comedies to 18+.
     """
+    g_str = ""
+    if isinstance(genres, list):
+        g_str = " ".join(str(x) for x in genres)
+    elif isinstance(genres, str):
+        g_str = genres
+
+    corpus = f"{title} {desc} {g_str}".lower()
+
+    # Extreme adult / erotic / hardcore themes (stems)
+    r18_keywords = [
+        "18+", "18 плюс", "r-rated", "nc-17", "adult", "adults only",
+        "порно", "эроти", "стрип", "бордел", "проститут", "эскорт",
+        "секс", "интим", "разврат", "орги", "снафф", "расчленен",
+        "пытки", "пыток", "слэшер", "slasher", "людоед", "каннибал",
+        "хентай", "hentai", "бдсм", "bdsm", "куртизанк"
+    ]
+    if any(kw in corpus for kw in r18_keywords):
+        return "18+"
+
     # 1. Official raw_limit directly from provider (TMDb, Rezka, Kinopoisk)
     norm = normalize_age_limit(raw_limit)
     if norm:
@@ -327,23 +346,6 @@ def classify_age_rating(
                 return norm
 
     # 3. Fallback to clean genre and thematic classification
-    g_str = ""
-    if isinstance(genres, list):
-        g_str = " ".join(str(x) for x in genres)
-    elif isinstance(genres, str):
-        g_str = genres
-
-    corpus = f"{title} {desc} {g_str}".lower()
-
-    # Extreme adult / hardcore themes only
-    r18_keywords = [
-        "18+", "18 плюс", "r-rated", "nc-17",
-        "порно", "эротика", "разврат", "оргии", "снафф", "расчленен",
-        "пытки", "слэшер", "slasher", "людоед", "каннибал"
-    ]
-    if any(kw in corpus for kw in r18_keywords):
-        return "18+"
-
     # Animation, children, family
     r6_keywords = [
         "мультфильм", "детский", "семейный", "сказка",
@@ -1479,6 +1481,32 @@ def _fetch_media_details(
         except Exception:
             pass
 
+    # 1b. Fetch authoritative Kinopoisk Unofficial details (official age limits & KP ratings)
+    if resolved_kp:
+        try:
+            kp_url = f"https://kinopoiskapiunofficial.tech/api/v2.2/films/{resolved_kp}"
+            kp_req = urllib.request.Request(kp_url, headers={
+                "X-API-KEY": "2bf3d1c4-c449-475f-864e-9590928d1a6e",
+                "User-Agent": "ShowHubTV"
+            })
+            with urllib.request.urlopen(kp_req, timeout=3) as kp_resp:
+                if kp_resp.status == 200:
+                    kp_json = json.loads(kp_resp.read().decode("utf-8"))
+                    kp_age = kp_json.get("ratingAgeLimits")
+                    kp_mpaa = kp_json.get("ratingMpaa")
+                    kp_rating = kp_json.get("ratingKinopoisk")
+                    if kp_age:
+                        details["ratingAgeLimits"] = kp_age
+                    if kp_mpaa:
+                        details["ratingMpaa"] = kp_mpaa
+                    if kp_rating and str(kp_rating) != "None":
+                        try:
+                            details["rating_kp"] = float(kp_rating)
+                        except (ValueError, TypeError):
+                            pass
+        except Exception:
+            pass
+
     # 2. Fetch HDRezka details (translators, seasons & episodes, high-res poster)
     try:
         rz_id = media_id if (source == "hdrezka" and media_id.startswith("http")) else None
@@ -2387,7 +2415,7 @@ def _resolve_trailer(title: str, year: Optional[str] = None, kp_id: Optional[str
     if kp_id and str(kp_id).isdigit():
         try:
             url = f"https://kinopoiskapiunofficial.tech/api/v2.2/films/{kp_id}/videos"
-            req = urllib.request.Request(url, headers={"X-API-KEY": "e069b222-2ba6-455b-b9f1-f0ca333246eb", "User-Agent": "ShowHubTV"})
+            req = urllib.request.Request(url, headers={"X-API-KEY": "2bf3d1c4-c449-475f-864e-9590928d1a6e", "User-Agent": "ShowHubTV"})
             with urllib.request.urlopen(req, timeout=4) as resp:
                 if resp.status == 200:
                     data = json.loads(resp.read().decode("utf-8"))
@@ -2537,6 +2565,9 @@ def get_media_preview_stream(
         u = str(st.url).lower()
         if any(bad in u for bad in ["rhtie.mp4", "rhtie", "trial", "preview", "teaser", "promo"]):
             return False
+        # Server-resolved voidboost streams are IP-bound to server IP and return 404 for client devices!
+        if any(bad in u for bad in ["stream.voidboost", "voidboost.one", "voidboost"]):
+            return False
         if getattr(st, "is_premium", False):
             return False
         q = str(st.quality).lower()
@@ -2544,20 +2575,66 @@ def get_media_preview_stream(
             return False
         return True
 
-    # Source 1: Direct HDRezka if provided
-    try:
-        if source == "hdrezka" and media_id:
-            rz_res = hdrezka.get_streams(media_id, season=1, episode=1)
-            if not rz_res.streams and (is_series or str(is_series) == "1"):
-                rz_res = hdrezka.get_streams(media_id, season=2, episode=1)
-            if rz_res.streams:
-                valid_rz = [s for s in rz_res.streams if is_usable_preview_stream(s)]
-                if valid_rz:
-                    candidate_streams.extend(valid_rz)
-    except Exception:
-        pass
+    target_kp = kp_id
+    if not target_kp and media_id and str(media_id).isdigit():
+        target_kp = str(media_id)
 
-    # Source 2: Search HDRezka by title & year (with subtitle and base title fallback)
+    # Source 1: Collaps / Delivembd direct HLS (interkh.com - fastest, universal, no IP restrictions)
+    if (target_kp or clean_title):
+        try:
+            d_res = delivembd.get_streams(target_kp or "", season=1, episode=1, title=clean_title, year=safe_parse_year(year))
+            if d_res.streams:
+                valid_d = [s for s in d_res.streams if is_usable_preview_stream(s)]
+                if valid_d:
+                    candidate_streams.extend(valid_d)
+        except Exception:
+            pass
+
+    # Source 2: Bazon if real KP ID
+    if not candidate_streams and (target_kp or (source in ["bazon", "videocdn", "delivembd"] and media_id and media_id.isdigit())):
+        target_id = target_kp or media_id
+        try:
+            b_res = bazon.get_streams(target_id)
+            if b_res.streams:
+                valid_b = [s for s in b_res.streams if is_usable_preview_stream(s)]
+                if valid_b:
+                    candidate_streams.extend(valid_b)
+        except Exception:
+            pass
+
+    # Source 3: Filmix by numeric media_id or title search
+    if not candidate_streams:
+        try:
+            fx_id = media_id if (source == "filmix" and media_id and media_id.isdigit()) else None
+            if not fx_id and clean_title:
+                fx_items = filmix.search(clean_title)
+                fx_match = find_best_match(fx_items, year, is_series, target_title=clean_title)
+                if fx_match:
+                    fx_id = fx_match.id
+            if fx_id:
+                fx_res = filmix.get_streams(fx_id, season=1, episode=1)
+                if fx_res.streams:
+                    valid_fx = [s for s in fx_res.streams if is_usable_preview_stream(s)]
+                    if valid_fx:
+                        candidate_streams.extend(valid_fx)
+        except Exception:
+            pass
+
+    # Source 4: Direct HDRezka if provided
+    if not candidate_streams:
+        try:
+            if source == "hdrezka" and media_id:
+                rz_res = hdrezka.get_streams(media_id, season=1, episode=1)
+                if not rz_res.streams and (is_series or str(is_series) == "1"):
+                    rz_res = hdrezka.get_streams(media_id, season=2, episode=1)
+                if rz_res.streams:
+                    valid_rz = [s for s in rz_res.streams if is_usable_preview_stream(s)]
+                    if valid_rz:
+                        candidate_streams.extend(valid_rz)
+        except Exception:
+            pass
+
+    # Source 5: Search HDRezka by title & year (with subtitle and base title fallback)
     if not candidate_streams and clean_title:
         search_queries = []
         for q in [clean_title, clean_title_no_season, base_title]:
@@ -2580,51 +2657,6 @@ def get_media_preview_stream(
                             break
             except Exception:
                 pass
-
-    # Source 3: Filmix by numeric media_id or title search
-    if not candidate_streams:
-        try:
-            fx_id = media_id if (source == "filmix" and media_id and media_id.isdigit()) else None
-            if not fx_id and clean_title:
-                fx_items = filmix.search(clean_title)
-                fx_match = find_best_match(fx_items, year, is_series, target_title=clean_title)
-                if fx_match:
-                    fx_id = fx_match.id
-            if fx_id:
-                fx_res = filmix.get_streams(fx_id, season=1, episode=1)
-                if fx_res.streams:
-                    valid_fx = [s for s in fx_res.streams if is_usable_preview_stream(s)]
-                    if valid_fx:
-                        candidate_streams.extend(valid_fx)
-        except Exception:
-            pass
-
-    target_kp = kp_id
-    if not target_kp and media_id and str(media_id).isdigit():
-        target_kp = str(media_id)
-
-    # Source 4: Collaps / Delivembd direct HLS
-    if not candidate_streams and (target_kp or clean_title):
-        try:
-            d_res = delivembd.get_streams(target_kp or "", season=1, episode=1, title=clean_title, year=safe_parse_year(year))
-            if d_res.streams:
-                valid_d = [s for s in d_res.streams if is_usable_preview_stream(s)]
-                if valid_d:
-                    candidate_streams.extend(valid_d)
-        except Exception:
-            pass
-
-    # Source 4b: Bazon if real KP ID
-    if not candidate_streams and (target_kp or (source in ["bazon", "videocdn", "delivembd"] and media_id and media_id.isdigit())):
-        target_id = target_kp or media_id
-        try:
-            b_res = bazon.get_streams(target_id)
-            if b_res.streams:
-                valid_b = [s for s in b_res.streams if is_usable_preview_stream(s)]
-                if valid_b:
-                    candidate_streams.extend(valid_b)
-        except Exception:
-            pass
 
     # Source 5: Kodik (crucial for anime, donghua, and season-specific catalog entries)
     if not candidate_streams and (clean_title or target_kp or media_id):

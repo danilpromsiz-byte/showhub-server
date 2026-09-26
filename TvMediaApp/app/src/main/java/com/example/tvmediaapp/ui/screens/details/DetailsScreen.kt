@@ -592,9 +592,9 @@ fun DetailsScreen(
         }
     }
 
-    // Video preview in details screen (starts after 3.0s delay as requested by user)
-    LaunchedEffect(currentMovie.id) {
-        delay(3000)
+    // Video preview in details screen (responsive 1.2s delay with dynamic Referer headers)
+    LaunchedEffect(currentMovie.id, streamOptions.size) {
+        delay(1200)
         if (detailsPreviewPlayer == null) {
             val streamUrl = withContext(Dispatchers.IO) {
                 var sUrl: String? = pickSafePreviewStream(streamOptions)
@@ -602,27 +602,29 @@ fun DetailsScreen(
                     sUrl = currentMovie.videoUrl
                 }
                 if (sUrl.isNullOrEmpty()) {
-                    try {
-                        val rezkaMediaUrl = if (currentMovie.id.startsWith("http") || currentMovie.id.contains("hdrezka") || currentMovie.id.startsWith("rezka:")) {
-                            currentMovie.id
-                        } else null
-                        val nativeStreams = RezkaNativeResolver.resolveStreams(
-                            title = currentMovie.title,
-                            year = currentMovie.releaseYear,
-                            isSeries = currentMovie.isSeries,
-                            season = if (currentMovie.isSeries) selectedSeason else 1,
-                            episode = if (currentMovie.isSeries) selectedEpisode else 1,
-                            mediaUrl = rezkaMediaUrl,
-                            originalTitle = currentMovie.originalTitle
-                        )
-                        sUrl = pickSafePreviewStream(nativeStreams)
-                    } catch (_: Exception) {}
-                }
-                if (sUrl.isNullOrEmpty()) {
                     val candidate = ShowHubApiClient.fetchPreviewStream(currentMovie)
                     if (candidate != null && isDirectVideoStream(candidate)) {
                         sUrl = candidate
                     }
+                }
+                if (sUrl.isNullOrEmpty()) {
+                    try {
+                        kotlinx.coroutines.withTimeoutOrNull(2500) {
+                            val rezkaMediaUrl = if (currentMovie.id.startsWith("http") || currentMovie.id.contains("hdrezka") || currentMovie.id.startsWith("rezka:")) {
+                                currentMovie.id
+                            } else null
+                            val nativeStreams = RezkaNativeResolver.resolveStreams(
+                                title = currentMovie.title,
+                                year = currentMovie.releaseYear,
+                                isSeries = currentMovie.isSeries,
+                                season = if (currentMovie.isSeries) selectedSeason else 1,
+                                episode = if (currentMovie.isSeries) selectedEpisode else 1,
+                                mediaUrl = rezkaMediaUrl,
+                                originalTitle = currentMovie.originalTitle
+                            )
+                            sUrl = pickSafePreviewStream(nativeStreams)
+                        }
+                    } catch (_: Exception) {}
                 }
                 sUrl
             }
@@ -632,11 +634,30 @@ fun DetailsScreen(
                 try {
                     val httpDataSourceFactory = DefaultHttpDataSource.Factory()
                         .setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
-                        .setDefaultRequestProperties(mapOf("Referer" to "https://hdrezka.ag/"))
                         .setConnectTimeoutMs(8000)
                         .setReadTimeoutMs(15000)
                         .setAllowCrossProtocolRedirects(true)
-                    val mediaSourceFactory = DefaultMediaSourceFactory(httpDataSourceFactory)
+                    val resolvingDataSourceFactory = androidx.media3.datasource.ResolvingDataSource.Factory(httpDataSourceFactory) { dataSpec ->
+                        val u = dataSpec.uri.toString().lowercase()
+                        val headers = HashMap<String, String>(dataSpec.httpRequestHeaders)
+                        when {
+                            u.contains("interkh") || u.contains("namy.ws") || u.contains("embess.ws") || u.contains("nextembed.ws") || u.contains("voidboost") -> {
+                                headers["Referer"] = "https://api.namy.ws/"
+                                headers["Origin"] = "https://api.namy.ws"
+                            }
+                            u.contains("filmix") -> {
+                                headers["Referer"] = "https://filmix.my/"
+                            }
+                            u.contains("bazon") -> {
+                                headers["Referer"] = "https://bazon.cc/"
+                            }
+                            else -> {
+                                headers["Referer"] = "https://hdrezka.ag/"
+                            }
+                        }
+                        dataSpec.buildUpon().setHttpRequestHeaders(headers).build()
+                    }
+                    val mediaSourceFactory = DefaultMediaSourceFactory(resolvingDataSourceFactory)
 
                     val loadControl = DefaultLoadControl.Builder()
                         .setBufferDurationsMs(
@@ -1803,15 +1824,16 @@ fun DetailsScreen(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    var isFavoriteFocused by remember { mutableStateOf(false) }
                     Button(
                         onClick = {
                             isFav = !isFav
                             onToggleFavorite(currentMovie)
                         },
                         colors = ButtonDefaults.colors(
-                            containerColor = if (isFav) FavoriteGold.copy(alpha = 0.85f) else Color.White.copy(alpha = 0.12f),
+                            containerColor = Color.White.copy(alpha = 0.12f),
                             focusedContainerColor = focusColor,
-                            contentColor = if (isFav) Color.Black else TextWhite,
+                            contentColor = TextWhite,
                             focusedContentColor = Color.Black
                         ),
                         border = ButtonDefaults.border(
@@ -1824,6 +1846,7 @@ fun DetailsScreen(
                         modifier = Modifier
                             .height(28.dp)
                             .focusRequester(favoriteButtonFocusRequester)
+                            .onFocusChanged { isFavoriteFocused = it.isFocused }
                             .focusProperties {
                                 left = leftPaneFocusRequester
                                 up = playButtonFocusRequester
@@ -1837,7 +1860,7 @@ fun DetailsScreen(
                         ) {
                             AppIcon(
                                 resId = if (isFav) R.drawable.ic_star else R.drawable.ic_star_border,
-                                tint = if (isFav) FavoriteGold else androidx.tv.material3.LocalContentColor.current,
+                                tint = if (isFavoriteFocused) Color.Black else if (isFav) FavoriteGold else androidx.tv.material3.LocalContentColor.current,
                                 size = 13.dp
                             )
                             Text(

@@ -106,53 +106,22 @@ fun MovieCard(
 
     val timelineProgress by animateFloatAsState(
         targetValue = targetTimelineProgress,
-        animationSpec = tween(durationMillis = 3000),
+        animationSpec = tween(durationMillis = 1200),
         label = "previewProgress"
     )
 
-    // Handle focus preview timer & stream loading (3.0s timeout as requested)
+    // Handle focus preview timer & stream loading (responsive 1.2s timeout)
     LaunchedEffect(isFocused) {
         if (isFocused) {
             targetTimelineProgress = 1f
-            // Wait 3.0 seconds before starting preview
-            delay(3000)
+            // Wait 1.2 seconds before starting preview
+            delay(1200)
             if (isFocused) {
                 isPreviewBuffering = true
                 var streamUrl: String? = null
 
                 if (!movie.videoUrl.isNullOrBlank() && isDirectVideoStream(movie.videoUrl)) {
                     streamUrl = movie.videoUrl
-                }
-
-                if (streamUrl.isNullOrEmpty()) {
-                    try {
-                        withContext(kotlinx.coroutines.Dispatchers.IO) {
-                            val rezkaMediaUrl = if (movie.id.startsWith("http") || movie.id.contains("hdrezka") || movie.id.startsWith("rezka:")) {
-                                movie.id
-                            } else null
-                            val nativeStreams = RezkaNativeResolver.resolveStreams(
-                                title = movie.title,
-                                year = movie.releaseYear,
-                                isSeries = movie.isSeries,
-                                mediaUrl = rezkaMediaUrl,
-                                originalTitle = movie.originalTitle
-                            )
-                            val nonPremium = nativeStreams.filter {
-                                val q = it.quality.lowercase()
-                                val u = it.url.lowercase()
-                                !q.contains("ultra") && !q.contains("4k") && !q.contains("vip") && !q.contains("premium") &&
-                                !u.contains("rhtie") && !u.contains("trial") && !u.contains("preview") &&
-                                !u.contains("teaser") && !u.contains("promo") && !u.contains("vip") && !u.contains("ultra") &&
-                                isDirectVideoStream(it.url)
-                            }
-                            streamUrl = nonPremium.firstOrNull { it.quality.contains("720") }?.url
-                                ?: nonPremium.firstOrNull { it.quality.contains("1080") }?.url
-                                ?: nonPremium.firstOrNull { it.quality.contains("480") }?.url
-                                ?: nonPremium.firstOrNull()?.url
-                        }
-                    } catch (e: Exception) {
-                        // fallback to server
-                    }
                 }
 
                 if (streamUrl.isNullOrEmpty()) {
@@ -166,6 +135,39 @@ fun MovieCard(
                     }
                 }
 
+                if (streamUrl.isNullOrEmpty()) {
+                    try {
+                        withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            kotlinx.coroutines.withTimeoutOrNull(2500) {
+                                val rezkaMediaUrl = if (movie.id.startsWith("http") || movie.id.contains("hdrezka") || movie.id.startsWith("rezka:")) {
+                                    movie.id
+                                } else null
+                                val nativeStreams = RezkaNativeResolver.resolveStreams(
+                                    title = movie.title,
+                                    year = movie.releaseYear,
+                                    isSeries = movie.isSeries,
+                                    mediaUrl = rezkaMediaUrl,
+                                    originalTitle = movie.originalTitle
+                                )
+                                val nonPremium = nativeStreams.filter {
+                                    val q = it.quality.lowercase()
+                                    val u = it.url.lowercase()
+                                    !q.contains("ultra") && !q.contains("4k") && !q.contains("vip") && !q.contains("premium") &&
+                                    !u.contains("rhtie") && !u.contains("trial") && !u.contains("preview") &&
+                                    !u.contains("teaser") && !u.contains("promo") && !u.contains("vip") && !u.contains("ultra") &&
+                                    isDirectVideoStream(it.url)
+                                }
+                                streamUrl = nonPremium.firstOrNull { it.quality.contains("720") }?.url
+                                    ?: nonPremium.firstOrNull { it.quality.contains("1080") }?.url
+                                    ?: nonPremium.firstOrNull { it.quality.contains("480") }?.url
+                                    ?: nonPremium.firstOrNull()?.url
+                            }
+                        }
+                    } catch (e: Exception) {
+                        // fallback to server
+                    }
+                }
+
                 val validStreamUrl = streamUrl
                 if (isFocused && !validStreamUrl.isNullOrEmpty() && isDirectVideoStream(validStreamUrl)) {
                     val prefs = context.getSharedPreferences("showhub_prefs", android.content.Context.MODE_PRIVATE)
@@ -176,11 +178,30 @@ fun MovieCard(
                         // Create ExoPlayer strictly on Main thread (ExoPlayer requires a Looper)
                         val httpDataSourceFactory = DefaultHttpDataSource.Factory()
                             .setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
-                            .setDefaultRequestProperties(mapOf("Referer" to "https://hdrezka.ag/"))
                             .setConnectTimeoutMs(8000)
                             .setReadTimeoutMs(15000)
                             .setAllowCrossProtocolRedirects(true)
-                        val mediaSourceFactory = DefaultMediaSourceFactory(httpDataSourceFactory)
+                        val resolvingDataSourceFactory = androidx.media3.datasource.ResolvingDataSource.Factory(httpDataSourceFactory) { dataSpec ->
+                            val u = dataSpec.uri.toString().lowercase()
+                            val headers = HashMap<String, String>(dataSpec.httpRequestHeaders)
+                            when {
+                                u.contains("interkh") || u.contains("namy.ws") || u.contains("embess.ws") || u.contains("nextembed.ws") || u.contains("voidboost") -> {
+                                    headers["Referer"] = "https://api.namy.ws/"
+                                    headers["Origin"] = "https://api.namy.ws"
+                                }
+                                u.contains("filmix") -> {
+                                    headers["Referer"] = "https://filmix.my/"
+                                }
+                                u.contains("bazon") -> {
+                                    headers["Referer"] = "https://bazon.cc/"
+                                }
+                                else -> {
+                                    headers["Referer"] = "https://hdrezka.ag/"
+                                }
+                            }
+                            dataSpec.buildUpon().setHttpRequestHeaders(headers).build()
+                        }
+                        val mediaSourceFactory = DefaultMediaSourceFactory(resolvingDataSourceFactory)
 
                         val loadControl = DefaultLoadControl.Builder()
                             .setBufferDurationsMs(

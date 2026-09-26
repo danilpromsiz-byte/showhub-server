@@ -260,8 +260,8 @@ class TMDbClient:
             item, resolved_type = matched
             m_id = item["id"]
 
-            # Get Details (Country, Overview, Genres, Runtime)
-            det_url = f"{BASE_URL}/{resolved_type}/{m_id}?api_key={self.api_key}&language=ru-RU"
+            # Get Details (Country, Overview, Genres, Runtime, Age Certification)
+            det_url = f"{BASE_URL}/{resolved_type}/{m_id}?api_key={self.api_key}&language=ru-RU&append_to_response=release_dates,content_ratings"
             det_res = self.session.get(det_url, timeout=4)
             det_data = det_res.json() if det_res.status_code == 200 else {}
 
@@ -284,6 +284,28 @@ class TMDbClient:
             poster = f"{IMG_BASE}/w780{poster_path}" if poster_path else None
             backdrop_path = det_data.get("backdrop_path") or item.get("backdrop_path")
             backdrop = f"{IMG_BASE}/w1280{backdrop_path}" if backdrop_path else None
+
+            # Parse official age certification from release_dates or content_ratings
+            age_limit = None
+            if resolved_type == "movie":
+                rel_results = det_data.get("release_dates", {}).get("results", [])
+                for preferred_iso in ["RU", "US", "GB", "KR"]:
+                    iso_entry = next((x for x in rel_results if x.get("iso_3166_1") == preferred_iso), None)
+                    if iso_entry:
+                        for d in iso_entry.get("release_dates", []):
+                            cert = (d.get("certification") or "").strip()
+                            if cert:
+                                age_limit = cert
+                                break
+                    if age_limit:
+                        break
+            else:
+                cr_results = det_data.get("content_ratings", {}).get("results", [])
+                for preferred_iso in ["RU", "US", "GB", "KR"]:
+                    iso_entry = next((x for x in cr_results if x.get("iso_3166_1") == preferred_iso), None)
+                    if iso_entry and iso_entry.get("rating"):
+                        age_limit = iso_entry.get("rating").strip()
+                        break
 
             # Get Credits (Cast with photos, Directors with photos)
             cred_url = f"{BASE_URL}/{resolved_type}/{m_id}/credits?api_key={self.api_key}&language=ru-RU"
@@ -335,6 +357,7 @@ class TMDbClient:
                 "director": ", ".join(director_str_list[:3]),
                 "directors_list": directors_list,
                 "rating": det_data.get("vote_average"),
+                "age_limit": age_limit,
                 "is_series": (resolved_type == "tv")
             }
 
@@ -525,5 +548,134 @@ class TMDbClient:
             return filmography
         except Exception:
             return []
+
+    def discover_catalog(
+        self,
+        country: Optional[str] = None,
+        genre: Optional[str] = None,
+        category: str = "all",
+        sort_by: str = "popular",
+        page: int = 1
+    ) -> List[Dict[str, Any]]:
+        """
+        Discovers movies and series directly from TMDb matching country, genre, category, and sort parameters.
+        Returns rich metadata with guaranteed high-resolution poster images.
+        """
+        genre_movie_id = None
+        genre_tv_id = None
+        if genre and genre != "all":
+            g_low = genre.lower()
+            for stem, gid in [
+                ("комеди", 35), ("боевик", 28), ("драма", 18), ("триллер", 53), ("ужас", 27),
+                ("фантастик", 878), ("фэнтези", 14), ("приключен", 12), ("криминал", 80),
+                ("детектив", 9648), ("мульт", 16), ("мелодрам", 10749), ("семейн", 10751),
+                ("документальн", 99), ("военн", 10752), ("истори", 36), ("вестерн", 37)
+            ]:
+                if stem in g_low:
+                    genre_movie_id = gid
+                    break
+            for stem, gid in [
+                ("комеди", 35), ("боевик", 10759), ("драма", 18), ("триллер", 9648), ("ужас", 9648),
+                ("фантастик", 10765), ("фэнтези", 10765), ("приключен", 10759), ("криминал", 80),
+                ("детектив", 9648), ("мульт", 16), ("мелодрам", 18), ("семейн", 10751),
+                ("документальн", 99), ("военн", 10768), ("истори", 18), ("вестерн", 37)
+            ]:
+                if stem in g_low:
+                    genre_tv_id = gid
+                    break
+
+        iso_code = None
+        if country and country != "all":
+            c_low = country.lower()
+            for stem, iso in [
+                ("коре", "KR"), ("сша", "US"), ("росси", "RU"), ("ссср", "RU"), ("япон", "JP"),
+                ("турц", "TR"), ("кита", "CN"), ("инди", "IN"), ("франц", "FR"), ("герман", "DE"),
+                ("италь", "IT"), ("итали", "IT"), ("испан", "ES"), ("великобрит", "GB"),
+                ("англи", "GB"), ("канад", "CA"), ("австрал", "AU"), ("таиланд", "TH"),
+                ("тайланд", "TH"), ("швеци", "SE"), ("мексик", "MX"), ("бразил", "BR")
+            ]:
+                if stem in c_low:
+                    iso_code = iso
+                    break
+
+        sort_param_movie = "popularity.desc"
+        sort_param_tv = "popularity.desc"
+        if sort_by == "rating":
+            sort_param_movie = "vote_average.desc"
+            sort_param_tv = "vote_average.desc"
+        elif sort_by == "newest" or sort_by == "year":
+            sort_param_movie = "primary_release_date.desc"
+            sort_param_tv = "first_air_date.desc"
+
+        media_types = []
+        if category in ["series", "tv"]:
+            media_types = ["tv"]
+        elif category in ["movies", "movie"]:
+            media_types = ["movie"]
+        else:
+            media_types = ["movie", "tv"]
+
+        results_list = []
+        seen_titles = set()
+
+        for mtype in media_types:
+            try:
+                g_id = genre_tv_id if mtype == "tv" else genre_movie_id
+                s_param = sort_param_tv if mtype == "tv" else sort_param_movie
+                url = f"{BASE_URL}/discover/{mtype}?api_key={self.api_key}&language=ru-RU&sort_by={s_param}&page={page}"
+                if iso_code:
+                    url += f"&with_origin_country={iso_code}"
+                if g_id:
+                    url += f"&with_genres={g_id}"
+                if sort_by == "rating":
+                    url += "&vote_count.gte=10"
+
+                resp = self.session.get(url, timeout=5)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    for item in data.get("results", []):
+                        m_id = item.get("id")
+                        title = item.get("title") or item.get("name")
+                        if not title:
+                            continue
+                        t_norm = title.lower().strip()
+                        if t_norm in seen_titles:
+                            continue
+                        seen_titles.add(t_norm)
+
+                        orig_title = item.get("original_title") or item.get("original_name") or ""
+                        r_date = item.get("release_date") or item.get("first_air_date") or ""
+                        year_val = int(r_date[:4]) if (r_date and len(r_date) >= 4 and r_date[:4].isdigit()) else None
+                        p_path = item.get("poster_path")
+                        poster = f"{IMG_BASE}/w780{p_path}" if p_path else None
+                        rating_val = round(float(item.get("vote_average") or 0.0), 1)
+
+                        country_name = ISO_COUNTRY_MAP.get(iso_code, country) if iso_code else None
+
+                        results_list.append({
+                            "id": f"tmdb_{m_id}",
+                            "source_name": "tmdb",
+                            "source": "tmdb",
+                            "title": title,
+                            "original_title": orig_title,
+                            "year": year_val,
+                            "poster": poster,
+                            "backdrop": f"{IMG_BASE}/w1280{item.get('backdrop_path')}" if item.get("backdrop_path") else poster,
+                            "description": item.get("overview") or "",
+                            "rating_imdb": rating_val,
+                            "rating_kp": rating_val,
+                            "country": country_name,
+                            "genres": [genre] if genre and genre != "all" else [],
+                            "is_series": (mtype == "tv"),
+                            "extra_data": {
+                                "tmdb_id": m_id,
+                                "country": country_name,
+                                "origin_country": item.get("origin_country", [iso_code] if iso_code else [])
+                            }
+                        })
+            except Exception:
+                pass
+
+        return results_list
 
 tmdb = TMDbClient()

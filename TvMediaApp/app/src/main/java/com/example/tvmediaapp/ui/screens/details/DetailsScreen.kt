@@ -120,6 +120,9 @@ import com.example.tvmediaapp.ui.theme.TextWhite
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 
+// UI Data class to hold source display info with type and best quality
+data class DetailsSourceItem(val name: String, val isHls: Boolean, val bestQuality: String, val epCount: Int = 0)
+
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 fun DetailsScreen(
@@ -158,13 +161,213 @@ fun DetailsScreen(
     var selectedEpisode by remember { mutableStateOf(savedHistory?.episode ?: 1) }
     var selectedAudioId by remember { mutableStateOf(savedHistory?.audioId ?: "") }
     var selectedQuality by remember { mutableStateOf(prefs.getString("pref_quality", "1080p") ?: "1080p") }
-    var selectedSourceFilter by remember { mutableStateOf("Все") }
+    val initialSource = remember(movie.source, currentMovie.source) {
+        val s = currentMovie.source.takeIf { it.isNotBlank() && !it.equals("Все", ignoreCase = true) }
+            ?: movie.source.takeIf { it.isNotBlank() && !it.equals("Все", ignoreCase = true) }
+            ?: "HDRezka"
+        when {
+            s.startsWith("HDrezka", ignoreCase = true) || s.startsWith("Rezka", ignoreCase = true) -> "HDRezka"
+            s.contains("Filmix", ignoreCase = true) -> "Filmix"
+            s.contains("Kodik", ignoreCase = true) -> "Kodik"
+            s.contains("VideoCDN", ignoreCase = true) -> "VideoCDN"
+            s.contains("Collaps", ignoreCase = true) || s.contains("Delivembd", ignoreCase = true) -> "Collaps"
+            s.contains("Bazon", ignoreCase = true) -> "Bazon"
+            else -> s.replaceFirstChar { it.uppercase() }
+        }
+    }
+    var selectedSourceFilter by remember { mutableStateOf(initialSource) }
     var isResolving by remember { mutableStateOf(false) }
     var streamStatus by remember { mutableStateOf<String?>(null) }
     var streamOptions by remember { mutableStateOf<List<StreamOption>>(emptyList()) }
     var selectedDetailTab by remember { mutableIntStateOf(0) }
     var comments by remember { mutableStateOf<List<CommentItem>>(emptyList()) }
     var isLoadingComments by remember { mutableStateOf(false) }
+
+    val availableSourcesInfo = remember(currentMovie.sources, currentMovie.audioTracks, currentMovie.seasons, selectedSeason, streamOptions, currentMovie.isSeries) {
+        val detectedSources = linkedSetOf<String>()
+        currentMovie.sources.forEach { if (it.name.isNotBlank()) detectedSources.add(it.name) }
+        currentMovie.audioTracks.forEach { trk ->
+            val s = trk.source.trim()
+            val name = when {
+                s.contains("kodik", ignoreCase = true) || trk.id.startsWith("kodik_") -> "Kodik"
+                s.contains("filmix", ignoreCase = true) -> "Filmix"
+                s.contains("rezka", ignoreCase = true) || (!trk.id.startsWith("kodik_") && s.isNotEmpty()) -> "HDRezka"
+                else -> if (s.isNotEmpty()) s.replaceFirstChar { it.uppercase() } else ""
+            }
+            if (name.isNotEmpty()) detectedSources.add(name)
+        }
+        streamOptions.forEach { st ->
+            val s = st.source.trim()
+            val name = when {
+                s.startsWith("HDrezka", ignoreCase = true) || s.startsWith("Rezka", ignoreCase = true) -> "HDRezka"
+                s.contains("Filmix", ignoreCase = true) -> "Filmix"
+                s.contains("Kodik", ignoreCase = true) -> "Kodik"
+                s.contains("VideoCDN", ignoreCase = true) || st.url.contains("allarknow") || st.url.contains("bayas") || st.url.contains("videoframe") -> "VideoCDN"
+                s.contains("Collaps", ignoreCase = true) || s.contains("Delivembd", ignoreCase = true) -> "Collaps"
+                s.contains("Bazon", ignoreCase = true) -> "Bazon"
+                s.isNotEmpty() -> s.replaceFirstChar { it.uppercase() }
+                else -> ""
+            }
+            if (name.isNotEmpty()) detectedSources.add(name)
+        }
+
+        val curSeasonEps = if (currentMovie.isSeries) {
+            currentMovie.seasons.firstOrNull { it.seasonNumber == selectedSeason }?.episodes?.size
+                ?: currentMovie.seasons.sumOf { it.episodes.size }
+        } else 0
+
+        val qualityOrder = listOf("4K Ultra", "4K", "2160", "1080p HD", "1080p", "1080", "720p", "720", "480p", "480", "360p", "360")
+
+        val sourceInfoList = detectedSources.map { srcName ->
+            val sKey = srcName.lowercase()
+            val srcStreams = streamOptions.filter { st ->
+                val stSrc = st.source.lowercase()
+                when {
+                    sKey.contains("kodik") -> stSrc.contains("kodik")
+                    sKey.contains("rezka") -> stSrc.contains("rezka")
+                    sKey.contains("filmix") -> stSrc.contains("filmix")
+                    sKey.contains("videocdn") -> stSrc.contains("videocdn") || st.url.contains("allarknow") || st.url.contains("bayas") || st.url.contains("videoframe")
+                    sKey.contains("bazon") -> stSrc.contains("bazon")
+                    sKey.contains("collaps") || sKey.contains("delivembd") -> stSrc.contains("collaps") || stSrc.contains("delivembd") || st.url.contains("interkh") || st.url.contains("namy.ws")
+                    else -> stSrc.contains(sKey)
+                }
+            }
+            val hasHls = if (srcStreams.isNotEmpty()) {
+                srcStreams.any { isDirectVideoStream(it.url) }
+            } else {
+                sKey.contains("rezka") || sKey.contains("filmix")
+            }
+            val bestQ = run {
+                for (q in qualityOrder) {
+                    val match = srcStreams.firstOrNull { it.quality.contains(q, ignoreCase = true) }
+                    if (match != null) return@run match.quality.replace(Regex("\\(.*?\\)"), "").trim()
+                }
+                srcStreams.firstOrNull()?.quality?.replace(Regex("\\(.*?\\)"), "")?.trim() ?: ""
+            }
+            val epC = if (currentMovie.isSeries) {
+                currentMovie.sources.firstOrNull { it.name.equals(srcName, ignoreCase = true) }?.seasonsEpisodes?.get(selectedSeason)
+                    ?: currentMovie.audioTracks.filter { it.source.contains(srcName, ignoreCase = true) || (srcName.contains("kodik", ignoreCase = true) && it.id.startsWith("kodik_")) }
+                        .mapNotNull { it.seasonsEpisodes[selectedSeason] ?: it.episodesCount.takeIf { c -> c > 0 } }
+                        .maxOrNull()
+                    ?: if (curSeasonEps > 0) curSeasonEps else 0
+            } else 0
+            DetailsSourceItem(srcName, hasHls, bestQ, epC)
+        }.sortedByDescending { it.isHls }
+
+        sourceInfoList
+    }
+
+    LaunchedEffect(availableSourcesInfo) {
+        if (availableSourcesInfo.isNotEmpty()) {
+            val exists = availableSourcesInfo.any { it.name.equals(selectedSourceFilter, ignoreCase = true) }
+            if (!exists || selectedSourceFilter.equals("Все", ignoreCase = true)) {
+                val preferred = availableSourcesInfo.firstOrNull { it.name.equals(currentMovie.source, ignoreCase = true) }
+                    ?: availableSourcesInfo.firstOrNull { it.isHls }
+                    ?: availableSourcesInfo.first()
+                selectedSourceFilter = preferred.name
+            }
+        }
+    }
+
+    val availableSources = remember(availableSourcesInfo) {
+        val list = mutableListOf("Все")
+        availableSourcesInfo.forEach { list.add(it.name) }
+        list
+    }
+
+    val filteredAudioTracks = remember(currentMovie.audioTracks, selectedSourceFilter, selectedSeason, streamOptions) {
+        val sKey = selectedSourceFilter.lowercase()
+        val sourceFiltered = if (selectedSourceFilter == "Все" || selectedSourceFilter.startsWith("Все")) {
+            currentMovie.audioTracks
+        } else {
+            val matched = currentMovie.audioTracks.filter { track ->
+                val trackSrc = track.source.lowercase()
+                when {
+                    sKey.contains("kodik") -> trackSrc.contains("kodik") || track.id.startsWith("kodik_")
+                    sKey.contains("rezka") -> trackSrc.contains("rezka") || (!track.id.startsWith("kodik_") && !trackSrc.contains("filmix") && !trackSrc.contains("videocdn") && !trackSrc.contains("bazon"))
+                    sKey.contains("filmix") -> trackSrc.contains("filmix")
+                    sKey.contains("videocdn") -> trackSrc.contains("videocdn")
+                    sKey.contains("collaps") || sKey.contains("delivembd") -> trackSrc.contains("collaps") || trackSrc.contains("delivembd")
+                    sKey.contains("bazon") -> trackSrc.contains("bazon")
+                    else -> trackSrc.contains(sKey)
+                }
+            }
+            if (matched.isNotEmpty()) {
+                matched
+            } else {
+                val sourceStreams = streamOptions.filter { st ->
+                    val src = st.source.lowercase()
+                    when {
+                        sKey.contains("collaps") -> src.contains("collaps") || src.contains("delivembd") || st.url.contains("interkh") || st.url.contains("namy.ws")
+                        sKey.contains("videocdn") -> src.contains("videocdn") || st.url.contains("allarknow") || st.url.contains("bayas")
+                        sKey.contains("kodik") -> src.contains("kodik")
+                        sKey.contains("bazon") -> src.contains("bazon")
+                        else -> src.contains(sKey)
+                    }
+                }
+                val synthTracks = sourceStreams.mapNotNull { st ->
+                    Regex("\\(([^)]+)\\)").findAll(st.quality)
+                        .map { it.groupValues[1].trim() }
+                        .firstOrNull { v ->
+                            val lower = v.lowercase()
+                            !lower.contains("плеер") && !lower.contains("player") &&
+                            !lower.contains("hls") && !lower.contains("auto") &&
+                            !lower.contains("сиды") && !lower.contains("peer") &&
+                            !lower.matches(Regex("\\d+p?")) && lower != "hd" && lower != "fhd" && lower != "4k"
+                        }?.let { voiceName ->
+                            AudioTrackInfo(
+                                id = "synth_${selectedSourceFilter}_${voiceName}",
+                                name = voiceName,
+                                source = selectedSourceFilter
+                            )
+                        }
+                }.distinctBy { it.name }
+
+                if (synthTracks.isNotEmpty()) {
+                    synthTracks
+                } else {
+                    listOf(
+                        AudioTrackInfo(
+                            id = "src_${sKey}_default",
+                            name = "Озвучка (${selectedSourceFilter})",
+                            source = selectedSourceFilter
+                        )
+                    )
+                }
+            }
+        }
+        if (currentMovie.isSeries) {
+            val seasonFiltered = sourceFiltered.filter { track ->
+                if (track.seasonsEpisodes.isEmpty()) {
+                    if (currentMovie.seasons.size > 1 && selectedSeason > 1) false else true
+                } else {
+                    (track.seasonsEpisodes[selectedSeason] ?: 0) > 0
+                }
+            }
+            if (seasonFiltered.isNotEmpty()) seasonFiltered else sourceFiltered
+        } else {
+            sourceFiltered
+        }
+    }
+
+    LaunchedEffect(filteredAudioTracks, selectedSeason) {
+        if (filteredAudioTracks.isNotEmpty() && filteredAudioTracks.none { it.id == selectedAudioId }) {
+            selectedAudioId = filteredAudioTracks.first().id
+        }
+    }
+
+    val selectedAudioTrackName = remember(filteredAudioTracks, selectedAudioId, currentMovie.audioTracks) {
+        filteredAudioTracks.firstOrNull { it.id == selectedAudioId }?.name
+            ?: currentMovie.audioTracks.firstOrNull { it.id == selectedAudioId }?.name
+            ?: "Озвучка"
+    }
+    val cleanAudioTrackName = remember(selectedAudioTrackName, selectedSourceFilter) {
+        if (!selectedSourceFilter.equals("HDrezka", ignoreCase = true)) {
+            selectedAudioTrackName.replace(Regex("(?i)\\s*\\(hdrezka\\)"), "").trim()
+        } else {
+            selectedAudioTrackName.trim()
+        }
+    }
 
     val displayCast = remember(currentMovie.cast, currentMovie.actors) {
         if (currentMovie.cast.isNotEmpty()) {
@@ -953,6 +1156,50 @@ fun DetailsScreen(
                                 fontWeight = FontWeight.Bold
                             )
                         }
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(text = "Источник:", fontSize = 12.sp, color = TextGray)
+                            Text(
+                                text = selectedSourceFilter,
+                                fontSize = 12.sp,
+                                color = accent,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(text = "Качество:", fontSize = 12.sp, color = TextGray)
+                            Text(
+                                text = selectedQuality,
+                                fontSize = 12.sp,
+                                color = TextWhite,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                        if (cleanAudioTrackName.isNotBlank() && !cleanAudioTrackName.equals("Озвучка", ignoreCase = true)) {
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text(text = "Озвучка:", fontSize = 12.sp, color = TextGray)
+                                Text(
+                                    text = cleanAudioTrackName,
+                                    fontSize = 12.sp,
+                                    color = TextWhite,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                        if (currentMovie.isSeries) {
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text(text = "Серия:", fontSize = 12.sp, color = TextGray)
+                                Text(
+                                    text = "S$selectedSeason E$selectedEpisode",
+                                    fontSize = 12.sp,
+                                    color = TextWhite,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -1105,6 +1352,93 @@ fun DetailsScreen(
 
                 Spacer(modifier = Modifier.height(10.dp))
 
+                // Selected Options Indicator Bar (Source, Quality, Audio, Episode)
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(bottom = 6.dp)
+                ) {
+                    // Source Chip
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(accent.copy(alpha = 0.2f))
+                            .padding(horizontal = 8.dp, vertical = 3.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(text = "Источник:", fontSize = 11.sp, color = TextGray)
+                            Text(text = selectedSourceFilter, fontSize = 11.sp, color = accent, fontWeight = FontWeight.Bold)
+                        }
+                    }
+
+                    // Quality Chip
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(Color.White.copy(alpha = 0.08f))
+                            .padding(horizontal = 8.dp, vertical = 3.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(text = "Качество:", fontSize = 11.sp, color = TextGray)
+                            Text(text = selectedQuality, fontSize = 11.sp, color = TextWhite, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+
+                    // Audio Track Chip
+                    if (cleanAudioTrackName.isNotBlank() && !cleanAudioTrackName.equals("Озвучка", ignoreCase = true)) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(Color.White.copy(alpha = 0.08f))
+                                .padding(horizontal = 8.dp, vertical = 3.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Text(text = "Озвучка:", fontSize = 11.sp, color = TextGray)
+                                Text(
+                                    text = cleanAudioTrackName,
+                                    fontSize = 11.sp,
+                                    color = TextWhite,
+                                    fontWeight = FontWeight.Medium,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                    }
+
+                    // Series / Episode Chip
+                    if (currentMovie.isSeries) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(Color.White.copy(alpha = 0.08f))
+                                .padding(horizontal = 8.dp, vertical = 3.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Text(text = "Серия:", fontSize = 11.sp, color = TextGray)
+                                Text(
+                                    text = "S$selectedSeason E$selectedEpisode",
+                                    fontSize = 11.sp,
+                                    color = TextWhite,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                }
+
                 // Action Buttons - Row 1 (Playback Actions)
                 val scrollUpMod = Modifier.onPreviewKeyEvent { evt ->
                     if (evt.nativeKeyEvent.action == KeyEvent.ACTION_DOWN && evt.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_UP) {
@@ -1124,9 +1458,9 @@ fun DetailsScreen(
                         val mins = savedHistory!!.positionMs / 60000L
                         val isContentSeries = currentMovie.isSeries || currentMovie.seasons.isNotEmpty() || (savedHistory != null && (savedHistory.season > 1 || savedHistory.episode > 1))
                         val resumeLabel = if (isContentSeries) {
-                            "Продолжить (S${savedHistory.season} E${savedHistory.episode}, $mins мин)"
+                            "Продолжить (S${savedHistory.season} E${savedHistory.episode} · $selectedSourceFilter · $selectedQuality)"
                         } else {
-                            "Продолжить ($mins мин)"
+                            "Продолжить ($mins мин · $selectedSourceFilter · $selectedQuality)"
                         }
 
                         Button(
@@ -1257,7 +1591,14 @@ fun DetailsScreen(
                                     size = 14.dp
                                 )
                                 Text(
-                                    text = if (isResolving) "Поиск потока..." else "Смотреть",
+                                    text = if (isResolving) "Поиск потока..." else buildString {
+                                        append("Смотреть")
+                                        append(" ($selectedSourceFilter · $selectedQuality")
+                                        if (currentMovie.isSeries) {
+                                            append(" · S$selectedSeason E$selectedEpisode")
+                                        }
+                                        append(")")
+                                    },
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 11.sp,
                                     lineHeight = 13.sp
@@ -1569,172 +1910,7 @@ fun DetailsScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Data class to hold source info with type and best quality
-                data class SourceInfo(val name: String, val isHls: Boolean, val bestQuality: String, val epCount: Int = 0)
 
-                val availableSourcesInfo = remember(currentMovie.sources, currentMovie.audioTracks, currentMovie.seasons, selectedSeason, streamOptions, currentMovie.isSeries) {
-                    val detectedSources = linkedSetOf<String>()
-                    currentMovie.sources.forEach { if (it.name.isNotBlank()) detectedSources.add(it.name) }
-                    currentMovie.audioTracks.forEach { trk ->
-                        val s = trk.source.trim()
-                        val name = when {
-                            s.contains("kodik", ignoreCase = true) || trk.id.startsWith("kodik_") -> "Kodik"
-                            s.contains("filmix", ignoreCase = true) -> "Filmix"
-                            s.contains("rezka", ignoreCase = true) || (!trk.id.startsWith("kodik_") && s.isNotEmpty()) -> "HDRezka"
-                            else -> if (s.isNotEmpty()) s.replaceFirstChar { it.uppercase() } else ""
-                        }
-                        if (name.isNotEmpty()) detectedSources.add(name)
-                    }
-                    streamOptions.forEach { st ->
-                        val s = st.source.trim()
-                        val name = when {
-                            s.startsWith("HDrezka", ignoreCase = true) || s.startsWith("Rezka", ignoreCase = true) -> "HDRezka"
-                            s.contains("Filmix", ignoreCase = true) -> "Filmix"
-                            s.contains("Kodik", ignoreCase = true) -> "Kodik"
-                            s.contains("VideoCDN", ignoreCase = true) || st.url.contains("allarknow") || st.url.contains("bayas") || st.url.contains("videoframe") -> "VideoCDN"
-                            s.contains("Collaps", ignoreCase = true) || s.contains("Delivembd", ignoreCase = true) -> "Collaps"
-                            s.contains("Bazon", ignoreCase = true) -> "Bazon"
-                            s.isNotEmpty() -> s.replaceFirstChar { it.uppercase() }
-                            else -> ""
-                        }
-                        if (name.isNotEmpty()) detectedSources.add(name)
-                    }
-
-                    val curSeasonEps = if (currentMovie.isSeries) {
-                        currentMovie.seasons.firstOrNull { it.seasonNumber == selectedSeason }?.episodes?.size
-                            ?: currentMovie.seasons.sumOf { it.episodes.size }
-                    } else 0
-
-                    val qualityOrder = listOf("4K Ultra", "4K", "2160", "1080p HD", "1080p", "1080", "720p", "720", "480p", "480", "360p", "360")
-
-                    val sourceInfoList = detectedSources.map { srcName ->
-                        val sKey = srcName.lowercase()
-                        val srcStreams = streamOptions.filter { st ->
-                            val stSrc = st.source.lowercase()
-                            when {
-                                sKey.contains("kodik") -> stSrc.contains("kodik")
-                                sKey.contains("rezka") -> stSrc.contains("rezka")
-                                sKey.contains("filmix") -> stSrc.contains("filmix")
-                                sKey.contains("videocdn") -> stSrc.contains("videocdn") || st.url.contains("allarknow") || st.url.contains("bayas") || st.url.contains("videoframe")
-                                sKey.contains("bazon") -> stSrc.contains("bazon")
-                                sKey.contains("collaps") || sKey.contains("delivembd") -> stSrc.contains("collaps") || stSrc.contains("delivembd") || st.url.contains("interkh") || st.url.contains("namy.ws")
-                                else -> stSrc.contains(sKey)
-                            }
-                        }
-                        // Determine HLS: if we have actual streams, check them; otherwise use known source types
-                        val hasHls = if (srcStreams.isNotEmpty()) {
-                            srcStreams.any { isDirectVideoStream(it.url) }
-                        } else {
-                            // Known source types — HDRezka and Filmix always provide direct HLS streams
-                            sKey.contains("rezka") || sKey.contains("filmix")
-                        }
-                        val bestQ = run {
-                            for (q in qualityOrder) {
-                                val match = srcStreams.firstOrNull { it.quality.contains(q, ignoreCase = true) }
-                                if (match != null) return@run match.quality.replace(Regex("\\(.*?\\)"), "").trim()
-                            }
-                            srcStreams.firstOrNull()?.quality?.replace(Regex("\\(.*?\\)"), "")?.trim() ?: ""
-                        }
-                        val epC = if (currentMovie.isSeries) {
-                            currentMovie.sources.firstOrNull { it.name.equals(srcName, ignoreCase = true) }?.seasonsEpisodes?.get(selectedSeason)
-                                ?: currentMovie.audioTracks.filter { it.source.contains(srcName, ignoreCase = true) || (srcName.contains("kodik", ignoreCase = true) && it.id.startsWith("kodik_")) }
-                                    .mapNotNull { it.seasonsEpisodes[selectedSeason] ?: it.episodesCount.takeIf { c -> c > 0 } }
-                                    .maxOrNull()
-                                ?: if (curSeasonEps > 0) curSeasonEps else 0
-                        } else 0
-                        SourceInfo(srcName, hasHls, bestQ, epC)
-                    }.sortedByDescending { it.isHls } // HLS sources first
-
-                    sourceInfoList
-                }
-
-                // Build flat label list for backward compat (selectedSourceFilter still uses names)
-                val availableSources = remember(availableSourcesInfo) {
-                    val list = mutableListOf("Все")
-                    availableSourcesInfo.forEach { list.add(it.name) }
-                    list
-                }
-                val filteredAudioTracks = remember(currentMovie.audioTracks, selectedSourceFilter, selectedSeason, streamOptions) {
-                    val sKey = selectedSourceFilter.lowercase()
-                    val sourceFiltered = if (selectedSourceFilter == "Все" || selectedSourceFilter.startsWith("Все")) {
-                        currentMovie.audioTracks
-                    } else {
-                        val matched = currentMovie.audioTracks.filter { track ->
-                            val trackSrc = track.source.lowercase()
-                            when {
-                                sKey.contains("kodik") -> trackSrc.contains("kodik") || track.id.startsWith("kodik_")
-                                sKey.contains("rezka") -> trackSrc.contains("rezka") || (!track.id.startsWith("kodik_") && !trackSrc.contains("filmix") && !trackSrc.contains("videocdn") && !trackSrc.contains("bazon"))
-                                sKey.contains("filmix") -> trackSrc.contains("filmix")
-                                sKey.contains("videocdn") -> trackSrc.contains("videocdn")
-                                sKey.contains("collaps") || sKey.contains("delivembd") -> trackSrc.contains("collaps") || trackSrc.contains("delivembd")
-                                sKey.contains("bazon") -> trackSrc.contains("bazon")
-                                else -> trackSrc.contains(sKey)
-                            }
-                        }
-                        if (matched.isNotEmpty()) {
-                            matched
-                        } else {
-                            // Synthesize tracks from streamOptions for balancers like Collaps / VideoCDN
-                            val sourceStreams = streamOptions.filter { st ->
-                                val src = st.source.lowercase()
-                                when {
-                                    sKey.contains("collaps") -> src.contains("collaps") || src.contains("delivembd") || st.url.contains("interkh") || st.url.contains("namy.ws")
-                                    sKey.contains("videocdn") -> src.contains("videocdn") || st.url.contains("allarknow") || st.url.contains("bayas")
-                                    sKey.contains("kodik") -> src.contains("kodik")
-                                    sKey.contains("bazon") -> src.contains("bazon")
-                                    else -> src.contains(sKey)
-                                }
-                            }
-                            val synthTracks = sourceStreams.mapNotNull { st ->
-                                Regex("\\(([^)]+)\\)").findAll(st.quality)
-                                    .map { it.groupValues[1].trim() }
-                                    .firstOrNull { v ->
-                                        val lower = v.lowercase()
-                                        !lower.contains("плеер") && !lower.contains("player") &&
-                                        !lower.contains("hls") && !lower.contains("auto") &&
-                                        !lower.contains("сиды") && !lower.contains("peer") &&
-                                        !lower.matches(Regex("\\d+p?")) && lower != "hd" && lower != "fhd" && lower != "4k"
-                                    }?.let { voiceName ->
-                                        AudioTrackInfo(
-                                            id = "synth_${selectedSourceFilter}_${voiceName}",
-                                            name = voiceName,
-                                            source = selectedSourceFilter
-                                        )
-                                    }
-                            }.distinctBy { it.name }
-
-                            if (synthTracks.isNotEmpty()) {
-                                synthTracks
-                            } else {
-                                listOf(
-                                    AudioTrackInfo(
-                                        id = "src_${sKey}_default",
-                                        name = "Озвучка (${selectedSourceFilter})",
-                                        source = selectedSourceFilter
-                                    )
-                                )
-                            }
-                        }
-                    }
-                    if (currentMovie.isSeries) {
-                        val seasonFiltered = sourceFiltered.filter { track ->
-                            if (track.seasonsEpisodes.isEmpty()) {
-                                if (currentMovie.seasons.size > 1 && selectedSeason > 1) false else true
-                            } else {
-                                (track.seasonsEpisodes[selectedSeason] ?: 0) > 0
-                            }
-                        }
-                        if (seasonFiltered.isNotEmpty()) seasonFiltered else sourceFiltered
-                    } else {
-                        sourceFiltered
-                    }
-                }
-
-                LaunchedEffect(filteredAudioTracks, selectedSeason) {
-                    if (filteredAudioTracks.isNotEmpty() && filteredAudioTracks.none { it.id == selectedAudioId }) {
-                        selectedAudioId = filteredAudioTracks.first().id
-                    }
-                }
 
                 // Detail Section Tabs: «Плеер и серии» (сериалы) / «Плеер» (фильмы), «График серий», «Описание и детали», «Отзывы (N)»
                 val playerTabTitle = if (currentMovie.isSeries) "Плеер и серии" else "Плеер"
@@ -1814,7 +1990,7 @@ fun DetailsScreen(
                             TvLazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 // "Все" chip at index 0
                                 item {
-                                    val isAllSelected = selectedSourceFilter == "Все"
+                                    val isAllSelected = selectedSourceFilter.equals("Все", ignoreCase = true)
                                     val allMod = Modifier.focusRequester(firstSourceFocusRequester).focusProperties {
                                         up = tabsFocusRequester
                                         down = if (availableQualities.isNotEmpty()) firstQualityFocusRequester
@@ -1842,7 +2018,7 @@ fun DetailsScreen(
                                 }
                                 // Source chips with type badge and best quality
                                 itemsIndexed(availableSourcesInfo) { _, srcInfo ->
-                                    val isSrcSelected = selectedSourceFilter == srcInfo.name
+                                    val isSrcSelected = selectedSourceFilter.equals(srcInfo.name, ignoreCase = true)
                                     val typeBadge = if (srcInfo.isHls) "HLS" else "IFRAME"
                                     val typeColor = if (srcInfo.isHls) Color(0xFF4ADE80) else Color(0xFFFBBF24)
                                     val chipLabel = buildString {

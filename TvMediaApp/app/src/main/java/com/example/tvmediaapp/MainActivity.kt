@@ -431,8 +431,15 @@ fun TvAppNavHost(activity: MainActivity) {
     LaunchedEffect(Unit) {
         delay(600)
         triggerUpdateCheck()
-        // Record active device heartbeat in analytics
-        ShowHubApiClient.ping(activity, activity.getInstalledVersionName())
+        // Record active device heartbeat in analytics (mark as install if first run or newly updated version)
+        val actPrefs = activity.getSharedPreferences("showhub_prefs", android.content.Context.MODE_PRIVATE)
+        val lastPingCode = actPrefs.getInt("pref_last_ping_version_code", 0)
+        val currentCode = activity.getInstalledVersionCode()
+        val isNewInstallOrUpdate = lastPingCode < currentCode
+        ShowHubApiClient.ping(activity, activity.getInstalledVersionName(), isInstall = isNewInstallOrUpdate)
+        if (isNewInstallOrUpdate) {
+            actPrefs.edit().putInt("pref_last_ping_version_code", currentCode).apply()
+        }
         delay(3000)
         if (updateInfo == null) {
             triggerUpdateCheck()

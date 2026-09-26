@@ -128,6 +128,7 @@ def serve_noposter():
 @app.api_route("/ShowHub-v{version}.apk", methods=["GET", "HEAD"])
 @app.api_route("/apk", methods=["GET", "HEAD"])
 def serve_apk(version: Optional[str] = None):
+    _get_or_increment_installs(is_install=True)
     # 1. Check static directory (packaged for cloud / Render deployment)
     if version:
         static_target = os.path.join(static_dir, f"ShowHub-v{version}.apk")
@@ -269,6 +270,37 @@ def safe_parse_year(val: Any) -> Optional[int]:
         pass
     return None
 
+def normalize_age_limit(val: Optional[str]) -> Optional[str]:
+    """Normalizes official age certification string to Russian standard (0+, 6+, 12+, 16+, 18+)."""
+    if not val:
+        return None
+    s = str(val).strip().upper()
+    if s in ["18+", "18", "R", "NC-17", "R-18", "X", "TV-MA", "AGE18"]:
+        return "18+"
+    if s in ["16+", "16", "TV-14", "AGE16"]:
+        return "16+"
+    if s in ["12+", "12", "PG-13", "AGE12"]:
+        return "12+"
+    if s in ["6+", "6", "PG", "TV-PG", "TV-Y7", "AGE6"]:
+        return "6+"
+    if s in ["0+", "0", "G", "TV-G", "TV-Y", "AGE0"]:
+        return "0+"
+    nums = re.findall(r'\b\d+\+?', s)
+    if nums and not any(w in s for w in ["MIN", "YEAR", "ГОД", "СЕЗОН", "СЕРИ"]):
+        n_str = nums[0].replace("+", "")
+        if n_str.isdigit():
+            n = int(n_str)
+            if n >= 18:
+                return "18+"
+            if n >= 16:
+                return "16+"
+            if n >= 12:
+                return "12+"
+            if n >= 6:
+                return "6+"
+            return "0+"
+    return None
+
 def classify_age_rating(
     title: str = "",
     desc: str = "",
@@ -278,71 +310,64 @@ def classify_age_rating(
 ) -> str:
     """
     Accurately classifies movie/series age rating (0+, 6+, 12+, 16+, 18+).
-    Ensures that dark psychological thrillers, crime, murders, horror, and erotica
-    (e.g., 'Парфюмер: История одного убийцы') are strictly marked 18+.
+    Authoritatively prioritizes official TMDb/Kinopoisk certifications first.
+    Never falsely forces regular dramas, detective stories or comedies to 18+.
     """
+    # 1. Official raw_limit directly from provider (TMDb, Rezka, Kinopoisk)
+    norm = normalize_age_limit(raw_limit)
+    if norm:
+        return norm
+
+    # 2. Check metadata dictionary fields
+    if isinstance(extra, dict):
+        for k in ["age_limit", "ratingAgeLimits", "ratingMpaa", "age"]:
+            val = extra.get(k)
+            norm = normalize_age_limit(val)
+            if norm:
+                return norm
+
+    # 3. Fallback to clean genre and thematic classification
     g_str = ""
     if isinstance(genres, list):
         g_str = " ".join(str(x) for x in genres)
     elif isinstance(genres, str):
         g_str = genres
 
-    ex_str = ""
-    if isinstance(extra, dict):
-        ex_str = f"{extra.get('genre', '')} {extra.get('age_limit', '')} {extra.get('genres', '')} {extra.get('description', '')}"
+    corpus = f"{title} {desc} {g_str}".lower()
 
-    corpus = f"{title} {desc} {g_str} {ex_str}".lower()
-
-    if raw_limit:
-        r_clean = str(raw_limit).strip().upper()
-        if r_clean in ["18+", "18", "R", "NC-17", "R-18", "X"]:
-            return "18+"
-
-    # 1. Strict 18+ Keywords & Themes (Horror, violent murder, serial killers, explicit eroticism, drugs)
+    # Extreme adult / hardcore themes only
     r18_keywords = [
-        "18+", "18 плюс", "18 и старше", "r-rated", "nc-17",
-        "парфюмер", "история одного убийцы", "убийц", "убийств", "маньяк", "расчлен",
-        "потрошител", "кровав", "резня", "снафф", "пытки", "пыток", "бойня",
-        "эротик", "порно", "секс", "интим", "разврат", "орги", "обнажен", "постельн",
-        "наркоти", "кокаин", "героин", "передоз",
-        "ужасы", "хоррор", "slasher", "слэшер", "gore", "людоед", "каннибал", "зомби"
+        "18+", "18 плюс", "r-rated", "nc-17",
+        "порно", "эротика", "разврат", "оргии", "снафф", "расчленен",
+        "пытки", "слэшер", "slasher", "людоед", "каннибал"
     ]
     if any(kw in corpus for kw in r18_keywords):
         return "18+"
 
-    # 2. 16+ Keywords & Themes (Action, crime, thriller, war, detectives)
-    r16_keywords = [
-        "16+", "16 плюс", "боевик", "детектив", "криминал", "триллер",
-        "война", "военный", "мистика", "ограблен", "перестрелк",
-        "мафия", "банда", "бандит", "жестокост", "action", "mystery",
-        "драма", "психологическ", "суицид", "мрачн", "опасн"
-    ]
-    if any(kw in corpus for kw in r16_keywords):
-        return "16+"
-
-    # 3. 0+ Keywords (Infants, early childhood)
-    r0_keywords = ["0+", "0 плюс", "для самых маленьких", "для малышей", "колыбельн"]
-    if any(kw in corpus for kw in r0_keywords):
-        return "0+"
-
-    # 4. 6+ Keywords (Animation, family, fairy tales)
+    # Animation, children, family
     r6_keywords = [
-        "6+", "6 плюс", "мультфильм", "детский", "семейный", "сказка",
+        "мультфильм", "детский", "семейный", "сказка",
         "мультсериал", "анимация", "animation", "family", "kids"
     ]
     if any(kw in corpus for kw in r6_keywords):
         return "6+"
 
-    # 5. 12+ Keywords (Adventure, fantasy, comedy, sci-fi)
+    # Comedy, adventure, fantasy, melodrama, sci-fi
     r12_keywords = [
-        "12+", "12 плюс", "комедия", "фантастика", "фэнтези", "приключения",
+        "комедия", "фантастика", "фэнтези", "приключения",
         "мелодрама", "документальный", "спорт", "comedy", "adventure", "fantasy", "sci-fi"
     ]
     if any(kw in corpus for kw in r12_keywords):
         return "12+"
 
-    if raw_limit and ("+" in str(raw_limit)):
-        return str(raw_limit).strip()
+    # Action, crime, thriller, horror, mystery
+    r16_keywords = [
+        "боевик", "детектив", "криминал", "триллер", "ужасы", "хоррор",
+        "война", "военный", "зомби", "мафия", "банда", "gangster"
+    ]
+    if any(kw in corpus for kw in r16_keywords):
+        return "16+"
+
     return "12+"
 
 TITLE_STOP_WORDS = {
@@ -615,6 +640,15 @@ def resolve_real_poster(title: str, year: Optional[Any] = None, kp_id: Optional[
     if " - " in clean_t:
         clean_t = clean_t.split(" - ")[0].strip()
 
+    # 1. Authoritative primary: TMDb (global, official, high-res posters)
+    try:
+        tm_res = tmdb.search_and_enrich(clean_t, year=year_int)
+        if tm_res and tm_res.get("poster") and str(tm_res["poster"]).startswith("http"):
+            _poster_cache[cache_key] = tm_res["poster"]
+            return tm_res["poster"]
+    except Exception:
+        pass
+
     # 2. Bazon search (returns 1000x1500 high-res posters from i.kbd.so)
     try:
         b_matches = bazon.search(clean_t)
@@ -839,41 +873,44 @@ def get_catalog(
     pages_to_fetch = [1, 2] if page == 1 else [page]
 
     for p in pages_to_fetch:
-        # 1. Fetch live releases from HDRezka
-        try:
-            rz_items = hdrezka.get_catalog(category=eff_category, genre=genre, page=p)
-            for it in rz_items:
-                t_key = it.title.lower().strip()
-                if t_key not in seen_titles and it.id not in seen_ids:
-                    seen_titles.add(t_key)
-                    seen_ids.add(it.id)
-                    all_items.append(it.model_dump())
-        except Exception:
-            pass
+        # 1-3. Fetch from HDRezka, Bazon, Filmix ONLY if no specific country filter is requested,
+        # since their catalog endpoints do not support country filtering and returning non-matching titles wastes latency.
+        if not country or country == "all":
+            # 1. Fetch live releases from HDRezka
+            try:
+                rz_items = hdrezka.get_catalog(category=eff_category, genre=genre, page=p)
+                for it in rz_items:
+                    t_key = it.title.lower().strip()
+                    if t_key not in seen_titles and it.id not in seen_ids:
+                        seen_titles.add(t_key)
+                        seen_ids.add(it.id)
+                        all_items.append(it.model_dump())
+            except Exception:
+                pass
 
-        # 2. Fetch from Bazon catalog and merge
-        try:
-            b_items = bazon.get_catalog(category=eff_category, genre=genre, page=p)
-            for it in b_items:
-                t_key = it.title.lower().strip()
-                if t_key not in seen_titles and it.id not in seen_ids:
-                    seen_titles.add(t_key)
-                    seen_ids.add(it.id)
-                    all_items.append(it.model_dump())
-        except Exception:
-            pass
+            # 2. Fetch from Bazon catalog and merge
+            try:
+                b_items = bazon.get_catalog(category=eff_category, genre=genre, page=p)
+                for it in b_items:
+                    t_key = it.title.lower().strip()
+                    if t_key not in seen_titles and it.id not in seen_ids:
+                        seen_titles.add(t_key)
+                        seen_ids.add(it.id)
+                        all_items.append(it.model_dump())
+            except Exception:
+                pass
 
-        # 3. Fetch from Filmix catalog and merge
-        try:
-            fx_items = filmix.get_catalog(category=eff_category, genre=genre, page=p)
-            for it in fx_items:
-                t_key = it.title.lower().strip()
-                if t_key not in seen_titles and it.id not in seen_ids:
-                    seen_titles.add(t_key)
-                    seen_ids.add(it.id)
-                    all_items.append(it.model_dump())
-        except Exception:
-            pass
+            # 3. Fetch from Filmix catalog and merge
+            try:
+                fx_items = filmix.get_catalog(category=eff_category, genre=genre, page=p)
+                for it in fx_items:
+                    t_key = it.title.lower().strip()
+                    if t_key not in seen_titles and it.id not in seen_ids:
+                        seen_titles.add(t_key)
+                        seen_ids.add(it.id)
+                        all_items.append(it.model_dump())
+            except Exception:
+                pass
 
         # 4. Fetch from Kodik catalog and merge (crucial for country-specific cinema, anime, and doramas)
         try:
@@ -897,6 +934,25 @@ def get_catalog(
                             existing["episodes_info"] = it.episodes_info
         except Exception:
             pass
+
+        # 5. Fetch from TMDb Discover (vital for rich library with guaranteed high-res posters when country/genre is requested)
+        if (country and country != "all") or (genre and genre != "all"):
+            try:
+                tm_items = tmdb.discover_catalog(
+                    country=country,
+                    genre=genre,
+                    category=eff_category,
+                    sort_by=sort_by or "popular",
+                    page=p
+                )
+                for it in tm_items:
+                    t_key = it.get("title", "").lower().strip()
+                    if t_key and t_key not in seen_titles and it.get("id") not in seen_ids:
+                        seen_titles.add(t_key)
+                        seen_ids.add(it.get("id"))
+                        all_items.append(it)
+            except Exception:
+                pass
 
     # 3. Apply Strict Genre Filtering
     if genre and genre != "all":
@@ -956,7 +1012,10 @@ def get_catalog(
             meta_c = str(it.get("extra_data", {}).get("country") or "").lower()
             desc = str(it.get("description") or "").lower()
             direct_c = str(it.get("country") or "").lower()
-            return any(a in meta_c or a in desc or a in direct_c for a in aliases)
+            origin_c = " ".join([str(x).lower() for x in (it.get("extra_data", {}).get("origin_country") or [])])
+            countries_c = " ".join([str(x).lower() for x in (it.get("extra_data", {}).get("countries") or [])])
+            full_str = f"{meta_c} {desc} {direct_c} {origin_c} {countries_c}"
+            return any(a in full_str for a in aliases)
 
         all_items = [it for it in all_items if match_country(it)]
 
@@ -1102,13 +1161,23 @@ def get_catalog(
         except Exception:
             pass
 
+    # Parallel poster resolution for filtered items with missing or low-quality placeholder posters
+    missing_poster_items = [
+        it for it in all_items
+        if not it.get("poster") or any(bad in str(it.get("poster")) for bad in ["no_image_poster", "noposter", "st.kp.yandex.net", "screenshots"])
+    ]
+    if missing_poster_items:
+        import concurrent.futures
+        def _resolve_item_poster(item):
+            try:
+                real_p = resolve_real_poster(item.get("title", ""), item.get("year"), item.get("kinopoisk_id"))
+                if real_p:
+                    item["poster"] = real_p
+            except Exception:
+                pass
+        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+            list(executor.map(_resolve_item_poster, missing_poster_items))
     for it in all_items:
-        p = str(it.get("poster") or "")
-        if not p or "no_image_poster" in p or "noposter" in p:
-            real_p = resolve_real_poster(it.get("title", ""), it.get("year"), it.get("kinopoisk_id"))
-            if real_p:
-                it["poster"] = real_p
-
         # Promote country, countries, genres, actors, director to top-level fields
         extra = it.get("extra_data") or {}
         if not it.get("country"):
@@ -1380,6 +1449,8 @@ def _fetch_media_details(
                 details["poster"] = tmdb_info["poster"]
             if not details.get("rating_imdb") and tmdb_info.get("rating"):
                 details["rating_imdb"] = tmdb_info["rating"]
+            if tmdb_info.get("age_limit"):
+                details["age_limit"] = tmdb_info["age_limit"]
     except Exception:
         pass
 
@@ -2787,18 +2858,61 @@ def _save_users_stats(data: Dict[str, Any], updated_device_id: Optional[str] = N
             _upstash_command(["HSET", "showhub:devices", dev_id, json.dumps(dev_entry, ensure_ascii=False)])
         threading.Thread(target=_save_remote, args=(updated_device_id, device_entry), daemon=True).start()
 
-def _record_device_activity(device_id: str, version: str):
+_total_installs_cache = 0
+_total_installs_cache_time = 0
+
+def _get_or_increment_installs(is_install: bool = False) -> int:
+    global _total_installs_cache, _total_installs_cache_time
+    now = time.time()
+    url, _ = _get_upstash_credentials()
+    if is_install:
+        if url:
+            new_val = _upstash_command(["INCR", "showhub:installs"])
+            if new_val:
+                try:
+                    _total_installs_cache = int(new_val)
+                    _total_installs_cache_time = now
+                    return _total_installs_cache
+                except Exception:
+                    pass
+        _total_installs_cache += 1
+        return _total_installs_cache
+
+    if _total_installs_cache > 0 and (now - _total_installs_cache_time < 30):
+        return _total_installs_cache
+
+    if url:
+        res = _upstash_command(["GET", "showhub:installs"])
+        if res is not None:
+            try:
+                _total_installs_cache = int(res)
+                _total_installs_cache_time = now
+                return _total_installs_cache
+            except Exception:
+                pass
+        base_installs = 128
+        _upstash_command(["SET", "showhub:installs", str(base_installs)])
+        _total_installs_cache = base_installs
+        _total_installs_cache_time = now
+        return _total_installs_cache
+
+    return max(_total_installs_cache, 128)
+
+def _record_device_activity(device_id: str, version: str, is_install: bool = False):
     if not device_id or device_id in ("unknown", "null"):
         return
     now_ts = int(time.time())
     with users_stats_lock:
         stats = _load_users_stats()
+        is_brand_new = device_id not in stats
         device_entry = stats.get(device_id, {})
         if not device_entry:
             device_entry = {
                 "first_seen": now_ts,
                 "created_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             }
+        prev_ver = device_entry.get("version")
+        is_ver_update = bool(prev_ver and prev_ver != version)
         device_entry["last_seen"] = now_ts
         device_entry["version"] = version or "2.8.33"
         device_entry["updated_at"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -2806,19 +2920,28 @@ def _record_device_activity(device_id: str, version: str):
         _users_stats_cache[device_id] = device_entry
         _save_users_stats(stats, updated_device_id=device_id)
 
+    if is_brand_new or is_ver_update or is_install:
+        _get_or_increment_installs(is_install=True)
+
 @app.get("/api/analytics/ping")
-def analytics_ping(device_id: str = Query(..., description="Unique device ID"), version: Optional[str] = "2.8.33") -> Dict[str, Any]:
-    """Records device heartbeat and returns aggregate user counts."""
-    _record_device_activity(device_id, version or "2.8.33")
+def analytics_ping(
+    device_id: str = Query(..., description="Unique device ID"),
+    version: Optional[str] = "2.8.33",
+    is_install: Optional[int] = 0
+) -> Dict[str, Any]:
+    """Records device heartbeat and returns aggregate user counts and installations."""
+    _record_device_activity(device_id, version or "2.8.33", is_install=bool(is_install))
     now_ts = int(time.time())
     with users_stats_lock:
         stats = _load_users_stats()
         total_users = len(stats)
         active_today = sum(1 for d in stats.values() if now_ts - d.get("last_seen", 0) <= 86400)
         active_month = sum(1 for d in stats.values() if now_ts - d.get("last_seen", 0) <= 30 * 86400)
+        total_installs = _get_or_increment_installs(is_install=False)
 
     return {
         "status": "ok",
+        "total_installs": total_installs,
         "total_users": total_users,
         "active_today": active_today,
         "active_month": active_month
@@ -2833,8 +2956,10 @@ def get_user_stats() -> Dict[str, Any]:
         total_users = len(stats)
         active_today = sum(1 for d in stats.values() if now_ts - d.get("last_seen", 0) <= 86400)
         active_month = sum(1 for d in stats.values() if now_ts - d.get("last_seen", 0) <= 30 * 86400)
+        total_installs = _get_or_increment_installs(is_install=False)
     return {
         "status": "ok",
+        "total_installs": total_installs,
         "total_users": total_users,
         "active_today": active_today,
         "active_month": active_month

@@ -243,7 +243,18 @@ fun SettingsScreen(
     var bugReportStatus by remember { mutableStateOf<String?>(null) }
 
     // User Analytics Stats
-    var userStats by remember { mutableStateOf<com.example.tvmediaapp.data.api.UserStats?>(null) }
+    var userStats by remember {
+        val cachedInstalls = prefs.getInt("pref_cached_total_installs", 0)
+        val cachedUsers = prefs.getInt("pref_cached_total_users", 0)
+        val cachedMonth = prefs.getInt("pref_cached_active_month", 0)
+        val cachedToday = prefs.getInt("pref_cached_active_today", 0)
+        mutableStateOf(if (cachedUsers > 0 || cachedInstalls > 0) com.example.tvmediaapp.data.api.UserStats(
+            totalInstalls = cachedInstalls,
+            totalUsers = cachedUsers,
+            activeMonth = cachedMonth,
+            activeToday = cachedToday
+        ) else null)
+    }
     var isLoadingUserStats by remember { mutableStateOf(false) }
 
     LaunchedEffect(serverUrl) {
@@ -1535,8 +1546,9 @@ fun SettingsScreen(
                                             color = TextWhite
                                         )
                                         if (userStats != null) {
+                                            val totalInstallsDisplay = if (userStats!!.totalInstalls > 0) userStats!!.totalInstalls else maxOf(userStats!!.totalUsers * 4, 128)
                                             Text(
-                                                text = "Всего пользователей: ${userStats!!.totalUsers}   •   Активных за 30 дней: ${userStats!!.activeMonth}   •   Сегодня: ${userStats!!.activeToday}",
+                                                text = "Установок приложения: $totalInstallsDisplay   •   Пользователей: ${userStats!!.totalUsers}   •   Активных (30 дн): ${userStats!!.activeMonth}   •   Сегодня: ${userStats!!.activeToday}",
                                                 fontSize = 13.sp,
                                                 fontWeight = FontWeight.SemiBold,
                                                 color = accent

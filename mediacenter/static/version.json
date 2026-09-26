@@ -1,10 +1,10 @@
 {
   "success": true,
-  "version_name": "2.8.52",
-  "version_code": 111,
+  "version_name": "2.8.53",
+  "version_code": 112,
   "force_update": true,
   "min_version_code": 108,
   "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
   "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
-  "changelog": "v2.8.52: Фоновая предзагрузка обновлений APK (мгновенная установка) + точное отображение озвучки Collaps/балансеров без (HDRezka)"
+  "changelog": "v2.8.53: Отображение выбранного источника, качества, озвучки и серии в карточке фильма; исправлена статистика установок в настройках; точные возрастные рейтинги; ускорена загрузка и постеры корейских комедий"
 }

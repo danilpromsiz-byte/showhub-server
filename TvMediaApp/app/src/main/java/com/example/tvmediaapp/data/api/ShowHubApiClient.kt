@@ -677,11 +677,11 @@ object ShowHubApiClient {
 
     fun classifyAgeRating(title: String, desc: String, genres: List<String>, rawAge: String): String {
         val cleanRaw = rawAge.trim().uppercase()
-        if (cleanRaw in listOf("18+", "18", "R", "NC-17", "R-18", "X")) return "18+"
-        if (cleanRaw in listOf("16+", "16", "TV-MA")) return "16+"
-        if (cleanRaw in listOf("12+", "12", "PG-13", "TV-14")) return "12+"
-        if (cleanRaw in listOf("6+", "6", "PG", "TV-PG", "TV-Y7")) return "6+"
-        if (cleanRaw in listOf("0+", "0", "G", "TV-G", "TV-Y")) return "0+"
+        if (cleanRaw in listOf("18+", "18", "R", "NC-17", "R-18", "X", "TV-MA", "AGE18")) return "18+"
+        if (cleanRaw in listOf("16+", "16", "TV-14", "AGE16")) return "16+"
+        if (cleanRaw in listOf("12+", "12", "PG-13", "AGE12")) return "12+"
+        if (cleanRaw in listOf("6+", "6", "PG", "TV-PG", "TV-Y7", "AGE6")) return "6+"
+        if (cleanRaw in listOf("0+", "0", "G", "TV-G", "TV-Y", "AGE0")) return "0+"
 
         val digits = cleanRaw.filter { it.isDigit() }
         if (digits.isNotEmpty() && !cleanRaw.contains("YEAR") && !cleanRaw.contains("MIN") && !cleanRaw.contains("СЕЗОН")) {
@@ -697,24 +697,24 @@ object ShowHubApiClient {
             }
         }
 
+        if (cleanRaw.contains("+")) return cleanRaw
+
         val fullTxt = "$title $desc ${genres.joinToString(" ")}".lowercase()
         val r18 = listOf(
-            "18+", "18 плюс", "парфюмер", "история одного убийцы", "убийц", "убийств", "маньяк",
-            "расчлен", "потрошител", "кровав", "резня", "снафф", "пытки", "пыток", "бойня",
-            "эротик", "порно", "секс", "интим", "разврат", "наркоти", "кокаин", "героин",
-            "ужасы", "хоррор", "slasher", "слэшер"
+            "18+", "18 плюс", "порно", "эротика", "разврат", "оргии", "снафф", "расчленен",
+            "пытки", "слэшер", "slasher", "людоед", "каннибал"
         )
         if (r18.any { fullTxt.contains(it) }) return "18+"
-        val r16 = listOf(
-            "16+", "16 плюс", "боевик", "детектив", "криминал", "триллер", "война", "военный",
-            "мистика", "зомби", "ограблен", "перестрелк", "мафия", "банда", "бандит"
-        )
-        if (r16.any { fullTxt.contains(it) }) return "16+"
         val r6 = listOf("мультфильм", "детский", "семейный", "сказка", "0+", "6+", "6 плюс")
         if (r6.any { fullTxt.contains(it) }) return "6+"
         val r12 = listOf("12+", "12 плюс", "комедия", "фантастика", "фэнтези", "приключения", "мелодрама", "спорт")
         if (r12.any { fullTxt.contains(it) }) return "12+"
-        return if (cleanRaw.contains("+")) cleanRaw else "12+"
+        val r16 = listOf(
+            "16+", "16 плюс", "боевик", "детектив", "криминал", "триллер", "ужасы", "хоррор",
+            "война", "военный", "зомби", "мафия", "банда"
+        )
+        if (r16.any { fullTxt.contains(it) }) return "16+"
+        return "12+"
     }
 
     private fun parseMoviesJson(arr: JSONArray, outList: MutableList<Movie>) {
@@ -916,18 +916,19 @@ object ShowHubApiClient {
 
     fun getCachedDeviceId(): String? = cachedDeviceId
 
-    suspend fun ping(context: android.content.Context, appVersion: String) {
+    suspend fun ping(context: android.content.Context, appVersion: String, isInstall: Boolean = false) {
         withContext(Dispatchers.IO) {
             try {
-                pingAndGetUserStats(context, appVersion)
+                pingAndGetUserStats(context, appVersion, isInstall = isInstall)
             } catch (_: Exception) {}
         }
     }
 
-    suspend fun pingAndGetUserStats(context: android.content.Context, appVersion: String): UserStats? = withContext(Dispatchers.IO) {
+    suspend fun pingAndGetUserStats(context: android.content.Context, appVersion: String, isInstall: Boolean = false): UserStats? = withContext(Dispatchers.IO) {
         try {
             val deviceId = getOrCreateDeviceId(context)
-            val url = URL("$activeServerBase/api/analytics/ping?device_id=$deviceId&version=$appVersion")
+            val installParam = if (isInstall) "&is_install=1" else ""
+            val url = URL("$activeServerBase/api/analytics/ping?device_id=$deviceId&version=$appVersion$installParam")
             val conn = url.openConnection() as HttpURLConnection
             conn.connectTimeout = 8000
             conn.readTimeout = 8000
@@ -936,10 +937,26 @@ object ShowHubApiClient {
             if (conn.responseCode == 200) {
                 val body = BufferedReader(InputStreamReader(conn.inputStream, "UTF-8")).use { it.readText() }
                 val json = JSONObject(body)
+                val totalInst = json.optInt("total_installs", 0)
+                val totalUsr = json.optInt("total_users", 0)
+                val actToday = json.optInt("active_today", 0)
+                val actMonth = json.optInt("active_month", 0)
+
+                try {
+                    val prefs = context.getSharedPreferences("showhub_prefs", android.content.Context.MODE_PRIVATE)
+                    prefs.edit()
+                        .putInt("pref_cached_total_installs", totalInst)
+                        .putInt("pref_cached_total_users", totalUsr)
+                        .putInt("pref_cached_active_today", actToday)
+                        .putInt("pref_cached_active_month", actMonth)
+                        .apply()
+                } catch (_: Exception) {}
+
                 UserStats(
-                    totalUsers = json.optInt("total_users", 0),
-                    activeToday = json.optInt("active_today", 0),
-                    activeMonth = json.optInt("active_month", 0)
+                    totalInstalls = totalInst,
+                    totalUsers = totalUsr,
+                    activeToday = actToday,
+                    activeMonth = actMonth
                 )
             } else null
         } catch (e: Exception) {
@@ -950,6 +967,7 @@ object ShowHubApiClient {
 }
 
 data class UserStats(
+    val totalInstalls: Int = 0,
     val totalUsers: Int = 0,
     val activeToday: Int = 0,
     val activeMonth: Int = 0

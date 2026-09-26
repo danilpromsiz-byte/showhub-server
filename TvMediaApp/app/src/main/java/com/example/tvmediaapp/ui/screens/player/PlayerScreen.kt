@@ -672,11 +672,11 @@ private fun NativeExoPlayerScreen(
         }
         lastToggleTime = now
 
-        if (exoPlayer.isPlaying) {
+        if (exoPlayer.playWhenReady) {
             exoPlayer.pause()
             playbackActionBadge = "pause"
             isControlsVisible = true
-            try { timelineFocusRequester.requestFocus() } catch (_: Exception) {}
+            try { playPauseFocusRequester.requestFocus() } catch (_: Exception) {}
         } else {
             exoPlayer.play()
             playbackActionBadge = "play"
@@ -722,6 +722,7 @@ private fun NativeExoPlayerScreen(
                                             exoPlayer.pause()
                                             playbackActionBadge = "pause"
                                             isControlsVisible = true
+                                            try { playPauseFocusRequester.requestFocus() } catch (_: Exception) {}
                                         }
                                         return true
                                     }
@@ -1113,12 +1114,12 @@ private fun NativeExoPlayerScreen(
         }
     }
 
-    // Auto-focus TIMELINE when controls become visible
+    // Auto-focus Play/Pause when controls become visible
     LaunchedEffect(isControlsVisible) {
         if (isControlsVisible && activeDrawer == null) {
             delay(50)
             try {
-                timelineFocusRequester.requestFocus()
+                playPauseFocusRequester.requestFocus()
             } catch (_: Exception) {}
         }
     }
@@ -1245,6 +1246,7 @@ private fun NativeExoPlayerScreen(
                                 exoPlayer.pause()
                                 playbackActionBadge = "pause"
                                 isControlsVisible = true
+                                try { playPauseFocusRequester.requestFocus() } catch (_: Exception) {}
                             }
                         }
                     }
@@ -1311,7 +1313,7 @@ private fun NativeExoPlayerScreen(
                             }
                             else -> {
                                 isControlsVisible = true
-                                try { timelineFocusRequester.requestFocus() } catch (_: Exception) {}
+                                try { playPauseFocusRequester.requestFocus() } catch (_: Exception) {}
                                 return@onKeyEvent true
                             }
                         }
@@ -2246,128 +2248,21 @@ private fun NativeExoPlayerScreen(
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    // TV Remote Interactive Buttons Bar (Height 28dp)
+                    // TV Remote Interactive Buttons Bar (Centered, with Play/Pause & Next Episode in Center)
+                    val hasAudio = currentMovieState.audioTracks.isNotEmpty() || currentStreamQuality.isNotEmpty()
+                    val afterSourceFocus = if (hasAudio) audioFocusRequester
+                        else if (currentMovieState.isSeries && currentEpisode > 1) prevEpisodeFocusRequester
+                        else rewindFocusRequester
+                    val beforeRewindFocus = if (currentMovieState.isSeries && currentEpisode > 1) prevEpisodeFocusRequester
+                        else if (hasAudio) audioFocusRequester
+                        else sourceFocusRequester
+
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // 1. Play / Pause Button
-                        Button(
-                            onClick = {
-                                togglePlayPause()
-                            },
-                            colors = ButtonDefaults.colors(
-                                containerColor = Color.White.copy(alpha = 0.12f),
-                                focusedContainerColor = Color.White,
-                                contentColor = TextWhite,
-                                focusedContentColor = Color.Black
-                            ),
-                            border = ButtonDefaults.border(border = Border.None, focusedBorder = Border.None),
-                            shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
-                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
-                            modifier = Modifier
-                                .height(28.dp)
-                                .focusRequester(playPauseFocusRequester)
-                                .focusProperties {
-                                    right = rewindFocusRequester
-                                    up = timelineFocusRequester
-                                }
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                AppIcon(
-                                    resId = if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play_arrow,
-                                    size = 13.dp
-                                )
-                                Text(
-                                    text = if (isPlaying) "Пауза" else "Старт",
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    lineHeight = 13.sp
-                                )
-                            }
-                        }
-
-                        // 2. Rewind -10s
-                        Button(
-                            onClick = {
-                                val newPos = (exoPlayer.currentPosition - 10000L).coerceAtLeast(0L)
-                                exoPlayer.seekTo(newPos)
-                            },
-                            colors = ButtonDefaults.colors(
-                                containerColor = Color.White.copy(alpha = 0.12f),
-                                focusedContainerColor = Color.White,
-                                contentColor = TextWhite,
-                                focusedContentColor = Color.Black
-                            ),
-                            border = ButtonDefaults.border(border = Border.None, focusedBorder = Border.None),
-                            shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                            modifier = Modifier
-                                .height(28.dp)
-                                .focusRequester(rewindFocusRequester)
-                                .focusProperties {
-                                    left = playPauseFocusRequester
-                                    right = forwardFocusRequester
-                                    up = timelineFocusRequester
-                                }
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                AppIcon(
-                                    resId = R.drawable.ic_replay_10,
-                                    size = 13.dp
-                                )
-                                Text("10с", fontSize = 11.sp, lineHeight = 13.sp)
-                            }
-                        }
-
-                        // 3. Forward +10s
-                        Button(
-                            onClick = {
-                                val maxPos = if (exoPlayer.duration > 0) exoPlayer.duration else Long.MAX_VALUE
-                                val newPos = (exoPlayer.currentPosition + 10000L).coerceAtMost(maxPos)
-                                exoPlayer.seekTo(newPos)
-                            },
-                            colors = ButtonDefaults.colors(
-                                containerColor = Color.White.copy(alpha = 0.12f),
-                                focusedContainerColor = Color.White,
-                                contentColor = TextWhite,
-                                focusedContentColor = Color.Black
-                            ),
-                            border = ButtonDefaults.border(border = Border.None, focusedBorder = Border.None),
-                            shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                            modifier = Modifier
-                                .height(28.dp)
-                                .focusRequester(forwardFocusRequester)
-                                .focusProperties {
-                                    left = rewindFocusRequester
-                                    right = qualityFocusRequester
-                                    up = timelineFocusRequester
-                                }
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                AppIcon(
-                                    resId = R.drawable.ic_forward_10,
-                                    size = 13.dp
-                                )
-                                Text("10с", fontSize = 11.sp, lineHeight = 13.sp)
-                            }
-                        }
-
-                        // 4. Quality Selector Button
+                        // 1. Quality Selector Button
                         val isQualityActive = activeDrawer == "quality"
                         Button(
                             onClick = {
@@ -2390,7 +2285,6 @@ private fun NativeExoPlayerScreen(
                                 .height(28.dp)
                                 .focusRequester(qualityFocusRequester)
                                 .focusProperties {
-                                    left = forwardFocusRequester
                                     right = sourceFocusRequester
                                     up = timelineFocusRequester
                                 }
@@ -2407,11 +2301,7 @@ private fun NativeExoPlayerScreen(
                             }
                         }
 
-                        // 5. Source Selector Button
-                        val afterSourceFocus = if (currentMovieState.audioTracks.isNotEmpty()) audioFocusRequester
-                            else if (currentMovieState.isSeries) (if (currentEpisode > 1) prevEpisodeFocusRequester else episodesDrawerFocusRequester)
-                            else extPlayerFocusRequester
-
+                        // 2. Source Selector Button
                         val isSourceActive = activeDrawer == "source"
                         Button(
                             onClick = {
@@ -2451,8 +2341,8 @@ private fun NativeExoPlayerScreen(
                             }
                         }
 
-                        // 6. Audio Tracks Selector Button
-                        if (currentMovieState.audioTracks.isNotEmpty() || currentStreamQuality.isNotEmpty()) {
+                        // 3. Audio Tracks Selector Button
+                        if (hasAudio) {
                             val streamVoice = remember(currentStreamQuality, selectedSource) {
                                 Regex("\\(([^)]+)\\)").findAll(currentStreamQuality)
                                     .map { it.groupValues[1].trim() }
@@ -2481,9 +2371,7 @@ private fun NativeExoPlayerScreen(
                             } else {
                                 streamVoice ?: "Озвучка"
                             }
-                            val afterAudioFocus = if (currentMovieState.isSeries) {
-                                if (currentEpisode > 1) prevEpisodeFocusRequester else episodesDrawerFocusRequester
-                            } else extPlayerFocusRequester
+                            val afterAudioFocus = if (currentMovieState.isSeries && currentEpisode > 1) prevEpisodeFocusRequester else rewindFocusRequester
 
                             val isAudioActive = activeDrawer == "audio"
                             Button(
@@ -2525,45 +2413,197 @@ private fun NativeExoPlayerScreen(
                             }
                         }
 
-                        // 7. Series Next / Prev / List Buttons
-                        if (currentMovieState.isSeries) {
-                            val beforeSeriesFocus = if (currentMovieState.audioTracks.isNotEmpty()) audioFocusRequester else sourceFocusRequester
-
-                            if (currentEpisode > 1) {
-                                Button(
-                                    onClick = { switchStream(currentSeason, currentEpisode - 1, currentAudioId, selectedQuality, selectedSource) },
-                                    colors = ButtonDefaults.colors(
-                                        containerColor = Color.White.copy(alpha = 0.12f),
-                                        focusedContainerColor = Color.White,
-                                        contentColor = TextWhite,
-                                        focusedContentColor = Color.Black
-                                    ),
-                                    border = ButtonDefaults.border(border = Border.None, focusedBorder = Border.None),
-                                    shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
-                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                                    modifier = Modifier
-                                        .height(28.dp)
-                                        .focusRequester(prevEpisodeFocusRequester)
-                                        .focusProperties {
-                                            left = beforeSeriesFocus
-                                            right = episodesDrawerFocusRequester
-                                            up = timelineFocusRequester
-                                        }
-                                 ) {
-                                    Row(
-                                         verticalAlignment = Alignment.CenterVertically,
-                                         horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                    ) {
-                                        AppIcon(
-                                            resId = R.drawable.ic_skip_previous,
-                                            size = 13.dp
-                                        )
-                                        Text("Пред.", fontSize = 11.sp, lineHeight = 13.sp)
+                        // 4. Series Previous Episode Button
+                        if (currentMovieState.isSeries && currentEpisode > 1) {
+                            val beforePrevFocus = if (hasAudio) audioFocusRequester else sourceFocusRequester
+                            Button(
+                                onClick = { switchStream(currentSeason, currentEpisode - 1, currentAudioId, selectedQuality, selectedSource) },
+                                colors = ButtonDefaults.colors(
+                                    containerColor = Color.White.copy(alpha = 0.12f),
+                                    focusedContainerColor = Color.White,
+                                    contentColor = TextWhite,
+                                    focusedContentColor = Color.Black
+                                ),
+                                border = ButtonDefaults.border(border = Border.None, focusedBorder = Border.None),
+                                shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                                scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                                modifier = Modifier
+                                    .height(28.dp)
+                                    .focusRequester(prevEpisodeFocusRequester)
+                                    .focusProperties {
+                                        left = beforePrevFocus
+                                        right = rewindFocusRequester
+                                        up = timelineFocusRequester
                                     }
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    AppIcon(
+                                        resId = R.drawable.ic_skip_previous,
+                                        size = 13.dp
+                                    )
+                                    Text("Пред.", fontSize = 11.sp, lineHeight = 13.sp)
                                 }
                             }
+                        }
 
+                        // 5. Rewind -10s
+                        Button(
+                            onClick = {
+                                val newPos = (exoPlayer.currentPosition - 10000L).coerceAtLeast(0L)
+                                exoPlayer.seekTo(newPos)
+                            },
+                            colors = ButtonDefaults.colors(
+                                containerColor = Color.White.copy(alpha = 0.12f),
+                                focusedContainerColor = Color.White,
+                                contentColor = TextWhite,
+                                focusedContentColor = Color.Black
+                            ),
+                            border = ButtonDefaults.border(border = Border.None, focusedBorder = Border.None),
+                            shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                            modifier = Modifier
+                                .height(28.dp)
+                                .focusRequester(rewindFocusRequester)
+                                .focusProperties {
+                                    left = beforeRewindFocus
+                                    right = playPauseFocusRequester
+                                    up = timelineFocusRequester
+                                }
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                AppIcon(
+                                    resId = R.drawable.ic_replay_10,
+                                    size = 13.dp
+                                )
+                                Text("10с", fontSize = 11.sp, lineHeight = 13.sp)
+                            }
+                        }
+
+                        // 6. Play / Pause Button (CENTER PRIMARY)
+                        Button(
+                            onClick = {
+                                togglePlayPause()
+                            },
+                            colors = ButtonDefaults.colors(
+                                containerColor = Color.White.copy(alpha = 0.22f),
+                                focusedContainerColor = Color.White,
+                                contentColor = TextWhite,
+                                focusedContentColor = Color.Black
+                            ),
+                            border = ButtonDefaults.border(border = Border.None, focusedBorder = Border.None),
+                            shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.06f),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                            modifier = Modifier
+                                .height(32.dp)
+                                .focusRequester(playPauseFocusRequester)
+                                .focusProperties {
+                                    left = rewindFocusRequester
+                                    right = if (currentMovieState.isSeries) nextEpisodeFocusRequester else forwardFocusRequester
+                                    up = timelineFocusRequester
+                                }
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(5.dp)
+                            ) {
+                                AppIcon(
+                                    resId = if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play_arrow,
+                                    size = 15.dp
+                                )
+                                Text(
+                                    text = if (isPlaying) "Пауза" else "Старт",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    lineHeight = 14.sp
+                                )
+                            }
+                        }
+
+                        // 7. Series Next Episode Button (CENTER RIGHT)
+                        if (currentMovieState.isSeries) {
+                            Button(
+                                onClick = { switchStream(currentSeason, currentEpisode + 1, currentAudioId, selectedQuality, selectedSource) },
+                                colors = ButtonDefaults.colors(
+                                    containerColor = Color.White.copy(alpha = 0.22f),
+                                    focusedContainerColor = Color.White,
+                                    contentColor = TextWhite,
+                                    focusedContentColor = Color.Black
+                                ),
+                                border = ButtonDefaults.border(border = Border.None, focusedBorder = Border.None),
+                                shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                                scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.06f),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                                modifier = Modifier
+                                    .height(32.dp)
+                                    .focusRequester(nextEpisodeFocusRequester)
+                                    .focusProperties {
+                                        left = playPauseFocusRequester
+                                        right = forwardFocusRequester
+                                        up = timelineFocusRequester
+                                    }
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(5.dp)
+                                ) {
+                                    Text("След. серия", fontSize = 12.sp, fontWeight = FontWeight.Bold, lineHeight = 14.sp)
+                                    AppIcon(
+                                        resId = R.drawable.ic_skip_next,
+                                        size = 15.dp
+                                    )
+                                }
+                            }
+                        }
+
+                        // 8. Forward +10s
+                        Button(
+                            onClick = {
+                                val maxPos = if (exoPlayer.duration > 0) exoPlayer.duration else Long.MAX_VALUE
+                                val newPos = (exoPlayer.currentPosition + 10000L).coerceAtMost(maxPos)
+                                exoPlayer.seekTo(newPos)
+                            },
+                            colors = ButtonDefaults.colors(
+                                containerColor = Color.White.copy(alpha = 0.12f),
+                                focusedContainerColor = Color.White,
+                                contentColor = TextWhite,
+                                focusedContentColor = Color.Black
+                            ),
+                            border = ButtonDefaults.border(border = Border.None, focusedBorder = Border.None),
+                            shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                            modifier = Modifier
+                                .height(28.dp)
+                                .focusRequester(forwardFocusRequester)
+                                .focusProperties {
+                                    left = if (currentMovieState.isSeries) nextEpisodeFocusRequester else playPauseFocusRequester
+                                    right = if (currentMovieState.isSeries) episodesDrawerFocusRequester else extPlayerFocusRequester
+                                    up = timelineFocusRequester
+                                }
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                AppIcon(
+                                    resId = R.drawable.ic_forward_10,
+                                    size = 13.dp
+                                )
+                                Text("10с", fontSize = 11.sp, lineHeight = 13.sp)
+                            }
+                        }
+
+                        // 9. Series All Episodes Drawer Button
+                        if (currentMovieState.isSeries) {
                             val isEpisodesActive = activeDrawer == "episodes"
                             Button(
                                 onClick = {
@@ -2586,8 +2626,8 @@ private fun NativeExoPlayerScreen(
                                     .height(28.dp)
                                     .focusRequester(episodesDrawerFocusRequester)
                                     .focusProperties {
-                                        left = if (currentEpisode > 1) prevEpisodeFocusRequester else beforeSeriesFocus
-                                        right = nextEpisodeFocusRequester
+                                        left = forwardFocusRequester
+                                        right = extPlayerFocusRequester
                                         up = timelineFocusRequester
                                     }
                             ) {
@@ -2602,45 +2642,10 @@ private fun NativeExoPlayerScreen(
                                     Text("Все серии", fontSize = 11.sp, lineHeight = 13.sp)
                                 }
                             }
-
-                            Button(
-                                onClick = { switchStream(currentSeason, currentEpisode + 1, currentAudioId, selectedQuality, selectedSource) },
-                                colors = ButtonDefaults.colors(
-                                    containerColor = Color.White.copy(alpha = 0.12f),
-                                    focusedContainerColor = Color.White,
-                                    contentColor = TextWhite,
-                                    focusedContentColor = Color.Black
-                                ),
-                                border = ButtonDefaults.border(border = Border.None, focusedBorder = Border.None),
-                                shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                                scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
-                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                                modifier = Modifier
-                                    .height(28.dp)
-                                    .focusRequester(nextEpisodeFocusRequester)
-                                    .focusProperties {
-                                        left = episodesDrawerFocusRequester
-                                        right = extPlayerFocusRequester
-                                        up = timelineFocusRequester
-                                    }
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                ) {
-                                    Text("След.", fontSize = 11.sp, lineHeight = 13.sp)
-                                    AppIcon(
-                                        resId = R.drawable.ic_skip_next,
-                                        size = 13.dp
-                                    )
-                                }
-                            }
                         }
 
-                        // 8. External Player Button
-                        val beforeExtFocus = if (currentMovieState.isSeries) nextEpisodeFocusRequester
-                            else if (currentMovieState.audioTracks.isNotEmpty()) audioFocusRequester
-                            else sourceFocusRequester
+                        // 10. External Player Button
+                        val beforeExtFocus = if (currentMovieState.isSeries) episodesDrawerFocusRequester else forwardFocusRequester
 
                         Button(
                             onClick = {

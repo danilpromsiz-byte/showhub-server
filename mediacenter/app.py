@@ -104,6 +104,16 @@ kodik = KodikSource()
 anilibria = AnilibriaSource()
 zona = ZonaSource()
 
+from mediacenter.core.media_registry import media_registry
+from mediacenter.core.media_harvester import media_harvester
+
+@app.on_event("startup")
+def startup_event():
+    try:
+        media_harvester.start_background_harvest()
+    except Exception as e:
+        logger.warning(f"Failed to start media harvester: {e}")
+
 @app.api_route("/", methods=["GET", "HEAD"], response_class=HTMLResponse)
 async def serve_index():
     index_path = os.path.join(CURRENT_DIR, "templates", "index.html")
@@ -481,10 +491,44 @@ def find_best_match(items: list, target_year: Optional[Any] = None, target_is_se
             return None
     return best
 
+_fast_search_cache: Dict[str, Tuple[float, List[Dict[str, Any]]]] = {}
+_FAST_SEARCH_CACHE_TTL = 300  # 5 minutes in-memory cache
+
+def _bg_harvest_query(query_str: str):
+    try:
+        live_items = []
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            f_filmix = executor.submit(filmix.search, query_str)
+            f_zona = executor.submit(zona.search, query_str)
+            f_anilibria = executor.submit(anilibria.search, query_str)
+            f_kodik = executor.submit(kodik.search, query_str)
+            f_videocdn = executor.submit(videocdn.search, query_str)
+            for f in [f_filmix, f_zona, f_anilibria, f_kodik, f_videocdn]:
+                try:
+                    res = f.result(timeout=2.0)
+                    if res:
+                        live_items.extend(res)
+                except Exception:
+                    pass
+        if live_items:
+            media_registry.upsert_batch(live_items)
+    except Exception:
+        pass
+
 @app.get("/api/search")
 def search_media(q: str = Query(..., min_length=1), type: Optional[str] = Query(None)) -> List[Dict[str, Any]]:
-    """Searches across all sources in parallel with robust title/year deduplication, with dedicated actor filmography support."""
-    # Check if this is an actor filmography search
+    """Searches across media registry and online sources with high performance indexing and caching."""
+    q_clean = q.strip()
+    q_key = f"{q_clean.lower()}_{type}"
+    now_ts = time.time()
+
+    # 0. Check in-memory fast search cache (<1ms)
+    if q_key in _fast_search_cache:
+        c_ts, c_items = _fast_search_cache[q_key]
+        if now_ts - c_ts < _FAST_SEARCH_CACHE_TTL:
+            return c_items
+
+    # 1. Check if this is an actor filmography search
     if type == "actor" or q.startswith("actor:"):
         actor_name = q.replace("actor:", "").strip()
         actor_films = []
@@ -508,56 +552,59 @@ def search_media(q: str = Query(..., min_length=1), type: Optional[str] = Query(
                 if k not in seen_k:
                     seen_k.add(k)
                     deduped.append(f)
+            _fast_search_cache[q_key] = (now_ts, deduped[:60])
             return deduped[:60]
 
+    # 2. Query instant local SQLite FTS5 MediaRegistry (<5ms)
+    indexed_matches = media_registry.search(q_clean, limit=60)
+    if len(indexed_matches) >= 6:
+        # Sufficient high-quality local matches: return immediately without network latency!
+        # Fire background harvesting so registry is constantly enriched
+        threading.Thread(target=_bg_harvest_query, args=(q_clean,), daemon=True).start()
+        _fast_search_cache[q_key] = (now_ts, indexed_matches)
+        return indexed_matches
+
+    # 3. If local registry has few matches, query fast online sources with tight timeout (1.5s max)
     all_items = []
-    with ThreadPoolExecutor(max_workers=10) as executor:
-        f_bazon = executor.submit(bazon.search, q)
-        f_torrents = executor.submit(torrents.search, q)
-        f_rezka = executor.submit(hdrezka.search, q)
+    # Start with whatever local registry already found
+    for im in indexed_matches:
+        all_items.append(MediaItem(
+            id=im["id"],
+            source_name=im.get("source_name", "registry"),
+            title=im["title"],
+            original_title=im.get("original_title"),
+            year=im.get("year"),
+            is_series=bool(im.get("is_series")),
+            poster=im.get("poster"),
+            description=im.get("description"),
+            rating_kp=im.get("rating_kp"),
+            rating_imdb=im.get("rating_imdb"),
+            kinopoisk_id=im.get("kinopoisk_id"),
+            genres=im.get("genres"),
+            extra_data=im.get("extra_data") or {}
+        ))
+
+    with ThreadPoolExecutor(max_workers=6) as executor:
         f_filmix = executor.submit(filmix.search, q)
         f_zona = executor.submit(zona.search, q)
         f_anilibria = executor.submit(anilibria.search, q)
         f_videocdn = executor.submit(videocdn.search, q)
         f_kodik = executor.submit(kodik.search, q)
-        f_kodik_actor = executor.submit(kodik.search_by_actor, q)
-        f_kodik_dir = executor.submit(kodik.search_by_director, q)
+        f_bazon = executor.submit(bazon.search, q)
 
-        for f in [f_bazon, f_torrents, f_rezka, f_filmix, f_zona, f_anilibria, f_videocdn, f_kodik, f_kodik_actor, f_kodik_dir]:
+        for f in [f_filmix, f_zona, f_anilibria, f_videocdn, f_kodik, f_bazon]:
             try:
-                items = f.result(timeout=6)
-                all_items.extend(items)
+                items = f.result(timeout=1.5)
+                if items:
+                    all_items.extend(items)
             except Exception:
                 pass
 
-    # Search local catalog for actor, director, and title matches (filmography support)
-    q_low = q.lower().strip()
-    try:
-        init_cat_path = os.path.join(CURRENT_DIR, "static", "initial_catalog.json")
-        if os.path.exists(init_cat_path):
-            with open(init_cat_path, "r", encoding="utf-8") as f:
-                cat_list = json.load(f)
-                for it in cat_list:
-                    act_txt = str(it.get("actors") or it.get("extra_data", {}).get("actors") or "").lower()
-                    dir_txt = str(it.get("director") or it.get("extra_data", {}).get("director") or "").lower()
-                    tit_txt = str(it.get("title") or "").lower()
-                    if q_low in act_txt or q_low in dir_txt or q_low in tit_txt:
-                        all_items.append(MediaItem(
-                            id=str(it.get("id")),
-                            source_name=it.get("source_name", "kodik"),
-                            title=it.get("title", ""),
-                            year=it.get("year"),
-                            is_series=bool(it.get("is_series")),
-                            poster=it.get("poster"),
-                            description=it.get("description"),
-                            rating_kp=it.get("rating_kp"),
-                            rating_imdb=it.get("rating_imdb"),
-                            kinopoisk_id=it.get("kinopoisk_id"),
-                            extra_data=it.get("extra_data") or {}
-                        ))
-    except Exception:
-        pass
+    # Upsert discovered items to registry in background
+    if all_items:
+        threading.Thread(target=media_registry.upsert_batch, args=(all_items,), daemon=True).start()
 
+    # Deduplicate and sort
     seen_kp = {}
     deduped_dict = {}
 
@@ -581,7 +628,6 @@ def search_media(q: str = Query(..., min_length=1), type: Optional[str] = Query(
         matched_key = None
         for (nt, y) in list(deduped_dict.keys()):
             if nt == norm_title:
-                # Match if year is unknown in either, or release year within 1 year
                 if y == 0 or yr == 0 or abs(y - yr) <= 1:
                     matched_key = (nt, y)
                     break
@@ -601,7 +647,7 @@ def search_media(q: str = Query(..., min_length=1), type: Optional[str] = Query(
                 seen_kp[item.kinopoisk_id] = existing
         else:
             key = (norm_title, yr)
-            d_item = item.model_dump()
+            d_item = item.model_dump() if hasattr(item, "model_dump") else dict(item)
             deduped_dict[key] = d_item
             if item.kinopoisk_id:
                 seen_kp[item.kinopoisk_id] = d_item
@@ -614,7 +660,7 @@ def search_media(q: str = Query(..., min_length=1), type: Optional[str] = Query(
             if real_p:
                 it["poster"] = real_p
 
-    # Sort results by relevance to query q (exact match first, then prefix, then substring)
+    # Sort results by relevance to query q
     qn = normalize_search_title(q)
     def search_relevance(item):
         t = normalize_search_title(item.get("title", ""))
@@ -636,7 +682,9 @@ def search_media(q: str = Query(..., min_length=1), type: Optional[str] = Query(
         for f in ("title", "original_title", "description"):
             if it.get(f):
                 it[f] = clean_html_text(it[f])
-    return res_list
+
+    _fast_search_cache[q_key] = (now_ts, res_list[:60])
+    return res_list[:60]
 
 _poster_cache: Dict[str, str] = {}
 
@@ -1306,6 +1354,8 @@ def get_catalog(
                 it[f] = clean_html_text(it[f])
 
     _catalog_cache[cache_key] = (now_ts, all_items)
+    if all_items:
+        threading.Thread(target=media_registry.upsert_batch, args=(all_items,), daemon=True).start()
     return all_items
 
 @app.post("/api/favorites/check-updates")

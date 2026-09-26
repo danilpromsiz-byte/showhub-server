@@ -252,9 +252,16 @@ class FilmixSource(BaseSource):
                 return []
 
             data = r.json()
-            raw_items = data.get("items", [])
+            if isinstance(data, list):
+                raw_items = data
+            elif isinstance(data, dict):
+                raw_items = data.get("items", [])
+            else:
+                raw_items = []
 
             for it in raw_items:
+                if not isinstance(it, dict):
+                    continue
                 film_id = str(it.get("id", ""))
                 if not film_id:
                     continue

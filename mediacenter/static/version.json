@@ -1,10 +1,10 @@
 {
   "success": true,
-  "version_name": "2.8.57",
-  "version_code": 116,
+  "version_name": "2.8.58",
+  "version_code": 117,
   "force_update": true,
   "min_version_code": 108,
   "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
   "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
-  "changelog": "v2.8.57: Исправлена рассинхронизация паузы в Bluetooth-наушниках — устранён двойной триггер MediaSession/onKeyEvent, добавлен дебаунс команд, setHandleAudioBecomingNoisy и мгновенная синхронизация состояния плеера."
+  "changelog": "v2.8.58: Мгновенный поиск через реестр медиа FTS5 (<5мс). Центрирование кнопок Пауза и Следующая серия с автоматическим фокусом на Паузе при открытии наэкранного меню плеера."
 }

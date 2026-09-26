@@ -602,6 +602,7 @@ private fun NativeExoPlayerScreen(
             .setMediaSourceFactory(mediaSourceFactory)
             .setLoadControl(loadControl)
             .setRenderersFactory(renderersFactory)
+            .setHandleAudioBecomingNoisy(true)
             .build().apply {
                 try {
                     setWakeMode(C.WAKE_MODE_NETWORK)
@@ -627,6 +628,9 @@ private fun NativeExoPlayerScreen(
                     }
                 }
                 addListener(object : androidx.media3.common.Player.Listener {
+                    override fun onIsPlayingChanged(playing: Boolean) {
+                        isPlaying = playing
+                    }
                     override fun onPlaybackStateChanged(state: Int) {
                         isBuffering = (state == androidx.media3.common.Player.STATE_BUFFERING)
                         if (state == androidx.media3.common.Player.STATE_ENDED) {
@@ -659,10 +663,75 @@ private fun NativeExoPlayerScreen(
             }
     }
 
+    var lastToggleTime by remember { mutableLongStateOf(0L) }
+
+    fun togglePlayPause() {
+        val now = android.os.SystemClock.uptimeMillis()
+        if (now - lastToggleTime < 350L) {
+            return // Ignore rapid/bounce Bluetooth media button events
+        }
+        lastToggleTime = now
+
+        if (exoPlayer.isPlaying) {
+            exoPlayer.pause()
+            playbackActionBadge = "pause"
+            isControlsVisible = true
+            try { timelineFocusRequester.requestFocus() } catch (_: Exception) {}
+        } else {
+            exoPlayer.play()
+            playbackActionBadge = "play"
+        }
+    }
+
     val mediaSession = remember(exoPlayer) {
         try {
             androidx.media3.session.MediaSession.Builder(context, exoPlayer)
                 .setId("ShowHubMediaSession")
+                .setCallback(object : androidx.media3.session.MediaSession.Callback {
+                    override fun onMediaButtonEvent(
+                        session: androidx.media3.session.MediaSession,
+                        controllerInfo: androidx.media3.session.MediaSession.ControllerInfo,
+                        intent: android.content.Intent
+                    ): Boolean {
+                        val keyEvent: android.view.KeyEvent? = if (android.os.Build.VERSION.SDK_INT >= 33) {
+                            intent.getParcelableExtra(android.content.Intent.EXTRA_KEY_EVENT, android.view.KeyEvent::class.java)
+                        } else {
+                            @Suppress("DEPRECATION")
+                            intent.getParcelableExtra(android.content.Intent.EXTRA_KEY_EVENT)
+                        }
+                        if (keyEvent != null) {
+                            if (keyEvent.action == android.view.KeyEvent.ACTION_DOWN) {
+                                when (keyEvent.keyCode) {
+                                    android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
+                                    android.view.KeyEvent.KEYCODE_HEADSETHOOK -> {
+                                        (context as? android.app.Activity)?.runOnUiThread {
+                                            togglePlayPause()
+                                        }
+                                        return true
+                                    }
+                                    android.view.KeyEvent.KEYCODE_MEDIA_PLAY -> {
+                                        (context as? android.app.Activity)?.runOnUiThread {
+                                            exoPlayer.play()
+                                            playbackActionBadge = "play"
+                                        }
+                                        return true
+                                    }
+                                    android.view.KeyEvent.KEYCODE_MEDIA_PAUSE,
+                                    android.view.KeyEvent.KEYCODE_MEDIA_STOP -> {
+                                        (context as? android.app.Activity)?.runOnUiThread {
+                                            exoPlayer.pause()
+                                            playbackActionBadge = "pause"
+                                            isControlsVisible = true
+                                        }
+                                        return true
+                                    }
+                                }
+                            }
+                            return true // Consume both ACTION_DOWN and ACTION_UP for media keys
+                        }
+                        return super.onMediaButtonEvent(session, controllerInfo, intent)
+                    }
+                })
                 .build()
         } catch (_: Throwable) {
             null
@@ -703,18 +772,6 @@ private fun NativeExoPlayerScreen(
                 )
             }
         } catch (_: Exception) {}
-    }
-
-    fun togglePlayPause() {
-        if (exoPlayer.isPlaying) {
-            exoPlayer.pause()
-            playbackActionBadge = "pause"
-            isControlsVisible = true
-            try { timelineFocusRequester.requestFocus() } catch (_: Exception) {}
-        } else {
-            exoPlayer.play()
-            playbackActionBadge = "play"
-        }
     }
 
     fun matchQuality(streamQuality: String, targetQuality: String): Boolean {
@@ -1162,28 +1219,41 @@ private fun NativeExoPlayerScreen(
                         return@onKeyEvent true
                     }
                 }
-                if (nativeEvent.action == KeyEvent.ACTION_DOWN) {
-                    lastUserInteractionTime = System.currentTimeMillis()
-
-                    // Universal Bluetooth headset and media button handling (active in all UI states)
-                    when (nativeEvent.keyCode) {
-                        KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
-                        KeyEvent.KEYCODE_HEADSETHOOK -> {
-                            togglePlayPause()
-                            return@onKeyEvent true
-                        }
-                        KeyEvent.KEYCODE_MEDIA_PLAY -> {
-                            exoPlayer.play()
-                            playbackActionBadge = "play"
-                            return@onKeyEvent true
-                        }
-                        KeyEvent.KEYCODE_MEDIA_PAUSE,
-                        KeyEvent.KEYCODE_MEDIA_STOP -> {
-                            exoPlayer.pause()
-                            playbackActionBadge = "pause"
-                            return@onKeyEvent true
+                // Universal Bluetooth headset and media button handling (active in all UI states)
+                val isMediaKey = when (nativeEvent.keyCode) {
+                    KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
+                    KeyEvent.KEYCODE_HEADSETHOOK,
+                    KeyEvent.KEYCODE_MEDIA_PLAY,
+                    KeyEvent.KEYCODE_MEDIA_PAUSE,
+                    KeyEvent.KEYCODE_MEDIA_STOP -> true
+                    else -> false
+                }
+                if (isMediaKey) {
+                    if (nativeEvent.action == KeyEvent.ACTION_DOWN) {
+                        lastUserInteractionTime = System.currentTimeMillis()
+                        when (nativeEvent.keyCode) {
+                            KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
+                            KeyEvent.KEYCODE_HEADSETHOOK -> {
+                                togglePlayPause()
+                            }
+                            KeyEvent.KEYCODE_MEDIA_PLAY -> {
+                                exoPlayer.play()
+                                playbackActionBadge = "play"
+                            }
+                            KeyEvent.KEYCODE_MEDIA_PAUSE,
+                            KeyEvent.KEYCODE_MEDIA_STOP -> {
+                                exoPlayer.pause()
+                                playbackActionBadge = "pause"
+                                isControlsVisible = true
+                            }
                         }
                     }
+                    // Always consume both ACTION_DOWN and ACTION_UP for media keys so they don't leak to system
+                    return@onKeyEvent true
+                }
+
+                if (nativeEvent.action == KeyEvent.ACTION_DOWN) {
+                    lastUserInteractionTime = System.currentTimeMillis()
 
                     if (!isControlsVisible) {
                         when (nativeEvent.keyCode) {
@@ -1264,6 +1334,11 @@ private fun NativeExoPlayerScreen(
                             ViewGroup.LayoutParams.MATCH_PARENT,
                             ViewGroup.LayoutParams.MATCH_PARENT
                         )
+                    }
+                },
+                update = { view ->
+                    if (view.player != exoPlayer) {
+                        view.player = exoPlayer
                     }
                 },
                 modifier = Modifier.fillMaxSize()

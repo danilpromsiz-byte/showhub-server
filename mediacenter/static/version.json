@@ -1,10 +1,10 @@
 {
   "success": true,
-  "version_name": "2.8.56",
-  "version_code": 115,
+  "version_name": "2.8.57",
+  "version_code": 116,
   "force_update": true,
   "min_version_code": 108,
   "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
   "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
-  "changelog": "v2.8.56: Новые источники из LazyMedia Deluxe — Filmix (прямые потоки до 720p с бесплатным аккаунтом без PRO), универсальный HLS AniLibria и прямые MP4 потоки Zona. Форма входа Filmix в Настройках."
+  "changelog": "v2.8.57: Исправлена рассинхронизация паузы в Bluetooth-наушниках — устранён двойной триггер MediaSession/onKeyEvent, добавлен дебаунс команд, setHandleAudioBecomingNoisy и мгновенная синхронизация состояния плеера."
 }

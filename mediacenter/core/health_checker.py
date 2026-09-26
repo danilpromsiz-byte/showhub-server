@@ -16,6 +16,8 @@ from ..sources.torrents import TorrentsSource
 from ..sources.hdrezka import HDRezkaSource
 from ..sources.videocdn import VideoCDNSource
 from ..sources.filmix import FilmixSource
+from ..sources.anilibria import AnilibriaSource
+from ..sources.zona import ZonaSource
 
 class HealthChecker:
     STATUS_FILE = os.path.join(os.path.dirname(__file__), "..", "health_status.json")
@@ -28,6 +30,8 @@ class HealthChecker:
             HDRezkaSource(),
             VideoCDNSource(),
             FilmixSource(),
+            AnilibriaSource(),
+            ZonaSource(),
         ]
         self.last_reports: Dict[str, CanaryReport] = {}
         self.last_check_time = 0

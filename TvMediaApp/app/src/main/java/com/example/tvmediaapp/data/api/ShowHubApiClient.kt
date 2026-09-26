@@ -509,6 +509,9 @@ object ShowHubApiClient {
                                     src.equals("delivembd", ignoreCase = true) || src.equals("collaps", ignoreCase = true) -> "Collaps"
                                     src.equals("videocdn", ignoreCase = true) -> "VideoCDN"
                                     src.equals("hdrezka", ignoreCase = true) -> "HDRezka"
+                                    src.equals("filmix", ignoreCase = true) -> "Filmix"
+                                    src.equals("anilibria", ignoreCase = true) -> "AniLibria"
+                                    src.equals("zona", ignoreCase = true) -> "Zona"
                                     else -> src.replaceFirstChar { it.uppercase() }
                                 }
                                 if (isDirect) {
@@ -537,6 +540,8 @@ object ShowHubApiClient {
                     if (embedUrl.startsWith("http") &&
                         !src.equals("hdrezka", ignoreCase = true) &&
                         !src.equals("filmix", ignoreCase = true) &&
+                        !src.equals("anilibria", ignoreCase = true) &&
+                        !src.equals("zona", ignoreCase = true) &&
                         strArr != null && strArr.length() > 0 &&
                         directStreams.none { it.url == embedUrl } &&
                         embedStreams.none { it.url == embedUrl }
@@ -566,6 +571,18 @@ object ShowHubApiClient {
         } catch (e: Exception) {
             e.printStackTrace()
         }
+
+        // Client-side Zona resolution fallback (bypasses any potential IP-locks)
+        if (directStreams.none { it.source == "Zona" } && !movie.isSeries) {
+            try {
+                val mobiId = com.example.tvmediaapp.data.resolver.ZonaNativeResolver.searchMobiId(movie.title, movie.kinopoiskId)
+                if (mobiId != null) {
+                    val zonaStreams = com.example.tvmediaapp.data.resolver.ZonaNativeResolver.resolveStreams(mobiId)
+                    directStreams.addAll(zonaStreams)
+                }
+            } catch (_: Exception) {}
+        }
+
         val result = mutableListOf<StreamOption>()
         result.addAll(directStreams)
         result.addAll(embedStreams)
@@ -967,7 +984,94 @@ object ShowHubApiClient {
             null
         }
     }
+
+    suspend fun getFilmixStatus(): FilmixAccountStatus = withContext(Dispatchers.IO) {
+        try {
+            val url = URL("$activeServerBase/api/account/filmix")
+            val conn = url.openConnection() as HttpURLConnection
+            conn.connectTimeout = 6000
+            conn.readTimeout = 6000
+            prepareConnection(conn)
+            conn.connect()
+            if (conn.responseCode == 200) {
+                val body = BufferedReader(InputStreamReader(conn.inputStream, "UTF-8")).use { it.readText() }
+                val obj = JSONObject(body)
+                val isLogged = obj.optBoolean("is_logged_in", false)
+                val uname = obj.optString("username", "")
+                val disp = obj.optString("display_name", uname)
+                val isPro = obj.optBoolean("is_pro", false)
+                val isProPlus = obj.optBoolean("is_pro_plus", false)
+                val proDate = obj.optString("pro_date", "")
+                return@withContext FilmixAccountStatus(
+                    isLoggedIn = isLogged,
+                    username = uname,
+                    displayName = disp,
+                    isPro = isPro,
+                    isProPlus = isProPlus,
+                    proDate = proDate
+                )
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        FilmixAccountStatus(isLoggedIn = false)
+    }
+
+    suspend fun loginFilmix(loginName: String, loginPass: String): Pair<Boolean, String> = withContext(Dispatchers.IO) {
+        try {
+            val url = URL("$activeServerBase/api/account/filmix/login")
+            val conn = url.openConnection() as HttpURLConnection
+            conn.requestMethod = "POST"
+            conn.setRequestProperty("Content-Type", "application/json; charset=UTF-8")
+            conn.connectTimeout = 10000
+            conn.readTimeout = 10000
+            conn.doOutput = true
+            prepareConnection(conn)
+
+            val payload = JSONObject().apply {
+                put("login_name", loginName.trim())
+                put("login_password", loginPass.trim())
+            }
+            OutputStreamWriter(conn.outputStream, "UTF-8").use {
+                it.write(payload.toString())
+                it.flush()
+            }
+            val code = conn.responseCode
+            val stream = if (code in 200..299) conn.inputStream else conn.errorStream
+            val respStr = BufferedReader(InputStreamReader(stream, "UTF-8")).use { it.readText() }
+            val obj = JSONObject(respStr)
+            val success = obj.optBoolean("success", false)
+            val msg = obj.optString("message", if (success) "Авторизация в Filmix успешна!" else "Ошибка входа в Filmix")
+            Pair(success, msg)
+        } catch (e: Exception) {
+            Pair(false, e.localizedMessage ?: "Ошибка связи с сервером")
+        }
+    }
+
+    suspend fun logoutFilmix(): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val url = URL("$activeServerBase/api/account/filmix/logout")
+            val conn = url.openConnection() as HttpURLConnection
+            conn.requestMethod = "POST"
+            conn.connectTimeout = 6000
+            conn.readTimeout = 6000
+            prepareConnection(conn)
+            conn.connect()
+            conn.responseCode == 200
+        } catch (e: Exception) {
+            false
+        }
+    }
 }
+
+data class FilmixAccountStatus(
+    val isLoggedIn: Boolean = false,
+    val username: String = "",
+    val displayName: String = "",
+    val isPro: Boolean = false,
+    val isProPlus: Boolean = false,
+    val proDate: String = ""
+)
 
 data class UserStats(
     val totalInstalls: Int = 0,

@@ -51,6 +51,8 @@ from mediacenter.sources.hdrezka import HDRezkaSource
 from mediacenter.sources.filmix import FilmixSource
 from mediacenter.sources.videocdn import VideoCDNSource
 from mediacenter.sources.kodik import KodikSource
+from mediacenter.sources.anilibria import AnilibriaSource
+from mediacenter.sources.zona import ZonaSource
 from mediacenter.sources.base import MediaItem, StreamResult
 from mediacenter.core.tmdb import tmdb
 
@@ -99,6 +101,8 @@ hdrezka = HDRezkaSource()
 filmix = FilmixSource()
 videocdn = VideoCDNSource()
 kodik = KodikSource()
+anilibria = AnilibriaSource()
+zona = ZonaSource()
 
 @app.api_route("/", methods=["GET", "HEAD"], response_class=HTMLResponse)
 async def serve_index():
@@ -431,9 +435,14 @@ def rank_matches(items: list, target_year: Optional[Any] = None, target_is_serie
         it_title = getattr(it, "title", "")
 
         # Title similarity matching
-        if target_title and it_title:
+        if target_title and (it_title or getattr(it, "original_title", None)):
             sim = compute_title_similarity(it_title, target_title)
-            if sim < 0.60:
+            it_orig = getattr(it, "original_title", None)
+            if not it_orig and hasattr(it, "extra_data") and isinstance(it.extra_data, dict):
+                it_orig = it.extra_data.get("original_title") or it.extra_data.get("name_eng")
+            if it_orig:
+                sim = max(sim, compute_title_similarity(it_orig, target_title))
+            if sim < 0.50:
                 return -9999  # Disqualify unrelated title matches
             score += int(sim * 250)
 
@@ -502,17 +511,19 @@ def search_media(q: str = Query(..., min_length=1), type: Optional[str] = Query(
             return deduped[:60]
 
     all_items = []
-    with ThreadPoolExecutor(max_workers=8) as executor:
+    with ThreadPoolExecutor(max_workers=10) as executor:
         f_bazon = executor.submit(bazon.search, q)
         f_torrents = executor.submit(torrents.search, q)
         f_rezka = executor.submit(hdrezka.search, q)
         f_filmix = executor.submit(filmix.search, q)
+        f_zona = executor.submit(zona.search, q)
+        f_anilibria = executor.submit(anilibria.search, q)
         f_videocdn = executor.submit(videocdn.search, q)
         f_kodik = executor.submit(kodik.search, q)
         f_kodik_actor = executor.submit(kodik.search_by_actor, q)
         f_kodik_dir = executor.submit(kodik.search_by_director, q)
 
-        for f in [f_bazon, f_torrents, f_rezka, f_filmix, f_videocdn, f_kodik, f_kodik_actor, f_kodik_dir]:
+        for f in [f_bazon, f_torrents, f_rezka, f_filmix, f_zona, f_anilibria, f_videocdn, f_kodik, f_kodik_actor, f_kodik_dir]:
             try:
                 items = f.result(timeout=6)
                 all_items.extend(items)
@@ -2196,11 +2207,52 @@ def _fetch_media_streams(
                 pass
         return None
 
+    def _resolve_zona():
+        try:
+            candidate_zona_ids = []
+            if source == "zona" and media_id_str:
+                candidate_zona_ids.append(media_id_str)
+            if resolved_kp:
+                z_kp_items = zona.search(clean_title or title, year=year_int, kp_id=resolved_kp)
+                for it in z_kp_items:
+                    if it.kinopoisk_id == str(resolved_kp):
+                        candidate_zona_ids.append(it.id)
+                        break
+            if not candidate_zona_ids and titles_to_try:
+                for t_query in titles_to_try:
+                    z_items = zona.search(t_query, year=year_int, kp_id=resolved_kp)
+                    for it in rank_matches(z_items, year_int, is_ser_bool, target_title=t_query):
+                        if it.id not in candidate_zona_ids:
+                            candidate_zona_ids.append(it.id)
+                    if candidate_zona_ids:
+                        break
+            for z_id in candidate_zona_ids[:2]:
+                z_res = zona.get_streams(z_id, season=season, episode=episode, audio_id=audio_id)
+                if z_res.streams:
+                    return ("zona", z_res.model_dump())
+        except Exception:
+            pass
+        return None
+
+    def _resolve_anilibria():
+        try:
+            if clean_title:
+                al_items = anilibria.search(clean_title, year=year_int)
+                for it in al_items[:2]:
+                    al_res = anilibria.get_streams(it.id, season=season, episode=episode, audio_id=audio_id)
+                    if al_res.streams:
+                        return ("anilibria", al_res.model_dump())
+        except Exception:
+            pass
+        return None
+
     import concurrent.futures
-    with ThreadPoolExecutor(max_workers=7) as executor:
+    with ThreadPoolExecutor(max_workers=9) as executor:
         futures = [
             executor.submit(_resolve_filmix),
             executor.submit(_resolve_hdrezka),
+            executor.submit(_resolve_zona),
+            executor.submit(_resolve_anilibria),
             executor.submit(_resolve_kodik),
             executor.submit(_resolve_videocdn),
             executor.submit(_resolve_delivembd),

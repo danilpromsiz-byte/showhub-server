@@ -1,10 +1,10 @@
 {
   "success": true,
-  "version_name": "2.8.54",
-  "version_code": 113,
+  "version_name": "2.8.55",
+  "version_code": 114,
   "force_update": true,
   "min_version_code": 108,
   "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
   "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
-  "changelog": "v2.8.54: Элегантная золотая подсветка звёздочки избранного; точные возрастные рейтинги (18+ для взрослых тем и интеграция Кинопоиск); восстановлены и ускорены (1.2с) предпросмотры на главном экране и в карточке фильма"
+  "changelog": "v2.8.55: Исправлены предпросмотры — нативный резолвер HDRezka теперь первичный (работает на устройстве с валидными токенами); серверный API как запасной"
 }

@@ -597,19 +597,15 @@ fun DetailsScreen(
         delay(1200)
         if (detailsPreviewPlayer == null) {
             val streamUrl = withContext(Dispatchers.IO) {
+                // Step 1: Use already-resolved native streams from streamOptions
                 var sUrl: String? = pickSafePreviewStream(streamOptions)
                 if (sUrl.isNullOrEmpty() && !currentMovie.videoUrl.isNullOrBlank() && isDirectVideoStream(currentMovie.videoUrl)) {
                     sUrl = currentMovie.videoUrl
                 }
-                if (sUrl.isNullOrEmpty()) {
-                    val candidate = ShowHubApiClient.fetchPreviewStream(currentMovie)
-                    if (candidate != null && isDirectVideoStream(candidate)) {
-                        sUrl = candidate
-                    }
-                }
+                // Step 2: Native Rezka resolver on-device — gets IP-valid voidboost streams
                 if (sUrl.isNullOrEmpty()) {
                     try {
-                        kotlinx.coroutines.withTimeoutOrNull(2500) {
+                        kotlinx.coroutines.withTimeoutOrNull(5000) {
                             val rezkaMediaUrl = if (currentMovie.id.startsWith("http") || currentMovie.id.contains("hdrezka") || currentMovie.id.startsWith("rezka:")) {
                                 currentMovie.id
                             } else null
@@ -625,6 +621,13 @@ fun DetailsScreen(
                             sUrl = pickSafePreviewStream(nativeStreams)
                         }
                     } catch (_: Exception) {}
+                }
+                // Step 3: Server API fallback — returns non-voidboost streams (Delivembd/interkh)
+                if (sUrl.isNullOrEmpty()) {
+                    val candidate = ShowHubApiClient.fetchPreviewStream(currentMovie)
+                    if (candidate != null && isDirectVideoStream(candidate)) {
+                        sUrl = candidate
+                    }
                 }
                 sUrl
             }

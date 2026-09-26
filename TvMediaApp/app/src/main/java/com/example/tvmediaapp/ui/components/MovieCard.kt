@@ -124,21 +124,12 @@ fun MovieCard(
                     streamUrl = movie.videoUrl
                 }
 
-                if (streamUrl.isNullOrEmpty()) {
-                    val prefs = context.getSharedPreferences("showhub_prefs", android.content.Context.MODE_PRIVATE)
-                    val configuredStartMin = prefs.getInt("pref_preview_start_min", if (movie.isSeries) 12 else 22)
-                    val candidate = withContext(kotlinx.coroutines.Dispatchers.IO) {
-                        ShowHubApiClient.fetchPreviewStream(movie, configuredStartMin)
-                    }
-                    if (candidate != null && isDirectVideoStream(candidate)) {
-                        streamUrl = candidate
-                    }
-                }
-
+                // Step 1: Native Rezka resolver FIRST — runs on-device with residential IP,
+                // so voidboost stream tokens are valid for this device
                 if (streamUrl.isNullOrEmpty()) {
                     try {
                         withContext(kotlinx.coroutines.Dispatchers.IO) {
-                            kotlinx.coroutines.withTimeoutOrNull(2500) {
+                            kotlinx.coroutines.withTimeoutOrNull(5000) {
                                 val rezkaMediaUrl = if (movie.id.startsWith("http") || movie.id.contains("hdrezka") || movie.id.startsWith("rezka:")) {
                                     movie.id
                                 } else null
@@ -164,7 +155,19 @@ fun MovieCard(
                             }
                         }
                     } catch (e: Exception) {
-                        // fallback to server
+                        // native resolver failed, try server fallback
+                    }
+                }
+
+                // Step 2: Server API fallback — returns non-voidboost streams (Delivembd/interkh)
+                if (streamUrl.isNullOrEmpty()) {
+                    val prefs = context.getSharedPreferences("showhub_prefs", android.content.Context.MODE_PRIVATE)
+                    val configuredStartMin = prefs.getInt("pref_preview_start_min", if (movie.isSeries) 12 else 22)
+                    val candidate = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        ShowHubApiClient.fetchPreviewStream(movie, configuredStartMin)
+                    }
+                    if (candidate != null && isDirectVideoStream(candidate)) {
+                        streamUrl = candidate
                     }
                 }
 

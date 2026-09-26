@@ -83,7 +83,7 @@ class MediaHarvester:
             for cat in ["all", "movies", "series"]:
                 try:
                     for p in range(1, 4):
-                        fx_items = filmix.get_catalog(category=cat, sort_by="popular", page=p)
+                        fx_items = filmix.get_catalog(category=cat, page=p)
                         if fx_items:
                             total_indexed += media_registry.upsert_batch(fx_items)
                         time.sleep(0.5)
@@ -102,10 +102,9 @@ class MediaHarvester:
         except Exception as e:
             logger.debug(f"[Harvester] AniLibria harvest error: {e}")
 
-        # 4. Harvest from TMDb (popular movies and popular series)
+        # 4. Harvest from TMDb (popular movies, series, and trending)
         try:
-            from ..sources.tmdb import TMDbSource
-            tmdb = TMDbSource()
+            from .tmdb import tmdb
             for page in range(1, 6):
                 try:
                     m_pop = tmdb.get_popular_movies(page=page)

@@ -914,6 +914,32 @@ def get_catalog(
         if now_ts - cached_time < _CATALOG_CACHE_TTL:
             return cached_items
 
+    # 1. Primary Source: Instant (<2ms) query against SQLite MediaRegistry
+    reg_items = []
+    try:
+        reg_items = media_registry.query_catalog(
+            category=category,
+            genre=genre,
+            year=year,
+            country=country,
+            content_type=content_type,
+            min_rating=min_rating,
+            sort_by=sort_by,
+            page=page,
+            limit=50,
+            excluded_countries=excluded_countries,
+            excluded_genres=excluded_genres
+        )
+        if len(reg_items) >= 15:
+            for it in reg_items:
+                if not it.get("rating") or it.get("rating") == 0:
+                    it["rating"] = max(it.get("rating_kp") or 0.0, it.get("rating_imdb") or 0.0) or 7.0
+            _catalog_cache[cache_key] = (now_ts, reg_items)
+            return reg_items
+    except Exception as e:
+        logger.error(f"MediaRegistry query_catalog error: {e}")
+        reg_items = []
+
     all_items = []
     seen_ids = set()
     seen_titles = set()
@@ -1210,6 +1236,9 @@ def get_catalog(
         )
     else:  # "newest" / default fresh releases
         all_items.sort(key=compute_freshness, reverse=True)
+
+    if not all_items and reg_items:
+        all_items = reg_items
 
     # Never dump fallback initial_catalog when a custom filter (country, genre, year) is active!
     has_custom_filter = bool((country and country != "all") or (genre and genre != "all") or (year and year != "all"))

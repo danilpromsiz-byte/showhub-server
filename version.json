@@ -1,10 +1,10 @@
 {
   "success": true,
-  "version_name": "2.8.50",
-  "version_code": 109,
+  "version_name": "2.8.51",
+  "version_code": 110,
   "force_update": true,
   "min_version_code": 108,
   "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
   "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
-  "changelog": "v2.8.50: Collaps/Namy HLS прямые потоки + исправлены Alloha/Vibix iframes + резолвинг baseUrl по домену + withTimeoutOrNull для HDRezka"
+  "changelog": "v2.8.51: Исправлена синхронизация источника в плеере + автопереключение при ошибках потока + приоритет рабочих зеркал HDRezka"
 }

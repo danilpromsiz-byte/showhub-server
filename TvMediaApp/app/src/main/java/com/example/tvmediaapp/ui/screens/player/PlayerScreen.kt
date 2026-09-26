@@ -457,7 +457,22 @@ private fun NativeExoPlayerScreen(
     var currentStreamUrl by remember { mutableStateOf(movie.videoUrl) }
     var currentAudioId by remember { mutableStateOf(audioId.ifEmpty { movie.audioTracks.firstOrNull()?.id ?: "" }) }
     var selectedQuality by remember { mutableStateOf(prefs.getString("pref_quality", "1080p") ?: "1080p") }
-    var selectedSource by remember { mutableStateOf("HDrezka") }
+    val initialSource = remember(movie.videoUrl, movie.source) {
+        val url = movie.videoUrl.lowercase()
+        when {
+            url.contains("interkh") || url.contains("namy.ws") || url.contains("collaps") || url.contains("delivembd") -> "Collaps"
+            url.contains("allarknow") || url.contains("bayas") || url.contains("videoframe") || url.contains("videocdn") -> "VideoCDN"
+            url.contains("kodik") -> "Kodik"
+            url.contains("bazon") -> "Bazon"
+            url.contains("filmix") -> "Filmix"
+            url.contains("voidboost") || url.contains("rezka") -> "HDrezka"
+            movie.source.isNotBlank() && !movie.source.equals("all", ignoreCase = true) -> movie.source
+            else -> "Collaps"
+        }
+    }
+    var selectedSource by remember { mutableStateOf(initialSource) }
+    var hasPlaybackError by remember { mutableStateOf(false) }
+    var playbackErrorMessage by remember { mutableStateOf<String?>(null) }
     var currentMovieState by remember { mutableStateOf(movie) }
 
     var isPlaying by remember { mutableStateOf(true) }
@@ -635,6 +650,8 @@ private fun NativeExoPlayerScreen(
                     override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
                         error.printStackTrace()
                         isBuffering = false
+                        hasPlaybackError = true
+                        playbackErrorMessage = error.localizedMessage ?: "Ошибка воспроизведения"
                     }
                 })
             }
@@ -887,6 +904,16 @@ private fun NativeExoPlayerScreen(
 
                 if (targetStream != null) {
                     currentStreamUrl = targetStream.url
+                    val actualSource = when {
+                        targetStream.url.contains("interkh") || targetStream.url.contains("namy.ws") || targetStream.source.contains("collaps", true) || targetStream.source.contains("delivembd", true) -> "Collaps"
+                        targetStream.url.contains("allarknow") || targetStream.url.contains("bayas") || targetStream.url.contains("videoframe") || targetStream.source.contains("videocdn", true) -> "VideoCDN"
+                        targetStream.url.contains("kodik") || targetStream.source.contains("kodik", true) -> "Kodik"
+                        targetStream.url.contains("bazon") || targetStream.source.contains("bazon", true) -> "Bazon"
+                        targetStream.url.contains("filmix") || targetStream.source.contains("filmix", true) -> "Filmix"
+                        targetStream.url.contains("voidboost") || targetStream.source.contains("rezka", true) -> "HDrezka"
+                        else -> targetStream.source.ifBlank { newSource }
+                    }
+                    selectedSource = actualSource
                     if (isDirectVideoStream(targetStream.url)) {
                         exoPlayer.setMediaItem(MediaItem.fromUri(targetStream.url))
                         val curTrackObj = currentMovieState.audioTracks.firstOrNull { it.id == newAudioId }
@@ -929,6 +956,25 @@ private fun NativeExoPlayerScreen(
                 e.printStackTrace()
             } finally {
                 isLoadingStream = false
+            }
+        }
+    }
+
+    // Auto-fallback when ExoPlayer encounters an error (e.g. 404 IP-lock on Voidboost/HDRezka)
+    LaunchedEffect(hasPlaybackError) {
+        if (hasPlaybackError) {
+            val failingSource = selectedSource
+            val fallbackCandidate = availableSources.firstOrNull { 
+                !it.equals(failingSource, ignoreCase = true) && !it.equals("Все", ignoreCase = true) 
+            } ?: if (!failingSource.equals("Collaps", ignoreCase = true)) "Collaps" else null
+
+            if (fallbackCandidate != null) {
+                translatorNoticeBadge = "Поток $failingSource недоступен. Переключение на $fallbackCandidate..."
+                delay(700L)
+                hasPlaybackError = false
+                switchStream(currentSeason, currentEpisode, currentAudioId, selectedQuality, fallbackCandidate)
+            } else {
+                translatorNoticeBadge = "Поток $failingSource недоступен. Выберите другой источник в меню."
             }
         }
     }

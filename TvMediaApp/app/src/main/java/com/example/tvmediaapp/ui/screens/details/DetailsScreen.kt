@@ -673,7 +673,8 @@ fun DetailsScreen(
 
                 if (matched.url.isNotBlank() && matched.url.startsWith("http")) {
                     streamStatus = "▶ ${matched.quality} (${matched.source}, ${if (isHls) "HLS" else "IFRAME"}) | Всего: $hlsCount HLS, $embedCount embed"
-                    val movieToPlay = if (isContentSeries) currentMovie.copy(isSeries = true) else currentMovie
+                    val movieToPlay = (if (isContentSeries) currentMovie.copy(isSeries = true) else currentMovie)
+                        .copy(source = matched.source)
                     onPlayClick(movieToPlay, matched.url, startPos, targetSeason, targetEpisode, targetAudioId)
                 } else {
                     streamStatus = notFoundMsg

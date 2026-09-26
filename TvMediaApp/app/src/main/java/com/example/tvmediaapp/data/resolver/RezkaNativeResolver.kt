@@ -25,28 +25,20 @@ import java.util.zip.GZIPInputStream
 
 object RezkaNativeResolver {
     private val MIRRORS = listOf(
-        "https://rezka.ag",
-        "https://rezka.si",
-        "https://rezka.fi",
-        "https://omnirezka.tv",
-        "https://hello-rezka.tv",
         "https://hdrezka.me",
+        "https://omnirezka.tv",
+        "https://hdrezka.club",
+        "https://hdrezka.in",
+        "https://hello-rezka.tv",
         "https://hdrezka-home.tv",
         "https://hdrezka.name",
         "https://hdrezka.sh",
-        "https://hdrezka.sb",
-        "https://hdrezka.in",
-        "https://hdrezka.club",
-        "https://hdrezka.cm",
         "https://hdrezka.kim",
+        "https://rezkery.com",
         "https://rezka.pub",
-        "https://rezka-kz.tv",
-        "https://rezka-ua.net",
-        "https://rezka-ua.org",
-        "https://rezka-ua.in",
-        "https://rezka-ua.co",
-        "https://rezka-ua.pub",
-        "https://rezkery.com"
+        "https://rezka.ag",
+        "https://rezka.si",
+        "https://rezka.fi"
     )
 
     private const val USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
@@ -121,7 +113,7 @@ object RezkaNativeResolver {
         val clean = cleanTitle(title)
         if (clean.isEmpty() && mediaUrl.isNullOrEmpty()) return@withContext null
 
-        for (baseUrl in MIRRORS.take(2)) {
+        for (baseUrl in MIRRORS.take(4)) {
             val details = tryResolveDetailsFromMirror(baseUrl, clean, year, isSeries, mediaUrl, rawTitle = title, originalTitle = originalTitle)
             if (details != null && (details.audioTracks.isNotEmpty() || details.seasons.isNotEmpty())) {
                 return@withContext details
@@ -468,8 +460,8 @@ object RezkaNativeResolver {
         val cleanTitle = cleanTitle(title)
         if (cleanTitle.isEmpty() && mediaUrl.isNullOrEmpty()) return@withContext emptyList()
 
-        // Try primary and fallback mirrors (max 2 to never stall UI)
-        for (baseUrl in MIRRORS.take(2)) {
+        // Try primary and fallback mirrors (max 4 with fast connect timeouts)
+        for (baseUrl in MIRRORS.take(4)) {
             val result = tryResolveFromMirror(baseUrl, cleanTitle, year, isSeries, season, episode, translatorId, mediaUrl, rawTitle = title, originalTitle = originalTitle)
             if (result.isNotEmpty()) {
                 return@withContext result

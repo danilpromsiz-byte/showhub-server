@@ -431,6 +431,13 @@ class WatchHistoryManager(context: Context) {
         return list
     }
 
+    fun removeHistory(movieId: String) {
+        if (movieId.isBlank()) return
+        val list = getHistory().filter { it.id != movieId }
+        saveList(list)
+        notifyHistoryChanged()
+    }
+
     fun clearHistory() {
         prefs.edit().remove("history_items").apply()
         notifyHistoryChanged()

@@ -597,15 +597,28 @@ fun DetailsScreen(
         delay(1200)
         if (detailsPreviewPlayer == null) {
             val streamUrl = withContext(Dispatchers.IO) {
-                // Step 1: Use already-resolved native streams from streamOptions
-                var sUrl: String? = pickSafePreviewStream(streamOptions)
+                // Step 1: Server API preview stream FIRST (Delivembd/Collaps direct HLS, unblocked, 200-300ms)
+                var sUrl: String? = null
+                try {
+                    val candidate = kotlinx.coroutines.withTimeoutOrNull(2500) {
+                        ShowHubApiClient.fetchPreviewStream(currentMovie, 1)
+                    }
+                    if (candidate != null && isDirectVideoStream(candidate)) {
+                        sUrl = candidate
+                    }
+                } catch (_: Exception) {}
+
+                // Step 2: Use already-resolved native streams from streamOptions
+                if (sUrl.isNullOrEmpty()) {
+                    sUrl = pickSafePreviewStream(streamOptions)
+                }
                 if (sUrl.isNullOrEmpty() && !currentMovie.videoUrl.isNullOrBlank() && isDirectVideoStream(currentMovie.videoUrl)) {
                     sUrl = currentMovie.videoUrl
                 }
-                // Step 2: Native Rezka resolver on-device — gets IP-valid voidboost streams
+                // Step 3: Native Rezka resolver on-device fallback
                 if (sUrl.isNullOrEmpty()) {
                     try {
-                        kotlinx.coroutines.withTimeoutOrNull(5000) {
+                        kotlinx.coroutines.withTimeoutOrNull(2000) {
                             val rezkaMediaUrl = if (currentMovie.id.startsWith("http") || currentMovie.id.contains("hdrezka") || currentMovie.id.startsWith("rezka:")) {
                                 currentMovie.id
                             } else null
@@ -621,13 +634,6 @@ fun DetailsScreen(
                             sUrl = pickSafePreviewStream(nativeStreams)
                         }
                     } catch (_: Exception) {}
-                }
-                // Step 3: Server API fallback — returns non-voidboost streams (Delivembd/interkh)
-                if (sUrl.isNullOrEmpty()) {
-                    val candidate = ShowHubApiClient.fetchPreviewStream(currentMovie)
-                    if (candidate != null && isDirectVideoStream(candidate)) {
-                        sUrl = candidate
-                    }
                 }
                 sUrl
             }
@@ -679,7 +685,7 @@ fun DetailsScreen(
                         .setMediaSourceFactory(mediaSourceFactory)
                         .setLoadControl(loadControl)
                         .build().apply {
-                            val targetSeekMs = if (currentMovie.isSeries) 12 * 60 * 1000L else 22 * 60 * 1000L
+                            val targetSeekMs = 60_000L
                             setMediaItem(MediaItem.fromUri(validStreamUrl))
                             volume = 0f
                             repeatMode = Player.REPEAT_MODE_ALL

@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.flow
 class CatalogRepository(context: Context? = null) {
 
     private val prefs: SharedPreferences? = context?.getSharedPreferences("showhub_prefs", Context.MODE_PRIVATE)
+    private val hiddenMoviesManager: HiddenMoviesManager? = context?.let { HiddenMoviesManager(it) }
     private val memoryFavorites = mutableSetOf<String>()
 
     init {
@@ -565,6 +566,10 @@ class CatalogRepository(context: Context? = null) {
 
         fun buildCategories(movies: List<Movie>): List<MovieCategory> {
             var effective = movies.distinctBy { it.id }
+            val hiddenIds = hiddenMoviesManager?.getHiddenIds() ?: emptySet()
+            if (hiddenIds.isNotEmpty()) {
+                effective = effective.filter { it.id !in hiddenIds }
+            }
             if (onlyWithPoster) {
                 effective = effective.filter { m -> hasValidPoster(m.posterUrl) }
             }
@@ -695,7 +700,7 @@ class CatalogRepository(context: Context? = null) {
                     excludedCountriesStr.isBlank() &&
                     excludedGenresStr.isBlank()
                 if (isDefaultMainCatalog) {
-                    com.example.tvmediaapp.data.cache.MediaDiskCache.putCachedCatalog(liveMovies)
+                    com.example.tvmediaapp.data.cache.MediaDiskCache.putCachedCatalog(liveMovies, isFirstPage = true)
                 }
                 val masterMovies = if (isDefaultMainCatalog) {
                     (com.example.tvmediaapp.data.cache.MediaDiskCache.getCachedCatalog() ?: liveMovies)
@@ -727,7 +732,7 @@ class CatalogRepository(context: Context? = null) {
                             )
                             if (nextBatch.isEmpty()) break
                             val prevCount = (com.example.tvmediaapp.data.cache.MediaDiskCache.getCachedCatalog() ?: emptyList()).size
-                            com.example.tvmediaapp.data.cache.MediaDiskCache.putCachedCatalog(nextBatch)
+                            com.example.tvmediaapp.data.cache.MediaDiskCache.putCachedCatalog(nextBatch, isFirstPage = false)
                             val newCount = (com.example.tvmediaapp.data.cache.MediaDiskCache.getCachedCatalog() ?: emptyList()).size
                             if (newCount > prevCount) {
                                 hasNewMovies = true

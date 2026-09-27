@@ -38,6 +38,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.onFocusChanged
+import android.view.KeyEvent
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import com.example.tvmediaapp.util.unescapeHtml
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -87,7 +89,8 @@ fun MovieCard(
     onClick: () -> Unit,
     onFocus: () -> Unit,
     modifier: Modifier = Modifier,
-    cardModifier: Modifier = Modifier
+    cardModifier: Modifier = Modifier,
+    onLongClick: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     val accent = LocalAccentColor.current
@@ -97,6 +100,30 @@ fun MovieCard(
         if (movie.isSeries) historyManager.getNewEpisodesCount(movie.id) else 0
     }
     var isFocused by remember { mutableStateOf(false) }
+    var isLongPressTriggered by remember { mutableStateOf(false) }
+
+    val longPressKeyModifier = Modifier.onPreviewKeyEvent { keyEvent ->
+        if (onLongClick != null &&
+            (keyEvent.nativeKeyEvent.keyCode == android.view.KeyEvent.KEYCODE_DPAD_CENTER ||
+             keyEvent.nativeKeyEvent.keyCode == android.view.KeyEvent.KEYCODE_ENTER ||
+             keyEvent.nativeKeyEvent.keyCode == android.view.KeyEvent.KEYCODE_NUMPAD_ENTER)) {
+            if (keyEvent.nativeKeyEvent.action == android.view.KeyEvent.ACTION_DOWN) {
+                if (keyEvent.nativeKeyEvent.isLongPress || keyEvent.nativeKeyEvent.repeatCount >= 1) {
+                    if (!isLongPressTriggered) {
+                        isLongPressTriggered = true
+                        onLongClick()
+                    }
+                    return@onPreviewKeyEvent true
+                }
+            } else if (keyEvent.nativeKeyEvent.action == android.view.KeyEvent.ACTION_UP) {
+                if (isLongPressTriggered) {
+                    isLongPressTriggered = false
+                    return@onPreviewKeyEvent true
+                }
+            }
+        }
+        false
+    }
 
     // Video preview state
     var previewPlayer by remember { mutableStateOf<ExoPlayer?>(null) }
@@ -106,16 +133,16 @@ fun MovieCard(
 
     val timelineProgress by animateFloatAsState(
         targetValue = targetTimelineProgress,
-        animationSpec = tween(durationMillis = 1200),
+        animationSpec = tween(durationMillis = 700),
         label = "previewProgress"
     )
 
-    // Handle focus preview timer & stream loading (responsive 1.2s timeout)
+    // Handle focus preview timer & stream loading (responsive 700ms timeout)
     LaunchedEffect(isFocused) {
         if (isFocused) {
             targetTimelineProgress = 1f
-            // Wait 1.2 seconds before starting preview
-            delay(1200)
+            // Wait 700ms before starting preview
+            delay(700)
             if (isFocused) {
                 isPreviewBuffering = true
                 var streamUrl: String? = null
@@ -124,12 +151,25 @@ fun MovieCard(
                     streamUrl = movie.videoUrl
                 }
 
-                // Step 1: Native Rezka resolver FIRST — runs on-device with residential IP,
-                // so voidboost stream tokens are valid for this device
+                // Step 1: Fast server preview stream FIRST (Delivembd/Collaps direct HLS, unblocked, 200-300ms)
+                if (streamUrl.isNullOrEmpty()) {
+                    try {
+                        val candidate = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            kotlinx.coroutines.withTimeoutOrNull(2500) {
+                                ShowHubApiClient.fetchPreviewStream(movie, 1)
+                            }
+                        }
+                        if (candidate != null && isDirectVideoStream(candidate)) {
+                            streamUrl = candidate
+                        }
+                    } catch (_: Exception) {}
+                }
+
+                // Step 2: Native Rezka resolver fallback if server returned null
                 if (streamUrl.isNullOrEmpty()) {
                     try {
                         withContext(kotlinx.coroutines.Dispatchers.IO) {
-                            kotlinx.coroutines.withTimeoutOrNull(5000) {
+                            kotlinx.coroutines.withTimeoutOrNull(2000) {
                                 val rezkaMediaUrl = if (movie.id.startsWith("http") || movie.id.contains("hdrezka") || movie.id.startsWith("rezka:")) {
                                     movie.id
                                 } else null
@@ -155,27 +195,13 @@ fun MovieCard(
                             }
                         }
                     } catch (e: Exception) {
-                        // native resolver failed, try server fallback
-                    }
-                }
-
-                // Step 2: Server API fallback — returns non-voidboost streams (Delivembd/interkh)
-                if (streamUrl.isNullOrEmpty()) {
-                    val prefs = context.getSharedPreferences("showhub_prefs", android.content.Context.MODE_PRIVATE)
-                    val configuredStartMin = prefs.getInt("pref_preview_start_min", if (movie.isSeries) 12 else 22)
-                    val candidate = withContext(kotlinx.coroutines.Dispatchers.IO) {
-                        ShowHubApiClient.fetchPreviewStream(movie, configuredStartMin)
-                    }
-                    if (candidate != null && isDirectVideoStream(candidate)) {
-                        streamUrl = candidate
+                        // native resolver failed
                     }
                 }
 
                 val validStreamUrl = streamUrl
                 if (isFocused && !validStreamUrl.isNullOrEmpty() && isDirectVideoStream(validStreamUrl)) {
-                    val prefs = context.getSharedPreferences("showhub_prefs", android.content.Context.MODE_PRIVATE)
-                    val baseStartMin = prefs.getInt("pref_preview_start_min", if (movie.isSeries) 12 else 22)
-                    val baseSeekMs = baseStartMin * 60 * 1000L
+                    val baseSeekMs = 60_000L
 
                     try {
                         // Create ExoPlayer strictly on Main thread (ExoPlayer requires a Looper)
@@ -344,6 +370,7 @@ fun MovieCard(
         imageCard = { interactionSource ->
             Card(
                 onClick = onClick,
+                onLongClick = onLongClick,
                 interactionSource = interactionSource,
                 border = CardDefaults.border(
                     focusedBorder = Border(
@@ -359,6 +386,7 @@ fun MovieCard(
                     .fillMaxWidth()
                     .aspectRatio(2f / 3f)
                     .then(cardModifier)
+                    .then(longPressKeyModifier)
                     .focusedGlow(isFocused = isFocused, color = focusColor, radius = 10.dp, shapeRadius = 8.dp)
                     .onFocusChanged { focusState ->
                         isFocused = focusState.isFocused

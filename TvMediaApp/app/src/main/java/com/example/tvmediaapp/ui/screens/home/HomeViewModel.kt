@@ -295,93 +295,18 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun hideMovie(movieId: String) {
+        val hiddenManager = com.example.tvmediaapp.data.repository.HiddenMoviesManager(getApplication())
+        hiddenManager.hideMovie(movieId)
+        _categories.value = _categories.value.map { cat ->
+            cat.copy(movies = cat.movies.filter { it.id != movieId })
+        }
+    }
+
     private fun applyHistoryRanking(data: List<MovieCategory>): List<MovieCategory> {
-        if (data.isEmpty()) return data
-        val historyManager = WatchHistoryManager(getApplication())
-        val history = historyManager.getHistory()
-        if (history.isEmpty()) return data
-
-        val unfinishedHistory = history.filter { it.percentage in 1..95 }
-        val unfinishedMap = unfinishedHistory.associateBy { it.id }
-
-        // Determine user's top watched genres from history
-        val allMoviesMap = (data.flatMap { it.movies } + repository.sampleMovies).associateBy { it.id }
-        val genreCounts = mutableMapOf<String, Int>()
-        for (item in history) {
-            val m = allMoviesMap[item.id]
-            m?.genres?.forEach { g ->
-                if (g.isNotBlank()) {
-                    genreCounts[g] = (genreCounts[g] ?: 0) + 1
-                }
-            }
-        }
-        val topGenres = genreCounts.entries.sortedByDescending { it.value }.take(3).map { it.key }.toSet()
-
-        return data.mapIndexed { catIdx, category ->
-            if (catIdx == 0) {
-                // First category ("Популярные новинки") gets smart ranking
-                val existingIds = category.movies.map { it.id }.toSet()
-
-                // Inject any unfinished items not currently in this category
-                val missingUnfinishedMovies = unfinishedHistory
-                    .filter { it.id !in existingIds }
-                    .map { hist ->
-                        allMoviesMap[hist.id] ?: Movie(
-                            id = hist.id,
-                            title = hist.title,
-                            originalTitle = "",
-                            description = "Продолжить с ${hist.percentage}% (сезон ${hist.season}, серия ${hist.episode})",
-                            posterUrl = hist.posterUrl,
-                            backdropUrl = hist.backdropUrl.ifEmpty { hist.posterUrl },
-                            rating = 0.0,
-                            ratingKp = 0.0,
-                            ratingImdb = 0.0,
-                            releaseYear = hist.releaseYear,
-                            duration = "",
-                            country = "",
-                            director = "",
-                            genres = emptyList(),
-                            videoUrl = "",
-                            isSeries = hist.isSeries
-                        )
-                    }
-
-                val allCandidates = (missingUnfinishedMovies + category.movies).distinctBy { it.id }
-                val totalCount = allCandidates.size
-
-                val rankedMovies = allCandidates.sortedByDescending { movie ->
-                    var score = (totalCount - allCandidates.indexOf(movie)).toLong()
-                    val unfin = unfinishedMap[movie.id]
-                    if (unfin != null) {
-                        // Massive boost for unfinished items, weighted by recency
-                        score += 100_000L + (unfin.timestamp / 1_000_000L)
-                    } else if (history.any { it.id == movie.id }) {
-                        // Finished or partially watched
-                        score += 500L
-                    }
-
-                    if (repository.isFavorite(movie.id)) {
-                        score += 300L
-                    }
-
-                    val genreMatchCount = movie.genres.count { it in topGenres }
-                    score += (genreMatchCount * 150L)
-
-                    score
-                }
-
-                // Re-assign rankIndex to reflect the final display order after history-based re-sort
-                val reRankedMovies = rankedMovies.mapIndexed { idx, movie ->
-                    movie.copy(rankIndex = idx + 1)
-                }
-
-                category.copy(
-                    movies = reRankedMovies
-                )
-            } else {
-                category
-            }
-        }
+        // Strictly preserve server and Lampa popularity positions (#1, #2, #3, ...) intact!
+        // Do not displace top Lampa items with history or genre re-sorting.
+        return data
     }
 
     override fun onCleared() {

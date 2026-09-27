@@ -170,19 +170,31 @@ object MediaDiskCache {
         }
     }
 
-    fun putCachedCatalog(movies: List<Movie>) {
+    fun putCachedCatalog(movies: List<Movie>, isFirstPage: Boolean = false) {
         try {
             if (movies.isEmpty()) return
             val validNew = movies.filter { !it.id.contains("test", ignoreCase = true) && !it.title.contains("Тестов", ignoreCase = true) }
             val existing = getCachedCatalog() ?: emptyList()
-            // Merge: newly fetched movies update existing items, and previously discovered titles are preserved
+            // When isFirstPage is true, page 1 (Lampa top hits) must strictly be at the front!
+            // When isFirstPage is false (background pagination), existing top hits are preserved and new movies are appended!
             val map = LinkedHashMap<String, Movie>()
-            for (m in validNew) {
-                if (m.id.isNotBlank()) map[m.id] = m
-            }
-            for (m in existing) {
-                if (m.id.isNotBlank() && !map.containsKey(m.id)) {
-                    map[m.id] = m
+            if (isFirstPage) {
+                for (m in validNew) {
+                    if (m.id.isNotBlank()) map[m.id] = m
+                }
+                for (m in existing) {
+                    if (m.id.isNotBlank() && !map.containsKey(m.id)) {
+                        map[m.id] = m
+                    }
+                }
+            } else {
+                for (m in existing) {
+                    if (m.id.isNotBlank()) map[m.id] = m
+                }
+                for (m in validNew) {
+                    if (m.id.isNotBlank() && !map.containsKey(m.id)) {
+                        map[m.id] = m
+                    }
                 }
             }
             val arr = JSONArray()

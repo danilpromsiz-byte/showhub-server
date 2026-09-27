@@ -1,27 +1,27 @@
 {
   "success": true,
-  "version_name": "2.8.63",
-  "version_code": 122,
+  "version_name": "2.8.64",
+  "version_code": 123,
   "force_update": true,
   "min_version_code": 108,
   "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
   "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
-  "changelog": "v2.8.63: Полная фильтрация невышедших фильмов (Аватар 5 и др.) во всех источниках каталога. Исправлены ранговые позиции (#1, #2, #3) на главной странице. Очистка базы от тестовых записей (VACUUM).",
+  "changelog": "v2.8.64: Контекстное меню при долгом нажатии OK (Смотреть позже, В избранное, Скрыть из видимых, Сброс прогресса, Инфо). Восстановлены моментальные предпросмотры видео. Стабилизированы позиции топа Лампы на главной странице.",
   "tv": {
-    "version_name": "2.8.63",
-    "version_code": 122,
+    "version_name": "2.8.64",
+    "version_code": 123,
     "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
     "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk"
   },
   "mobile": {
-    "version_name": "2.8.63",
-    "version_code": 122,
+    "version_name": "2.8.64",
+    "version_code": 123,
     "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-Mobile.apk",
     "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-Mobile.apk"
   },
   "pc": {
-    "version_name": "2.8.63",
-    "version_code": 122,
+    "version_name": "2.8.64",
+    "version_code": 123,
     "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-PC.zip"
   }
 }

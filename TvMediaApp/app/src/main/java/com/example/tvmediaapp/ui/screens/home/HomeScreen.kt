@@ -50,6 +50,7 @@ import androidx.tv.material3.Text
 import com.example.tvmediaapp.data.models.Movie
 import com.example.tvmediaapp.ui.components.FilterBar
 import com.example.tvmediaapp.ui.components.MovieCard
+import com.example.tvmediaapp.ui.components.MovieContextMenuDialog
 import com.example.tvmediaapp.ui.components.NeonSpinner
 import com.example.tvmediaapp.ui.components.TvTopBar
 import com.example.tvmediaapp.ui.theme.LocalAccentColor
@@ -94,9 +95,10 @@ fun HomeScreen(
     val filterRow2FocusRequester = remember { FocusRequester() }
     val targetCardFocusRequester = remember { FocusRequester() }
     val emptyResetFocusRequester = remember { FocusRequester() }
+    var contextMenuMovie by remember { mutableStateOf<Movie?>(null) }
 
     // Scroll to top on Back button if user scrolled down in grid
-    BackHandler(enabled = viewModel.gridState.firstVisibleItemIndex > 0) {
+    BackHandler(enabled = contextMenuMovie == null && viewModel.gridState.firstVisibleItemIndex > 0) {
         coroutineScope.launch {
             try {
                 viewModel.gridState.scrollToItem(0)
@@ -120,11 +122,14 @@ fun HomeScreen(
         }
     }
 
-    Column(
+    Box(
         modifier = modifier
             .fillMaxSize()
             .background(LocalBackgroundColor.current)
     ) {
+        Column(
+            modifier = Modifier.fillMaxSize()
+        ) {
         // TOP NAVIGATION BAR: Logo + Search + Favorites + History + Settings + Update
         TvTopBar(
             onSearchClick = onSearchClick,
@@ -271,10 +276,30 @@ fun HomeScreen(
                         onFocus = {
                             viewModel.lastFocusedIndex = index
                         },
-                        cardModifier = targetMod.then(edgePropertiesMod).then(edgeKeyMod)
+                        cardModifier = targetMod.then(edgePropertiesMod).then(edgeKeyMod),
+                        onLongClick = {
+                            viewModel.lastFocusedIndex = index
+                            contextMenuMovie = movie
+                        }
                     )
                 }
             }
         }
+    }
+
+    if (contextMenuMovie != null) {
+        MovieContextMenuDialog(
+            movie = contextMenuMovie!!,
+            onDismiss = { contextMenuMovie = null },
+            onSelectMovie = { m ->
+                contextMenuMovie = null
+                onMovieSelect(m)
+            },
+            onMovieHidden = { m ->
+                contextMenuMovie = null
+                viewModel.hideMovie(m.id)
+            }
+        )
+    }
     }
 }

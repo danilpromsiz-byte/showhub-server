@@ -25,10 +25,10 @@
     "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-PC.zip"
   },
   "alert_screensaver": {
-    "version_name": "1.0.2",
-    "version_code": 3,
+    "version_name": "1.0.3",
+    "version_code": 4,
     "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/AlertScreensaver.apk",
     "apk_url": "https://showhub-server.onrender.com/AlertScreensaver.apk",
-    "changelog": "v1.0.2: Повністю нативний додаток та заставка на Kotlin (Canvas карта 26 регіонів України, пульт ДУ, миттєва установка заставки та автооновлення через CDN)."
+    "changelog": "v1.0.3: Деталізована географічна карта України (5228 вершин реальних кордонів усіх 27 регіонів, узбережжя, Київ та Севастополь)."
   }
 }

@@ -36,13 +36,13 @@ import androidx.tv.foundation.lazy.grid.TvLazyVerticalGrid
 import androidx.tv.foundation.lazy.grid.items
 import androidx.tv.foundation.lazy.grid.itemsIndexed
 import androidx.tv.material3.Border
-import androidx.tv.material3.Button
+import com.example.tvmediaapp.ui.components.AppButton as Button
 import androidx.tv.material3.ButtonDefaults
-import androidx.tv.material3.Card
+import com.example.tvmediaapp.ui.components.AppCard as Card
 import androidx.tv.material3.CardDefaults
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.MaterialTheme
-import androidx.tv.material3.OutlinedButton
+import com.example.tvmediaapp.ui.components.AppOutlinedButton as OutlinedButton
 import androidx.tv.material3.StandardCardContainer
 import androidx.tv.material3.Text
 import coil.compose.AsyncImage

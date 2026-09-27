@@ -86,9 +86,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.async
 import androidx.tv.material3.Border
-import androidx.tv.material3.Button
+import com.example.tvmediaapp.ui.components.AppButton as Button
 import androidx.tv.material3.ButtonDefaults
-import androidx.tv.material3.Card
+import com.example.tvmediaapp.ui.components.AppCard as Card
 import androidx.tv.material3.CardDefaults
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Text

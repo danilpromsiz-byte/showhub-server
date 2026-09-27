@@ -13,8 +13,8 @@ namespace ShowHubPC;
 
 public partial class MainForm : Form
 {
-    private const int CURRENT_VERSION_CODE = 125;
-    private const string CURRENT_VERSION_NAME = "2.8.66";
+    private const int CURRENT_VERSION_CODE = 126;
+    private const string CURRENT_VERSION_NAME = "2.8.67";
     private const string DEFAULT_REMOTE_URL = "https://showhub-server.onrender.com";
     private const string LOCAL_URL = "http://localhost:8000";
 

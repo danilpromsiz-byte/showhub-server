@@ -1,27 +1,27 @@
 {
   "success": true,
-  "version_name": "2.8.66",
-  "version_code": 125,
+  "version_name": "2.8.67",
+  "version_code": 126,
   "force_update": true,
   "min_version_code": 108,
   "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
   "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
-  "changelog": "v2.8.66: Критическое исправление запуска на ТВ (устранена ошибка Snapshot State в истории просмотров). Полностью адаптирован диалог обновления для смартфонов (крупные контрастные кнопки 44dp, скролл в ландшафте, исправлены нажатия). Локальное сохранение APK в общую папку проекта.",
+  "changelog": "v2.8.67: Полная поддержка сенсорного управления на смартфонах и планшетах (исправлены касания и нажатия по всем кнопкам, карточкам и фильтрам с помощью универсального жествого моста; добавлен тап по экрану плеера для вызова элементов управления). Сборка сохранена в общую папку VID и на сервер.",
   "tv": {
-    "version_name": "2.8.66",
-    "version_code": 125,
+    "version_name": "2.8.67",
+    "version_code": 126,
     "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
     "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk"
   },
   "mobile": {
-    "version_name": "2.8.66",
-    "version_code": 125,
+    "version_name": "2.8.67",
+    "version_code": 126,
     "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-Mobile.apk",
     "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-Mobile.apk"
   },
   "pc": {
-    "version_name": "2.8.66",
-    "version_code": 125,
+    "version_name": "2.8.67",
+    "version_code": 126,
     "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-PC.zip"
   }
 }

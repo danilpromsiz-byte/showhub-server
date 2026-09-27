@@ -34,10 +34,10 @@ import androidx.tv.foundation.lazy.grid.TvGridCells
 import androidx.tv.foundation.lazy.grid.TvLazyVerticalGrid
 import androidx.tv.foundation.lazy.grid.items
 import androidx.tv.material3.Border
-import androidx.tv.material3.Button
+import com.example.tvmediaapp.ui.components.AppButton as Button
 import androidx.tv.material3.ButtonDefaults
 import androidx.tv.material3.ExperimentalTvMaterial3Api
-import androidx.tv.material3.OutlinedButton
+import com.example.tvmediaapp.ui.components.AppOutlinedButton as OutlinedButton
 import androidx.tv.material3.Text
 import com.example.tvmediaapp.data.models.Movie
 import com.example.tvmediaapp.ui.components.MovieCard

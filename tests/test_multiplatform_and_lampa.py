@@ -14,39 +14,39 @@ class TestMultiplatformAndLampa(unittest.TestCase):
             with open(vpath, "r", encoding="utf-8") as f:
                 data = json.load(f)
 
-            self.assertEqual(data["version_code"], 125)
-            self.assertEqual(data["version_name"], "2.8.66")
+            self.assertEqual(data["version_code"], 126)
+            self.assertEqual(data["version_name"], "2.8.67")
             self.assertIn("ShowHub.apk", data["download_url"])
 
             # TV
             self.assertIn("tv", data)
-            self.assertEqual(data["tv"]["version_code"], 125)
+            self.assertEqual(data["tv"]["version_code"], 126)
             self.assertIn("ShowHub.apk", data["tv"]["download_url"])
 
             # Mobile
             self.assertIn("mobile", data)
-            self.assertEqual(data["mobile"]["version_code"], 125)
+            self.assertEqual(data["mobile"]["version_code"], 126)
             self.assertIn("ShowHub-Mobile.apk", data["mobile"]["download_url"])
 
             # PC
             self.assertIn("pc", data)
-            self.assertEqual(data["pc"]["version_code"], 125)
+            self.assertEqual(data["pc"]["version_code"], 126)
             self.assertIn("ShowHub-PC.zip", data["pc"]["download_url"])
 
     def test_distribution_packages(self):
-        # TV APK
-        tv_apk = r"c:\WORK\VID\mediacenter\static\ShowHub.apk"
-        self.assertTrue(os.path.exists(tv_apk))
-        self.assertGreater(os.path.getsize(tv_apk), 8_000_000)
-        with zipfile.ZipFile(tv_apk, "r") as z:
-            names = z.namelist()
-            self.assertIn("AndroidManifest.xml", names)
-            self.assertIn("classes.dex", names)
+        # TV APK (both server static and local VID folder)
+        for tv_apk in [r"c:\WORK\VID\mediacenter\static\ShowHub.apk", r"c:\WORK\VID\ShowHub.apk"]:
+            self.assertTrue(os.path.exists(tv_apk), f"{tv_apk} must exist")
+            self.assertGreater(os.path.getsize(tv_apk), 8_000_000)
+            with zipfile.ZipFile(tv_apk, "r") as z:
+                names = z.namelist()
+                self.assertIn("AndroidManifest.xml", names)
+                self.assertIn("classes.dex", names)
 
-        # Mobile APK
-        mob_apk = r"c:\WORK\VID\mediacenter\static\ShowHub-Mobile.apk"
-        self.assertTrue(os.path.exists(mob_apk))
-        self.assertGreater(os.path.getsize(mob_apk), 8_000_000)
+        # Mobile APK (both server static and local VID folder)
+        for mob_apk in [r"c:\WORK\VID\mediacenter\static\ShowHub-Mobile.apk", r"c:\WORK\VID\ShowHub-Mobile.apk"]:
+            self.assertTrue(os.path.exists(mob_apk), f"{mob_apk} must exist")
+            self.assertGreater(os.path.getsize(mob_apk), 8_000_000)
         with zipfile.ZipFile(mob_apk, "r") as z:
             names = z.namelist()
             self.assertIn("AndroidManifest.xml", names)
@@ -173,8 +173,8 @@ class TestMultiplatformAndLampa(unittest.TestCase):
         v_resp = client.get("/version.json")
         self.assertEqual(v_resp.status_code, 200)
         v_data = v_resp.json()
-        self.assertEqual(v_data["version_code"], 125)
-        self.assertEqual(v_data["version_name"], "2.8.66")
+        self.assertEqual(v_data["version_code"], 126)
+        self.assertEqual(v_data["version_name"], "2.8.67")
         self.assertIn("mobile", v_data)
         self.assertIn("pc", v_data)
         self.assertIn("tv", v_data)

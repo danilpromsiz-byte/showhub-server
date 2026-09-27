@@ -105,7 +105,9 @@ import androidx.tv.foundation.lazy.list.TvLazyRow
 import androidx.tv.foundation.lazy.list.items
 import androidx.tv.foundation.lazy.list.rememberTvLazyListState
 import androidx.tv.material3.Border
-import androidx.tv.material3.Button
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import com.example.tvmediaapp.ui.components.AppButton as Button
 import androidx.tv.material3.ButtonDefaults
 import com.example.tvmediaapp.R
 import com.example.tvmediaapp.data.api.ShowHubApiClient
@@ -1196,6 +1198,19 @@ private fun NativeExoPlayerScreen(
             .background(Color.Black)
             .focusRequester(rootFocusRequester)
             .focusable()
+            .pointerInput(isControlsVisible, activeDrawer) {
+                detectTapGestures(
+                    onTap = {
+                        if (!isControlsVisible) {
+                            isControlsVisible = true
+                            lastUserInteractionTime = System.currentTimeMillis()
+                            try { playPauseFocusRequester.requestFocus() } catch (_: Exception) {}
+                        } else if (activeDrawer == null) {
+                            isControlsVisible = false
+                        }
+                    }
+                )
+            }
             .onKeyEvent { keyEvent ->
                 val nativeEvent = keyEvent.nativeKeyEvent
                 // Direct hardware back button handling

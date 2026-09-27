@@ -166,6 +166,15 @@ val QUALITY_OPTIONS = listOf(
     Pair("max", "Максимальное")
 )
 
+val SOURCE_OPTIONS = listOf(
+    Pair("Все", "Авто (Все)"),
+    Pair("Collaps", "Collaps (Прямой HLS)"),
+    Pair("Filmix", "Filmix"),
+    Pair("HDRezka", "HDRezka"),
+    Pair("VideoCDN", "VideoCDN"),
+    Pair("Kodik", "Kodik")
+)
+
 val PLAYER_OPTIONS = listOf(
     Pair("internal", "Встроенный плеер ShowHub (ExoPlayer + WebView)"),
     Pair("external", "Внешний плеер (VLC / MX Player / Just Player)")
@@ -214,6 +223,7 @@ fun SettingsScreen(
     var selectedTheme by remember { mutableStateOf(ThemeManager.currentThemeKey) }
     var selectedPlayer by remember { mutableStateOf(prefs.getString("pref_player", "internal") ?: "internal") }
     var selectedQuality by remember { mutableStateOf(prefs.getString("pref_quality", "1080p") ?: "1080p") }
+    var selectedPreferredSource by remember { mutableStateOf(prefs.getString("pref_source", "Все") ?: "Все") }
     var selectedVoice by remember { mutableStateOf(prefs.getString("pref_voice", "Любая / Оригинал") ?: "Любая / Оригинал") }
     var selectedPreviewStart by remember { mutableStateOf(prefs.getInt("pref_preview_start_min", 12)) }
     var onlyWithPoster by remember { mutableStateOf(prefs.getBoolean("pref_only_with_poster", true)) }
@@ -671,6 +681,51 @@ fun SettingsScreen(
                                         modifier = Modifier.height(28.dp)
                                     ) {
                                         Text(text = qTitle, fontSize = 11.sp, fontWeight = if (isCur) FontWeight.Bold else FontWeight.Normal, lineHeight = 13.sp)
+                                    }
+                                }
+                            }
+                        }
+
+                        // Section: Preferred Source
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(
+                                text = "Приоритетный источник потока",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextWhite
+                            )
+                            Text(
+                                text = "Источник, открываемый по умолчанию при запуске фильма (Collaps рекомендуется)",
+                                fontSize = 13.sp,
+                                color = TextGray
+                            )
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                modifier = Modifier.padding(top = 4.dp)
+                            ) {
+                                SOURCE_OPTIONS.forEach { (srcKey, srcTitle) ->
+                                    val isCur = srcKey == selectedPreferredSource
+                                    Button(
+                                        onClick = {
+                                            selectedPreferredSource = srcKey
+                                            prefs.edit().putString("pref_source", srcKey).apply()
+                                        },
+                                        colors = ButtonDefaults.colors(
+                                            containerColor = if (isCur) accent.copy(alpha = 0.85f) else ChipBackground,
+                                            focusedContainerColor = LocalFocusColor.current,
+                                            contentColor = if (isCur) Color.Black else TextWhite,
+                                            focusedContentColor = Color.Black
+                                        ),
+                                        border = ButtonDefaults.border(
+                                            border = Border.None,
+                                            focusedBorder = Border.None
+                                        ),
+                                        shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                                        scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
+                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                                        modifier = Modifier.height(28.dp)
+                                    ) {
+                                        Text(text = srcTitle, fontSize = 11.sp, fontWeight = if (isCur) FontWeight.Bold else FontWeight.Normal, lineHeight = 13.sp)
                                     }
                                 }
                             }

@@ -211,6 +211,85 @@ def serve_pc_distribution():
         return FileResponse(pc_parent, media_type="application/zip", filename="ShowHub-PC.zip")
     raise HTTPException(status_code=404, detail="PC package not found")
 
+@app.api_route("/AlertScreensaver.apk", methods=["GET", "HEAD"])
+def serve_alert_screensaver_apk():
+    static_apk = os.path.join(static_dir, "AlertScreensaver.apk")
+    if os.path.exists(static_apk):
+        return FileResponse(static_apk, media_type="application/vnd.android.package-archive", filename="AlertScreensaver.apk")
+    alert_apk = os.path.join(r"c:\WORK\Alert", "AlertScreensaver.apk")
+    if os.path.exists(alert_apk):
+        return FileResponse(alert_apk, media_type="application/vnd.android.package-archive", filename="AlertScreensaver.apk")
+    vid_apk = os.path.join(PARENT_DIR, "AlertScreensaver.apk")
+    if os.path.exists(vid_apk):
+        return FileResponse(vid_apk, media_type="application/vnd.android.package-archive", filename="AlertScreensaver.apk")
+    raise HTTPException(status_code=404, detail="AlertScreensaver APK not found")
+
+_alerts_cache = {"timestamp": 0.0, "data": None}
+_ALERTS_CACHE_TTL = 15.0
+
+@app.get("/api/alerts")
+def get_alerts() -> Dict[str, Any]:
+    """Provides live Ukraine air alarm status by oblasts with high-speed 15s in-memory caching."""
+    now = time.time()
+    if _alerts_cache["data"] and (now - _alerts_cache["timestamp"] < _ALERTS_CACHE_TTL):
+        return _alerts_cache["data"]
+
+    urls = [
+        "https://ubilling.net.ua/aerialalerts/",
+        "https://alerts.in.ua/api/states"
+    ]
+    for url in urls:
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "ShowHubMediaCenter/AlertAPI/1.0"})
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                if resp.status == 200:
+                    raw = json.loads(resp.read().decode("utf-8"))
+                    states = raw.get("states", {})
+                    if states:
+                        regions = []
+                        active_count = 0
+                        for name, info in states.items():
+                            is_alert = bool(info.get("alertnow", False))
+                            if is_alert:
+                                active_count += 1
+                            regions.append({
+                                "name": name,
+                                "alert_now": is_alert,
+                                "changed": info.get("changed", "")
+                            })
+                        regions.sort(key=lambda x: (not x["alert_now"], x["name"]))
+                        total = len(regions)
+                        safe_count = total - active_count
+                        percent = round((active_count / total * 100), 1) if total > 0 else 0.0
+                        level = "CLEAR" if active_count == 0 else ("LOW" if percent < 25 else ("MODERATE" if percent < 55 else ("HIGH" if percent < 80 else "CRITICAL")))
+                        res = {
+                            "success": True,
+                            "cached_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                            "total_regions": total,
+                            "active_alerts_count": active_count,
+                            "safe_regions_count": safe_count,
+                            "alert_level": level,
+                            "percentage": percent,
+                            "regions": regions
+                        }
+                        _alerts_cache["timestamp"] = now
+                        _alerts_cache["data"] = res
+                        return res
+        except Exception as e:
+            logger.warning(f"Failed to fetch alerts from {url}: {e}")
+
+    if _alerts_cache["data"]:
+        return _alerts_cache["data"]
+
+    return {
+        "success": False,
+        "error": "Failed to fetch alert data",
+        "total_regions": 0,
+        "active_alerts_count": 0,
+        "regions": []
+    }
+
+
 @app.get("/api/popular")
 def get_popular(
     include_unreleased_movies: bool = False,

@@ -55,6 +55,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -470,7 +471,7 @@ private fun NativeExoPlayerScreen(
             url.contains("bazon") -> "Bazon"
             url.contains("filmix") -> "Filmix"
             url.contains("voidboost") || url.contains("rezka") -> "HDrezka"
-            movie.source.isNotBlank() && !movie.source.equals("all", ignoreCase = true) -> movie.source
+            movie.source.isNotBlank() && !movie.source.equals("all", ignoreCase = true) && !movie.source.equals("lampa", ignoreCase = true) && !movie.source.equals("tmdb", ignoreCase = true) -> movie.source
             else -> "Collaps"
         }
     }
@@ -478,6 +479,8 @@ private fun NativeExoPlayerScreen(
     var hasPlaybackError by remember { mutableStateOf(false) }
     var playbackErrorMessage by remember { mutableStateOf<String?>(null) }
     var currentMovieState by remember { mutableStateOf(movie) }
+    var allStreamOptions by remember { mutableStateOf(movie.streams) }
+    val failedStreamUrls = remember { mutableStateListOf<String>() }
 
     var isPlaying by remember { mutableStateOf(true) }
     var currentPosition by remember { mutableLongStateOf(startPositionMs) }
@@ -560,8 +563,8 @@ private fun NativeExoPlayerScreen(
         val httpDataSourceFactory = DefaultHttpDataSource.Factory()
             .setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
             .setDefaultRequestProperties(mapOf("Referer" to "https://hdrezka.ag/"))
-            .setConnectTimeoutMs(15000)
-            .setReadTimeoutMs(30000)
+            .setConnectTimeoutMs(4000)
+            .setReadTimeoutMs(8000)
             .setAllowCrossProtocolRedirects(true)
         val resolvingDataSourceFactory = androidx.media3.datasource.ResolvingDataSource.Factory(httpDataSourceFactory) { dataSpec ->
             val u = dataSpec.uri.toString().lowercase()
@@ -580,7 +583,23 @@ private fun NativeExoPlayerScreen(
             }
             dataSpec.buildUpon().setHttpRequestHeaders(headers).build()
         }
+        val loadErrorPolicy = object : androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy(0) {
+            override fun getMinimumLoadableRetryCount(dataType: Int): Int = 0
+            override fun getRetryDelayMsFor(loadErrorInfo: androidx.media3.exoplayer.upstream.LoadErrorHandlingPolicy.LoadErrorInfo): Long {
+                val cause = loadErrorInfo.exception
+                if (cause is androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException) {
+                    if (cause.responseCode in listOf(400, 401, 403, 404, 410, 500, 502, 503)) {
+                        return androidx.media3.common.C.TIME_UNSET
+                    }
+                }
+                if (loadErrorInfo.errorCount >= 1) {
+                    return androidx.media3.common.C.TIME_UNSET
+                }
+                return 600L
+            }
+        }
         val mediaSourceFactory = DefaultMediaSourceFactory(resolvingDataSourceFactory)
+            .setLoadErrorHandlingPolicy(loadErrorPolicy)
 
         val loadControl = DefaultLoadControl.Builder()
             .setAllocator(DefaultAllocator(true, C.DEFAULT_BUFFER_SEGMENT_SIZE))
@@ -809,14 +828,16 @@ private fun NativeExoPlayerScreen(
                 s.contains("Collaps", ignoreCase = true) || s.contains("Delivembd", ignoreCase = true) -> "Collaps"
                 s.contains("Bazon", ignoreCase = true) -> "Bazon"
                 s.isNotEmpty() -> s.replaceFirstChar { it.uppercase() }
-                else -> "HDrezka"
+                else -> "Collaps"
             }
             srcSet.add(cleanName)
         }
-        if (srcSet.isEmpty()) {
-            srcSet.add("HDrezka")
+        val preferredOrder = listOf("Collaps", "VideoCDN", "Filmix", "HDrezka", "Kodik", "Торренты (TorrServe)", "Bazon")
+        val sortedSources = srcSet.sortedBy { src ->
+            val idx = preferredOrder.indexOfFirst { it.equals(src, ignoreCase = true) }
+            if (idx >= 0) idx else 99
         }
-        return srcSet.toList()
+        return if (sortedSources.isNotEmpty()) sortedSources else listOf("Collaps", "VideoCDN", "HDrezka", "Filmix", "Kodik")
     }
 
     fun extractQualities(streams: List<com.example.tvmediaapp.data.models.StreamOption>): List<String> {
@@ -836,7 +857,7 @@ private fun NativeExoPlayerScreen(
         return if (qualSet.isNotEmpty()) qualSet.toList() else listOf("1080p", "720p", "480p")
     }
 
-    var availableSources by remember { mutableStateOf<List<String>>(listOf("HDrezka")) }
+    var availableSources by remember { mutableStateOf<List<String>>(listOf("Collaps", "VideoCDN", "HDrezka", "Filmix", "Kodik")) }
     var availableQualities by remember { mutableStateOf<List<String>>(listOf("1080p", "720p", "480p")) }
 
     fun switchStream(
@@ -908,12 +929,14 @@ private fun NativeExoPlayerScreen(
                 val serverStreams = serverDeferred.await()
 
                 val isNativeFallback = nativeStreams.isNotEmpty() && nativeStreams.all { it.source.contains("fallback", ignoreCase = true) }
-                val prioritizeServer = currentMovieState.source == "filmix" || isNonRezkaTrack || isNativeFallback || !newSource.equals("HDrezka", ignoreCase = true)
+                val hasServerDirect = serverStreams.any { isDirectVideoStream(it.url) && !it.source.contains("torrent", ignoreCase = true) }
+                val prioritizeServer = hasServerDirect || currentMovieState.source == "filmix" || isNonRezkaTrack || isNativeFallback || !newSource.equals("HDrezka", ignoreCase = true)
                 val allResolved = if (prioritizeServer && serverStreams.isNotEmpty()) {
                     (serverStreams + nativeStreams).distinctBy { it.url }
                 } else {
                     (nativeStreams + serverStreams).distinctBy { it.url }
                 }
+                allStreamOptions = allResolved
 
                 val discovered = extractSources(allResolved)
                 if (discovered.isNotEmpty()) {
@@ -1023,21 +1046,67 @@ private fun NativeExoPlayerScreen(
         }
     }
 
+    // Fast watchdog: if initial stream loading stalls in STATE_BUFFERING for > 5.0 seconds, auto-fallback
+    LaunchedEffect(currentStreamUrl, isBuffering, isPlaying) {
+        if (isBuffering && !isPlaying && currentPosition < 1000L && currentStreamUrl.isNotBlank()) {
+            delay(5000L)
+            if (isBuffering && !isPlaying && currentPosition < 1000L) {
+                android.util.Log.w("PlayerScreen", "Fast watchdog: initial stream buffering timed out for $currentStreamUrl")
+                hasPlaybackError = true
+                playbackErrorMessage = "Поток не отвечает (таймаут)"
+            }
+        }
+    }
+
     // Auto-fallback when ExoPlayer encounters an error (e.g. 404 IP-lock on Voidboost/HDRezka)
     LaunchedEffect(hasPlaybackError) {
         if (hasPlaybackError) {
+            failedStreamUrls.add(currentStreamUrl)
             val failingSource = selectedSource
-            val fallbackCandidate = availableSources.firstOrNull { 
-                !it.equals(failingSource, ignoreCase = true) && !it.equals("Все", ignoreCase = true) 
-            } ?: if (!failingSource.equals("Collaps", ignoreCase = true)) "Collaps" else null
 
-            if (fallbackCandidate != null) {
-                translatorNoticeBadge = "Поток $failingSource недоступен. Переключение на $fallbackCandidate..."
-                delay(700L)
+            // Step 1: Look for an already-resolved alternative direct stream from a different source
+            val nextDirect = allStreamOptions.firstOrNull { st ->
+                isDirectVideoStream(st.url) && !failedStreamUrls.contains(st.url) && st.url != currentStreamUrl
+            }
+
+            if (nextDirect != null) {
+                val nextSrc = when {
+                    nextDirect.url.contains("interkh") || nextDirect.url.contains("namy.ws") || nextDirect.source.contains("collaps", true) || nextDirect.source.contains("delivembd", true) -> "Collaps"
+                    nextDirect.url.contains("videoframe") || nextDirect.url.contains("allarknow") || nextDirect.source.contains("videocdn", true) -> "VideoCDN"
+                    nextDirect.url.contains("filmix") || nextDirect.source.contains("filmix", true) -> "Filmix"
+                    nextDirect.url.contains("kodik") || nextDirect.source.contains("kodik", true) -> "Kodik"
+                    else -> nextDirect.source.ifBlank { "следующий источник" }
+                }
+                translatorNoticeBadge = "Поток $failingSource недоступен. Мгновенное переключение на $nextSrc..."
+                delay(300L)
                 hasPlaybackError = false
-                switchStream(currentSeason, currentEpisode, currentAudioId, selectedQuality, fallbackCandidate)
+                currentStreamUrl = nextDirect.url
+                currentStreamQuality = nextDirect.quality
+                selectedSource = nextSrc
+                try {
+                    exoPlayer.setMediaItem(MediaItem.fromUri(nextDirect.url))
+                    exoPlayer.seekTo(0L)
+                    currentPosition = 0L
+                    bufferedPosition = 0L
+                    exoPlayer.prepare()
+                    exoPlayer.play()
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
             } else {
-                translatorNoticeBadge = "Поток $failingSource недоступен. Выберите другой источник в меню."
+                // Step 2: Query the next available source candidate
+                val fallbackCandidate = availableSources.firstOrNull { 
+                    !it.equals(failingSource, ignoreCase = true) && !it.equals("Все", ignoreCase = true) 
+                } ?: if (!failingSource.equals("Collaps", ignoreCase = true)) "Collaps" else null
+
+                if (fallbackCandidate != null) {
+                    translatorNoticeBadge = "Поток $failingSource недоступен. Переключение на $fallbackCandidate..."
+                    delay(300L)
+                    hasPlaybackError = false
+                    switchStream(currentSeason, currentEpisode, currentAudioId, selectedQuality, fallbackCandidate)
+                } else {
+                    translatorNoticeBadge = "Поток $failingSource недоступен. Выберите другой источник в меню."
+                }
             }
         }
     }
@@ -1072,6 +1141,7 @@ private fun NativeExoPlayerScreen(
             val serverStreams = serverDeferred.await()
             val rezkaStreams = rezkaDeferred.await()
             val combined = (serverStreams + rezkaStreams)
+            allStreamOptions = combined
             val extractedSrc = extractSources(combined)
             if (extractedSrc.isNotEmpty()) {
                 availableSources = extractedSrc

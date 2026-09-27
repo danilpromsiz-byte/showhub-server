@@ -163,18 +163,20 @@ fun DetailsScreen(
     var selectedEpisode by remember { mutableStateOf(savedHistory?.episode ?: 1) }
     var selectedAudioId by remember { mutableStateOf(savedHistory?.audioId ?: "") }
     var selectedQuality by remember { mutableStateOf(prefs.getString("pref_quality", "1080p") ?: "1080p") }
-    val initialSource = remember(movie.source, currentMovie.source) {
-        val s = currentMovie.source.takeIf { it.isNotBlank() && !it.equals("Все", ignoreCase = true) }
-            ?: movie.source.takeIf { it.isNotBlank() && !it.equals("Все", ignoreCase = true) }
-            ?: "HDRezka"
+    val defaultSourcePref = prefs.getString("pref_source", "Все") ?: "Все"
+    val initialSource = remember(movie.source, currentMovie.source, defaultSourcePref) {
+        val s = currentMovie.source.takeIf { it.isNotBlank() && !it.equals("Все", ignoreCase = true) && !it.equals("lampa", ignoreCase = true) && !it.equals("tmdb", ignoreCase = true) && !it.equals("all", ignoreCase = true) }
+            ?: movie.source.takeIf { it.isNotBlank() && !it.equals("Все", ignoreCase = true) && !it.equals("lampa", ignoreCase = true) && !it.equals("tmdb", ignoreCase = true) && !it.equals("all", ignoreCase = true) }
+            ?: defaultSourcePref
         when {
+            s.equals("Все", ignoreCase = true) -> "Все"
             s.startsWith("HDrezka", ignoreCase = true) || s.startsWith("Rezka", ignoreCase = true) -> "HDRezka"
             s.contains("Filmix", ignoreCase = true) -> "Filmix"
             s.contains("Kodik", ignoreCase = true) -> "Kodik"
             s.contains("VideoCDN", ignoreCase = true) -> "VideoCDN"
             s.contains("Collaps", ignoreCase = true) || s.contains("Delivembd", ignoreCase = true) -> "Collaps"
             s.contains("Bazon", ignoreCase = true) -> "Bazon"
-            else -> s.replaceFirstChar { it.uppercase() }
+            else -> "Все"
         }
     }
     var selectedSourceFilter by remember { mutableStateOf(initialSource) }
@@ -577,7 +579,8 @@ fun DetailsScreen(
                 val nativeStreams = nativeDeferred.await()
                 val serverStreams = serverDeferred.await()
                 val isNativeFallback = nativeStreams.isNotEmpty() && nativeStreams.all { it.source.contains("fallback", ignoreCase = true) }
-                val combined = if ((currentMovie.source == "filmix" || isNativeFallback) && serverStreams.isNotEmpty()) {
+                val hasServerDirect = serverStreams.any { isDirectVideoStream(it.url) && !it.source.contains("torrent", ignoreCase = true) }
+                val combined = if ((hasServerDirect || currentMovie.source == "filmix" || isNativeFallback) && serverStreams.isNotEmpty()) {
                     (serverStreams + nativeStreams).distinctBy { it.url }
                 } else {
                     (nativeStreams + serverStreams).distinctBy { it.url }
@@ -850,7 +853,8 @@ fun DetailsScreen(
             val nativeStreams = nativeDeferred.await()
             val serverStreams = serverDeferred.await()
             val isNativeFallback = nativeStreams.isNotEmpty() && nativeStreams.all { it.source.contains("fallback", ignoreCase = true) }
-            val combined = if ((currentMovie.source == "filmix" || isNativeFallback) && serverStreams.isNotEmpty()) {
+            val hasServerDirect = serverStreams.any { isDirectVideoStream(it.url) && !it.source.contains("torrent", ignoreCase = true) }
+            val combined = if ((hasServerDirect || currentMovie.source == "filmix" || isNativeFallback) && serverStreams.isNotEmpty()) {
                 (serverStreams + nativeStreams).distinctBy { it.url }
             } else {
                 (nativeStreams + serverStreams).distinctBy { it.url }
@@ -910,7 +914,7 @@ fun DetailsScreen(
                 if (matched.url.isNotBlank() && matched.url.startsWith("http")) {
                     streamStatus = "▶ ${matched.quality} (${matched.source}, ${if (isHls) "HLS" else "IFRAME"}) | Всего: $hlsCount HLS, $embedCount embed"
                     val movieToPlay = (if (isContentSeries) currentMovie.copy(isSeries = true) else currentMovie)
-                        .copy(source = matched.source)
+                        .copy(source = matched.source, videoUrl = matched.url, streams = streams)
                     onPlayClick(movieToPlay, matched.url, startPos, targetSeason, targetEpisode, targetAudioId)
                 } else {
                     streamStatus = notFoundMsg

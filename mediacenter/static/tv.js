@@ -5,8 +5,8 @@
  */
 
 // Application Version & Mandatory Update State
-const CURRENT_APP_VERSION = "2.8.64";
-const CURRENT_APP_VERSION_CODE = 123;
+const CURRENT_APP_VERSION = "2.8.65";
+const CURRENT_APP_VERSION_CODE = 124;
 window.isForceUpdateActive = false;
 
 // Migrate legacy local PC IP addresses to cloud server
@@ -2767,13 +2767,13 @@ function renderDetailsUI(details) {
     }
     if (details.rating_kp) {
         const kpBox = document.getElementById("rating-kp-box");
-        document.getElementById("rating-kp-val").textContent = `${details.rating_kp}`;
+        document.getElementById("rating-kp-val").textContent = Number(details.rating_kp).toFixed(1);
         document.getElementById("rating-kp-votes").textContent = details.vote_num_kp ? `${(details.vote_num_kp / 1000).toFixed(0)}k оценок` : '';
         kpBox.style.display = "flex";
     }
     if (details.rating_imdb) {
         const imdbBox = document.getElementById("rating-imdb-box");
-        document.getElementById("rating-imdb-val").textContent = `${details.rating_imdb}`;
+        document.getElementById("rating-imdb-val").textContent = Number(details.rating_imdb).toFixed(1);
         document.getElementById("rating-imdb-votes").textContent = details.vote_num_imdb ? `${(details.vote_num_imdb / 1000).toFixed(0)}k оценок` : '';
         imdbBox.style.display = "flex";
     }

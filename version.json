@@ -1,27 +1,27 @@
 {
   "success": true,
-  "version_name": "2.8.64",
-  "version_code": 123,
+  "version_name": "2.8.65",
+  "version_code": 124,
   "force_update": true,
   "min_version_code": 108,
   "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
   "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
-  "changelog": "v2.8.64: Контекстное меню при долгом нажатии OK (Смотреть позже, В избранное, Скрыть из видимых, Сброс прогресса, Инфо). Восстановлены моментальные предпросмотры видео. Стабилизированы позиции топа Лампы на главной странице.",
+  "changelog": "v2.8.65: Одинаковая высота всех кнопок-бейджей под постером в карточке фильма, аккуратное форматирование рейтингов КП и IMDb до одного знака (напр. 8.7 вместо 8.711) без вылетов за границы.",
   "tv": {
-    "version_name": "2.8.64",
-    "version_code": 123,
+    "version_name": "2.8.65",
+    "version_code": 124,
     "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
     "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk"
   },
   "mobile": {
-    "version_name": "2.8.64",
-    "version_code": 123,
+    "version_name": "2.8.65",
+    "version_code": 124,
     "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-Mobile.apk",
     "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-Mobile.apk"
   },
   "pc": {
-    "version_name": "2.8.64",
-    "version_code": 123,
+    "version_name": "2.8.65",
+    "version_code": 124,
     "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-PC.zip"
   }
 }

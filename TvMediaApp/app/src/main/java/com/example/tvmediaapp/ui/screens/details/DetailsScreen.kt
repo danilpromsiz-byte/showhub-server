@@ -1073,11 +1073,19 @@ fun DetailsScreen(
                     // Ratings Row (Age limit, KP, IMDb)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         if (currentMovie.ageRating.isNotBlank()) {
-                            val cleanAge = currentMovie.ageRating.trim()
+                            val rawAge = currentMovie.ageRating.trim()
+                            val cleanAge = when {
+                                rawAge.contains("18") -> "18+"
+                                rawAge.contains("16") -> "16+"
+                                rawAge.contains("12") -> "12+"
+                                rawAge.contains("6") -> "6+"
+                                rawAge.contains("0") -> "0+"
+                                else -> rawAge.take(6)
+                            }
                             val (ageBg, ageFg) = when {
                                 cleanAge.contains("18") -> Color(0xFFD32F2F) to Color.White
                                 cleanAge.contains("16") -> Color(0xFFF57C00) to Color.White
@@ -1087,15 +1095,19 @@ fun DetailsScreen(
                             }
                             Box(
                                 modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
+                                    .height(26.dp)
+                                    .clip(RoundedCornerShape(6.dp))
                                     .background(ageBg)
-                                    .padding(horizontal = 10.dp, vertical = 4.dp)
+                                    .padding(horizontal = 8.dp),
+                                contentAlignment = Alignment.Center
                             ) {
                                 Text(
                                     text = cleanAge,
-                                    fontSize = 13.sp,
+                                    fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = ageFg
+                                    color = ageFg,
+                                    maxLines = 1,
+                                    softWrap = false
                                 )
                             }
                         }
@@ -1103,15 +1115,19 @@ fun DetailsScreen(
                         if (currentMovie.ratingLampa > 0) {
                             Box(
                                 modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
+                                    .height(26.dp)
+                                    .clip(RoundedCornerShape(6.dp))
                                     .background(Color(0xFF10B981))
-                                    .padding(horizontal = 10.dp, vertical = 4.dp)
+                                    .padding(horizontal = 8.dp),
+                                contentAlignment = Alignment.Center
                             ) {
                                 Text(
                                     text = "★ ${String.format(java.util.Locale.US, "%.1f", currentMovie.ratingLampa)}",
-                                    fontSize = 13.sp,
+                                    fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color.White
+                                    color = Color.White,
+                                    maxLines = 1,
+                                    softWrap = false
                                 )
                             }
                         }
@@ -1119,15 +1135,19 @@ fun DetailsScreen(
                         if (currentMovie.ratingKp > 0) {
                             Box(
                                 modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
+                                    .height(26.dp)
+                                    .clip(RoundedCornerShape(6.dp))
                                     .background(KpOrange)
-                                    .padding(horizontal = 10.dp, vertical = 4.dp)
+                                    .padding(horizontal = 8.dp),
+                                contentAlignment = Alignment.Center
                             ) {
                                 Text(
-                                    text = "КП ${currentMovie.ratingKp}",
-                                    fontSize = 13.sp,
+                                    text = "КП ${String.format(java.util.Locale.US, "%.1f", currentMovie.ratingKp)}",
+                                    fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color.White
+                                    color = Color.White,
+                                    maxLines = 1,
+                                    softWrap = false
                                 )
                             }
                         }
@@ -1135,15 +1155,19 @@ fun DetailsScreen(
                         if (currentMovie.ratingImdb > 0) {
                             Box(
                                 modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
+                                    .height(26.dp)
+                                    .clip(RoundedCornerShape(6.dp))
                                     .background(ImdbGold)
-                                    .padding(horizontal = 10.dp, vertical = 4.dp)
+                                    .padding(horizontal = 8.dp),
+                                contentAlignment = Alignment.Center
                             ) {
                                 Text(
-                                    text = "IMDb ${currentMovie.ratingImdb}",
-                                    fontSize = 13.sp,
+                                    text = "IMDb ${String.format(java.util.Locale.US, "%.1f", currentMovie.ratingImdb)}",
+                                    fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color.Black
+                                    color = Color.Black,
+                                    maxLines = 1,
+                                    softWrap = false
                                 )
                             }
                         }
@@ -1151,15 +1175,19 @@ fun DetailsScreen(
                         if (currentMovie.ratingKp <= 0 && currentMovie.ratingImdb <= 0 && currentMovie.ratingLampa <= 0 && currentMovie.rating > 0) {
                             Box(
                                 modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
+                                    .height(26.dp)
+                                    .clip(RoundedCornerShape(6.dp))
                                     .background(Color(0xFF10B981))
-                                    .padding(horizontal = 10.dp, vertical = 4.dp)
+                                    .padding(horizontal = 8.dp),
+                                contentAlignment = Alignment.Center
                             ) {
                                 Text(
                                     text = "★ ${String.format(java.util.Locale.US, "%.1f", currentMovie.rating)}",
-                                    fontSize = 13.sp,
+                                    fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color.White
+                                    color = Color.White,
+                                    maxLines = 1,
+                                    softWrap = false
                                 )
                             }
                         }

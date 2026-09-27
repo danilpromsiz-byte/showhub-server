@@ -664,72 +664,87 @@ fun MovieCard(
                                 }
                                 Box(
                                     modifier = Modifier
+                                        .height(18.dp)
                                         .clip(RoundedCornerShape(4.dp))
                                         .background(ageBg.copy(alpha = 0.92f))
-                                        .padding(horizontal = 4.dp, vertical = 2.dp)
+                                        .padding(horizontal = 4.dp),
+                                    contentAlignment = Alignment.Center
                                 ) {
                                     Text(
                                         text = cleanAge,
                                         fontSize = 9.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = ageFg
+                                        color = ageFg,
+                                        lineHeight = 9.sp
                                     )
                                 }
                             }
                             if (movie.ratingKp > 0) {
                                 Box(
                                     modifier = Modifier
+                                        .height(18.dp)
                                         .clip(RoundedCornerShape(4.dp))
                                         .background(Color(0xFFFF6600).copy(alpha = 0.92f))
-                                        .padding(horizontal = 4.dp, vertical = 2.dp)
+                                        .padding(horizontal = 4.dp),
+                                    contentAlignment = Alignment.Center
                                 ) {
                                     Text(
                                         text = "КП ${String.format(java.util.Locale.US, "%.1f", movie.ratingKp)}",
                                         fontSize = 9.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = Color.White
+                                        color = Color.White,
+                                        lineHeight = 9.sp
                                     )
                                 }
                             } else if (movie.ratingLampa > 0) {
                                 Box(
                                     modifier = Modifier
+                                        .height(18.dp)
                                         .clip(RoundedCornerShape(4.dp))
                                         .background(Color(0xFF10B981).copy(alpha = 0.92f))
-                                        .padding(horizontal = 4.dp, vertical = 2.dp)
+                                        .padding(horizontal = 4.dp),
+                                    contentAlignment = Alignment.Center
                                 ) {
                                     Text(
                                         text = "★ ${String.format(java.util.Locale.US, "%.1f", movie.ratingLampa)}",
                                         fontSize = 9.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = Color.White
+                                        color = Color.White,
+                                        lineHeight = 9.sp
                                     )
                                 }
                             } else if (movie.ratingImdb > 0) {
                                 Box(
                                     modifier = Modifier
+                                        .height(18.dp)
                                         .clip(RoundedCornerShape(4.dp))
                                         .background(Color(0xFFE5A00D).copy(alpha = 0.92f))
-                                        .padding(horizontal = 4.dp, vertical = 2.dp)
+                                        .padding(horizontal = 4.dp),
+                                    contentAlignment = Alignment.Center
                                 ) {
                                     Text(
                                         text = "IMDb ${String.format(java.util.Locale.US, "%.1f", movie.ratingImdb)}",
                                         fontSize = 9.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = Color.Black
+                                        color = Color.Black,
+                                        lineHeight = 9.sp
                                     )
                                 }
                             } else if (movie.rating > 0) {
                                 Box(
                                     modifier = Modifier
+                                        .height(18.dp)
                                         .clip(RoundedCornerShape(4.dp))
                                         .background(Color.Black.copy(alpha = 0.80f))
-                                        .padding(horizontal = 4.dp, vertical = 2.dp)
+                                        .padding(horizontal = 4.dp),
+                                    contentAlignment = Alignment.Center
                                 ) {
                                     Text(
                                         text = String.format(java.util.Locale.US, "%.1f", movie.rating),
                                         fontSize = 9.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = accent
+                                        color = accent,
+                                        lineHeight = 9.sp
                                     )
                                 }
                             }

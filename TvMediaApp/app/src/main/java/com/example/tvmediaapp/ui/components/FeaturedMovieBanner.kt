@@ -147,12 +147,14 @@ fun FeaturedMovieBanner(
                 // Kinopoisk Badge
                 Box(
                     modifier = Modifier
+                        .height(24.dp)
                         .clip(RoundedCornerShape(4.dp))
                         .background(KpOrange)
-                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                        .padding(horizontal = 6.dp),
+                    contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "\u041a\u041f \u2605 ${movie.ratingKp}",
+                        text = "КП ★ ${String.format(java.util.Locale.US, "%.1f", movie.ratingKp)}",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.White
@@ -162,12 +164,14 @@ fun FeaturedMovieBanner(
                 // IMDb Badge
                 Box(
                     modifier = Modifier
+                        .height(24.dp)
                         .clip(RoundedCornerShape(4.dp))
                         .background(ImdbGold)
-                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                        .padding(horizontal = 6.dp),
+                    contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "IMDb \u2605 ${movie.ratingImdb}",
+                        text = "IMDb ★ ${String.format(java.util.Locale.US, "%.1f", movie.ratingImdb)}",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.Black

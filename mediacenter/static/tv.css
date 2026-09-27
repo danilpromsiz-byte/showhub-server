@@ -1997,6 +1997,9 @@ button:focus, input:focus, textarea:focus, .stream-chip:focus, .source-tab-btn:f
     text-align: center;
     display: flex;
     flex-direction: column;
+    justify-content: center;
+    min-height: 64px;
+    box-sizing: border-box;
     gap: 2px;
 }
 

@@ -217,10 +217,52 @@ private fun EmbedWebViewPlayerScreen(
         }
     }
 
+    val lastWebMediaUptime = remember { java.util.concurrent.atomic.AtomicLong(0L) }
+
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Color.Black),
+            .background(Color.Black)
+            .onKeyEvent { keyEvent ->
+                val nativeEvent = keyEvent.nativeKeyEvent
+                val isMedia = when (nativeEvent.keyCode) {
+                    KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
+                    KeyEvent.KEYCODE_HEADSETHOOK,
+                    KeyEvent.KEYCODE_MEDIA_PLAY,
+                    KeyEvent.KEYCODE_MEDIA_PAUSE,
+                    KeyEvent.KEYCODE_MEDIA_STOP -> true
+                    else -> false
+                }
+                if (isMedia) {
+                    if (nativeEvent.action == KeyEvent.ACTION_DOWN) {
+                        val now = android.os.SystemClock.uptimeMillis()
+                        if (now - lastWebMediaUptime.get() >= 800L) {
+                            lastWebMediaUptime.set(now)
+                            when (nativeEvent.keyCode) {
+                                KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
+                                KeyEvent.KEYCODE_HEADSETHOOK -> {
+                                    webViewRef?.evaluateJavascript(
+                                        "(function(){ var v=document.querySelector('video')||(document.querySelector('iframe')&&document.querySelector('iframe').contentDocument&&document.querySelector('iframe').contentDocument.querySelector('video')); if(v){ if(v.paused) v.play(); else v.pause(); } })()", null
+                                    )
+                                }
+                                KeyEvent.KEYCODE_MEDIA_PLAY -> {
+                                    webViewRef?.evaluateJavascript(
+                                        "(function(){ var v=document.querySelector('video')||(document.querySelector('iframe')&&document.querySelector('iframe').contentDocument&&document.querySelector('iframe').contentDocument.querySelector('video')); if(v) v.play(); })()", null
+                                    )
+                                }
+                                KeyEvent.KEYCODE_MEDIA_PAUSE,
+                                KeyEvent.KEYCODE_MEDIA_STOP -> {
+                                    webViewRef?.evaluateJavascript(
+                                        "(function(){ var v=document.querySelector('video')||(document.querySelector('iframe')&&document.querySelector('iframe').contentDocument&&document.querySelector('iframe').contentDocument.querySelector('video')); if(v) v.pause(); })()", null
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    return@onKeyEvent true
+                }
+                false
+            },
         contentAlignment = Alignment.Center
     ) {
         if (hasError) {
@@ -684,87 +726,51 @@ private fun NativeExoPlayerScreen(
             }
     }
 
-    var lastToggleTime by remember { mutableLongStateOf(0L) }
+    val lastHandledDownTime = remember { java.util.concurrent.atomic.AtomicLong(0L) }
+    val lastMediaActionUptime = remember { java.util.concurrent.atomic.AtomicLong(0L) }
+    var nativeWebViewRef by remember { mutableStateOf<WebView?>(null) }
+
+    fun performPause() {
+        try {
+            if (exoPlayer.isPlaying || exoPlayer.playWhenReady) {
+                exoPlayer.pause()
+            }
+        } catch (_: Exception) {}
+        playbackActionBadge = "pause"
+        isControlsVisible = true
+        try { playPauseFocusRequester.requestFocus() } catch (_: Exception) {}
+        try {
+            nativeWebViewRef?.evaluateJavascript(
+                "(function(){ var v=document.querySelector('video')||(document.querySelector('iframe')&&document.querySelector('iframe').contentDocument&&document.querySelector('iframe').contentDocument.querySelector('video')); if(v) v.pause(); })()", null
+            )
+        } catch (_: Exception) {}
+    }
+
+    fun performPlay() {
+        try {
+            if (!exoPlayer.isPlaying || !exoPlayer.playWhenReady) {
+                exoPlayer.play()
+            }
+        } catch (_: Exception) {}
+        playbackActionBadge = "play"
+        try {
+            nativeWebViewRef?.evaluateJavascript(
+                "(function(){ var v=document.querySelector('video')||(document.querySelector('iframe')&&document.querySelector('iframe').contentDocument&&document.querySelector('iframe').contentDocument.querySelector('video')); if(v) v.play(); })()", null
+            )
+        } catch (_: Exception) {}
+    }
 
     fun togglePlayPause() {
         val now = android.os.SystemClock.uptimeMillis()
-        if (now - lastToggleTime < 350L) {
+        if (now - lastMediaActionUptime.get() < 800L) {
             return // Ignore rapid/bounce Bluetooth media button events
         }
-        lastToggleTime = now
+        lastMediaActionUptime.set(now)
 
-        if (exoPlayer.playWhenReady) {
-            exoPlayer.pause()
-            playbackActionBadge = "pause"
-            isControlsVisible = true
-            try { playPauseFocusRequester.requestFocus() } catch (_: Exception) {}
+        if (exoPlayer.isPlaying || exoPlayer.playWhenReady) {
+            performPause()
         } else {
-            exoPlayer.play()
-            playbackActionBadge = "play"
-        }
-    }
-
-    val mediaSession = remember(exoPlayer) {
-        try {
-            androidx.media3.session.MediaSession.Builder(context, exoPlayer)
-                .setId("ShowHubMediaSession")
-                .setCallback(object : androidx.media3.session.MediaSession.Callback {
-                    override fun onMediaButtonEvent(
-                        session: androidx.media3.session.MediaSession,
-                        controllerInfo: androidx.media3.session.MediaSession.ControllerInfo,
-                        intent: android.content.Intent
-                    ): Boolean {
-                        val keyEvent: android.view.KeyEvent? = if (android.os.Build.VERSION.SDK_INT >= 33) {
-                            intent.getParcelableExtra(android.content.Intent.EXTRA_KEY_EVENT, android.view.KeyEvent::class.java)
-                        } else {
-                            @Suppress("DEPRECATION")
-                            intent.getParcelableExtra(android.content.Intent.EXTRA_KEY_EVENT)
-                        }
-                        if (keyEvent != null) {
-                            if (keyEvent.action == android.view.KeyEvent.ACTION_DOWN) {
-                                when (keyEvent.keyCode) {
-                                    android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
-                                    android.view.KeyEvent.KEYCODE_HEADSETHOOK -> {
-                                        (context as? android.app.Activity)?.runOnUiThread {
-                                            togglePlayPause()
-                                        }
-                                        return true
-                                    }
-                                    android.view.KeyEvent.KEYCODE_MEDIA_PLAY -> {
-                                        (context as? android.app.Activity)?.runOnUiThread {
-                                            exoPlayer.play()
-                                            playbackActionBadge = "play"
-                                        }
-                                        return true
-                                    }
-                                    android.view.KeyEvent.KEYCODE_MEDIA_PAUSE,
-                                    android.view.KeyEvent.KEYCODE_MEDIA_STOP -> {
-                                        (context as? android.app.Activity)?.runOnUiThread {
-                                            exoPlayer.pause()
-                                            playbackActionBadge = "pause"
-                                            isControlsVisible = true
-                                            try { playPauseFocusRequester.requestFocus() } catch (_: Exception) {}
-                                        }
-                                        return true
-                                    }
-                                }
-                            }
-                            return true // Consume both ACTION_DOWN and ACTION_UP for media keys
-                        }
-                        return super.onMediaButtonEvent(session, controllerInfo, intent)
-                    }
-                })
-                .build()
-        } catch (_: Throwable) {
-            null
-        }
-    }
-
-    DisposableEffect(mediaSession) {
-        onDispose {
-            try {
-                mediaSession?.release()
-            } catch (_: Throwable) {}
+            performPlay()
         }
     }
 
@@ -1046,6 +1052,129 @@ private fun NativeExoPlayerScreen(
         }
     }
 
+    fun handleMediaKeyEvent(keyEvent: android.view.KeyEvent): Boolean {
+        // 1. Consume ACTION_UP for all media keys so they do not leak or fall back to system
+        if (keyEvent.action == android.view.KeyEvent.ACTION_UP) {
+            val isMedia = when (keyEvent.keyCode) {
+                android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
+                android.view.KeyEvent.KEYCODE_HEADSETHOOK,
+                android.view.KeyEvent.KEYCODE_MEDIA_PLAY,
+                android.view.KeyEvent.KEYCODE_MEDIA_PAUSE,
+                android.view.KeyEvent.KEYCODE_MEDIA_STOP,
+                android.view.KeyEvent.KEYCODE_MEDIA_NEXT,
+                android.view.KeyEvent.KEYCODE_MEDIA_PREVIOUS -> true
+                else -> false
+            }
+            return isMedia
+        }
+        if (keyEvent.action != android.view.KeyEvent.ACTION_DOWN) {
+            return false
+        }
+
+        val keyCode = keyEvent.keyCode
+        val isMedia = when (keyCode) {
+            android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
+            android.view.KeyEvent.KEYCODE_HEADSETHOOK,
+            android.view.KeyEvent.KEYCODE_MEDIA_PLAY,
+            android.view.KeyEvent.KEYCODE_MEDIA_PAUSE,
+            android.view.KeyEvent.KEYCODE_MEDIA_STOP,
+            android.view.KeyEvent.KEYCODE_MEDIA_NEXT,
+            android.view.KeyEvent.KEYCODE_MEDIA_PREVIOUS -> true
+            else -> false
+        }
+        if (!isMedia) return false
+
+        // 2. Hardware event deduplication: if exact same button down event reaches both Window and MediaSession
+        val downTime = keyEvent.downTime
+        if (downTime > 0L && downTime == lastHandledDownTime.get()) {
+            return true // Duplicate hardware delivery swallowed
+        }
+        lastHandledDownTime.set(downTime)
+
+        // 3. Debounce window (800ms) to swallow AVRCP multi-press timeouts, retransmissions, or bounce
+        val now = android.os.SystemClock.uptimeMillis()
+        if (now - lastMediaActionUptime.get() < 800L) {
+            return true // Duplicate or bounce event swallowed
+        }
+        lastMediaActionUptime.set(now)
+
+        // 4. Dispatch safely to main thread
+        val actionRunnable = Runnable {
+            when (keyCode) {
+                android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
+                android.view.KeyEvent.KEYCODE_HEADSETHOOK -> {
+                    if (exoPlayer.isPlaying || exoPlayer.playWhenReady) {
+                        performPause()
+                    } else {
+                        performPlay()
+                    }
+                }
+                android.view.KeyEvent.KEYCODE_MEDIA_PLAY -> {
+                    performPlay()
+                }
+                android.view.KeyEvent.KEYCODE_MEDIA_PAUSE,
+                android.view.KeyEvent.KEYCODE_MEDIA_STOP -> {
+                    performPause()
+                }
+                android.view.KeyEvent.KEYCODE_MEDIA_NEXT -> {
+                    if (currentMovieState.isSeries) {
+                        switchStream(currentSeason, currentEpisode + 1, currentAudioId, selectedQuality, selectedSource)
+                    }
+                }
+                android.view.KeyEvent.KEYCODE_MEDIA_PREVIOUS -> {
+                    if (currentMovieState.isSeries && currentEpisode > 1) {
+                        switchStream(currentSeason, currentEpisode - 1, currentAudioId, selectedQuality, selectedSource)
+                    }
+                }
+            }
+        }
+
+        if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
+            actionRunnable.run()
+        } else {
+            android.os.Handler(android.os.Looper.getMainLooper()).post(actionRunnable)
+        }
+        return true
+    }
+
+    val mediaSession = remember(exoPlayer) {
+        try {
+            androidx.media3.session.MediaSession.Builder(context, exoPlayer)
+                .setId("ShowHubMediaSession")
+                .setCallback(object : androidx.media3.session.MediaSession.Callback {
+                    override fun onMediaButtonEvent(
+                        session: androidx.media3.session.MediaSession,
+                        controllerInfo: androidx.media3.session.MediaSession.ControllerInfo,
+                        intent: android.content.Intent
+                    ): Boolean {
+                        val keyEvent: android.view.KeyEvent? = if (android.os.Build.VERSION.SDK_INT >= 33) {
+                            intent.getParcelableExtra(android.content.Intent.EXTRA_KEY_EVENT, android.view.KeyEvent::class.java)
+                        } else {
+                            @Suppress("DEPRECATION")
+                            intent.getParcelableExtra(android.content.Intent.EXTRA_KEY_EVENT)
+                        }
+                        if (keyEvent != null) {
+                            if (handleMediaKeyEvent(keyEvent)) {
+                                return true
+                            }
+                        }
+                        return super.onMediaButtonEvent(session, controllerInfo, intent)
+                    }
+                })
+                .build()
+        } catch (_: Throwable) {
+            null
+        }
+    }
+
+    DisposableEffect(mediaSession) {
+        onDispose {
+            try {
+                mediaSession?.release()
+            } catch (_: Throwable) {}
+        }
+    }
+
     // Fast watchdog: if initial stream loading stalls in STATE_BUFFERING for > 5.0 seconds, auto-fallback
     LaunchedEffect(currentStreamUrl, isBuffering, isPlaying) {
         if (isBuffering && !isPlaying && currentPosition < 1000L && currentStreamUrl.isNotBlank()) {
@@ -1241,6 +1370,12 @@ private fun NativeExoPlayerScreen(
                 exoPlayer.clearMediaItems()
                 exoPlayer.release()
             } catch (_: Exception) {}
+            try {
+                nativeWebViewRef?.stopLoading()
+                nativeWebViewRef?.loadUrl("about:blank")
+                nativeWebViewRef?.destroy()
+                nativeWebViewRef = null
+            } catch (_: Exception) {}
         }
     }
 
@@ -1306,36 +1441,8 @@ private fun NativeExoPlayerScreen(
                     }
                 }
                 // Universal Bluetooth headset and media button handling (active in all UI states)
-                val isMediaKey = when (nativeEvent.keyCode) {
-                    KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
-                    KeyEvent.KEYCODE_HEADSETHOOK,
-                    KeyEvent.KEYCODE_MEDIA_PLAY,
-                    KeyEvent.KEYCODE_MEDIA_PAUSE,
-                    KeyEvent.KEYCODE_MEDIA_STOP -> true
-                    else -> false
-                }
-                if (isMediaKey) {
-                    if (nativeEvent.action == KeyEvent.ACTION_DOWN) {
-                        lastUserInteractionTime = System.currentTimeMillis()
-                        when (nativeEvent.keyCode) {
-                            KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
-                            KeyEvent.KEYCODE_HEADSETHOOK -> {
-                                togglePlayPause()
-                            }
-                            KeyEvent.KEYCODE_MEDIA_PLAY -> {
-                                exoPlayer.play()
-                                playbackActionBadge = "play"
-                            }
-                            KeyEvent.KEYCODE_MEDIA_PAUSE,
-                            KeyEvent.KEYCODE_MEDIA_STOP -> {
-                                exoPlayer.pause()
-                                playbackActionBadge = "pause"
-                                isControlsVisible = true
-                                try { playPauseFocusRequester.requestFocus() } catch (_: Exception) {}
-                            }
-                        }
-                    }
-                    // Always consume both ACTION_DOWN and ACTION_UP for media keys so they don't leak to system
+                if (handleMediaKeyEvent(nativeEvent)) {
+                    lastUserInteractionTime = System.currentTimeMillis()
                     return@onKeyEvent true
                 }
 
@@ -1434,6 +1541,7 @@ private fun NativeExoPlayerScreen(
             AndroidView(
                 factory = { ctx ->
                     WebView(ctx).apply {
+                        nativeWebViewRef = this
                         try {
                             val cm = android.webkit.CookieManager.getInstance()
                             cm.setAcceptCookie(true)
@@ -1495,6 +1603,7 @@ private fun NativeExoPlayerScreen(
                     }
                 },
                 update = { wv ->
+                    nativeWebViewRef = wv
                     if (wv.tag != currentStreamUrl) {
                         wv.tag = currentStreamUrl
                         val html = """

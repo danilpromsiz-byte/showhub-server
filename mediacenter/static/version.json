@@ -1,33 +1,33 @@
 {
   "success": true,
-  "version_name": "2.8.69",
-  "version_code": 128,
+  "version_name": "2.8.70",
+  "version_code": 129,
   "force_update": true,
   "min_version_code": 108,
   "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
   "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
-  "changelog": "v2.8.69: Полное устранение рассинхронизации звука при Bluetooth-паузе — атомарная дедупликация downTime (MediaSession/Window), 800мс дебаунс, идемпотентная пауза и поддержка кнопок гарнитуры в WebView.",
+  "changelog": "v2.8.70: Полная защита Bluetooth-кнопок и паузы — перехват на уровне Activity (Touch/TV), ForwardingPlayer для MediaSessionLegacyStub, жесткая блокировка авто-возобновления звука на паузе и отключение аудио-декодера в фоновых превью.",
   "tv": {
-    "version_name": "2.8.69",
-    "version_code": 128,
+    "version_name": "2.8.70",
+    "version_code": 129,
     "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
     "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk"
   },
   "mobile": {
-    "version_name": "2.8.69",
-    "version_code": 128,
+    "version_name": "2.8.70",
+    "version_code": 129,
     "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-Mobile.apk",
     "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-Mobile.apk"
   },
   "pc": {
-    "version_name": "2.8.69",
-    "version_code": 128,
+    "version_name": "2.8.70",
+    "version_code": 129,
     "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-PC.zip"
   },
   "alert_screensaver": {
     "version_name": "1.0.5",
     "version_code": 6,
-    "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/AlertScreensaver.apk",
+    "download_url": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/AlertScreensaver.apk",
     "apk_url": "https://showhub-server.onrender.com/AlertScreensaver.apk",
     "changelog": "v1.0.5: Підтримка червоних та жовтих тривог (по районах та областях), повне меню «Налаштування» з вибором локацій для сповіщень, звуковим сигналом та примусовим оновленням, чистий інтерфейс без емодзі."
   }

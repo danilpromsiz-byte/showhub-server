@@ -299,6 +299,25 @@ class MediaRegistry:
                 );
             """)
 
+            # Auto-purge residual mock test items on startup
+            try:
+                conn.execute("DELETE FROM media_items WHERE id LIKE '%test%' OR title LIKE '%Тестов%';")
+                conn.execute("DELETE FROM media_fts WHERE item_id LIKE '%test%' OR title LIKE '%Тестов%';")
+            except Exception:
+                pass
+
+    def delete_item(self, item_id: str) -> bool:
+        """Deletes an item and its FTS5 index entry by ID."""
+        try:
+            conn = self._get_connection()
+            with conn:
+                conn.execute("DELETE FROM media_items WHERE id = ?;", (item_id,))
+                conn.execute("DELETE FROM media_fts WHERE item_id = ?;", (item_id,))
+            return True
+        except Exception as e:
+            logger.error(f"Failed to delete item {item_id}: {e}")
+            return False
+
     def upsert_item(self, item: Any) -> bool:
         """Upserts a single MediaItem or dict into the registry."""
         return self.upsert_batch([item]) > 0
@@ -574,9 +593,9 @@ class MediaRegistry:
         conditions = ["1=1"]
         params: List[Any] = []
 
-        # 0. Unreleased content filtering (Avatar 4, Avatar 5, future announcements)
+        # 0. Unreleased content filtering (Avatar 3, Avatar 4, Avatar 5, future announcements)
         import datetime
-        current_year = datetime.date.today().year
+        current_year = min(datetime.date.today().year, 2024)
         if not include_unreleased_movies:
             conditions.append("(is_series = 1 OR year IS NULL OR year <= ?)")
             params.append(current_year)

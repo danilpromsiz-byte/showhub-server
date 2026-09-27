@@ -510,6 +510,49 @@ body.tv-mode {
     opacity: 0.88;
 }
 
+.media-badge-rating.badge-rating-lampa {
+    background: linear-gradient(135deg, #10b981, #059669);
+    color: #ffffff;
+    box-shadow: 0 2px 6px rgba(16, 185, 129, 0.4);
+}
+
+.media-badge-rank {
+    position: absolute;
+    top: 6px;
+    left: 6px;
+    background: rgba(15, 20, 32, 0.88);
+    backdrop-filter: blur(8px);
+    color: #e2e8f0;
+    font-size: 10px;
+    font-weight: 900;
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    z-index: 2;
+    letter-spacing: 0.2px;
+}
+
+.media-badge-rank.rank-1 {
+    background: linear-gradient(135deg, #eab308, #ca8a04);
+    color: #000000;
+    border-color: #fef08a;
+    box-shadow: 0 2px 8px rgba(234, 179, 8, 0.5);
+}
+
+.media-badge-rank.rank-2 {
+    background: linear-gradient(135deg, #cbd5e1, #94a3b8);
+    color: #0f172a;
+    border-color: #f1f5f9;
+    box-shadow: 0 2px 8px rgba(148, 163, 184, 0.5);
+}
+
+.media-badge-rank.rank-3 {
+    background: linear-gradient(135deg, #d97706, #b45309);
+    color: #ffffff;
+    border-color: #fde68a;
+    box-shadow: 0 2px 8px rgba(217, 119, 6, 0.5);
+}
+
 .card-new-ep-badge {
     position: absolute;
     bottom: 8px;
@@ -1955,6 +1998,17 @@ button:focus, input:focus, textarea:focus, .stream-chip:focus, .source-tab-btn:f
     display: flex;
     flex-direction: column;
     gap: 2px;
+}
+
+.rating-box.lampa {
+    border-color: rgba(16, 185, 129, 0.45);
+    background: rgba(16, 185, 129, 0.08);
+}
+.rating-box.lampa .rating-label {
+    color: #10b981;
+}
+.rating-box.lampa .rating-score {
+    color: #10b981;
 }
 
 .rating-box.kp {

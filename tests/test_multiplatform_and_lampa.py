@@ -122,15 +122,19 @@ class TestMultiplatformAndLampa(unittest.TestCase):
             "rating_lampa": 8.8,
             "source_name": "lampa"
         }
-        media_registry.upsert_item(test_item)
+        try:
+            media_registry.upsert_item(test_item)
 
-        # Search by actor
-        res_actor = media_registry.search("ДиКаприо")
-        self.assertTrue(any("test_unique_actor_123" in r["id"] for r in res_actor), "Actor search failed")
+            # Search by actor
+            res_actor = media_registry.search("ДиКаприо")
+            self.assertTrue(any("test_unique_actor_123" in r["id"] for r in res_actor), "Actor search failed")
 
-        # Search by director
-        res_dir = media_registry.search("ТестовыйНолан")
-        self.assertTrue(any("test_unique_actor_123" in r["id"] for r in res_dir), "Director search failed")
+            # Search by director
+            res_dir = media_registry.search("ТестовыйНолан")
+            self.assertTrue(any("test_unique_actor_123" in r["id"] for r in res_dir), "Director search failed")
+        finally:
+            media_registry.delete_item("test_unique_actor_123")
+            media_registry.delete_item("lampa_test_unique_actor_123")
 
     def test_api_popular_and_platform_endpoints(self):
         from fastapi.testclient import TestClient

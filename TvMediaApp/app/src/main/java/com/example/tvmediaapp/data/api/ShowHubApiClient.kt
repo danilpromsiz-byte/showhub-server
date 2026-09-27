@@ -67,7 +67,7 @@ object ShowHubApiClient {
             if (conn.responseCode == 200) {
                 val body = BufferedReader(InputStreamReader(conn.inputStream, "UTF-8")).use { it.readText() }
                 val arr = JSONArray(body)
-                parseMoviesJson(arr, movies)
+                parseMoviesJson(arr, movies, isRanked = true)
             }
         } catch (e: Exception) {
             e.printStackTrace()
@@ -119,7 +119,8 @@ object ShowHubApiClient {
             if (conn.responseCode == 200) {
                 val body = BufferedReader(InputStreamReader(conn.inputStream, "UTF-8")).use { it.readText() }
                 val arr = JSONArray(body)
-                parseMoviesJson(arr, movies)
+                val isRanked = (sortBy == "popular" || category == "all")
+                parseMoviesJson(arr, movies, isRanked = isRanked)
             }
         } catch (e: Exception) {
             e.printStackTrace()
@@ -142,7 +143,7 @@ object ShowHubApiClient {
             if (conn.responseCode == 200) {
                 val body = BufferedReader(InputStreamReader(conn.inputStream, "UTF-8")).use { it.readText() }
                 val arr = JSONArray(body)
-                parseMoviesJson(arr, movies)
+                parseMoviesJson(arr, movies, isRanked = false)
             }
         } catch (e: Exception) {
             e.printStackTrace()
@@ -366,6 +367,7 @@ object ShowHubApiClient {
                 val rawPoster = obj.optString("poster", "")
                 val updatedPoster = if (rawPoster.startsWith("http") && !rawPoster.contains("no_image") && !rawPoster.contains("noposter") && !rawPoster.contains("st.kp.yandex.net")) rawPoster else movie.posterUrl
 
+                val lampaRating = obj.optDouble("rating_lampa", obj.optDouble("effective_rating", movie.ratingLampa))
                 val kpRating = obj.optDouble("rating_kp", movie.ratingKp)
                 val imdbRating = obj.optDouble("rating_imdb", movie.ratingImdb)
                 val rawTitle = obj.optString("title", movie.title)
@@ -390,6 +392,7 @@ object ShowHubApiClient {
                     backdropUrl = updatedPoster,
                     ratingKp = if (kpRating > 0) kpRating else movie.ratingKp,
                     ratingImdb = if (imdbRating > 0) imdbRating else movie.ratingImdb,
+                    ratingLampa = if (lampaRating > 0) lampaRating else movie.ratingLampa,
                     director = director,
                     country = country,
                     actors = actors,
@@ -741,7 +744,7 @@ object ShowHubApiClient {
         return "12+"
     }
 
-    private fun parseMoviesJson(arr: JSONArray, outList: MutableList<Movie>) {
+    private fun parseMoviesJson(arr: JSONArray, outList: MutableList<Movie>, isRanked: Boolean = false) {
         for (i in 0 until arr.length()) {
             val it = arr.getJSONObject(i)
             val id = it.optString("id", i.toString())
@@ -761,9 +764,20 @@ object ShowHubApiClient {
             val desc = (if (rawDesc.isBlank() || rawDesc.equals("null", ignoreCase = true)) "" else rawDesc).unescapeHtml()
             val poster = it.optString("poster", "")
             val posterUrl = if (poster.startsWith("http")) poster else if (poster.isNotEmpty()) "$activeServerBase$poster" else ""
-            val kpRating = if (it.has("rating_kp") && !it.isNull("rating_kp")) it.optDouble("rating_kp", 7.5) else 0.0
-            val imdbRating = if (it.has("rating_imdb") && !it.isNull("rating_imdb")) it.optDouble("rating_imdb", 7.2) else 0.0
-            val rating = if (kpRating > 0) kpRating else if (imdbRating > 0) imdbRating else it.optDouble("rating", 7.5)
+            val lampaRating = if (it.has("rating_lampa") && !it.isNull("rating_lampa")) it.optDouble("rating_lampa", 0.0) else 0.0
+            val effRating = if (it.has("effective_rating") && !it.isNull("effective_rating")) it.optDouble("effective_rating", 0.0) else 0.0
+            val kpRating = if (it.has("rating_kp") && !it.isNull("rating_kp")) it.optDouble("rating_kp", 0.0) else 0.0
+            val imdbRating = if (it.has("rating_imdb") && !it.isNull("rating_imdb")) it.optDouble("rating_imdb", 0.0) else 0.0
+            val generalRating = it.optDouble("rating", 0.0)
+            val rating = when {
+                lampaRating > 0.0 -> lampaRating
+                effRating > 0.0 -> effRating
+                kpRating > 0.0 -> kpRating
+                imdbRating > 0.0 -> imdbRating
+                generalRating > 0.0 -> generalRating
+                else -> 7.0
+            }
+            val lampaPopularity = it.optDouble("lampa_popularity", it.optDouble("popularity", 0.0))
             val rawYear = it.optString("year", "2024").replace("null", "").trim()
             val year = if (rawYear.isNotEmpty()) rawYear else "2024"
             val isSeries = it.optBoolean("is_series", false)
@@ -863,8 +877,11 @@ object ShowHubApiClient {
                     posterUrl = posterUrl,
                     backdropUrl = posterUrl,
                     rating = rating,
-                    ratingKp = if (kpRating > 0) kpRating else rating,
-                    ratingImdb = if (imdbRating > 0) imdbRating else rating,
+                    ratingKp = kpRating,
+                    ratingImdb = imdbRating,
+                    ratingLampa = if (lampaRating > 0.0) lampaRating else if (effRating > 0.0) effRating else 0.0,
+                    lampaPopularity = lampaPopularity,
+                    rankIndex = if (isRanked) outList.size + 1 else 0,
                     releaseYear = year,
                     duration = if (isSeries) "\u0421\u0435\u0440\u0438\u0430\u043b" else "\u0424\u0438\u043b\u044c\u043c",
                     country = country,

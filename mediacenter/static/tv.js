@@ -2269,7 +2269,7 @@ function handlePosterError(img, encodedTitle, year, kpId) {
         });
 }
 
-function buildSingleMediaCardHtml(it, favsObj = null) {
+function buildSingleMediaCardHtml(it, favsObj = null, rankIndex = null) {
     if (!favsObj) favsObj = getFavorites();
     const prog = getMediaProgress(it.id, it.kinopoisk_id, it.title, it.source_name, it.year);
     let progressBadgeHtml = "";
@@ -2279,13 +2279,21 @@ function buildSingleMediaCardHtml(it, favsObj = null) {
         progressBadgeHtml = `<div class="card-progress-bar"><div class="card-progress-fill" style="width: ${prog.percentage}%;"></div></div>`;
     }
 
-    const ratingVal = it.rating_kp || it.rating_imdb;
-    const voteCount = it.vote_num_kp || it.vote_num_imdb || it.extra_data?.vote_num_kp || it.extra_data?.vote_num_imdb;
+    const ratingVal = it.rating_lampa || it.effective_rating || it.rating || it.rating_kp || it.rating_imdb;
+    const voteCount = it.vote_count || it.vote_num_kp || it.vote_num_imdb || it.extra_data?.vote_count || it.extra_data?.vote_num_kp || it.extra_data?.vote_num_imdb;
     const formattedVotes = formatVoteCount(voteCount);
     let ratingBadgeHtml = "";
-    if (ratingVal) {
+    if (ratingVal && Number(ratingVal) > 0) {
         const rScore = Number(ratingVal).toFixed(1);
-        ratingBadgeHtml = `<span class="media-badge-rating">★ ${rScore}${formattedVotes ? ` <span class="rating-votes">(${formattedVotes})</span>` : ''}</span>`;
+        const isLampa = Boolean(it.rating_lampa || it.effective_rating || it.source_name === 'lampa');
+        const badgeClass = isLampa ? "media-badge-rating badge-rating-lampa" : "media-badge-rating";
+        ratingBadgeHtml = `<span class="${badgeClass}">★ ${rScore}${formattedVotes ? ` <span class="rating-votes">(${formattedVotes})</span>` : ''}</span>`;
+    }
+
+    let rankBadgeHtml = "";
+    if (rankIndex && Number(rankIndex) > 0) {
+        const topCls = rankIndex === 1 ? "rank-1" : (rankIndex === 2 ? "rank-2" : (rankIndex === 3 ? "rank-3" : ""));
+        rankBadgeHtml = `<span class="media-badge-rank ${topCls}">#${rankIndex}</span>`;
     }
 
     const idKey = String(it.id || it.kinopoisk_id);
@@ -2311,7 +2319,7 @@ function buildSingleMediaCardHtml(it, favsObj = null) {
          data-series="${it.is_series ? '1' : '0'}">
         <div class="media-poster-wrapper">
             <img class="media-poster" src="${safePoster}" alt="${it.title}" loading="lazy" decoding="async"${needResolveAttr} onerror="handlePosterError(this, '${encodeURIComponent(it.title)}', '${it.year || ''}', '${it.kinopoisk_id || ''}')">
-            <span class="media-badge-source">${it.source_name}</span>
+            ${rankBadgeHtml || `<span class="media-badge-source">${it.source_name}</span>`}
             ${ratingBadgeHtml}
             ${newEpBadgeHtml}
             ${seriesBadgeHtml}
@@ -2453,14 +2461,17 @@ function renderMediaCards(items, container) {
     }
 
     const favsObj = getFavorites();
-    container.innerHTML = items.map(it => buildSingleMediaCardHtml(it, favsObj)).join("");
+    const sortVal = document.getElementById("filter-sort")?.value || "popular";
+    const isPopular = (sortVal === "popular" || currentCategory === "all");
+    container.innerHTML = items.map((it, idx) => buildSingleMediaCardHtml(it, favsObj, isPopular ? idx + 1 : null)).join("");
     container.querySelectorAll(".media-card").forEach(card => attachCardEvents(card, container));
 }
 
 function appendMediaCards(items, container) {
     if (!items || items.length === 0) return;
     const existingIds = new Set();
-    container.querySelectorAll(".media-card").forEach(c => {
+    const currentCards = container.querySelectorAll(".media-card");
+    currentCards.forEach(c => {
         const cid = c.getAttribute("data-id") || c.getAttribute("data-kp");
         if (cid) existingIds.add(cid);
     });
@@ -2472,8 +2483,11 @@ function appendMediaCards(items, container) {
     if (newItems.length === 0) return;
 
     const favsObj = getFavorites();
+    const sortVal = document.getElementById("filter-sort")?.value || "popular";
+    const isPopular = (sortVal === "popular" || currentCategory === "all");
+    const currentCount = currentCards.length;
     const tempDiv = document.createElement("div");
-    tempDiv.innerHTML = newItems.map(it => buildSingleMediaCardHtml(it, favsObj)).join("");
+    tempDiv.innerHTML = newItems.map((it, idx) => buildSingleMediaCardHtml(it, favsObj, isPopular ? currentCount + idx + 1 : null)).join("");
     const newCards = Array.from(tempDiv.children);
 
     newCards.forEach(card => {
@@ -2611,6 +2625,8 @@ async function openMediaModal(card) {
     document.getElementById("modal-meta").textContent = `${year || 'Н/Д'} • ${isSeries ? 'Сериал' : 'Фильм'}`;
     document.getElementById("modal-poster").src = poster || "noposter.png";
 
+    const lampaBoxReset = document.getElementById("rating-lampa-box");
+    if (lampaBoxReset) lampaBoxReset.style.display = "none";
     document.getElementById("rating-kp-box").style.display = "none";
     document.getElementById("rating-imdb-box").style.display = "none";
     document.getElementById("row-director").style.display = "none";
@@ -2725,6 +2741,16 @@ function renderDetailsUI(details) {
     }
 
     // Ratings
+    const rLampa = details.rating_lampa || details.effective_rating || (details.source_name === 'lampa' ? details.rating : null);
+    if (rLampa && Number(rLampa) > 0) {
+        const lampaBox = document.getElementById("rating-lampa-box");
+        if (lampaBox) {
+            document.getElementById("rating-lampa-val").textContent = Number(rLampa).toFixed(1);
+            const votes = details.vote_count || details.extra_data?.vote_count;
+            document.getElementById("rating-lampa-votes").textContent = votes ? `${votes} оценок` : '';
+            lampaBox.style.display = "flex";
+        }
+    }
     if (details.rating_kp) {
         const kpBox = document.getElementById("rating-kp-box");
         document.getElementById("rating-kp-val").textContent = `${details.rating_kp}`;

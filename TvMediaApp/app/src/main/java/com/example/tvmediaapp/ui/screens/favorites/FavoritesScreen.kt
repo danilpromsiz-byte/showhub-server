@@ -191,7 +191,7 @@ fun FavoritesScreen(
                         .then(if (index < 6) Modifier.focusProperties { up = backButtonFocusRequester } else Modifier)
 
                     MovieCard(
-                        movie = movie,
+                        movie = if (movie.rankIndex > 0) movie.copy(rankIndex = 0) else movie,
                         onClick = { onMovieSelect(movie) },
                         onFocus = {},
                         cardModifier = cardFocusMod

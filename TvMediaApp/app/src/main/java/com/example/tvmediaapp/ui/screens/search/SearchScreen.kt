@@ -553,7 +553,7 @@ fun SearchScreen(
                                 }
                             }
                             MovieCard(
-                                movie = movie,
+                                movie = if (movie.rankIndex > 0) movie.copy(rankIndex = 0) else movie,
                                 onClick = {
                                     commitQuery(movie.title)
                                     saveRecentMovie(movie)
@@ -603,7 +603,7 @@ fun SearchScreen(
                         Modifier
                     }
                     MovieCard(
-                        movie = movie,
+                        movie = if (movie.rankIndex > 0) movie.copy(rankIndex = 0) else movie,
                         onClick = {
                             commitQuery(movie.title)
                             saveRecentMovie(movie)

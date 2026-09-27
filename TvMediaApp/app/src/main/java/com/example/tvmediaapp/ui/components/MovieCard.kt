@@ -540,7 +540,7 @@ fun MovieCard(
                             !historyManager.isEpisodeWatched(movie.id, seasonNum, epNum)
                         }
 
-                        if (newEpisodesCount > 0) {
+                        if (newEpisodesCount > 0 && movie.rankIndex <= 0) {
                             Box(
                                 modifier = Modifier
                                     .align(Alignment.TopStart)
@@ -559,6 +559,57 @@ fun MovieCard(
                                         color = Color.White,
                                         maxLines = 1
                                     )
+                                }
+                            }
+                        }
+                    }
+
+                    // Top-Left: Rank Badge (#1, #2, ...) & New Episodes
+                    if (movie.rankIndex > 0) {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopStart)
+                                .padding(5.dp)
+                        ) {
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(3.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                val (rankBg, rankFg) = when (movie.rankIndex) {
+                                    1 -> Brush.linearGradient(listOf(Color(0xFFFFD700), Color(0xFFFFA500))) to Color.Black
+                                    2 -> Brush.linearGradient(listOf(Color(0xFFE2E8F0), Color(0xFF94A3B8))) to Color.Black
+                                    3 -> Brush.linearGradient(listOf(Color(0xFFF59E0B), Color(0xFFB45309))) to Color.White
+                                    else -> Brush.linearGradient(listOf(Color(0xDC0F172A), Color(0xDC1E293B))) to Color(0xFFE2E8F0)
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(rankBg)
+                                        .padding(horizontal = 5.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = "#${movie.rankIndex}",
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = rankFg
+                                    )
+                                }
+
+                                if (movie.isSeries && newEpisodesCount > 0) {
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(4.dp))
+                                            .background(Color(0xFFE53935).copy(alpha = 0.95f))
+                                            .padding(horizontal = 4.dp, vertical = 2.dp)
+                                    ) {
+                                        Text(
+                                            text = "+$newEpisodesCount",
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.White,
+                                            maxLines = 1
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -606,6 +657,20 @@ fun MovieCard(
                                 ) {
                                     Text(
                                         text = "КП ${String.format(java.util.Locale.US, "%.1f", movie.ratingKp)}",
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
+                                }
+                            } else if (movie.ratingLampa > 0) {
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(Color(0xFF10B981).copy(alpha = 0.92f))
+                                        .padding(horizontal = 4.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = "★ ${String.format(java.util.Locale.US, "%.1f", movie.ratingLampa)}",
                                         fontSize = 9.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = Color.White

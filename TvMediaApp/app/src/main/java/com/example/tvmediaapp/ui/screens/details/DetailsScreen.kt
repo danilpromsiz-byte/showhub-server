@@ -1094,6 +1094,22 @@ fun DetailsScreen(
                             }
                         }
 
+                        if (currentMovie.ratingLampa > 0) {
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(Color(0xFF10B981))
+                                    .padding(horizontal = 10.dp, vertical = 4.dp)
+                            ) {
+                                Text(
+                                    text = "★ ${String.format(java.util.Locale.US, "%.1f", currentMovie.ratingLampa)}",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                            }
+                        }
+
                         if (currentMovie.ratingKp > 0) {
                             Box(
                                 modifier = Modifier
@@ -1122,6 +1138,22 @@ fun DetailsScreen(
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = Color.Black
+                                )
+                            }
+                        }
+
+                        if (currentMovie.ratingKp <= 0 && currentMovie.ratingImdb <= 0 && currentMovie.ratingLampa <= 0 && currentMovie.rating > 0) {
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(Color(0xFF10B981))
+                                    .padding(horizontal = 10.dp, vertical = 4.dp)
+                            ) {
+                                Text(
+                                    text = "★ ${String.format(java.util.Locale.US, "%.1f", currentMovie.rating)}",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
                                 )
                             }
                         }

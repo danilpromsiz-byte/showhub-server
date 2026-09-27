@@ -212,11 +212,20 @@ def serve_pc_distribution():
     raise HTTPException(status_code=404, detail="PC package not found")
 
 @app.get("/api/popular")
-def get_popular() -> List[Dict[str, Any]]:
+def get_popular(
+    include_unreleased_movies: bool = False,
+    include_unreleased_series: bool = True
+) -> List[Dict[str, Any]]:
     """Returns dynamic curated trending & popular hits powered by Lampa and MediaRegistry."""
     # 1. Primary: Fast (<2ms) indexed query from MediaRegistry with genuine Lampa popularity ranking
     try:
-        reg_items = media_registry.query_catalog(category="all", sort_by="popular", limit=40)
+        reg_items = media_registry.query_catalog(
+            category="all",
+            sort_by="popular",
+            limit=40,
+            include_unreleased_movies=include_unreleased_movies,
+            include_unreleased_series=include_unreleased_series
+        )
         if len(reg_items) >= 10:
             for it in reg_items:
                 if not it.get("rating") or it.get("rating") == 0:
@@ -903,13 +912,15 @@ def get_catalog(
     sort_by: Optional[str] = "newest",
     page: int = 1,
     excluded_countries: Optional[str] = None,
-    excluded_genres: Optional[str] = None
+    excluded_genres: Optional[str] = None,
+    include_unreleased_movies: bool = False,
+    include_unreleased_series: bool = True
 ) -> List[Dict[str, Any]]:
     """
     Returns dynamic fresh releases (новинки) and catalog items aggregated across live sources.
-    Supports filtering by genre, country, content type (movies/series/cartoons/anime), release year, minimum rating, excluded countries, excluded genres, and sorting.
+    Supports filtering by genre, country, content type, release year, minimum rating, excluded countries, excluded genres, unreleased status, and sorting.
     """
-    cache_key = f"{category}_{genre}_{year}_{country}_{content_type}_{min_rating}_{sort_by}_{page}_{excluded_countries}_{excluded_genres}"
+    cache_key = f"{category}_{genre}_{year}_{country}_{content_type}_{min_rating}_{sort_by}_{page}_{excluded_countries}_{excluded_genres}_{include_unreleased_movies}_{include_unreleased_series}"
     now_ts = time.time()
     if cache_key in _catalog_cache:
         cached_time, cached_items = _catalog_cache[cache_key]
@@ -930,7 +941,9 @@ def get_catalog(
             page=page,
             limit=50,
             excluded_countries=excluded_countries,
-            excluded_genres=excluded_genres
+            excluded_genres=excluded_genres,
+            include_unreleased_movies=include_unreleased_movies,
+            include_unreleased_series=include_unreleased_series
         )
         if len(reg_items) >= 15:
             for it in reg_items:

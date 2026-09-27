@@ -7,13 +7,13 @@ val CyanDark = Color(0xFF0099B8)
 val RedPrimary = CyanNeon // Backward compatibility
 val RedDark = CyanDark
 
-val BackgroundDark = Color(0xFF07090E) // ShowHub Obsidian Space Black
-val SurfaceDark = Color(0xFF0D121C) // ShowHub Deep Card Surface
-val SurfaceVariantDark = Color(0xFF141B28) // ShowHub Card Elevation
+val BackgroundDark = Color(0xFF0F1420) // Rich deep slate/navy (non-black)
+val SurfaceDark = Color(0xFF171E2E) // ShowHub Deep Card Surface
+val SurfaceVariantDark = Color(0xFF222B3E) // ShowHub Card Elevation
 val PureBlack = Color(0xFF000000) // OLED Pure True Black
-val PureBlackSurface = Color(0xFF000000)
-val PureBlackSurfaceVariant = Color(0xFF050505)
-val ChipBackground = Color(0xFF1E2638)
+val PureBlackSurface = Color(0xFF080808)
+val PureBlackSurfaceVariant = Color(0xFF121212)
+val ChipBackground = Color(0xFF1E283C)
 val ChipSelectedBackground = Color(0xFF00E5FF)
 
 val TextWhite = Color(0xFFF8FAFC)

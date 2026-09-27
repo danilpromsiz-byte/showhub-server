@@ -78,7 +78,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     private val prefs = application.getSharedPreferences("showhub_prefs", android.content.Context.MODE_PRIVATE)
     private val prefsListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-        if (key in listOf("pref_excluded_countries", "pref_excluded_genres", "pref_only_with_poster")) {
+        if (key in listOf("pref_excluded_countries", "pref_excluded_genres", "pref_only_with_poster", "pref_unreleased_movies", "pref_unreleased_series")) {
             loadCatalog()
         }
     }

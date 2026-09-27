@@ -29,6 +29,7 @@ pc-client/publish/
 **/__pycache__/
 **/*.pyc
 **/*.log
+mediacenter/static/ShowHub-PC/
 !/mediacenter/data/
 !/mediacenter/data/users_stats.json
 

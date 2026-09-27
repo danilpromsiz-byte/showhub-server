@@ -940,12 +940,12 @@ fun DetailsScreen(
                 )
         )
 
-        // Two-pane Layout
+        // Two-pane Layout (More breathing room and spacious composition)
         Row(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(start = 48.dp, top = 36.dp, end = 48.dp, bottom = 36.dp),
-            horizontalArrangement = Arrangement.spacedBy(36.dp)
+                .padding(start = 42.dp, top = 30.dp, end = 42.dp, bottom = 30.dp),
+            horizontalArrangement = Arrangement.spacedBy(44.dp)
         ) {
             // LEFT PANE: Focusable Poster & Metadata Card
             var isLeftPaneFocused by remember { mutableStateOf(false) }
@@ -963,7 +963,7 @@ fun DetailsScreen(
                 scale = CardDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                 shape = CardDefaults.shape(RoundedCornerShape(12.dp)),
                 modifier = Modifier
-                    .width(260.dp)
+                    .width(240.dp)
                     .fillMaxHeight()
                     .focusRequester(leftPaneFocusRequester)
                     .focusProperties {
@@ -1351,7 +1351,7 @@ fun DetailsScreen(
                                 prefs.edit().putString("pref_quality", q).apply()
                             },
                             colors = ButtonDefaults.colors(
-                                containerColor = if (isSelected) accent.copy(alpha = 0.85f) else ChipBackground,
+                                containerColor = if (isSelected) accent.copy(alpha = 0.70f) else Color.White.copy(alpha = 0.08f),
                                 focusedContainerColor = focusColor,
                                 contentColor = if (isSelected) Color.Black else TextWhite,
                                 focusedContentColor = Color.Black
@@ -1363,7 +1363,7 @@ fun DetailsScreen(
                             shape = ButtonDefaults.shape(RoundedCornerShape(6.dp)),
                             scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                            modifier = Modifier.height(24.dp)
+                            modifier = Modifier.height(22.dp)
                         ) {
                             Text(
                                 text = q,
@@ -1497,7 +1497,7 @@ fun DetailsScreen(
                                 )
                             },
                             colors = ButtonDefaults.colors(
-                                containerColor = accent,
+                                containerColor = accent.copy(alpha = 0.70f),
                                 focusedContainerColor = focusColor,
                                 contentColor = Color.Black,
                                 focusedContentColor = Color.Black
@@ -1508,9 +1508,9 @@ fun DetailsScreen(
                             ),
                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                             scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                            contentPadding = PaddingValues(horizontal = 9.dp, vertical = 0.dp),
                             modifier = Modifier
-                                .height(28.dp)
+                                .height(25.dp)
                                 .focusRequester(playButtonFocusRequester)
                                 .focusProperties {
                                     left = leftPaneFocusRequester
@@ -1540,7 +1540,7 @@ fun DetailsScreen(
                         Button(
                             onClick = { startPlayback(startPos = 0L) },
                             colors = ButtonDefaults.colors(
-                                containerColor = Color.White.copy(alpha = 0.12f),
+                                containerColor = Color.White.copy(alpha = 0.08f),
                                 focusedContainerColor = focusColor,
                                 contentColor = TextWhite,
                                 focusedContentColor = Color.Black
@@ -1551,9 +1551,9 @@ fun DetailsScreen(
                             ),
                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                             scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                            contentPadding = PaddingValues(horizontal = 9.dp, vertical = 0.dp),
                             modifier = Modifier
-                                .height(28.dp)
+                                .height(25.dp)
                                 .focusRequester(fromStartButtonFocusRequester)
                                 .focusProperties {
                                     left = playButtonFocusRequester
@@ -1583,7 +1583,7 @@ fun DetailsScreen(
                         Button(
                             onClick = { startPlayback(startPos = 0L) },
                             colors = ButtonDefaults.colors(
-                                containerColor = accent,
+                                containerColor = accent.copy(alpha = 0.70f),
                                 focusedContainerColor = focusColor,
                                 contentColor = Color.Black,
                                 focusedContentColor = Color.Black
@@ -1594,9 +1594,9 @@ fun DetailsScreen(
                             ),
                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                             scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                            contentPadding = PaddingValues(horizontal = 9.dp, vertical = 0.dp),
                             modifier = Modifier
-                                .height(28.dp)
+                                .height(25.dp)
                                 .focusRequester(playButtonFocusRequester)
                                 .focusProperties {
                                     left = leftPaneFocusRequester
@@ -1653,7 +1653,7 @@ fun DetailsScreen(
                             }
                         },
                         colors = ButtonDefaults.colors(
-                            containerColor = Color.White.copy(alpha = 0.12f),
+                            containerColor = Color.White.copy(alpha = 0.08f),
                             focusedContainerColor = focusColor,
                             contentColor = TextWhite,
                             focusedContentColor = Color.Black
@@ -1664,9 +1664,9 @@ fun DetailsScreen(
                         ),
                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                         scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
-                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                        contentPadding = PaddingValues(horizontal = 9.dp, vertical = 0.dp),
                         modifier = Modifier
-                            .height(28.dp)
+                            .height(25.dp)
                             .focusRequester(trailerButtonFocusRequester)
                             .focusProperties {
                                 left = if (hasResume) fromStartButtonFocusRequester else playButtonFocusRequester
@@ -1781,7 +1781,7 @@ fun DetailsScreen(
                             }
                         },
                         colors = ButtonDefaults.colors(
-                            containerColor = Color.White.copy(alpha = 0.12f),
+                            containerColor = Color.White.copy(alpha = 0.08f),
                             focusedContainerColor = focusColor,
                             contentColor = TextWhite,
                             focusedContentColor = Color.Black
@@ -1792,9 +1792,9 @@ fun DetailsScreen(
                         ),
                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                         scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
-                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                        contentPadding = PaddingValues(horizontal = 9.dp, vertical = 0.dp),
                         modifier = Modifier
-                            .height(28.dp)
+                            .height(25.dp)
                             .focusRequester(externalPlayerFocusRequester)
                             .focusProperties {
                                 left = trailerButtonFocusRequester
@@ -1834,7 +1834,7 @@ fun DetailsScreen(
                             onToggleFavorite(currentMovie)
                         },
                         colors = ButtonDefaults.colors(
-                            containerColor = Color.White.copy(alpha = 0.12f),
+                            containerColor = Color.White.copy(alpha = 0.08f),
                             focusedContainerColor = focusColor,
                             contentColor = TextWhite,
                             focusedContentColor = Color.Black
@@ -1845,9 +1845,9 @@ fun DetailsScreen(
                         ),
                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                         scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
-                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                        contentPadding = PaddingValues(horizontal = 9.dp, vertical = 0.dp),
                         modifier = Modifier
-                            .height(28.dp)
+                            .height(25.dp)
                             .focusRequester(favoriteButtonFocusRequester)
                             .onFocusChanged { isFavoriteFocused = it.isFocused }
                             .focusProperties {
@@ -1878,7 +1878,7 @@ fun DetailsScreen(
                     Button(
                         onClick = onBackClick,
                         colors = ButtonDefaults.colors(
-                            containerColor = Color.White.copy(alpha = 0.12f),
+                            containerColor = Color.White.copy(alpha = 0.08f),
                             focusedContainerColor = focusColor,
                             contentColor = TextWhite,
                             focusedContentColor = Color.Black
@@ -1889,9 +1889,9 @@ fun DetailsScreen(
                         ),
                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                         scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
-                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                        contentPadding = PaddingValues(horizontal = 9.dp, vertical = 0.dp),
                         modifier = Modifier
-                            .height(28.dp)
+                            .height(25.dp)
                             .focusRequester(backButtonFocusRequester)
                             .focusProperties {
                                 left = favoriteButtonFocusRequester
@@ -1959,7 +1959,7 @@ fun DetailsScreen(
                     tabs.forEachIndexed { index, tabTitle ->
                         val isSelected = selectedDetailTab == index
                         val tabMod = Modifier
-                            .height(26.dp)
+                            .height(24.dp)
                             .then(if (index == 0) Modifier.focusRequester(tabsFocusRequester) else Modifier)
                             .focusProperties {
                                 up = favoriteButtonFocusRequester
@@ -1970,7 +1970,7 @@ fun DetailsScreen(
                         Button(
                             onClick = { selectedDetailTab = index },
                             colors = ButtonDefaults.colors(
-                                containerColor = if (isSelected) accent.copy(alpha = 0.85f) else ChipBackground,
+                                containerColor = if (isSelected) accent.copy(alpha = 0.70f) else Color.White.copy(alpha = 0.08f),
                                 focusedContainerColor = focusColor,
                                 contentColor = if (isSelected) Color.Black else TextWhite,
                                 focusedContentColor = Color.Black
@@ -1981,7 +1981,7 @@ fun DetailsScreen(
                             ),
                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                             scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
-                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                            contentPadding = PaddingValues(horizontal = 9.dp, vertical = 0.dp),
                             modifier = tabMod.onFocusChanged {
                                 if (it.isFocused) {
                                     selectedDetailTab = index
@@ -2028,7 +2028,7 @@ fun DetailsScreen(
                                     Button(
                                         onClick = { selectedSourceFilter = "Все"; streamStatus = "Источник: Все" },
                                         colors = ButtonDefaults.colors(
-                                            containerColor = if (isAllSelected) accent.copy(alpha = 0.85f) else ChipBackground,
+                                            containerColor = if (isAllSelected) accent.copy(alpha = 0.70f) else Color.White.copy(alpha = 0.08f),
                                             focusedContainerColor = focusColor,
                                             contentColor = if (isAllSelected) Color.Black else TextWhite,
                                             focusedContentColor = Color.Black
@@ -2037,7 +2037,7 @@ fun DetailsScreen(
                                         shape = ButtonDefaults.shape(RoundedCornerShape(6.dp)),
                                         scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                                        modifier = Modifier.height(28.dp).then(allMod)
+                                        modifier = Modifier.height(24.dp).then(allMod)
                                     ) {
                                         Text(text = "Все", fontSize = 10.sp, fontWeight = if (isAllSelected) FontWeight.Bold else FontWeight.Normal)
                                     }
@@ -2108,7 +2108,7 @@ fun DetailsScreen(
                                             streamStatus = "Источник: ${srcInfo.name} ($typeBadge)"
                                         },
                                         colors = ButtonDefaults.colors(
-                                            containerColor = if (isSrcSelected) accent.copy(alpha = 0.85f) else ChipBackground,
+                                            containerColor = if (isSrcSelected) accent.copy(alpha = 0.70f) else Color.White.copy(alpha = 0.08f),
                                             focusedContainerColor = focusColor,
                                             contentColor = if (isSrcSelected) Color.Black else TextWhite,
                                             focusedContentColor = Color.Black
@@ -2117,7 +2117,7 @@ fun DetailsScreen(
                                         shape = ButtonDefaults.shape(RoundedCornerShape(6.dp)),
                                         scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                                        modifier = Modifier.height(28.dp)
+                                        modifier = Modifier.height(24.dp)
                                     ) {
                                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                             Text(text = chipLabel, fontSize = 10.sp, fontWeight = if (isSrcSelected) FontWeight.Bold else FontWeight.Normal)
@@ -2164,7 +2164,7 @@ fun DetailsScreen(
                                             streamStatus = "Выбрано качество: $qual"
                                         },
                                         colors = ButtonDefaults.colors(
-                                            containerColor = if (isQSelected) accent.copy(alpha = 0.85f) else ChipBackground,
+                                            containerColor = if (isQSelected) accent.copy(alpha = 0.70f) else Color.White.copy(alpha = 0.08f),
                                             focusedContainerColor = focusColor,
                                             contentColor = if (isQSelected) Color.Black else TextWhite,
                                             focusedContentColor = Color.Black
@@ -2173,7 +2173,7 @@ fun DetailsScreen(
                                         shape = ButtonDefaults.shape(RoundedCornerShape(6.dp)),
                                         scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                                        modifier = Modifier.height(24.dp).then(qMod)
+                                        modifier = Modifier.height(22.dp).then(qMod)
                                     ) {
                                         Text(text = qual, fontSize = 10.sp, fontWeight = if (isQSelected) FontWeight.Bold else FontWeight.Normal)
                                     }
@@ -2239,7 +2239,7 @@ fun DetailsScreen(
                                             }
                                         },
                                         colors = ButtonDefaults.colors(
-                                            containerColor = if (isSelected) accent.copy(alpha = 0.85f) else ChipBackground,
+                                            containerColor = if (isSelected) accent.copy(alpha = 0.70f) else Color.White.copy(alpha = 0.08f),
                                             focusedContainerColor = focusColor,
                                             contentColor = if (isSelected) Color.Black else TextWhite,
                                             focusedContentColor = Color.Black
@@ -2251,7 +2251,7 @@ fun DetailsScreen(
                                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                                         scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                                        modifier = Modifier.height(26.dp).then(audioMod)
+                                        modifier = Modifier.height(24.dp).then(audioMod)
                                     ) {
                                         val cachedSeasonEps = translatorSeasonsCache[track.id]?.firstOrNull { it.seasonNumber == selectedSeason }?.episodes?.size
                                         val seasonEpCount = cachedSeasonEps
@@ -2294,7 +2294,7 @@ fun DetailsScreen(
                                             selectedEpisode = 1
                                         },
                                         colors = ButtonDefaults.colors(
-                                            containerColor = if (isSelected) accent.copy(alpha = 0.85f) else ChipBackground,
+                                            containerColor = if (isSelected) accent.copy(alpha = 0.70f) else Color.White.copy(alpha = 0.08f),
                                             focusedContainerColor = focusColor,
                                             contentColor = if (isSelected) Color.Black else TextWhite,
                                             focusedContentColor = Color.Black
@@ -2306,7 +2306,7 @@ fun DetailsScreen(
                                         shape = ButtonDefaults.shape(RoundedCornerShape(6.dp)),
                                         scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
                                         contentPadding = PaddingValues(horizontal = 7.dp, vertical = 0.dp),
-                                        modifier = Modifier.height(24.dp).then(seasonMod)
+                                        modifier = Modifier.height(22.dp).then(seasonMod)
                                     ) {
                                         Text(text = season.title, fontSize = 10.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
                                     }
@@ -2400,7 +2400,7 @@ fun DetailsScreen(
                                             startPlayback(targetSeason = selectedSeason, targetEpisode = ep.episodeNumber, startPos = 0L)
                                         },
                                         colors = ButtonDefaults.colors(
-                                            containerColor = if (isSelected) accent.copy(alpha = 0.85f) else ChipBackground,
+                                            containerColor = if (isSelected) accent.copy(alpha = 0.70f) else Color.White.copy(alpha = 0.08f),
                                             focusedContainerColor = focusColor,
                                             contentColor = if (isSelected) Color.Black else TextWhite,
                                             focusedContentColor = Color.Black

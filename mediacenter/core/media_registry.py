@@ -560,16 +560,30 @@ class MediaRegistry:
         page: int = 1,
         limit: int = 50,
         excluded_countries: Optional[str] = None,
-        excluded_genres: Optional[str] = None
+        excluded_genres: Optional[str] = None,
+        include_unreleased_movies: bool = False,
+        include_unreleased_series: bool = True
     ) -> List[Dict[str, Any]]:
         """
         High-performance (<3ms) indexed catalog query with real multi-criteria filtering,
         global sorting across the entire library, and pagination.
         Enforces Lampa popularity ranking so obscure/unpopular items never float to the top.
+        Filters out unreleased/future movies unless explicitly enabled.
         """
         conn = self._get_connection()
         conditions = ["1=1"]
         params: List[Any] = []
+
+        # 0. Unreleased content filtering (Avatar 4, Avatar 5, future announcements)
+        import datetime
+        current_year = datetime.date.today().year
+        if not include_unreleased_movies:
+            conditions.append("(is_series = 1 OR year IS NULL OR year <= ?)")
+            params.append(current_year)
+
+        if not include_unreleased_series:
+            conditions.append("(is_series = 0 OR year IS NULL OR year <= ?)")
+            params.append(current_year)
 
         # 1. Effective category / content_type
         eff_cat = category if category != "all" else (content_type if content_type != "all" else "all")

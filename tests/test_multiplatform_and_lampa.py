@@ -14,23 +14,23 @@ class TestMultiplatformAndLampa(unittest.TestCase):
             with open(vpath, "r", encoding="utf-8") as f:
                 data = json.load(f)
 
-            self.assertEqual(data["version_code"], 119)
-            self.assertEqual(data["version_name"], "2.8.60")
+            self.assertEqual(data["version_code"], 120)
+            self.assertEqual(data["version_name"], "2.8.61")
             self.assertIn("ShowHub.apk", data["download_url"])
 
             # TV
             self.assertIn("tv", data)
-            self.assertEqual(data["tv"]["version_code"], 119)
+            self.assertEqual(data["tv"]["version_code"], 120)
             self.assertIn("ShowHub.apk", data["tv"]["download_url"])
 
             # Mobile
             self.assertIn("mobile", data)
-            self.assertEqual(data["mobile"]["version_code"], 119)
+            self.assertEqual(data["mobile"]["version_code"], 120)
             self.assertIn("ShowHub-Mobile.apk", data["mobile"]["download_url"])
 
             # PC
             self.assertIn("pc", data)
-            self.assertEqual(data["pc"]["version_code"], 119)
+            self.assertEqual(data["pc"]["version_code"], 120)
             self.assertIn("ShowHub-PC.zip", data["pc"]["download_url"])
 
     def test_distribution_packages(self):
@@ -163,7 +163,7 @@ class TestMultiplatformAndLampa(unittest.TestCase):
         v_resp = client.get("/version.json")
         self.assertEqual(v_resp.status_code, 200)
         v_data = v_resp.json()
-        self.assertEqual(v_data["version_code"], 119)
+        self.assertEqual(v_data["version_code"], 120)
         self.assertIn("mobile", v_data)
         self.assertIn("pc", v_data)
         self.assertIn("tv", v_data)

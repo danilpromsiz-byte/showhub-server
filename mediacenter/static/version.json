@@ -1,27 +1,27 @@
 {
   "success": true,
-  "version_name": "2.8.60",
-  "version_code": 119,
+  "version_name": "2.8.61",
+  "version_code": 120,
   "force_update": true,
   "min_version_code": 108,
   "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
   "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
-  "changelog": "v2.8.60: Мультиплатформенный релиз: раздельные версии для TV (ShowHub.apk), смартфонов (ShowHub-Mobile.apk) и ПК (ShowHub-PC.zip). Интеграция рейтингов и популярности Lampa с приоритизацией Lampa > KP > Rezka.",
+  "changelog": "v2.8.61: Устранено появление окна обновления Android APK на ПК. Добавлены раздельные фильтры невышедших фильмов (по умолчанию выкл) и сериалов (вкл). Просторная карточка фильма с компактными полупрозрачными кнопками действий. Восстановлен глубокий контраст темы с OLED Black. Очищен тестовый контент.",
   "tv": {
-    "version_name": "2.8.60",
-    "version_code": 119,
+    "version_name": "2.8.61",
+    "version_code": 120,
     "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
     "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk"
   },
   "mobile": {
-    "version_name": "2.8.60",
-    "version_code": 119,
+    "version_name": "2.8.61",
+    "version_code": 120,
     "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-Mobile.apk",
     "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-Mobile.apk"
   },
   "pc": {
-    "version_name": "2.8.60",
-    "version_code": 119,
+    "version_name": "2.8.61",
+    "version_code": 120,
     "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-PC.zip"
   }
 }

@@ -590,6 +590,30 @@ class CatalogRepository(context: Context? = null) {
             if (onlyWithPoster) {
                 effective = effective.filter { m -> hasValidPoster(m.posterUrl) }
             }
+
+            val includeUnreleasedMovies = prefs?.getBoolean("pref_unreleased_movies", false) ?: false
+            val includeUnreleasedSeries = prefs?.getBoolean("pref_unreleased_series", true) ?: true
+            val currentYear = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR)
+
+            if (!includeUnreleasedMovies) {
+                effective = effective.filter { m ->
+                    if (m.isSeries) true
+                    else {
+                        val yr = m.releaseYear.filter { it.isDigit() }.toIntOrNull()
+                        yr == null || yr <= currentYear
+                    }
+                }
+            }
+            if (!includeUnreleasedSeries) {
+                effective = effective.filter { m ->
+                    if (!m.isSeries) true
+                    else {
+                        val yr = m.releaseYear.filter { it.isDigit() }.toIntOrNull()
+                        yr == null || yr <= currentYear
+                    }
+                }
+            }
+
             effective = filterAndSort(effective, category, genre, sortBy, year, country)
             if (effective.isEmpty()) return emptyList()
 
@@ -647,7 +671,9 @@ class CatalogRepository(context: Context? = null) {
                 year = year,
                 country = country,
                 excludedCountries = if (excludedCountriesStr.isNotBlank()) excludedCountriesStr else null,
-                excludedGenres = if (excludedGenresStr.isNotBlank()) excludedGenresStr else null
+                excludedGenres = if (excludedGenresStr.isNotBlank()) excludedGenresStr else null,
+                includeUnreleasedMovies = prefs?.getBoolean("pref_unreleased_movies", false) ?: false,
+                includeUnreleasedSeries = prefs?.getBoolean("pref_unreleased_series", true) ?: true
             )
             if (liveMovies.isNotEmpty()) {
                 val isDefaultMainCatalog = category == "all" &&

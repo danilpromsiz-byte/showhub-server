@@ -217,6 +217,8 @@ fun SettingsScreen(
     var selectedVoice by remember { mutableStateOf(prefs.getString("pref_voice", "Любая / Оригинал") ?: "Любая / Оригинал") }
     var selectedPreviewStart by remember { mutableStateOf(prefs.getInt("pref_preview_start_min", 12)) }
     var onlyWithPoster by remember { mutableStateOf(prefs.getBoolean("pref_only_with_poster", true)) }
+    var showUnreleasedMovies by remember { mutableStateOf(prefs.getBoolean("pref_unreleased_movies", false)) }
+    var showUnreleasedSeries by remember { mutableStateOf(prefs.getBoolean("pref_unreleased_series", true)) }
     var excludedCountriesStr by remember { mutableStateOf(prefs.getString("pref_excluded_countries", "") ?: "") }
     var excludedGenresStr by remember { mutableStateOf(prefs.getString("pref_excluded_genres", "") ?: "") }
 
@@ -805,6 +807,80 @@ fun SettingsScreen(
                                         text = "$mark Показывать только фильмы с обложкой",
                                         fontSize = 11.sp,
                                         fontWeight = if (onlyWithPoster) FontWeight.Bold else FontWeight.Normal,
+                                        lineHeight = 13.sp
+                                    )
+                                }
+                            }
+
+                            // Toggle: Show unreleased movies (Default: OFF / false)
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                modifier = Modifier.padding(top = 4.dp)
+                            ) {
+                                Button(
+                                    onClick = {
+                                        val newState = !showUnreleasedMovies
+                                        showUnreleasedMovies = newState
+                                        prefs.edit().putBoolean("pref_unreleased_movies", newState).apply()
+                                    },
+                                    colors = ButtonDefaults.colors(
+                                        containerColor = if (showUnreleasedMovies) accent.copy(alpha = 0.85f) else ChipBackground,
+                                        focusedContainerColor = LocalFocusColor.current,
+                                        contentColor = if (showUnreleasedMovies) Color.Black else TextWhite,
+                                        focusedContentColor = Color.Black
+                                    ),
+                                    border = ButtonDefaults.border(
+                                        border = Border.None,
+                                        focusedBorder = Border.None
+                                    ),
+                                    shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                                    modifier = Modifier.height(28.dp)
+                                ) {
+                                    val markM = if (showUnreleasedMovies) "☑" else "☐"
+                                    Text(
+                                        text = "$markM Показывать невышедшие фильмы (анонсы, Аватар 4/5 и т.д.)",
+                                        fontSize = 11.sp,
+                                        fontWeight = if (showUnreleasedMovies) FontWeight.Bold else FontWeight.Normal,
+                                        lineHeight = 13.sp
+                                    )
+                                }
+                            }
+
+                            // Toggle: Show unreleased series (Default: ON / true)
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                modifier = Modifier.padding(top = 4.dp)
+                            ) {
+                                Button(
+                                    onClick = {
+                                        val newState = !showUnreleasedSeries
+                                        showUnreleasedSeries = newState
+                                        prefs.edit().putBoolean("pref_unreleased_series", newState).apply()
+                                    },
+                                    colors = ButtonDefaults.colors(
+                                        containerColor = if (showUnreleasedSeries) accent.copy(alpha = 0.85f) else ChipBackground,
+                                        focusedContainerColor = LocalFocusColor.current,
+                                        contentColor = if (showUnreleasedSeries) Color.Black else TextWhite,
+                                        focusedContentColor = Color.Black
+                                    ),
+                                    border = ButtonDefaults.border(
+                                        border = Border.None,
+                                        focusedBorder = Border.None
+                                    ),
+                                    shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                                    modifier = Modifier.height(28.dp)
+                                ) {
+                                    val markS = if (showUnreleasedSeries) "☑" else "☐"
+                                    Text(
+                                        text = "$markS Показывать невышедшие сериалы (будущие релизы и сезоны)",
+                                        fontSize = 11.sp,
+                                        fontWeight = if (showUnreleasedSeries) FontWeight.Bold else FontWeight.Normal,
                                         lineHeight = 13.sp
                                     )
                                 }

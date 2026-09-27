@@ -5,8 +5,8 @@
  */
 
 // Application Version & Mandatory Update State
-const CURRENT_APP_VERSION = "2.8.16";
-const CURRENT_APP_VERSION_CODE = 75;
+const CURRENT_APP_VERSION = "2.8.61";
+const CURRENT_APP_VERSION_CODE = 120;
 window.isForceUpdateActive = false;
 
 // Migrate legacy local PC IP addresses to cloud server
@@ -305,7 +305,22 @@ function initThemeEngine() {
 try {
     const earlyTheme = localStorage.getItem("showhub_theme") || "cyan";
     document.documentElement.setAttribute("data-theme", earlyTheme);
+    const earlySettings = JSON.parse(localStorage.getItem("showhub_user_settings") || "{}");
+    if (earlySettings.pureBlack) {
+        document.documentElement.setAttribute("data-pure-black", "true");
+        document.body?.setAttribute("data-pure-black", "true");
+    }
 } catch (e) {}
+
+function applyPureBlack(enabled) {
+    if (enabled) {
+        document.documentElement.setAttribute("data-pure-black", "true");
+        document.body?.setAttribute("data-pure-black", "true");
+    } else {
+        document.documentElement.removeAttribute("data-pure-black");
+        document.body?.removeAttribute("data-pure-black");
+    }
+}
 
 function getSettings() {
     try {
@@ -316,10 +331,23 @@ function getSettings() {
             voice: s.voice || "any",
             voiceCustom: s.voiceCustom || "",
             autoSelect: (s.autoSelect !== undefined) ? s.autoSelect : true,
-            theme: s.theme || localStorage.getItem(THEME_KEY) || "cyan"
+            theme: s.theme || localStorage.getItem(THEME_KEY) || "cyan",
+            pureBlack: (s.pureBlack !== undefined) ? Boolean(s.pureBlack) : false,
+            unreleasedMovies: (s.unreleasedMovies !== undefined) ? Boolean(s.unreleasedMovies) : false,
+            unreleasedSeries: (s.unreleasedSeries !== undefined) ? Boolean(s.unreleasedSeries) : true
         };
     } catch (e) {
-        return { player: "internal", quality: "1080p", voice: "any", voiceCustom: "", autoSelect: true, theme: "cyan" };
+        return { 
+            player: "internal", 
+            quality: "1080p", 
+            voice: "any", 
+            voiceCustom: "", 
+            autoSelect: true, 
+            theme: "cyan", 
+            pureBlack: false, 
+            unreleasedMovies: false, 
+            unreleasedSeries: true 
+        };
     }
 }
 
@@ -581,6 +609,12 @@ let activeModalRequestId = 0;
 let mandatoryUpdateData = null;
 
 async function checkMandatoryUpdate() {
+    // Only Android TV native container should show the APK force-update modal
+    const isAndroid = !!window.AndroidBridge || !!window.ShowHubTV || navigator.userAgent.includes("Android");
+    if (!isAndroid) {
+        // Desktop / PC / Web uses native PC updater in ShowHub.exe or standard web reloading
+        return;
+    }
     try {
         const res = await fetch("/api/updates/check");
         if (!res.ok) return;
@@ -705,6 +739,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
     checkMandatoryUpdate();
     initThemeEngine();
+    applyPureBlack(getSettings().pureBlack);
     initSettingsModal();
     initServerConnection();
     initNavigation();
@@ -1965,7 +2000,8 @@ async function loadCatalog(isAppend = false) {
     const ratingVal = document.getElementById("filter-rating")?.value || "0";
     const typeVal = document.getElementById("filter-type")?.value || "all";
     const countryVal = document.getElementById("filter-country")?.value || "all";
-    const cacheKey = `${currentCategory}_${currentGenre}_${sortVal}_${typeVal}_${yearVal}_${ratingVal}_${isAppend ? catalogPage + 1 : 1}`;
+    const userPrefs = getSettings();
+    const cacheKey = `${currentCategory}_${currentGenre}_${sortVal}_${typeVal}_${yearVal}_${ratingVal}_${userPrefs.unreleasedMovies}_${userPrefs.unreleasedSeries}_${isAppend ? catalogPage + 1 : 1}`;
 
     let prevCount = 0;
 
@@ -2010,6 +2046,8 @@ async function loadCatalog(isAppend = false) {
         if (countryVal && countryVal !== "all") {
             url += `&country=${encodeURIComponent(countryVal)}`;
         }
+        url += `&include_unreleased_movies=${userPrefs.unreleasedMovies ? 'true' : 'false'}`;
+        url += `&include_unreleased_series=${userPrefs.unreleasedSeries ? 'true' : 'false'}`;
         const res = await fetch(url);
         if (!res.ok) throw new Error("HTTP " + res.status);
         const items = await res.json();
@@ -6044,6 +6082,9 @@ function initSettingsModal() {
     const prefVoice = document.getElementById("pref-voice");
     const prefVoiceCustom = document.getElementById("pref-voice-custom");
     const prefAutoSelect = document.getElementById("pref-auto-select");
+    const prefPureBlack = document.getElementById("pref-pure-black");
+    const prefUnreleasedMovies = document.getElementById("pref-unreleased-movies");
+    const prefUnreleasedSeries = document.getElementById("pref-unreleased-series");
 
     const settings = getSettings();
     if (prefTheme) {
@@ -6051,6 +6092,29 @@ function initSettingsModal() {
         prefTheme.addEventListener("change", () => {
             applyTheme(prefTheme.value);
             saveSettings({ theme: prefTheme.value });
+        });
+    }
+    if (prefPureBlack) {
+        prefPureBlack.checked = settings.pureBlack;
+        prefPureBlack.addEventListener("change", () => {
+            applyPureBlack(prefPureBlack.checked);
+            saveSettings({ pureBlack: prefPureBlack.checked });
+        });
+    }
+    if (prefUnreleasedMovies) {
+        prefUnreleasedMovies.checked = settings.unreleasedMovies;
+        prefUnreleasedMovies.addEventListener("change", () => {
+            saveSettings({ unreleasedMovies: prefUnreleasedMovies.checked });
+            clientCatalogCache.clear();
+            loadCatalog();
+        });
+    }
+    if (prefUnreleasedSeries) {
+        prefUnreleasedSeries.checked = settings.unreleasedSeries;
+        prefUnreleasedSeries.addEventListener("change", () => {
+            saveSettings({ unreleasedSeries: prefUnreleasedSeries.checked });
+            clientCatalogCache.clear();
+            loadCatalog();
         });
     }
     if (prefPlayer) prefPlayer.value = settings.player;

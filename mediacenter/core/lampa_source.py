@@ -96,7 +96,6 @@ class LampaSource:
             ("tv/popular", True, 1.1),
             ("movie/top_rated", False, 1.0),
             ("tv/top_rated", True, 1.0),
-            ("movie/upcoming", False, 0.95),
         ]
 
         seen_keys = set()
@@ -265,17 +264,25 @@ class LampaSource:
         kw_list = raw_keywords.get("keywords") or raw_keywords.get("results") or []
         tags = [k.get("name") for k in kw_list if k.get("name")]
 
-        # Recommendations
+        # Recommendations (exclude unreleased future movies unless series)
         recs_data = data.get("recommendations", {}).get("results", [])
         recommendations = []
-        for r in recs_data[:10]:
+        import datetime
+        cur_yr = datetime.date.today().year
+        for r in recs_data[:15]:
             r_title = r.get("title") or r.get("name")
             r_poster = f"{IMG_BASE}/w342{r['poster_path']}" if r.get("poster_path") else ""
+            r_date = r.get("release_date") or r.get("first_air_date") or ""
+            r_year = int(r_date[:4]) if len(r_date) >= 4 and r_date[:4].isdigit() else None
+            # Exclude unreleased future movies (like Avatar 4, Avatar 5)
+            if not is_series and r_year and r_year > cur_yr:
+                continue
             if r_title:
                 recommendations.append({
                     "id": f"tmdb_{r.get('id')}",
                     "tmdb_id": str(r.get("id")),
                     "title": r_title,
+                    "year": r_year,
                     "poster": r_poster,
                     "rating": r.get("vote_average")
                 })

@@ -5,8 +5,8 @@
  */
 
 // Application Version & Mandatory Update State
-const CURRENT_APP_VERSION = "2.8.62";
-const CURRENT_APP_VERSION_CODE = 121;
+const CURRENT_APP_VERSION = "2.8.63";
+const CURRENT_APP_VERSION_CODE = 122;
 window.isForceUpdateActive = false;
 
 // Migrate legacy local PC IP addresses to cloud server
@@ -1920,7 +1920,16 @@ async function loadInitialCatalogFallback() {
         } catch (e) {}
     }
     if (offlineCatalogCache && offlineCatalogCache.length > 0) {
-        let filtered = offlineCatalogCache;
+        let filtered = offlineCatalogCache.filter(it => !String(it.id || "").toLowerCase().includes("test") && !String(it.title || "").toLowerCase().includes("тестов"));
+        const userPrefs = getSettings();
+        if (!userPrefs.unreleasedMovies) {
+            const curYr = Math.min(new Date().getFullYear(), 2024);
+            filtered = filtered.filter(it => it.is_series || !it.year || Number(it.year) <= curYr);
+        }
+        if (!userPrefs.unreleasedSeries) {
+            const curYr = Math.min(new Date().getFullYear(), 2024);
+            filtered = filtered.filter(it => !it.is_series || !it.year || Number(it.year) <= curYr);
+        }
         const typeVal = document.getElementById("filter-type")?.value || "all";
         const countryVal = document.getElementById("filter-country")?.value || "all";
 
@@ -2359,6 +2368,11 @@ function attachCardEvents(card, container) {
         handlePosterError(img, encodeURIComponent(title), year, kpId);
     }
 
+    card.addEventListener("mouseenter", () => {
+        if (document.activeElement !== card) {
+            card.focus();
+        }
+    });
     card.addEventListener("click", () => {
         stopCardPreview(card);
         openMediaModal(card);
@@ -2394,7 +2408,7 @@ function attachCardEvents(card, container) {
             timeline.classList.remove("playing");
         }
 
-        // 2-second settle delay: prevents animation or lag when quickly jumping between cards
+        // Fast settle delay: prevents lag when scrolling quickly
         cardFocusTimer = setTimeout(() => {
             if (document.activeElement !== card) return;
 
@@ -2412,7 +2426,7 @@ function attachCardEvents(card, container) {
                 }
             }
 
-            // 2. Animate preview countdown timeline
+            // 2. Animate preview countdown timeline (1.4s)
             if (timeline) {
                 timeline.classList.remove("playing");
                 timeline.classList.remove("active");
@@ -2420,13 +2434,13 @@ function attachCardEvents(card, container) {
                 timeline.classList.add("active");
             }
 
-            // 3. Silent video preview after countdown completes (2.7s)
+            // 3. Silent video preview after countdown completes (1.4s)
             cardVideoPreviewTimer = setTimeout(() => {
                 if (document.activeElement === card) {
                     startCardPreview(card);
                 }
-            }, 2700);
-        }, 2000);
+            }, 1400);
+        }, 600);
     });
     card.addEventListener("blur", () => {
         card.classList.remove("tv-focused");
@@ -4412,20 +4426,30 @@ async function startCardPreview(card) {
                 vid.addEventListener("loadeddata", ensureStart);
                 hls.loadSource(data.stream_url);
                 hls.attachMedia(vid);
+                const onVideoPlaying = () => {
+                    vid.classList.add("loaded");
+                    const timeline = card.querySelector(".card-preview-timeline");
+                    if (timeline) timeline.classList.add("playing");
+                };
+                vid.addEventListener("playing", onVideoPlaying);
+                vid.addEventListener("canplay", onVideoPlaying);
                 hls.on(Hls.Events.MANIFEST_PARSED, () => {
                     const dur = vid.duration || 0;
                     const safeStart = (dur > 0 && startTime >= dur) ? Math.floor(dur * 0.15) : startTime;
                     if (safeStart > 0) {
                         try { vid.currentTime = safeStart; } catch (e) {}
                     }
-                    vid.play().then(() => {
-                        vid.classList.add("loaded");
-                        const timeline = card.querySelector(".card-preview-timeline");
-                        if (timeline) timeline.classList.add("playing");
-                    }).catch(() => {});
+                    vid.play().then(onVideoPlaying).catch(() => {});
                 });
             } else {
                 vid.src = data.stream_url;
+                const onVideoPlaying = () => {
+                    vid.classList.add("loaded");
+                    const timeline = card.querySelector(".card-preview-timeline");
+                    if (timeline) timeline.classList.add("playing");
+                };
+                vid.addEventListener("playing", onVideoPlaying);
+                vid.addEventListener("canplay", onVideoPlaying);
                 vid.addEventListener("loadedmetadata", () => {
                     const dur = vid.duration || 0;
                     const safeStart = (dur > 0 && startTime >= dur) ? Math.floor(dur * 0.15) : startTime;
@@ -4433,11 +4457,7 @@ async function startCardPreview(card) {
                         try { vid.currentTime = safeStart; } catch (e) {}
                     }
                 });
-                vid.play().then(() => {
-                    vid.classList.add("loaded");
-                    const timeline = card.querySelector(".card-preview-timeline");
-                    if (timeline) timeline.classList.add("playing");
-                }).catch(() => {});
+                vid.play().then(onVideoPlaying).catch(() => {});
             }
             vid.addEventListener("ended", () => {
                 const dur = vid.duration || 0;

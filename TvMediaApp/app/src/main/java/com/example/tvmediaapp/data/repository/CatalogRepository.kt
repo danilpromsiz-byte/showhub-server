@@ -525,9 +525,12 @@ class CatalogRepository(context: Context? = null) {
         // Sorting
         return when (sortBy) {
             "rating" -> res.sortedByDescending { it.rating }
-            "popular" -> res.sortedByDescending { it.ratingKp }
+            "popular" -> res.sortedByDescending { it.lampaPopularity.takeIf { p -> p > 0.0 } ?: it.ratingLampa ?: it.ratingKp ?: it.rating }
             "year" -> res.sortedByDescending { it.releaseYear }
-            else -> res.sortedByDescending { it.releaseYear }
+            else -> {
+                if (category == "all" && (genre.isNullOrEmpty() || genre == "all" || genre == "Все жанры")) res
+                else res.sortedByDescending { it.releaseYear }
+            }
         }
     }
 
@@ -593,7 +596,7 @@ class CatalogRepository(context: Context? = null) {
 
             val includeUnreleasedMovies = prefs?.getBoolean("pref_unreleased_movies", false) ?: false
             val includeUnreleasedSeries = prefs?.getBoolean("pref_unreleased_series", true) ?: true
-            val currentYear = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR)
+            val currentYear = minOf(java.util.Calendar.getInstance().get(java.util.Calendar.YEAR), 2024)
 
             if (!includeUnreleasedMovies) {
                 effective = effective.filter { m ->
@@ -623,13 +626,21 @@ class CatalogRepository(context: Context? = null) {
                 (year.isNullOrEmpty() || year == "all")
 
             return if (isPureDefault) {
+                val rankedPopular = effective.mapIndexed { idx, m ->
+                    m.copy(rankIndex = idx + 1)
+                }
                 listOf(
-                    MovieCategory(id = "popular", title = "Популярные новинки", movies = effective),
-                    MovieCategory(id = "top_rated", title = "Топ рейтинга", movies = effective.sortedByDescending { it.rating }),
-                    MovieCategory(id = "series", title = "Сериалы", movies = effective.filter { it.isSeries }),
-                    MovieCategory(id = "movies", title = "Фильмы", movies = effective.filter { !it.isSeries })
+                    MovieCategory(id = "popular", title = "Популярные новинки", movies = rankedPopular),
+                    MovieCategory(id = "top_rated", title = "Топ рейтинга", movies = effective.sortedByDescending { it.rating }.map { it.copy(rankIndex = 0) }),
+                    MovieCategory(id = "series", title = "Сериалы", movies = effective.filter { it.isSeries }.map { it.copy(rankIndex = 0) }),
+                    MovieCategory(id = "movies", title = "Фильмы", movies = effective.filter { !it.isSeries }.map { it.copy(rankIndex = 0) })
                 )
             } else {
+                val rankedEffective = if (sortBy == "popular") {
+                    effective.mapIndexed { idx, m -> m.copy(rankIndex = idx + 1) }
+                } else {
+                    effective.map { it.copy(rankIndex = 0) }
+                }
                 val titleParts = mutableListOf<String>()
                 if (!country.isNullOrEmpty() && country != "all") {
                     titleParts.add(if (country.contains("Коре", ignoreCase = true)) "Южная Корея" else country)
@@ -650,7 +661,7 @@ class CatalogRepository(context: Context? = null) {
                 if (catName.isNotEmpty()) titleParts.add(0, catName)
 
                 val displayTitle = if (titleParts.isNotEmpty()) titleParts.joinToString(" • ") else "Каталог"
-                listOf(MovieCategory(id = category, title = displayTitle, movies = effective))
+                listOf(MovieCategory(id = category, title = displayTitle, movies = rankedEffective))
             }
         }
 

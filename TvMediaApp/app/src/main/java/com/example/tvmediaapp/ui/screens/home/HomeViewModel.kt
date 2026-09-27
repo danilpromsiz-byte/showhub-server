@@ -370,8 +370,13 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                     score
                 }
 
+                // Re-assign rankIndex to reflect the final display order after history-based re-sort
+                val reRankedMovies = rankedMovies.mapIndexed { idx, movie ->
+                    movie.copy(rankIndex = idx + 1)
+                }
+
                 category.copy(
-                    movies = rankedMovies
+                    movies = reRankedMovies
                 )
             } else {
                 category

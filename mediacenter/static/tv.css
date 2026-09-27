@@ -454,7 +454,7 @@ body.tv-mode {
     height: 100%;
     width: 0%;
     background: var(--accent-color);
-    transition: width 2.7s linear;
+    transition: width 1.4s linear;
 }
 
 .card-preview-timeline.active .card-preview-progress {

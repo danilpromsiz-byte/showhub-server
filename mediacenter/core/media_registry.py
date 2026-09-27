@@ -301,8 +301,8 @@ class MediaRegistry:
 
             # Auto-purge residual mock test items on startup
             try:
-                conn.execute("DELETE FROM media_items WHERE id LIKE '%test%' OR title LIKE '%Тестов%';")
-                conn.execute("DELETE FROM media_fts WHERE item_id LIKE '%test%' OR title LIKE '%Тестов%';")
+                conn.execute("DELETE FROM media_items WHERE lower(id) LIKE '%test%' OR lower(title) LIKE '%тестов%' OR lower(clean_title) LIKE '%тестов%';")
+                conn.execute("DELETE FROM media_fts WHERE lower(item_id) LIKE '%test%' OR lower(title) LIKE '%тестов%';")
             except Exception:
                 pass
 

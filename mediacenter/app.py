@@ -262,6 +262,13 @@ def get_popular(
     except Exception:
         pass
 
+    # Filter unreleased content from fallback results (same logic as MediaRegistry)
+    max_year = min(datetime.datetime.now().year, 2024)
+    if not include_unreleased_movies:
+        items = [it for it in items if it.get("is_series") or not it.get("year") or (safe_parse_year(it.get("year")) or 0) <= max_year]
+    if not include_unreleased_series:
+        items = [it for it in items if not it.get("is_series") or not it.get("year") or (safe_parse_year(it.get("year")) or 0) <= max_year]
+
     for it in items:
         for f in ("title", "original_title", "description"):
             if it.get(f):
@@ -1162,6 +1169,13 @@ def get_catalog(
         all_items = [it for it in all_items if not it.get("is_series")]
     elif content_type == "series":
         all_items = [it for it in all_items if it.get("is_series")]
+
+    # 5b. Filter unreleased content from live source fallback results
+    max_year_cap = min(datetime.datetime.now().year, 2024)
+    if not include_unreleased_movies:
+        all_items = [it for it in all_items if it.get("is_series") or not it.get("year") or (safe_parse_year(it.get("year")) or 0) <= max_year_cap]
+    if not include_unreleased_series:
+        all_items = [it for it in all_items if not it.get("is_series") or not it.get("year") or (safe_parse_year(it.get("year")) or 0) <= max_year_cap]
 
     # 6. Apply Year Filtering
     if year and year != "all":
@@ -2890,7 +2904,7 @@ def get_media_preview_stream(
                 seek_seconds = start_min * 60
             else:
                 is_ser_flag = str(is_series) in ["1", "true", "True"]
-                seek_seconds = 720 if is_ser_flag else 1320
+                seek_seconds = 60 if is_ser_flag else 120
             res = {
                 "success": True,
                 "stream_url": chosen.url,

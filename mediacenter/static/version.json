@@ -1,27 +1,27 @@
 {
   "success": true,
-  "version_name": "2.8.62",
-  "version_code": 121,
+  "version_name": "2.8.63",
+  "version_code": 122,
   "force_update": true,
   "min_version_code": 108,
   "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
   "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
-  "changelog": "v2.8.62: Добавлены номера позиций в рейтинге популярных (#1, #2, #3 с золотыми/серебряными бейджами как в Лампе). Добавлено отображение рейтинга Lampa / TMDB в виде изумрудного бейджа со звездой. Полная фильтрация невышедших фильмов (Аватар 4, Аватар 5 и др.). Очистка базы данных от тестовых записей.",
+  "changelog": "v2.8.63: Полная фильтрация невышедших фильмов (Аватар 5 и др.) во всех источниках каталога. Исправлены ранговые позиции (#1, #2, #3) на главной странице. Очистка базы от тестовых записей (VACUUM).",
   "tv": {
-    "version_name": "2.8.62",
-    "version_code": 121,
+    "version_name": "2.8.63",
+    "version_code": 122,
     "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
     "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk"
   },
   "mobile": {
-    "version_name": "2.8.62",
-    "version_code": 121,
+    "version_name": "2.8.63",
+    "version_code": 122,
     "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-Mobile.apk",
     "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-Mobile.apk"
   },
   "pc": {
-    "version_name": "2.8.62",
-    "version_code": 121,
+    "version_name": "2.8.63",
+    "version_code": 122,
     "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-PC.zip"
   }
 }

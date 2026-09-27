@@ -25,6 +25,14 @@ object MediaDiskCache {
         cacheDir = base
 
         val catFile = File(base, "catalog.json")
+        if (catFile.exists()) {
+            try {
+                val txt = catFile.readText()
+                if (txt.contains("test_unique_actor", ignoreCase = true) || txt.contains("Тестовый", ignoreCase = true)) {
+                    catFile.delete()
+                }
+            } catch (_: Exception) {}
+        }
         if (!catFile.exists() || catFile.length() < 200) {
             try {
                 context.assets.open("initial_catalog.json").use { input ->
@@ -148,7 +156,12 @@ object MediaDiskCache {
             for (i in 0 until arr.length()) {
                 val obj = arr.getJSONObject(i)
                 val m = deserializeMovie(obj)
-                if (m != null) list.add(m)
+                if (m != null) {
+                    if (m.id.contains("test", ignoreCase = true) || m.title.contains("Тестов", ignoreCase = true)) {
+                        continue
+                    }
+                    list.add(m)
+                }
             }
             if (list.isNotEmpty()) list else null
         } catch (e: Exception) {
@@ -160,10 +173,11 @@ object MediaDiskCache {
     fun putCachedCatalog(movies: List<Movie>) {
         try {
             if (movies.isEmpty()) return
+            val validNew = movies.filter { !it.id.contains("test", ignoreCase = true) && !it.title.contains("Тестов", ignoreCase = true) }
             val existing = getCachedCatalog() ?: emptyList()
             // Merge: newly fetched movies update existing items, and previously discovered titles are preserved
             val map = LinkedHashMap<String, Movie>()
-            for (m in movies) {
+            for (m in validNew) {
                 if (m.id.isNotBlank()) map[m.id] = m
             }
             for (m in existing) {
@@ -252,6 +266,9 @@ object MediaDiskCache {
             put("rating", movie.rating)
             put("ratingKp", movie.ratingKp)
             put("ratingImdb", movie.ratingImdb)
+            put("ratingLampa", movie.ratingLampa)
+            put("lampaPopularity", movie.lampaPopularity)
+            put("rankIndex", movie.rankIndex)
             put("releaseYear", movie.releaseYear)
             put("duration", movie.duration)
             put("country", movie.country)
@@ -515,6 +532,9 @@ object MediaDiskCache {
             rating = obj.optDouble("rating", 7.0),
             ratingKp = obj.optDouble("ratingKp", 7.0),
             ratingImdb = obj.optDouble("ratingImdb", 7.0),
+            ratingLampa = obj.optDouble("ratingLampa", 0.0),
+            lampaPopularity = obj.optDouble("lampaPopularity", 0.0),
+            rankIndex = obj.optInt("rankIndex", 0),
             releaseYear = obj.optString("releaseYear", "2024"),
             duration = obj.optString("duration", "Фильм"),
             country = obj.optString("country", ""),

@@ -14,23 +14,23 @@ class TestMultiplatformAndLampa(unittest.TestCase):
             with open(vpath, "r", encoding="utf-8") as f:
                 data = json.load(f)
 
-            self.assertEqual(data["version_code"], 120)
-            self.assertEqual(data["version_name"], "2.8.61")
+            self.assertEqual(data["version_code"], 122)
+            self.assertEqual(data["version_name"], "2.8.63")
             self.assertIn("ShowHub.apk", data["download_url"])
 
             # TV
             self.assertIn("tv", data)
-            self.assertEqual(data["tv"]["version_code"], 120)
+            self.assertEqual(data["tv"]["version_code"], 122)
             self.assertIn("ShowHub.apk", data["tv"]["download_url"])
 
             # Mobile
             self.assertIn("mobile", data)
-            self.assertEqual(data["mobile"]["version_code"], 120)
+            self.assertEqual(data["mobile"]["version_code"], 122)
             self.assertIn("ShowHub-Mobile.apk", data["mobile"]["download_url"])
 
             # PC
             self.assertIn("pc", data)
-            self.assertEqual(data["pc"]["version_code"], 120)
+            self.assertEqual(data["pc"]["version_code"], 122)
             self.assertIn("ShowHub-PC.zip", data["pc"]["download_url"])
 
     def test_distribution_packages(self):
@@ -108,33 +108,39 @@ class TestMultiplatformAndLampa(unittest.TestCase):
             self.assertGreaterEqual(popularities[i], popularities[i+1], f"Item {i} ({popularities[i]}) < Item {i+1} ({popularities[i+1]})")
 
     def test_search_by_actor_and_director(self):
-        from mediacenter.core.media_registry import media_registry
+        import tempfile
+        from mediacenter.core.media_registry import MediaRegistry
 
-        # Insert test item with rich cast & director
-        test_item = {
-            "id": "test_unique_actor_123",
-            "title": "Тестовый Фильм Про Агентов",
-            "clean_title": "тестовый фильм про агентов",
-            "year": 2026,
-            "director": "Кристофер ТестовыйНолан",
-            "actors": "Леонардо ДиКаприо, Киллиан Мёрфи, Том Харди",
-            "lampa_popularity": 850.0,
-            "rating_lampa": 8.8,
-            "source_name": "lampa"
-        }
+        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tmp:
+            tmp_db_path = tmp.name
+
         try:
-            media_registry.upsert_item(test_item)
+            test_registry = MediaRegistry(db_path=tmp_db_path)
+            test_item = {
+                "id": "test_unique_actor_123",
+                "title": "Тестовый Фильм Про Агентов",
+                "clean_title": "тестовый фильм про агентов",
+                "year": 2026,
+                "director": "Кристофер ТестовыйНолан",
+                "actors": "Леонардо ДиКаприо, Киллиан Мёрфи, Том Харди",
+                "lampa_popularity": 850.0,
+                "rating_lampa": 8.8,
+                "source_name": "lampa"
+            }
+            test_registry.upsert_item(test_item)
 
             # Search by actor
-            res_actor = media_registry.search("ДиКаприо")
+            res_actor = test_registry.search("ДиКаприо")
             self.assertTrue(any("test_unique_actor_123" in r["id"] for r in res_actor), "Actor search failed")
 
             # Search by director
-            res_dir = media_registry.search("ТестовыйНолан")
+            res_dir = test_registry.search("ТестовыйНолан")
             self.assertTrue(any("test_unique_actor_123" in r["id"] for r in res_dir), "Director search failed")
         finally:
-            media_registry.delete_item("test_unique_actor_123")
-            media_registry.delete_item("lampa_test_unique_actor_123")
+            try:
+                os.remove(tmp_db_path)
+            except Exception:
+                pass
 
     def test_api_popular_and_platform_endpoints(self):
         from fastapi.testclient import TestClient
@@ -167,7 +173,8 @@ class TestMultiplatformAndLampa(unittest.TestCase):
         v_resp = client.get("/version.json")
         self.assertEqual(v_resp.status_code, 200)
         v_data = v_resp.json()
-        self.assertEqual(v_data["version_code"], 120)
+        self.assertEqual(v_data["version_code"], 122)
+        self.assertEqual(v_data["version_name"], "2.8.63")
         self.assertIn("mobile", v_data)
         self.assertIn("pc", v_data)
         self.assertIn("tv", v_data)

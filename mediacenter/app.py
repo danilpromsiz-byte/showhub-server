@@ -234,13 +234,73 @@ def get_alerts() -> Dict[str, Any]:
     if _alerts_cache["data"] and (now - _alerts_cache["timestamp"] < _ALERTS_CACHE_TTL):
         return _alerts_cache["data"]
 
+    # 1. Primary: Official differentiated statuses feed (red + yellow + districts)
+    try:
+        req = urllib.request.Request(
+            "https://vadimklimenko.com/map/statuses.json",
+            headers={"User-Agent": "AlertAPI/1.0"}
+        )
+        with urllib.request.urlopen(req, timeout=6) as resp:
+            if resp.status == 200:
+                raw = json.loads(resp.read().decode("utf-8"))
+                states = raw.get("states", {})
+                if states:
+                    regions = []
+                    red_count = 0
+                    yellow_count = 0
+                    rank = {"red": 3, "orange": 2, "yellow": 1, "none": 0}
+                    for name, s_obj in states.items():
+                        s_enabled = bool(s_obj.get("enabled", False))
+                        s_raw_lvl = s_obj.get("alert_level")
+                        eff_lvl = ("yellow" if s_raw_lvl == "yellow" else "red") if s_enabled else "none"
+                        changed = s_obj.get("enabled_at") or ""
+                        for _, d_obj in (s_obj.get("districts") or {}).items():
+                            if d_obj.get("enabled"):
+                                d_lvl = "yellow" if d_obj.get("alert_level") == "yellow" else "red"
+                                if rank[d_lvl] > rank[eff_lvl]:
+                                    eff_lvl = d_lvl
+                                d_ts = d_obj.get("enabled_at") or ""
+                                if d_ts and (not changed or d_ts > changed):
+                                    changed = d_ts
+                        if eff_lvl == "red":
+                            red_count += 1
+                        elif eff_lvl == "yellow":
+                            yellow_count += 1
+                        regions.append({
+                            "name": name,
+                            "alert_now": eff_lvl in ("red", "yellow"),
+                            "alert_level": eff_lvl,
+                            "changed": changed
+                        })
+                    total = len(regions)
+                    active_count = red_count + yellow_count
+                    safe_count = max(0, total - active_count)
+                    percent = round(((red_count + yellow_count * 0.5) / total * 100), 1) if total > 0 else 0.0
+                    res = {
+                        "success": True,
+                        "cached_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        "total_regions": total,
+                        "active_alerts_count": active_count,
+                        "red_alerts_count": red_count,
+                        "yellow_alerts_count": yellow_count,
+                        "safe_regions_count": safe_count,
+                        "percentage": percent,
+                        "states": states,
+                        "regions": regions
+                    }
+                    _alerts_cache["timestamp"] = now
+                    _alerts_cache["data"] = res
+                    return res
+    except Exception as e:
+        logger.warning(f"Failed to fetch statuses.json: {e}")
+
     urls = [
         "https://ubilling.net.ua/aerialalerts/",
         "https://alerts.in.ua/api/states"
     ]
     for url in urls:
         try:
-            req = urllib.request.Request(url, headers={"User-Agent": "ShowHubMediaCenter/AlertAPI/1.0"})
+            req = urllib.request.Request(url, headers={"User-Agent": "AlertAPI/1.0"})
             with urllib.request.urlopen(req, timeout=5) as resp:
                 if resp.status == 200:
                     raw = json.loads(resp.read().decode("utf-8"))
@@ -255,6 +315,7 @@ def get_alerts() -> Dict[str, Any]:
                             regions.append({
                                 "name": name,
                                 "alert_now": is_alert,
+                                "alert_level": "red" if is_alert else "none",
                                 "changed": info.get("changed", "")
                             })
                         regions.sort(key=lambda x: (not x["alert_now"], x["name"]))

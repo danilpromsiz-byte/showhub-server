@@ -600,7 +600,7 @@ fun DetailsScreen(
     // Video preview in details screen (responsive 1.2s delay with dynamic Referer headers)
     LaunchedEffect(currentMovie.id, streamOptions.size) {
         delay(1200)
-        if (detailsPreviewPlayer == null) {
+        if (detailsPreviewPlayer == null && !isResolving) {
             val streamUrl = withContext(Dispatchers.IO) {
                 // Step 1: Server API preview stream FIRST (Delivembd/Collaps direct HLS, unblocked, 200-300ms)
                 var sUrl: String? = null
@@ -644,7 +644,7 @@ fun DetailsScreen(
             }
 
             val validStreamUrl = streamUrl
-            if (!validStreamUrl.isNullOrEmpty() && isDirectVideoStream(validStreamUrl)) {
+            if (!isResolving && detailsPreviewPlayer == null && !validStreamUrl.isNullOrEmpty() && isDirectVideoStream(validStreamUrl)) {
                 try {
                     val httpDataSourceFactory = DefaultHttpDataSource.Factory()
                         .setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
@@ -691,6 +691,10 @@ fun DetailsScreen(
                         .setLoadControl(loadControl)
                         .build().apply {
                             val targetSeekMs = 60_000L
+                            trackSelectionParameters = trackSelectionParameters
+                                .buildUpon()
+                                .setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_AUDIO, true)
+                                .build()
                             setMediaItem(MediaItem.fromUri(validStreamUrl))
                             volume = 0f
                             repeatMode = Player.REPEAT_MODE_ALL

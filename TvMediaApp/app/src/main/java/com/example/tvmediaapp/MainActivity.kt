@@ -177,6 +177,9 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
+        if (com.example.tvmediaapp.ui.screens.player.MediaKeyDispatcher.dispatch(event)) {
+            return true
+        }
         if (event.action == android.view.KeyEvent.ACTION_DOWN) {
             val isNavigationKey = when (event.keyCode) {
                 android.view.KeyEvent.KEYCODE_DPAD_UP,

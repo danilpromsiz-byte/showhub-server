@@ -118,6 +118,30 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+object MediaKeyDispatcher {
+    @Volatile
+    var activeHandler: ((android.view.KeyEvent) -> Boolean)? = null
+
+    fun isMediaKey(keyCode: Int): Boolean = when (keyCode) {
+        android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
+        android.view.KeyEvent.KEYCODE_HEADSETHOOK,
+        android.view.KeyEvent.KEYCODE_MEDIA_PLAY,
+        android.view.KeyEvent.KEYCODE_MEDIA_PAUSE,
+        android.view.KeyEvent.KEYCODE_MEDIA_STOP,
+        android.view.KeyEvent.KEYCODE_MEDIA_NEXT,
+        android.view.KeyEvent.KEYCODE_MEDIA_PREVIOUS,
+        android.view.KeyEvent.KEYCODE_MEDIA_FAST_FORWARD,
+        android.view.KeyEvent.KEYCODE_MEDIA_REWIND -> true
+        else -> false
+    }
+
+    fun dispatch(event: android.view.KeyEvent): Boolean {
+        if (!isMediaKey(event.keyCode)) return false
+        val handler = activeHandler ?: return false
+        return handler(event)
+    }
+}
+
 fun isDirectVideoStream(url: String): Boolean {
     val clean = url.lowercase().trim()
     if (clean.contains("embed") || clean.contains("allarknow") || clean.contains("bayas") || clean.contains("bazon.cc") || 
@@ -206,8 +230,47 @@ private fun EmbedWebViewPlayerScreen(
         onBackPress()
     }
 
+    val lastWebMediaUptime = remember { java.util.concurrent.atomic.AtomicLong(0L) }
+    val lastWebDownTime = remember { java.util.concurrent.atomic.AtomicLong(0L) }
+
+    fun handleEmbedMediaKey(nativeEvent: android.view.KeyEvent): Boolean {
+        if (!MediaKeyDispatcher.isMediaKey(nativeEvent.keyCode)) return false
+        if (nativeEvent.action == KeyEvent.ACTION_UP) return true
+        if (nativeEvent.action != KeyEvent.ACTION_DOWN) return false
+        if (nativeEvent.repeatCount > 0) return true
+        val downTime = nativeEvent.downTime
+        if (downTime > 0L && downTime == lastWebDownTime.get()) return true
+        lastWebDownTime.set(downTime)
+
+        val now = android.os.SystemClock.uptimeMillis()
+        if (now - lastWebMediaUptime.get() < 900L) return true
+        lastWebMediaUptime.set(now)
+
+        when (nativeEvent.keyCode) {
+            KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
+            KeyEvent.KEYCODE_HEADSETHOOK,
+            KeyEvent.KEYCODE_MEDIA_PLAY,
+            KeyEvent.KEYCODE_MEDIA_PAUSE -> {
+                webViewRef?.evaluateJavascript(
+                    "(function(){ var v=document.querySelector('video')||(document.querySelector('iframe')&&document.querySelector('iframe').contentDocument&&document.querySelector('iframe').contentDocument.querySelector('video')); if(v){ if(v.paused) v.play(); else v.pause(); } })()", null
+                )
+            }
+            KeyEvent.KEYCODE_MEDIA_STOP -> {
+                webViewRef?.evaluateJavascript(
+                    "(function(){ var v=document.querySelector('video')||(document.querySelector('iframe')&&document.querySelector('iframe').contentDocument&&document.querySelector('iframe').contentDocument.querySelector('video')); if(v) v.pause(); })()", null
+                )
+            }
+        }
+        return true
+    }
+
     DisposableEffect(Unit) {
+        val handler: (android.view.KeyEvent) -> Boolean = { evt -> handleEmbedMediaKey(evt) }
+        MediaKeyDispatcher.activeHandler = handler
         onDispose {
+            if (MediaKeyDispatcher.activeHandler === handler) {
+                MediaKeyDispatcher.activeHandler = null
+            }
             webViewRef?.let { wv ->
                 wv.stopLoading()
                 wv.loadUrl("about:blank")
@@ -217,51 +280,12 @@ private fun EmbedWebViewPlayerScreen(
         }
     }
 
-    val lastWebMediaUptime = remember { java.util.concurrent.atomic.AtomicLong(0L) }
-
     Box(
         modifier = modifier
             .fillMaxSize()
             .background(Color.Black)
             .onKeyEvent { keyEvent ->
-                val nativeEvent = keyEvent.nativeKeyEvent
-                val isMedia = when (nativeEvent.keyCode) {
-                    KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
-                    KeyEvent.KEYCODE_HEADSETHOOK,
-                    KeyEvent.KEYCODE_MEDIA_PLAY,
-                    KeyEvent.KEYCODE_MEDIA_PAUSE,
-                    KeyEvent.KEYCODE_MEDIA_STOP -> true
-                    else -> false
-                }
-                if (isMedia) {
-                    if (nativeEvent.action == KeyEvent.ACTION_DOWN) {
-                        val now = android.os.SystemClock.uptimeMillis()
-                        if (now - lastWebMediaUptime.get() >= 800L) {
-                            lastWebMediaUptime.set(now)
-                            when (nativeEvent.keyCode) {
-                                KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
-                                KeyEvent.KEYCODE_HEADSETHOOK -> {
-                                    webViewRef?.evaluateJavascript(
-                                        "(function(){ var v=document.querySelector('video')||(document.querySelector('iframe')&&document.querySelector('iframe').contentDocument&&document.querySelector('iframe').contentDocument.querySelector('video')); if(v){ if(v.paused) v.play(); else v.pause(); } })()", null
-                                    )
-                                }
-                                KeyEvent.KEYCODE_MEDIA_PLAY -> {
-                                    webViewRef?.evaluateJavascript(
-                                        "(function(){ var v=document.querySelector('video')||(document.querySelector('iframe')&&document.querySelector('iframe').contentDocument&&document.querySelector('iframe').contentDocument.querySelector('video')); if(v) v.play(); })()", null
-                                    )
-                                }
-                                KeyEvent.KEYCODE_MEDIA_PAUSE,
-                                KeyEvent.KEYCODE_MEDIA_STOP -> {
-                                    webViewRef?.evaluateJavascript(
-                                        "(function(){ var v=document.querySelector('video')||(document.querySelector('iframe')&&document.querySelector('iframe').contentDocument&&document.querySelector('iframe').contentDocument.querySelector('video')); if(v) v.pause(); })()", null
-                                    )
-                                }
-                            }
-                        }
-                    }
-                    return@onKeyEvent true
-                }
-                false
+                handleEmbedMediaKey(keyEvent.nativeKeyEvent)
             },
         contentAlignment = Alignment.Center
     ) {
@@ -525,6 +549,9 @@ private fun NativeExoPlayerScreen(
     val failedStreamUrls = remember { mutableStateListOf<String>() }
 
     var isPlaying by remember { mutableStateOf(true) }
+    var isUserPaused by remember { mutableStateOf(false) }
+    val userPausedAtomic = remember { java.util.concurrent.atomic.AtomicBoolean(false) }
+    val maxReachedPositionAtomic = remember { java.util.concurrent.atomic.AtomicLong(startPositionMs) }
     var currentPosition by remember { mutableLongStateOf(startPositionMs) }
     var bufferedPosition by remember { mutableLongStateOf(0L) }
     var duration by remember { mutableLongStateOf(0L) }
@@ -625,9 +652,19 @@ private fun NativeExoPlayerScreen(
             }
             dataSpec.buildUpon().setHttpRequestHeaders(headers).build()
         }
-        val loadErrorPolicy = object : androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy(0) {
-            override fun getMinimumLoadableRetryCount(dataType: Int): Int = 0
+        val loadErrorPolicy = object : androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy(3) {
+            override fun getMinimumLoadableRetryCount(dataType: Int): Int {
+                return if (userPausedAtomic.get() || maxReachedPositionAtomic.get() >= 2000L) 3 else 0
+            }
             override fun getRetryDelayMsFor(loadErrorInfo: androidx.media3.exoplayer.upstream.LoadErrorHandlingPolicy.LoadErrorInfo): Long {
+                // If user has paused or video is already playing (> 2s), tolerate transient segment/socket errors
+                if (userPausedAtomic.get()) {
+                    return if (loadErrorInfo.errorCount <= 5) 1500L else androidx.media3.common.C.TIME_UNSET
+                }
+                if (maxReachedPositionAtomic.get() >= 2000L) {
+                    return if (loadErrorInfo.errorCount <= 3) 1000L else androidx.media3.common.C.TIME_UNSET
+                }
+                // Initial stream connection (< 2s): fail fast so dead sources (e.g. Voidboost 404/timeout) switch in ~1s
                 val cause = loadErrorInfo.exception
                 if (cause is androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException) {
                     if (cause.responseCode in listOf(400, 401, 403, 404, 410, 500, 502, 503)) {
@@ -691,12 +728,36 @@ private fun NativeExoPlayerScreen(
                     }
                 }
                 addListener(object : androidx.media3.common.Player.Listener {
+                    override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+                        if (playWhenReady && userPausedAtomic.get()) {
+                            // Hard lock: prevent any internal AudioFocus gain or MediaSession echo from resuming while user paused
+                            android.util.Log.w("PlayerScreen", "Blocked unauthorized playWhenReady=true (reason=$reason) while userPaused=true")
+                            this@apply.playWhenReady = false
+                            this@apply.pause()
+                            return
+                        }
+                        if (!playWhenReady && reason == androidx.media3.common.Player.PLAY_WHEN_READY_CHANGE_REASON_AUDIO_BECOMING_NOISY) {
+                            userPausedAtomic.set(true)
+                            isUserPaused = true
+                            isPlaying = false
+                        }
+                    }
                     override fun onIsPlayingChanged(playing: Boolean) {
+                        if (playing && userPausedAtomic.get()) {
+                            android.util.Log.w("PlayerScreen", "Blocked unauthorized isPlaying=true while userPaused=true")
+                            this@apply.playWhenReady = false
+                            this@apply.pause()
+                            isPlaying = false
+                            return
+                        }
                         isPlaying = playing
                     }
                     override fun onPlaybackStateChanged(state: Int) {
-                        isBuffering = (state == androidx.media3.common.Player.STATE_BUFFERING)
+                        isBuffering = (state == androidx.media3.common.Player.STATE_BUFFERING) && !userPausedAtomic.get()
                         if (state == androidx.media3.common.Player.STATE_ENDED) {
+                            userPausedAtomic.set(true)
+                            isUserPaused = true
+                            isPlaying = false
                             try {
                                 val dur = duration.coerceAtLeast(1L)
                                 historyManager.saveProgress(
@@ -719,6 +780,10 @@ private fun NativeExoPlayerScreen(
                     override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
                         error.printStackTrace()
                         isBuffering = false
+                        if (userPausedAtomic.get() || isUserPaused) {
+                            android.util.Log.w("PlayerScreen", "Ignored background player error while user is paused: ${error.localizedMessage}")
+                            return
+                        }
                         hasPlaybackError = true
                         playbackErrorMessage = error.localizedMessage ?: "Ошибка воспроизведения"
                     }
@@ -730,14 +795,30 @@ private fun NativeExoPlayerScreen(
     val lastMediaActionUptime = remember { java.util.concurrent.atomic.AtomicLong(0L) }
     var nativeWebViewRef by remember { mutableStateOf<WebView?>(null) }
 
+    fun tryAcquireMediaActionLock(debounceMs: Long = 900L): Boolean {
+        val now = android.os.SystemClock.uptimeMillis()
+        val prev = lastMediaActionUptime.get()
+        if (now - prev < debounceMs) {
+            return false
+        }
+        lastMediaActionUptime.set(now)
+        return true
+    }
+
     fun performPause() {
+        lastMediaActionUptime.set(android.os.SystemClock.uptimeMillis())
+        userPausedAtomic.set(true)
+        isUserPaused = true
+        isPlaying = false
+        isBuffering = false
         try {
-            if (exoPlayer.isPlaying || exoPlayer.playWhenReady) {
-                exoPlayer.pause()
-            }
+            // Unconditionally call pause() so ExoPlayer's AudioFocusManager abandons focus and never auto-resumes
+            exoPlayer.playWhenReady = false
+            exoPlayer.pause()
         } catch (_: Exception) {}
         playbackActionBadge = "pause"
         isControlsVisible = true
+        lastUserInteractionTime = System.currentTimeMillis()
         try { playPauseFocusRequester.requestFocus() } catch (_: Exception) {}
         try {
             nativeWebViewRef?.evaluateJavascript(
@@ -747,12 +828,20 @@ private fun NativeExoPlayerScreen(
     }
 
     fun performPlay() {
+        lastMediaActionUptime.set(android.os.SystemClock.uptimeMillis())
+        userPausedAtomic.set(false)
+        isUserPaused = false
         try {
-            if (!exoPlayer.isPlaying || !exoPlayer.playWhenReady) {
-                exoPlayer.play()
+            if (exoPlayer.playbackState == androidx.media3.common.Player.STATE_IDLE || exoPlayer.playerError != null) {
+                exoPlayer.prepare()
+            } else if (exoPlayer.playbackState == androidx.media3.common.Player.STATE_ENDED) {
+                exoPlayer.seekTo(0L)
             }
+            exoPlayer.playWhenReady = true
+            exoPlayer.play()
         } catch (_: Exception) {}
         playbackActionBadge = "play"
+        lastUserInteractionTime = System.currentTimeMillis()
         try {
             nativeWebViewRef?.evaluateJavascript(
                 "(function(){ var v=document.querySelector('video')||(document.querySelector('iframe')&&document.querySelector('iframe').contentDocument&&document.querySelector('iframe').contentDocument.querySelector('video')); if(v) v.play(); })()", null
@@ -761,13 +850,10 @@ private fun NativeExoPlayerScreen(
     }
 
     fun togglePlayPause() {
-        val now = android.os.SystemClock.uptimeMillis()
-        if (now - lastMediaActionUptime.get() < 800L) {
-            return // Ignore rapid/bounce Bluetooth media button events
+        if (!tryAcquireMediaActionLock()) {
+            return // Ignore rapid/bounce Bluetooth media button or MediaSession echo events
         }
-        lastMediaActionUptime.set(now)
-
-        if (exoPlayer.isPlaying || exoPlayer.playWhenReady) {
+        if (!userPausedAtomic.get()) {
             performPause()
         } else {
             performPlay()
@@ -871,11 +957,17 @@ private fun NativeExoPlayerScreen(
         newEpisode: Int = currentEpisode,
         newAudioId: String = currentAudioId,
         newQuality: String = selectedQuality,
-        newSource: String = selectedSource
+        newSource: String = selectedSource,
+        userInitiated: Boolean = true
     ) {
         val isSameEpisode = (newSeason == currentSeason && newEpisode == currentEpisode)
         if (!isSameEpisode) {
             persistCurrentPlaybackProgress()
+            maxReachedPositionAtomic.set(0L)
+        }
+        if (userInitiated) {
+            userPausedAtomic.set(false)
+            isUserPaused = false
         }
         currentSeason = newSeason
         currentEpisode = newEpisode
@@ -1032,7 +1124,13 @@ private fun NativeExoPlayerScreen(
                             bufferedPosition = 0L
                         }
                         exoPlayer.prepare()
-                        exoPlayer.play()
+                        if (!userPausedAtomic.get()) {
+                            exoPlayer.playWhenReady = true
+                            exoPlayer.play()
+                        } else {
+                            exoPlayer.playWhenReady = false
+                            exoPlayer.pause()
+                        }
                     } else {
                         // Embed stream (e.g. Bazon) - pause and clear ExoPlayer so it doesn't crash on HTML
                         try {
@@ -1052,95 +1150,136 @@ private fun NativeExoPlayerScreen(
         }
     }
 
-    fun handleMediaKeyEvent(keyEvent: android.view.KeyEvent): Boolean {
-        // 1. Consume ACTION_UP for all media keys so they do not leak or fall back to system
-        if (keyEvent.action == android.view.KeyEvent.ACTION_UP) {
-            val isMedia = when (keyEvent.keyCode) {
-                android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
-                android.view.KeyEvent.KEYCODE_HEADSETHOOK,
-                android.view.KeyEvent.KEYCODE_MEDIA_PLAY,
-                android.view.KeyEvent.KEYCODE_MEDIA_PAUSE,
-                android.view.KeyEvent.KEYCODE_MEDIA_STOP,
-                android.view.KeyEvent.KEYCODE_MEDIA_NEXT,
-                android.view.KeyEvent.KEYCODE_MEDIA_PREVIOUS -> true
-                else -> false
-            }
-            return isMedia
-        }
-        if (keyEvent.action != android.view.KeyEvent.ACTION_DOWN) {
-            return false
-        }
-
-        val keyCode = keyEvent.keyCode
-        val isMedia = when (keyCode) {
-            android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
-            android.view.KeyEvent.KEYCODE_HEADSETHOOK,
-            android.view.KeyEvent.KEYCODE_MEDIA_PLAY,
-            android.view.KeyEvent.KEYCODE_MEDIA_PAUSE,
-            android.view.KeyEvent.KEYCODE_MEDIA_STOP,
-            android.view.KeyEvent.KEYCODE_MEDIA_NEXT,
-            android.view.KeyEvent.KEYCODE_MEDIA_PREVIOUS -> true
-            else -> false
-        }
-        if (!isMedia) return false
-
-        // 2. Hardware event deduplication: if exact same button down event reaches both Window and MediaSession
-        val downTime = keyEvent.downTime
-        if (downTime > 0L && downTime == lastHandledDownTime.get()) {
-            return true // Duplicate hardware delivery swallowed
-        }
-        lastHandledDownTime.set(downTime)
-
-        // 3. Debounce window (800ms) to swallow AVRCP multi-press timeouts, retransmissions, or bounce
-        val now = android.os.SystemClock.uptimeMillis()
-        if (now - lastMediaActionUptime.get() < 800L) {
-            return true // Duplicate or bounce event swallowed
-        }
-        lastMediaActionUptime.set(now)
-
-        // 4. Dispatch safely to main thread
+    fun executeDebouncedMediaKeyAction(keyCode: Int) {
         val actionRunnable = Runnable {
             when (keyCode) {
                 android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
-                android.view.KeyEvent.KEYCODE_HEADSETHOOK -> {
-                    if (exoPlayer.isPlaying || exoPlayer.playWhenReady) {
+                android.view.KeyEvent.KEYCODE_HEADSETHOOK,
+                android.view.KeyEvent.KEYCODE_MEDIA_PLAY,
+                android.view.KeyEvent.KEYCODE_MEDIA_PAUSE -> {
+                    // Single-button Bluetooth headsets often send PLAY or PAUSE based on stale local AVRCP state;
+                    // deterministic toggle guarded by the 900ms lock ensures 1 press = 1 state flip.
+                    if (!userPausedAtomic.get()) {
                         performPause()
                     } else {
                         performPlay()
                     }
                 }
-                android.view.KeyEvent.KEYCODE_MEDIA_PLAY -> {
-                    performPlay()
-                }
-                android.view.KeyEvent.KEYCODE_MEDIA_PAUSE,
                 android.view.KeyEvent.KEYCODE_MEDIA_STOP -> {
                     performPause()
                 }
                 android.view.KeyEvent.KEYCODE_MEDIA_NEXT -> {
                     if (currentMovieState.isSeries) {
-                        switchStream(currentSeason, currentEpisode + 1, currentAudioId, selectedQuality, selectedSource)
+                        switchStream(currentSeason, currentEpisode + 1, currentAudioId, selectedQuality, selectedSource, userInitiated = true)
                     }
                 }
                 android.view.KeyEvent.KEYCODE_MEDIA_PREVIOUS -> {
                     if (currentMovieState.isSeries && currentEpisode > 1) {
-                        switchStream(currentSeason, currentEpisode - 1, currentAudioId, selectedQuality, selectedSource)
+                        switchStream(currentSeason, currentEpisode - 1, currentAudioId, selectedQuality, selectedSource, userInitiated = true)
                     }
                 }
             }
         }
-
         if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
             actionRunnable.run()
         } else {
             android.os.Handler(android.os.Looper.getMainLooper()).post(actionRunnable)
         }
+    }
+
+    fun handleMediaKeyEvent(keyEvent: android.view.KeyEvent): Boolean {
+        val keyCode = keyEvent.keyCode
+        if (!MediaKeyDispatcher.isMediaKey(keyCode)) return false
+
+        // 1. Consume ACTION_UP and non-DOWN actions for all media keys so they never leak to PhoneWindow/MediaSessionLegacyStub
+        if (keyEvent.action != android.view.KeyEvent.ACTION_DOWN) {
+            return true
+        }
+
+        // 2. Ignore key repeats (long-pressing Bluetooth headset button) so it never rapid-toggles
+        if (keyEvent.repeatCount > 0) {
+            return true
+        }
+
+        // 3. Hardware event deduplication: if exact same button down event reaches both Window and MediaSession
+        val downTime = keyEvent.downTime
+        if (downTime > 0L && downTime == lastHandledDownTime.get()) {
+            return true
+        }
+        lastHandledDownTime.set(downTime)
+
+        // 4. Atomic 900ms debounce window shared across Window, MediaSession.Callback, and ForwardingPlayer
+        if (!tryAcquireMediaActionLock()) {
+            return true
+        }
+
+        // 5. Execute on main thread
+        executeDebouncedMediaKeyAction(keyCode)
         return true
     }
 
-    val mediaSession = remember(exoPlayer) {
+    // Wrap exoPlayer in ForwardingPlayer so direct MediaSessionLegacyStub calls (onPlay/onPause/setPlayWhenReady)
+    // cannot bypass our 900ms debounce lock or mutate exoPlayer behind our back.
+    val sessionPlayer = remember(exoPlayer) {
+        object : androidx.media3.common.ForwardingPlayer(exoPlayer) {
+            override fun getPlayWhenReady(): Boolean = !userPausedAtomic.get()
+
+            override fun isPlaying(): Boolean = !userPausedAtomic.get() && super.isPlaying()
+
+            override fun play() {
+                if (tryAcquireMediaActionLock()) {
+                    executeDebouncedMediaKeyAction(android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE)
+                }
+            }
+
+            override fun pause() {
+                if (tryAcquireMediaActionLock()) {
+                    executeDebouncedMediaKeyAction(android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE)
+                }
+            }
+
+            override fun setPlayWhenReady(playWhenReady: Boolean) {
+                if (tryAcquireMediaActionLock()) {
+                    executeDebouncedMediaKeyAction(android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE)
+                }
+            }
+
+            override fun stop() {
+                if (tryAcquireMediaActionLock()) {
+                    executeDebouncedMediaKeyAction(android.view.KeyEvent.KEYCODE_MEDIA_STOP)
+                }
+            }
+
+            override fun seekToNext() {
+                if (tryAcquireMediaActionLock()) {
+                    executeDebouncedMediaKeyAction(android.view.KeyEvent.KEYCODE_MEDIA_NEXT)
+                }
+            }
+
+            override fun seekToNextMediaItem() {
+                if (tryAcquireMediaActionLock()) {
+                    executeDebouncedMediaKeyAction(android.view.KeyEvent.KEYCODE_MEDIA_NEXT)
+                }
+            }
+
+            override fun seekToPrevious() {
+                if (tryAcquireMediaActionLock()) {
+                    executeDebouncedMediaKeyAction(android.view.KeyEvent.KEYCODE_MEDIA_PREVIOUS)
+                }
+            }
+
+            override fun seekToPreviousMediaItem() {
+                if (tryAcquireMediaActionLock()) {
+                    executeDebouncedMediaKeyAction(android.view.KeyEvent.KEYCODE_MEDIA_PREVIOUS)
+                }
+            }
+        }
+    }
+
+    val mediaSession = remember(sessionPlayer) {
         try {
-            androidx.media3.session.MediaSession.Builder(context, exoPlayer)
-                .setId("ShowHubMediaSession")
+            androidx.media3.session.MediaSession.Builder(context, sessionPlayer)
+                .setId("ShowHubMediaSession_${System.nanoTime()}")
                 .setCallback(object : androidx.media3.session.MediaSession.Callback {
                     override fun onMediaButtonEvent(
                         session: androidx.media3.session.MediaSession,
@@ -1153,10 +1292,9 @@ private fun NativeExoPlayerScreen(
                             @Suppress("DEPRECATION")
                             intent.getParcelableExtra(android.content.Intent.EXTRA_KEY_EVENT)
                         }
-                        if (keyEvent != null) {
-                            if (handleMediaKeyEvent(keyEvent)) {
-                                return true
-                            }
+                        if (keyEvent != null && MediaKeyDispatcher.isMediaKey(keyEvent.keyCode)) {
+                            handleMediaKeyEvent(keyEvent)
+                            return true
                         }
                         return super.onMediaButtonEvent(session, controllerInfo, intent)
                     }
@@ -1168,18 +1306,29 @@ private fun NativeExoPlayerScreen(
     }
 
     DisposableEffect(mediaSession) {
+        val keyHandler: (android.view.KeyEvent) -> Boolean = { evt ->
+            val handled = handleMediaKeyEvent(evt)
+            if (handled) {
+                lastUserInteractionTime = System.currentTimeMillis()
+            }
+            handled
+        }
+        MediaKeyDispatcher.activeHandler = keyHandler
         onDispose {
+            if (MediaKeyDispatcher.activeHandler === keyHandler) {
+                MediaKeyDispatcher.activeHandler = null
+            }
             try {
                 mediaSession?.release()
             } catch (_: Throwable) {}
         }
     }
 
-    // Fast watchdog: if initial stream loading stalls in STATE_BUFFERING for > 5.0 seconds, auto-fallback
-    LaunchedEffect(currentStreamUrl, isBuffering, isPlaying) {
-        if (isBuffering && !isPlaying && currentPosition < 1000L && currentStreamUrl.isNotBlank()) {
+    // Fast watchdog: if initial stream loading stalls in STATE_BUFFERING for > 5.0 seconds, auto-fallback (only when not paused)
+    LaunchedEffect(currentStreamUrl, isBuffering, isPlaying, isUserPaused) {
+        if (!isUserPaused && !userPausedAtomic.get() && isBuffering && !isPlaying && currentPosition < 1000L && currentStreamUrl.isNotBlank()) {
             delay(5000L)
-            if (isBuffering && !isPlaying && currentPosition < 1000L) {
+            if (!isUserPaused && !userPausedAtomic.get() && isBuffering && !isPlaying && currentPosition < 1000L) {
                 android.util.Log.w("PlayerScreen", "Fast watchdog: initial stream buffering timed out for $currentStreamUrl")
                 hasPlaybackError = true
                 playbackErrorMessage = "Поток не отвечает (таймаут)"
@@ -1190,8 +1339,13 @@ private fun NativeExoPlayerScreen(
     // Auto-fallback when ExoPlayer encounters an error (e.g. 404 IP-lock on Voidboost/HDRezka)
     LaunchedEffect(hasPlaybackError) {
         if (hasPlaybackError) {
+            if (isUserPaused || userPausedAtomic.get()) {
+                hasPlaybackError = false
+                return@LaunchedEffect
+            }
             failedStreamUrls.add(currentStreamUrl)
             val failingSource = selectedSource
+            val savedErrorPos = currentPosition
 
             // Step 1: Look for an already-resolved alternative direct stream from a different source
             val nextDirect = allStreamOptions.firstOrNull { st ->
@@ -1214,11 +1368,21 @@ private fun NativeExoPlayerScreen(
                 selectedSource = nextSrc
                 try {
                     exoPlayer.setMediaItem(MediaItem.fromUri(nextDirect.url))
-                    exoPlayer.seekTo(0L)
-                    currentPosition = 0L
-                    bufferedPosition = 0L
+                    if (savedErrorPos > 2000L) {
+                        exoPlayer.seekTo(savedErrorPos)
+                    } else {
+                        exoPlayer.seekTo(0L)
+                        currentPosition = 0L
+                        bufferedPosition = 0L
+                    }
                     exoPlayer.prepare()
-                    exoPlayer.play()
+                    if (!userPausedAtomic.get()) {
+                        exoPlayer.playWhenReady = true
+                        exoPlayer.play()
+                    } else {
+                        exoPlayer.playWhenReady = false
+                        exoPlayer.pause()
+                    }
                 } catch (e: Exception) {
                     e.printStackTrace()
                 }
@@ -1232,7 +1396,7 @@ private fun NativeExoPlayerScreen(
                     translatorNoticeBadge = "Поток $failingSource недоступен. Переключение на $fallbackCandidate..."
                     delay(300L)
                     hasPlaybackError = false
-                    switchStream(currentSeason, currentEpisode, currentAudioId, selectedQuality, fallbackCandidate)
+                    switchStream(currentSeason, currentEpisode, currentAudioId, selectedQuality, fallbackCandidate, userInitiated = false)
                 } else {
                     translatorNoticeBadge = "Поток $failingSource недоступен. Выберите другой источник в меню."
                 }
@@ -1280,7 +1444,7 @@ private fun NativeExoPlayerScreen(
                 availableQualities = extractedQual
             }
             if (currentStreamUrl.isBlank() || !isDirectVideoStream(currentStreamUrl)) {
-                switchStream(currentSeason, currentEpisode, currentAudioId, selectedQuality, selectedSource)
+                switchStream(currentSeason, currentEpisode, currentAudioId, selectedQuality, selectedSource, userInitiated = false)
             }
         } catch (_: Exception) {}
     }
@@ -1290,11 +1454,15 @@ private fun NativeExoPlayerScreen(
         var lastSavedMs = 0L
         while (true) {
             if (!isTimelineFocused && pendingTimelineSeekPos == null) {
-                currentPosition = exoPlayer.currentPosition
+                val pos = exoPlayer.currentPosition
+                currentPosition = pos
+                if (pos > maxReachedPositionAtomic.get()) {
+                    maxReachedPositionAtomic.set(pos)
+                }
             }
             duration = if (exoPlayer.duration > 0) exoPlayer.duration else 0L
             bufferedPosition = exoPlayer.bufferedPosition
-            isPlaying = exoPlayer.isPlaying
+            isPlaying = !userPausedAtomic.get() && exoPlayer.isPlaying
 
             val now = System.currentTimeMillis()
             if (currentPosition > 3000L && duration > 0L && (now - lastSavedMs >= 5000L)) {
@@ -1351,10 +1519,15 @@ private fun NativeExoPlayerScreen(
             when (event) {
                 Lifecycle.Event.ON_PAUSE, Lifecycle.Event.ON_STOP -> {
                     persistCurrentPlaybackProgress()
+                    userPausedAtomic.set(true)
+                    isUserPaused = true
+                    isPlaying = false
+                    exoPlayer.playWhenReady = false
                     exoPlayer.pause()
                 }
                 Lifecycle.Event.ON_DESTROY -> {
                     persistCurrentPlaybackProgress()
+                    userPausedAtomic.set(true)
                     exoPlayer.stop()
                     exoPlayer.release()
                 }
@@ -1365,6 +1538,7 @@ private fun NativeExoPlayerScreen(
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
             persistCurrentPlaybackProgress()
+            userPausedAtomic.set(true)
             try {
                 exoPlayer.stop()
                 exoPlayer.clearMediaItems()
@@ -1491,16 +1665,7 @@ private fun NativeExoPlayerScreen(
                                 return@onKeyEvent true
                             }
                             KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
-                                if (!exoPlayer.isPlaying) {
-                                    exoPlayer.play()
-                                    playbackActionBadge = "play"
-                                    coroutineScope.launch {
-                                        delay(1500)
-                                        playbackActionBadge = null
-                                    }
-                                } else {
-                                    togglePlayPause()
-                                }
+                                togglePlayPause()
                                 return@onKeyEvent true
                             }
                             else -> {
@@ -2347,7 +2512,7 @@ private fun NativeExoPlayerScreen(
                                                 exoPlayer.seekTo(pPos)
                                                 pendingTimelineSeekPos = null
                                             }
-                                            if (exoPlayer.isPlaying) exoPlayer.pause() else exoPlayer.play()
+                                            togglePlayPause()
                                             true
                                         }
                                         else -> false

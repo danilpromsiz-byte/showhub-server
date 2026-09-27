@@ -8,6 +8,8 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.tv.material3.Border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -694,41 +696,49 @@ fun TvAppNavHost(activity: MainActivity) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.92f))
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null
-                    ) {},
+                    .background(Color.Black.copy(alpha = 0.94f)),
                 contentAlignment = Alignment.Center
             ) {
+                val updateScrollState = rememberScrollState()
+                val isMobile = com.example.tvmediaapp.BuildConfig.PLATFORM_TYPE == "mobile"
+                val appTitle = if (isMobile) "ShowHub Mobile" else "ShowHub TV"
+
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.padding(32.dp)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp, vertical = 12.dp)
+                        .verticalScroll(updateScrollState)
                 ) {
                     androidx.compose.foundation.Image(
                         painter = androidx.compose.ui.res.painterResource(id = R.drawable.ic_showhub_logo),
-                        contentDescription = "ShowHub TV",
+                        contentDescription = appTitle,
                         modifier = Modifier
-                            .size(56.dp)
-                            .clip(RoundedCornerShape(14.dp))
+                            .size(44.dp)
+                            .clip(RoundedCornerShape(10.dp))
                     )
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
                     Text(
-                        text = if (update.isForceUpdate) "Обязательное обновление ShowHub TV v${update.versionName}" else "Доступно обновление ShowHub TV v${update.versionName}",
-                        style = MaterialTheme.typography.headlineMedium,
+                        text = if (update.isForceUpdate) "Обязательное обновление $appTitle v${update.versionName}" else "Доступно обновление $appTitle v${update.versionName}",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color.White
+                        color = Color.White,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
                     )
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = update.changelog,
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = Color.LightGray
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontSize = 12.sp,
+                        lineHeight = 16.sp,
+                        color = Color.LightGray,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
                     )
 
                     // Download Progress Bar
                     if (isDownloadingUpdate && updatePercent >= 0) {
-                        Spacer(modifier = Modifier.height(18.dp))
+                        Spacer(modifier = Modifier.height(14.dp))
                         Box(
                             modifier = Modifier
                                 .width(460.dp)
@@ -752,7 +762,7 @@ fun TvAppNavHost(activity: MainActivity) {
 
                     // Status Text Message
                     if (updateStatus != null) {
-                        Spacer(modifier = Modifier.height(14.dp))
+                        Spacer(modifier = Modifier.height(10.dp))
                         Text(
                             text = updateStatus!!,
                             style = MaterialTheme.typography.bodyMedium,
@@ -760,7 +770,7 @@ fun TvAppNavHost(activity: MainActivity) {
                             fontWeight = FontWeight.SemiBold
                         )
                     } else if (isApkReady) {
-                        Spacer(modifier = Modifier.height(14.dp))
+                        Spacer(modifier = Modifier.height(10.dp))
                         Text(
                             text = "✓ Файл обновления уже загружен в фоне и готов к установке",
                             style = MaterialTheme.typography.bodyMedium,
@@ -768,7 +778,7 @@ fun TvAppNavHost(activity: MainActivity) {
                             fontWeight = FontWeight.SemiBold
                         )
                     } else if (UpdateManager.isPredownloading && !isDownloadingUpdate) {
-                        Spacer(modifier = Modifier.height(14.dp))
+                        Spacer(modifier = Modifier.height(10.dp))
                         Text(
                             text = "Фоновая загрузка файла обновления...",
                             style = MaterialTheme.typography.bodyMedium,
@@ -777,9 +787,15 @@ fun TvAppNavHost(activity: MainActivity) {
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(24.dp))
+                    Spacer(modifier = Modifier.height(14.dp))
                     val accent = LocalAccentColor.current
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 6.dp)
+                    ) {
                         // Button 1: Install Update
                         Button(
                             onClick = {
@@ -803,16 +819,16 @@ fun TvAppNavHost(activity: MainActivity) {
                                 }
                             },
                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
-                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
+                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.04f),
+                            contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp),
                             colors = ButtonDefaults.colors(
-                                containerColor = accent,
-                                focusedContainerColor = Color.White,
+                                containerColor = Color.White,
+                                focusedContainerColor = accent,
                                 contentColor = Color.Black,
                                 focusedContentColor = Color.Black
                             ),
                             modifier = Modifier
-                                .height(32.dp)
+                                .height(44.dp)
                                 .focusRequester(updateFocusRequester)
                                 .focusProperties {
                                     right = browserFocusRequester
@@ -832,11 +848,11 @@ fun TvAppNavHost(activity: MainActivity) {
                                     "Обновить сейчас"
                                 },
                                 fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold
+                                fontWeight = FontWeight.ExtraBold
                             )
                         }
 
-                        Spacer(modifier = Modifier.width(14.dp))
+                        Spacer(modifier = Modifier.width(12.dp))
 
                         // Button 2: Browser Fallback Download
                         Button(
@@ -844,16 +860,20 @@ fun TvAppNavHost(activity: MainActivity) {
                                 UpdateManager.openDownloadUrlInBrowser(activity, update.downloadUrl)
                             },
                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
-                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
+                            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.04f),
+                            contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp),
+                            border = ButtonDefaults.border(
+                                border = Border(BorderStroke(1.5.dp, Color(0xFF64B5F6))),
+                                focusedBorder = Border(BorderStroke(2.dp, Color.White))
+                            ),
                             colors = ButtonDefaults.colors(
-                                containerColor = Color.White.copy(alpha = 0.12f),
+                                containerColor = Color(0xFF1E293B),
                                 focusedContainerColor = Color.White,
                                 contentColor = Color.White,
                                 focusedContentColor = Color.Black
                             ),
                             modifier = Modifier
-                                .height(32.dp)
+                                .height(44.dp)
                                 .focusRequester(browserFocusRequester)
                                 .focusProperties {
                                     left = updateFocusRequester
@@ -865,21 +885,25 @@ fun TvAppNavHost(activity: MainActivity) {
                             Text(
                                 text = "Открыть в браузере",
                                 fontSize = 13.sp,
-                                fontWeight = FontWeight.Medium
+                                fontWeight = FontWeight.Bold
                             )
                         }
 
                         // Button 3: Remind Later (hidden when update is mandatory)
                         if (!update.isForceUpdate) {
-                            Spacer(modifier = Modifier.width(14.dp))
+                            Spacer(modifier = Modifier.width(12.dp))
                             Button(
                                 onClick = {
                                     dismissedVersionCode = update.versionCode
                                     updateInfo = null
                                 },
                                 shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                                scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
-                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
+                                scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.04f),
+                                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                                border = ButtonDefaults.border(
+                                    border = Border(BorderStroke(1.dp, Color.White.copy(alpha = 0.35f))),
+                                    focusedBorder = Border(BorderStroke(2.dp, Color.White))
+                                ),
                                 colors = ButtonDefaults.colors(
                                     containerColor = Color.White.copy(alpha = 0.08f),
                                     focusedContainerColor = Color.White,
@@ -887,7 +911,7 @@ fun TvAppNavHost(activity: MainActivity) {
                                     focusedContentColor = Color.Black
                                 ),
                                 modifier = Modifier
-                                    .height(32.dp)
+                                    .height(44.dp)
                                     .focusRequester(remindLaterFocusRequester)
                                     .focusProperties {
                                         left = browserFocusRequester
@@ -898,7 +922,8 @@ fun TvAppNavHost(activity: MainActivity) {
                             ) {
                                 Text(
                                     text = "Напомнить позже",
-                                    fontSize = 13.sp
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Medium
                                 )
                             }
                         }

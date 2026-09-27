@@ -5,8 +5,8 @@
  */
 
 // Application Version & Mandatory Update State
-const CURRENT_APP_VERSION = "2.8.65";
-const CURRENT_APP_VERSION_CODE = 124;
+const CURRENT_APP_VERSION = "2.8.66";
+const CURRENT_APP_VERSION_CODE = 125;
 window.isForceUpdateActive = false;
 
 // Migrate legacy local PC IP addresses to cloud server

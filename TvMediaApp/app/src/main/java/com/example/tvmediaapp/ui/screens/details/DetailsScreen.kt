@@ -36,6 +36,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -152,8 +153,9 @@ fun DetailsScreen(
         )
     }
 
+    val historyVersion by com.example.tvmediaapp.data.history.WatchHistoryManager.historyVersionFlow.collectAsState()
     val historyManager = remember { WatchHistoryManager(context) }
-    val savedHistory = remember(movie.id, currentMovie.id, currentMovie.title, com.example.tvmediaapp.data.history.WatchHistoryManager.historyVersion) {
+    val savedHistory = remember(movie.id, currentMovie.id, currentMovie.title, historyVersion) {
         historyManager.getProgress(currentMovie.id.ifEmpty { movie.id }, currentMovie.title)
     }
 
@@ -2423,7 +2425,6 @@ fun DetailsScreen(
 
                             TvLazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 itemsIndexed(activeEpisodes) { epIdx, ep ->
-                                    val hVer = com.example.tvmediaapp.data.history.WatchHistoryManager.historyVersion
                                     val isSelected = ep.episodeNumber == selectedEpisode
                                     val histProgress = if (savedHistory != null && savedHistory.season == selectedSeason && savedHistory.episode == ep.episodeNumber) {
                                         if (savedHistory.percentage > 0) {

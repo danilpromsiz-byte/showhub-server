@@ -27,11 +27,14 @@ data class HistoryItem(
 
 class WatchHistoryManager(context: Context) {
     companion object {
-        var historyVersion by mutableIntStateOf(0)
-            private set
+        private val _historyVersion = kotlinx.coroutines.flow.MutableStateFlow(0)
+        val historyVersionFlow: kotlinx.coroutines.flow.StateFlow<Int> = _historyVersion
+
+        val historyVersion: Int
+            get() = _historyVersion.value
 
         fun notifyHistoryChanged() {
-            historyVersion++
+            _historyVersion.value++
         }
 
         fun normalizeTitle(title: String?): String {

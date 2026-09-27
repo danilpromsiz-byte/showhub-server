@@ -2,6 +2,7 @@
 ShowHub Background Catalog Harvester.
 Continuously populates and refreshes the local SQLite MediaRegistry with
 popular, trending, and fresh movies, series, anime, and cartoons from all available sources.
+Uses Lampa as the primary authoritative source for popularity, ratings, age limits, and metadata.
 Runs asynchronously in daemon threads without blocking API requests.
 """
 import os
@@ -12,6 +13,7 @@ import threading
 from typing import List, Any
 
 from .media_registry import media_registry
+from .lampa_source import lampa_source
 
 logger = logging.getLogger("media_harvester")
 
@@ -30,19 +32,25 @@ class MediaHarvester:
         thread.start()
 
     def _run_seeding_loop(self):
-        logger.info("[Harvester] Starting initial media registry seeding...")
-        # Step 1: Initial static catalog seed
+        logger.info("[Harvester] Starting initial media registry seeding and Lampa synchronization...")
+        # Step 1: Initial static catalog seed (if empty)
         self._seed_static_catalog()
 
-        # Step 2: Live sources harvesting (popular & top categories)
+        # Step 2: Immediate Lampa main screen sync (trending, popular, now playing)
+        try:
+            self._harvest_lampa_feeds()
+        except Exception as e:
+            logger.error(f"[Harvester] Error during initial Lampa harvest: {e}")
+
+        # Step 3: Live sources harvesting (popular & top categories)
         while True:
             try:
                 self._harvest_all_sources()
             except Exception as e:
                 logger.error(f"[Harvester] Error during periodic harvest: {e}")
 
-            # Sleep for 4 hours between full refreshes
-            time.sleep(4 * 3600)
+            # Sleep for 2 hours between full refreshes
+            time.sleep(2 * 3600)
 
     def _seed_static_catalog(self):
         try:
@@ -57,10 +65,81 @@ class MediaHarvester:
         except Exception as e:
             logger.warning(f"[Harvester] Failed to seed static catalog: {e}")
 
+    def _harvest_lampa_feeds(self) -> int:
+        """Harvests Lampa's main screen feeds: trending today/week, popular, top rated, now playing."""
+        logger.info("[Harvester] Fetching Lampa main screen feeds...")
+        total_lampa = 0
+        try:
+            cards = lampa_source.get_main_screen_feeds(max_pages_per_feed=2)
+            if cards:
+                c = media_registry.upsert_batch(cards)
+                total_lampa += c
+                logger.info(f"[Harvester] Upserted {c} items from Lampa main feeds.")
+
+                # Deep enrich top 40 trending items with cast, director, age rating, recs, tags
+                for card in cards[:40]:
+                    try:
+                        tmdb_id = card.get("tmdb_id")
+                        is_ser = card.get("is_series", False)
+                        if tmdb_id:
+                            det = lampa_source.get_details_with_appends(tmdb_id, is_series=is_ser)
+                            if det:
+                                det["id"] = f"tmdb_{tmdb_id}"
+                                det["source_name"] = "lampa"
+                                media_registry.upsert_item(det)
+                        time.sleep(0.15)
+                    except Exception:
+                        pass
+        except Exception as e:
+            logger.error(f"[Harvester] Error in _harvest_lampa_feeds: {e}")
+        return total_lampa
+
+    def _enrich_existing_items_with_lampa(self, max_items: int = 50):
+        """Enriches existing database items that lack Lampa popularity or ratings."""
+        try:
+            conn = media_registry._get_connection()
+            rows = conn.execute("""
+                SELECT id, title, year, is_series, original_title
+                FROM media_items
+                WHERE lampa_popularity = 0.0 OR rating_lampa IS NULL
+                ORDER BY updated_at DESC
+                LIMIT ?;
+            """, (max_items,)).fetchall()
+
+            for r in rows:
+                try:
+                    title = r["title"]
+                    year = r["year"]
+                    is_ser = bool(r["is_series"])
+                    orig = r["original_title"]
+
+                    from .tmdb import tmdb
+                    tmdb_res = tmdb.search_and_enrich(title=title, year=year, is_series=is_ser, original_title=orig)
+                    if tmdb_res and tmdb_res.get("tmdb_id"):
+                        det = lampa_source.get_details_with_appends(str(tmdb_res["tmdb_id"]), is_series=is_ser)
+                        if det:
+                            det["id"] = r["id"]  # Merge directly into existing record
+                            det["source_name"] = "lampa"
+                            media_registry.upsert_item(det)
+                    time.sleep(0.2)
+                except Exception:
+                    pass
+        except Exception as e:
+            logger.debug(f"[Harvester] Error enriching existing items: {e}")
+
     def _harvest_all_sources(self):
         total_indexed = 0
 
-        # 1. Harvest from Kodik (movies, series, anime)
+        # 1. Primary: Lampa main screen feeds
+        total_indexed += self._harvest_lampa_feeds()
+
+        # 2. Enrich existing items with Lampa metadata
+        try:
+            self._enrich_existing_items_with_lampa(max_items=50)
+        except Exception:
+            pass
+
+        # 3. Harvest from Kodik (movies, series, anime)
         try:
             from ..sources.kodik import KodikSource
             kodik = KodikSource()
@@ -70,13 +149,13 @@ class MediaHarvester:
                         k_items = kodik.get_catalog(category=cat, page=page, limit=100)
                         if k_items:
                             total_indexed += media_registry.upsert_batch(k_items)
-                        time.sleep(0.5)
+                        time.sleep(0.4)
                 except Exception:
                     pass
         except Exception as e:
             logger.debug(f"[Harvester] Kodik harvest error: {e}")
 
-        # 2. Harvest from Filmix (popular movies and series)
+        # 4. Harvest from Filmix (popular movies and series)
         try:
             from ..sources.filmix import FilmixSource
             filmix = FilmixSource()
@@ -86,13 +165,13 @@ class MediaHarvester:
                         fx_items = filmix.get_catalog(category=cat, page=p)
                         if fx_items:
                             total_indexed += media_registry.upsert_batch(fx_items)
-                        time.sleep(0.5)
+                        time.sleep(0.4)
                 except Exception:
                     pass
         except Exception as e:
             logger.debug(f"[Harvester] Filmix harvest error: {e}")
 
-        # 3. Harvest from AniLibria (anime releases)
+        # 5. Harvest from AniLibria (anime releases)
         try:
             from ..sources.anilibria import AnilibriaSource
             anilibria = AnilibriaSource()
@@ -101,23 +180,6 @@ class MediaHarvester:
                 total_indexed += media_registry.upsert_batch(al_items)
         except Exception as e:
             logger.debug(f"[Harvester] AniLibria harvest error: {e}")
-
-        # 4. Harvest from TMDb (popular movies, series, and trending)
-        try:
-            from .tmdb import tmdb
-            for page in range(1, 6):
-                try:
-                    m_pop = tmdb.get_popular_movies(page=page)
-                    if m_pop:
-                        total_indexed += media_registry.upsert_batch(m_pop)
-                    s_pop = tmdb.get_popular_series(page=page)
-                    if s_pop:
-                        total_indexed += media_registry.upsert_batch(s_pop)
-                    time.sleep(0.3)
-                except Exception:
-                    pass
-        except Exception as e:
-            logger.debug(f"[Harvester] TMDb harvest error: {e}")
 
         logger.info(f"[Harvester] Harvesting cycle complete. Indexed batch of {total_indexed} items. Total in registry: {media_registry.count()}")
 

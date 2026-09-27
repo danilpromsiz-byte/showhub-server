@@ -1,8 +1,12 @@
 """
 ShowHub High-Performance Media Registry & Full-Text Search Index.
-Stores canonical media records across all sources (Filmix, Zona, AniLibria, Kodik, HDRezka, TMDb).
-Enables instant (<10ms) catalog filtering, sorting, and full-text search with SQLite FTS5.
-Automatically harvests and indexes new items from catalogs, searches, and stream queries.
+Stores canonical media records across all sources (Lampa, Filmix, HDRezka, Kodik, Zona, AniLibria, TMDb).
+Enables instant (<3ms) catalog filtering, sorting, and full-text search with SQLite FTS5.
+Enforces strict conflict resolution priority:
+  1. Lampa (highest priority for popularity, ratings, age limits, backdrops, cast, recs)
+  2. Kinopoisk
+  3. HDRezka
+  4. Others (Filmix, Kodik, Zona, etc.)
 """
 import os
 import re
@@ -26,6 +30,69 @@ def normalize_title(s: Optional[str]) -> str:
     clean = re.sub(r'[^\w\s]', ' ', clean, flags=re.UNICODE)
     clean = re.sub(r'\s+', ' ', clean).strip().lower()
     return clean
+
+def normalize_age_limit(val: Any) -> Optional[str]:
+    if not val:
+        return None
+    s = str(val).strip().upper()
+    if s in ["18+", "18", "R", "NC-17", "TV-MA", "AGE18"]:
+        return "18+"
+    if s in ["16+", "16", "AGE16"]:
+        return "16+"
+    if s in ["12+", "12", "PG-13", "TV-14", "AGE12"]:
+        return "12+"
+    if s in ["6+", "6", "PG", "TV-PG", "AGE6"]:
+        return "6+"
+    if s in ["0+", "0", "G", "TV-G", "TV-Y", "AGE0"]:
+        return "0+"
+    if s.isdigit():
+        return f"{s}+"
+    return s
+
+def compute_effective_rating(
+    r_lampa: Optional[float] = None,
+    r_kp: Optional[float] = None,
+    r_rezka: Optional[float] = None,
+    r_imdb: Optional[float] = None,
+    r_other: Optional[float] = None
+) -> Optional[float]:
+    """
+    User Priority Hierarchy:
+    1. Lampa (highest)
+    2. Kinopoisk
+    3. HDRezka
+    4. Others (IMDb, Filmix, etc.)
+    """
+    if r_lampa is not None and r_lampa > 0.0:
+        return round(float(r_lampa), 1)
+    if r_kp is not None and r_kp > 0.0:
+        return round(float(r_kp), 1)
+    if r_rezka is not None and r_rezka > 0.0:
+        return round(float(r_rezka), 1)
+    if r_imdb is not None and r_imdb > 0.0:
+        return round(float(r_imdb), 1)
+    if r_other is not None and r_other > 0.0:
+        return round(float(r_other), 1)
+    return None
+
+def compute_effective_age_limit(
+    age_lampa: Optional[str] = None,
+    age_kp: Optional[str] = None,
+    age_rezka: Optional[str] = None,
+    age_other: Optional[str] = None
+) -> Optional[str]:
+    """
+    User Priority Hierarchy for Age Limits:
+    1. Lampa (highest)
+    2. Kinopoisk
+    3. HDRezka
+    4. Others
+    """
+    for val in [age_lampa, age_kp, age_rezka, age_other]:
+        norm = normalize_age_limit(val)
+        if norm:
+            return norm
+    return None
 
 def get_country_aliases(country: str) -> List[str]:
     c_clean = country.lower().strip()
@@ -90,7 +157,6 @@ def extract_country_info(data: Dict[str, Any], extra: Dict[str, Any], genres_lis
     if direct_c and direct_c not in countries_list:
         countries_list.insert(0, direct_c)
 
-    # Infer from description or genres if empty
     if not countries_list:
         desc = str(data.get("description") or "")
         full = f"{desc} {' '.join(genres_list)}".lower()
@@ -111,19 +177,6 @@ def extract_country_info(data: Dict[str, Any], extra: Dict[str, Any], genres_lis
 
     primary_country = countries_list[0] if countries_list else ""
     return primary_country, countries_list
-
-def compute_popularity(rkp: Optional[float], rimdb: Optional[float], year: Optional[int], votes: int, poster: Optional[str]) -> float:
-    eff_r = max(rkp or 0.0, rimdb or 0.0)
-    score = eff_r * 10000.0 if eff_r > 0 else 5000.0
-    if votes > 0:
-        score += math.log10(max(votes, 1)) * 5000.0
-    if poster and "no_image_poster" not in poster and "noposter" not in poster:
-        score += 8000.0
-    current_year = 2026
-    if year:
-        diff = max(0, current_year - year)
-        score += max(0, (10 - min(diff, 10)) * 1000.0)
-    return score
 
 class MediaRegistry:
     def __init__(self, db_path: str = DB_PATH):
@@ -158,48 +211,90 @@ class MediaRegistry:
                     country TEXT DEFAULT '',
                     countries TEXT DEFAULT '[]',
                     poster TEXT,
+                    backdrop TEXT,
                     description TEXT,
+                    rating_lampa REAL,
                     rating_kp REAL,
+                    rating_rezka REAL,
                     rating_imdb REAL,
+                    effective_rating REAL,
+                    lampa_popularity REAL DEFAULT 0.0,
                     popularity REAL DEFAULT 0.0,
+                    age_limit TEXT,
                     kinopoisk_id TEXT,
+                    tmdb_id TEXT,
                     genres TEXT,
+                    actors TEXT,
+                    cast TEXT,
+                    director TEXT,
+                    directors_list TEXT,
+                    recommendations TEXT,
+                    tags TEXT,
+                    comments TEXT,
                     extra_data TEXT,
                     updated_at REAL
                 );
             """)
 
-            # Migration for existing DBs if columns are missing
+            # Dynamic migrations for any existing columns
             cols = [c[1] for c in conn.execute("PRAGMA table_info(media_items);").fetchall()]
-            if "category" not in cols:
-                conn.execute("ALTER TABLE media_items ADD COLUMN category TEXT DEFAULT 'movie';")
-            if "country" not in cols:
-                conn.execute("ALTER TABLE media_items ADD COLUMN country TEXT DEFAULT '';")
-            if "countries" not in cols:
-                conn.execute("ALTER TABLE media_items ADD COLUMN countries TEXT DEFAULT '[]';")
-            if "popularity" not in cols:
-                conn.execute("ALTER TABLE media_items ADD COLUMN popularity REAL DEFAULT 0.0;")
+            new_cols = {
+                "category": "TEXT DEFAULT 'movie'",
+                "country": "TEXT DEFAULT ''",
+                "countries": "TEXT DEFAULT '[]'",
+                "popularity": "REAL DEFAULT 0.0",
+                "rating_lampa": "REAL",
+                "rating_rezka": "REAL",
+                "effective_rating": "REAL",
+                "lampa_popularity": "REAL DEFAULT 0.0",
+                "age_limit": "TEXT",
+                "backdrop": "TEXT",
+                "cast": "TEXT",
+                "actors": "TEXT",
+                "director": "TEXT",
+                "directors_list": "TEXT",
+                "recommendations": "TEXT",
+                "tags": "TEXT",
+                "comments": "TEXT",
+                "tmdb_id": "TEXT"
+            }
+            for col_name, col_type in new_cols.items():
+                if col_name not in cols:
+                    try:
+                        conn.execute(f"ALTER TABLE media_items ADD COLUMN {col_name} {col_type};")
+                    except Exception:
+                        pass
 
+            # Performance Indexes
             conn.execute("CREATE INDEX IF NOT EXISTS idx_clean_title ON media_items(clean_title);")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_kp_id ON media_items(kinopoisk_id);")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_tmdb_id ON media_items(tmdb_id);")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_year ON media_items(year);")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_is_series ON media_items(is_series);")
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_cat_rating ON media_items(category, rating_kp DESC);")
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_cat_year ON media_items(category, year DESC);")
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_cat_pop ON media_items(category, popularity DESC);")
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_cat_updated ON media_items(category, updated_at DESC);")
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_rating_desc ON media_items(rating_kp DESC);")
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_year_desc ON media_items(year DESC);")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_cat_pop ON media_items(category, lampa_popularity DESC);")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_cat_rating ON media_items(category, effective_rating DESC);")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_lampa_pop ON media_items(lampa_popularity DESC);")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_eff_rating ON media_items(effective_rating DESC);")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_pop_desc ON media_items(popularity DESC);")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_country ON media_items(country);")
 
-            # Full-Text Search 5 Virtual Table
+            # Full-Text Search 5 Virtual Table Migration
+            try:
+                fts_cols = [c[1] for c in conn.execute("PRAGMA table_info(media_fts);").fetchall()]
+                if "actors" not in fts_cols:
+                    conn.execute("DROP TABLE IF EXISTS media_fts;")
+            except Exception:
+                pass
+
             conn.execute("""
                 CREATE VIRTUAL TABLE IF NOT EXISTS media_fts USING fts5(
                     item_id UNINDEXED,
                     title,
                     original_title,
                     description,
+                    actors,
+                    director,
+                    tags,
                     tokenize='unicode61 remove_diacritics 2'
                 );
             """)
@@ -209,13 +304,12 @@ class MediaRegistry:
         return self.upsert_batch([item]) > 0
 
     def upsert_batch(self, items: List[Any]) -> int:
-        """Batch upserts items into the registry with deduplication and indexing."""
+        """Batch upserts items into the registry with deduplication, hierarchy conflict resolution, and indexing."""
         if not items:
             return 0
 
         conn = self._get_connection()
         now = time.time()
-        inserted_count = 0
 
         prepared_rows = []
         fts_rows = []
@@ -234,10 +328,7 @@ class MediaRegistry:
                 if not title:
                     continue
 
-                source_name = str(data.get("source_name") or "registry")
-                unique_id = f"{source_name}_{raw_id}" if raw_id and not raw_id.startswith(source_name) else (raw_id or f"{source_name}_{hash(title)}")
-
-                orig_title = data.get("original_title")
+                source_name = str(data.get("source_name") or "registry").lower()
                 clean = normalize_title(title)
                 if not clean:
                     continue
@@ -249,7 +340,39 @@ class MediaRegistry:
                     year = None
 
                 is_ser = 1 if bool(data.get("is_series")) else 0
+                orig_title = data.get("original_title")
+
+                # Canonical deduplication: check if this movie/series already exists in DB
+                kp_id = str(data.get("kinopoisk_id") or "").strip()
+                if not kp_id or not kp_id.isdigit():
+                    kp_id = None
+
+                tmdb_id = str(data.get("tmdb_id") or "").strip()
+                if not tmdb_id:
+                    if raw_id.startswith("tmdb_"):
+                        tmdb_id = raw_id.replace("tmdb_", "")
+
+                # Priority 1: Lampa (tmdb) ID
+                # Priority 2: Kinopoisk ID
+                # Priority 3: clean_title + year
+                existing_canonical = None
+                if tmdb_id:
+                    existing_canonical = conn.execute("SELECT id FROM media_items WHERE tmdb_id = ? LIMIT 1;", (tmdb_id,)).fetchone()
+                if not existing_canonical and kp_id:
+                    existing_canonical = conn.execute("SELECT id FROM media_items WHERE kinopoisk_id = ? LIMIT 1;", (kp_id,)).fetchone()
+                if not existing_canonical and clean:
+                    if year:
+                        existing_canonical = conn.execute("SELECT id FROM media_items WHERE clean_title = ? AND year = ? LIMIT 1;", (clean, year)).fetchone()
+                    else:
+                        existing_canonical = conn.execute("SELECT id FROM media_items WHERE clean_title = ? LIMIT 1;", (clean,)).fetchone()
+
+                if existing_canonical:
+                    unique_id = existing_canonical["id"]
+                else:
+                    unique_id = f"{source_name}_{raw_id}" if raw_id and not raw_id.startswith(source_name) else (raw_id or f"{source_name}_{hash(clean + str(year))}")
+
                 poster = data.get("poster")
+                backdrop = data.get("backdrop")
                 desc = data.get("description")
 
                 def safe_float(v):
@@ -258,43 +381,92 @@ class MediaRegistry:
                     except (ValueError, TypeError):
                         return None
 
-                rkp = safe_float(data.get("rating_kp"))
-                rimdb = safe_float(data.get("rating_imdb"))
+                # Source-specific rating assignment according to hierarchy
+                raw_rating = safe_float(data.get("rating"))
+                r_lampa = safe_float(data.get("rating_lampa"))
+                if r_lampa is None and source_name == "lampa" and raw_rating:
+                    r_lampa = raw_rating
 
-                kp_id = str(data.get("kinopoisk_id") or "").strip()
-                if not kp_id or not kp_id.isdigit():
-                    kp_id = None
+                r_kp = safe_float(data.get("rating_kp"))
+                if r_kp is None and source_name in ("kp", "kinopoisk") and raw_rating:
+                    r_kp = raw_rating
+
+                r_rezka = safe_float(data.get("rating_rezka"))
+                if r_rezka is None and source_name == "hdrezka" and raw_rating:
+                    r_rezka = raw_rating
+
+                r_imdb = safe_float(data.get("rating_imdb"))
+
+                # User priority hierarchy: Lampa > Kinopoisk > HDRezka > Others
+                effective_r = compute_effective_rating(r_lampa, r_kp, r_rezka, r_imdb, raw_rating)
 
                 raw_genres = data.get("genres") or []
                 if isinstance(raw_genres, list):
                     genres_list = [str(g).strip() for g in raw_genres if str(g).strip()]
                 else:
                     genres_list = [str(raw_genres).strip()]
-
                 genres_json = json.dumps(genres_list, ensure_ascii=False)
+
                 extra = data.get("extra_data") or {}
                 if not isinstance(extra, dict):
                     extra = {}
 
-                # Rich category, country, and popularity detection
+                # Age limit parsing with priority
+                age_lampa = normalize_age_limit(data.get("age_limit") if source_name == "lampa" else None)
+                age_kp = normalize_age_limit(data.get("age_limit") if source_name in ("kp", "kinopoisk") else extra.get("ratingAgeLimits"))
+                age_rezka = normalize_age_limit(data.get("age_limit") if source_name == "hdrezka" else None)
+                age_other = normalize_age_limit(data.get("age_limit"))
+                eff_age = compute_effective_age_limit(age_lampa, age_kp, age_rezka, age_other)
+
+                # Popularity: Lampa popularity is primary
+                l_pop = safe_float(data.get("lampa_popularity") or (data.get("popularity") if source_name == "lampa" else None)) or 0.0
+
+                # Cast, Directors, Recs, Tags
+                cast_val = data.get("cast")
+                cast_json = json.dumps(cast_val, ensure_ascii=False) if isinstance(cast_val, list) else None
+                actors_val = data.get("actors")
+                if isinstance(actors_val, list):
+                    actors_str = ", ".join(str(a) for a in actors_val if a)
+                else:
+                    actors_str = str(actors_val).strip() if actors_val else None
+
+                director_val = data.get("director")
+                if isinstance(director_val, list):
+                    director_str = ", ".join(str(d) for d in director_val if d)
+                else:
+                    director_str = str(director_val).strip() if director_val else None
+
+                d_list = data.get("directors_list")
+                d_list_json = json.dumps(d_list, ensure_ascii=False) if isinstance(d_list, list) else None
+
+                recs = data.get("recommendations")
+                recs_json = json.dumps(recs, ensure_ascii=False) if isinstance(recs, list) else None
+
+                tags = data.get("tags")
+                tags_json = json.dumps(tags, ensure_ascii=False) if isinstance(tags, list) else (str(tags) if tags else None)
+
+                comments = data.get("comments")
+                comments_json = json.dumps(comments, ensure_ascii=False) if isinstance(comments, list) else None
+
+                # Category and country
                 cat = detect_category(data, is_ser, genres_list)
                 primary_c, c_list = extract_country_info(data, extra, genres_list)
                 countries_json = json.dumps(c_list, ensure_ascii=False)
-
-                votes = int(extra.get("vote_num_kp") or extra.get("vote_num_imdb") or 0)
-                pop_score = compute_popularity(rkp, rimdb, year, votes, poster)
 
                 extra_json = json.dumps(extra, ensure_ascii=False)
 
                 prepared_rows.append((
                     unique_id, source_name, title, orig_title, clean,
                     year, is_ser, cat, primary_c, countries_json,
-                    poster, desc, rkp, rimdb, pop_score, kp_id,
-                    genres_json, extra_json, now
+                    poster, backdrop, desc, r_lampa, r_kp, r_rezka, r_imdb,
+                    effective_r, l_pop, l_pop, eff_age, kp_id, tmdb_id,
+                    genres_json, actors_str, cast_json, director_str, d_list_json,
+                    recs_json, tags_json, comments_json, extra_json, now
                 ))
 
                 fts_rows.append((
-                    unique_id, title, orig_title or "", desc or ""
+                    unique_id, title, orig_title or "", desc or "",
+                    actors_str or "", director_str or "", tags_json or ""
                 ))
             except Exception as e:
                 logger.debug(f"Error preparing row for registry: {e}")
@@ -303,17 +475,21 @@ class MediaRegistry:
         if not prepared_rows:
             return 0
 
+        inserted_count = 0
         try:
             with conn:
                 conn.executemany("""
                     INSERT INTO media_items (
                         id, source_name, title, original_title, clean_title,
                         year, is_series, category, country, countries,
-                        poster, description, rating_kp, rating_imdb, popularity,
-                        kinopoisk_id, genres, extra_data, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        poster, backdrop, description, rating_lampa, rating_kp,
+                        rating_rezka, rating_imdb, effective_rating, lampa_popularity,
+                        popularity, age_limit, kinopoisk_id, tmdb_id,
+                        genres, actors, cast, director, directors_list,
+                        recommendations, tags, comments, extra_data, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(id) DO UPDATE SET
-                        title = excluded.title,
+                        title = CASE WHEN excluded.source_name = 'lampa' THEN excluded.title ELSE media_items.title END,
                         original_title = COALESCE(excluded.original_title, media_items.original_title),
                         clean_title = excluded.clean_title,
                         year = COALESCE(excluded.year, media_items.year),
@@ -321,23 +497,49 @@ class MediaRegistry:
                         category = excluded.category,
                         country = CASE WHEN excluded.country != '' THEN excluded.country ELSE media_items.country END,
                         countries = CASE WHEN excluded.countries != '[]' THEN excluded.countries ELSE media_items.countries END,
-                        poster = COALESCE(excluded.poster, media_items.poster),
-                        description = COALESCE(excluded.description, media_items.description),
+                        poster = CASE
+                            WHEN excluded.source_name = 'lampa' AND excluded.poster IS NOT NULL THEN excluded.poster
+                            WHEN media_items.source_name = 'lampa' AND media_items.poster IS NOT NULL THEN media_items.poster
+                            ELSE COALESCE(excluded.poster, media_items.poster)
+                        END,
+                        backdrop = COALESCE(excluded.backdrop, media_items.backdrop),
+                        description = CASE
+                            WHEN excluded.source_name = 'lampa' AND excluded.description IS NOT NULL AND LENGTH(excluded.description) > 10 THEN excluded.description
+                            ELSE COALESCE(media_items.description, excluded.description)
+                        END,
+                        rating_lampa = COALESCE(excluded.rating_lampa, media_items.rating_lampa),
                         rating_kp = COALESCE(excluded.rating_kp, media_items.rating_kp),
+                        rating_rezka = COALESCE(excluded.rating_rezka, media_items.rating_rezka),
                         rating_imdb = COALESCE(excluded.rating_imdb, media_items.rating_imdb),
-                        popularity = MAX(excluded.popularity, media_items.popularity),
+                        effective_rating = COALESCE(
+                            excluded.rating_lampa, media_items.rating_lampa,
+                            excluded.rating_kp, media_items.rating_kp,
+                            excluded.rating_rezka, media_items.rating_rezka,
+                            excluded.rating_imdb, media_items.rating_imdb
+                        ),
+                        lampa_popularity = MAX(COALESCE(excluded.lampa_popularity, 0.0), COALESCE(media_items.lampa_popularity, 0.0)),
+                        popularity = MAX(COALESCE(excluded.popularity, 0.0), COALESCE(media_items.popularity, 0.0)),
+                        age_limit = COALESCE(excluded.age_limit, media_items.age_limit),
                         kinopoisk_id = COALESCE(excluded.kinopoisk_id, media_items.kinopoisk_id),
-                        genres = excluded.genres,
+                        tmdb_id = COALESCE(excluded.tmdb_id, media_items.tmdb_id),
+                        genres = CASE WHEN excluded.genres != '[]' THEN excluded.genres ELSE media_items.genres END,
+                        actors = COALESCE(excluded.actors, media_items.actors),
+                        cast = COALESCE(excluded.cast, media_items.cast),
+                        director = COALESCE(excluded.director, media_items.director),
+                        directors_list = COALESCE(excluded.directors_list, media_items.directors_list),
+                        recommendations = COALESCE(excluded.recommendations, media_items.recommendations),
+                        tags = COALESCE(excluded.tags, media_items.tags),
+                        comments = COALESCE(excluded.comments, media_items.comments),
                         extra_data = excluded.extra_data,
                         updated_at = excluded.updated_at;
                 """, prepared_rows)
 
-                # Upsert FTS5 entries (delete old, insert fresh)
+                # Upsert FTS5 entries
                 for fts in fts_rows:
                     conn.execute("DELETE FROM media_fts WHERE item_id = ?;", (fts[0],))
                     conn.execute("""
-                        INSERT INTO media_fts (item_id, title, original_title, description)
-                        VALUES (?, ?, ?, ?);
+                        INSERT INTO media_fts (item_id, title, original_title, description, actors, director, tags)
+                        VALUES (?, ?, ?, ?, ?, ?, ?);
                     """, fts)
 
                 inserted_count = len(prepared_rows)
@@ -363,6 +565,7 @@ class MediaRegistry:
         """
         High-performance (<3ms) indexed catalog query with real multi-criteria filtering,
         global sorting across the entire library, and pagination.
+        Enforces Lampa popularity ranking so obscure/unpopular items never float to the top.
         """
         conn = self._get_connection()
         conditions = ["1=1"]
@@ -387,8 +590,8 @@ class MediaRegistry:
                 stem = g_clean[:-2]
             elif g_clean.endswith(("а", "ы", "и", "я")):
                 stem = g_clean[:-1]
-            conditions.append("(genres LIKE ? OR description LIKE ?)")
-            params.extend([f"%{stem}%", f"%{stem}%"])
+            conditions.append("(genres LIKE ? OR description LIKE ? OR tags LIKE ?)")
+            params.extend([f"%{stem}%", f"%{stem}%", f"%{stem}%"])
 
         # 3. Country filtering with aliases
         if country and country != "all":
@@ -413,10 +616,10 @@ class MediaRegistry:
             elif year == "before_2000":
                 conditions.append("year < 2000")
 
-        # 5. Rating filtering
+        # 5. Rating filtering using effective priority rating
         if min_rating and min_rating > 0:
-            conditions.append("(rating_kp >= ? OR rating_imdb >= ?)")
-            params.extend([float(min_rating), float(min_rating)])
+            conditions.append("(effective_rating >= ? OR rating_lampa >= ? OR rating_kp >= ? OR rating_imdb >= ?)")
+            params.extend([float(min_rating), float(min_rating), float(min_rating), float(min_rating)])
 
         # 6. Excluded countries
         if excluded_countries:
@@ -430,15 +633,16 @@ class MediaRegistry:
                 conditions.append("genres NOT LIKE ?")
                 params.append(f"%{ex}%")
 
-        # 8. True Global Sorting
+        # 8. True Global Sorting powered by Lampa Popularity & Ratings
         if sort_by == "rating":
-            order_by = "COALESCE(rating_kp, rating_imdb, 0) DESC, popularity DESC, updated_at DESC"
+            order_by = "COALESCE(effective_rating, rating_kp, rating_imdb, 0) DESC, COALESCE(lampa_popularity, popularity, 0) DESC, updated_at DESC"
         elif sort_by == "year":
-            order_by = "COALESCE(year, 0) DESC, COALESCE(rating_kp, rating_imdb, 0) DESC"
+            order_by = "COALESCE(year, 0) DESC, COALESCE(lampa_popularity, 0) DESC, COALESCE(effective_rating, rating_kp, 0) DESC"
         elif sort_by == "popular":
-            order_by = "popularity DESC, COALESCE(rating_kp, rating_imdb, 0) DESC"
-        else:  # "newest" / fresh releases
-            order_by = "updated_at DESC, COALESCE(year, 0) DESC, COALESCE(rating_kp, rating_imdb, 0) DESC"
+            order_by = "COALESCE(lampa_popularity, popularity, 0) DESC, COALESCE(effective_rating, rating_kp, 0) DESC"
+        else:  # "newest" / default home page catalog
+            # Popular hits are prioritized above obscure titles so high-demand releases stay on top!
+            order_by = "COALESCE(lampa_popularity, 0) DESC, updated_at DESC, COALESCE(year, 0) DESC"
 
         offset = max(0, (page - 1) * limit)
         sql = f"""
@@ -463,7 +667,7 @@ class MediaRegistry:
     def search(self, query: str, limit: int = 30) -> List[Dict[str, Any]]:
         """
         Ultra-fast (<5ms) indexed search across the media registry.
-        Uses exact prefix, substring, and FTS5 ranking with deduplication.
+        Uses exact prefix, substring, actor, director, and FTS5 ranking.
         """
         clean_q = normalize_title(query)
         if not clean_q or len(clean_q) < 1:
@@ -483,13 +687,15 @@ class MediaRegistry:
                         WHEN clean_title = ? THEN 1000
                         WHEN clean_title LIKE ? THEN 800
                         WHEN clean_title LIKE ? THEN 500
+                        WHEN actors LIKE ? THEN 400
+                        WHEN director LIKE ? THEN 350
                         ELSE 100
                     END as match_score
                 FROM media_items
-                WHERE clean_title LIKE ? OR clean_title LIKE ?
-                ORDER BY match_score DESC, COALESCE(rating_kp, rating_imdb, 0) DESC, COALESCE(year, 0) DESC
+                WHERE clean_title LIKE ? OR clean_title LIKE ? OR actors LIKE ? OR director LIKE ?
+                ORDER BY match_score DESC, COALESCE(lampa_popularity, 0) DESC, COALESCE(effective_rating, rating_kp, 0) DESC
                 LIMIT ?;
-            """, (clean_q, prefix_pattern, substr_pattern, prefix_pattern, substr_pattern, limit)).fetchall()
+            """, (clean_q, prefix_pattern, substr_pattern, substr_pattern, substr_pattern, prefix_pattern, substr_pattern, substr_pattern, substr_pattern, limit)).fetchall()
 
             for r in rows:
                 key = (r["clean_title"], r["year"] or 0)
@@ -507,7 +713,7 @@ class MediaRegistry:
                             FROM media_fts f
                             JOIN media_items m ON f.item_id = m.id
                             WHERE media_fts MATCH ?
-                            ORDER BY rank, COALESCE(m.rating_kp, m.rating_imdb, 0) DESC
+                            ORDER BY rank, COALESCE(m.lampa_popularity, 0) DESC, COALESCE(m.effective_rating, m.rating_kp, 0) DESC
                             LIMIT ?;
                         """, (fts_query, limit - len(results))).fetchall()
 
@@ -547,6 +753,35 @@ class MediaRegistry:
         except Exception:
             pass
 
+        cast = []
+        try:
+            if row["cast"]:
+                cast = json.loads(row["cast"])
+        except Exception:
+            pass
+
+        directors_list = []
+        try:
+            if row["directors_list"]:
+                directors_list = json.loads(row["directors_list"])
+        except Exception:
+            pass
+
+        recommendations = []
+        try:
+            if row["recommendations"]:
+                recommendations = json.loads(row["recommendations"])
+        except Exception:
+            pass
+
+        tags = []
+        try:
+            if row["tags"]:
+                tags = json.loads(row["tags"])
+        except Exception:
+            if row["tags"]:
+                tags = [t.strip() for t in str(row["tags"]).split(",") if t.strip()]
+
         keys = row.keys()
         country = row["country"] if "country" in keys and row["country"] else (extra.get("country") or "")
         countries = []
@@ -562,6 +797,18 @@ class MediaRegistry:
 
         category = row["category"] if "category" in keys and row["category"] else ("series" if row["is_series"] else "movie")
 
+        # Effective rating: Lampa > KP > Rezka > others
+        eff_rating = row["effective_rating"] if "effective_rating" in keys and row["effective_rating"] else None
+        if not eff_rating:
+            eff_rating = compute_effective_rating(
+                r_lampa=row["rating_lampa"] if "rating_lampa" in keys else None,
+                r_kp=row["rating_kp"] if "rating_kp" in keys else None,
+                r_rezka=row["rating_rezka"] if "rating_rezka" in keys else None,
+                r_imdb=row["rating_imdb"] if "rating_imdb" in keys else None
+            )
+
+        age_limit = row["age_limit"] if "age_limit" in keys and row["age_limit"] else None
+
         return {
             "id": row["id"],
             "source_name": row["source_name"],
@@ -573,11 +820,26 @@ class MediaRegistry:
             "country": country,
             "countries": countries,
             "poster": row["poster"],
+            "backdrop": row["backdrop"] if "backdrop" in keys else None,
             "description": row["description"],
-            "rating_kp": row["rating_kp"],
-            "rating_imdb": row["rating_imdb"],
+            "rating": eff_rating or 7.0,
+            "rating_lampa": row["rating_lampa"] if "rating_lampa" in keys else None,
+            "rating_kp": row["rating_kp"] if "rating_kp" in keys else None,
+            "rating_rezka": row["rating_rezka"] if "rating_rezka" in keys else None,
+            "rating_imdb": row["rating_imdb"] if "rating_imdb" in keys else None,
+            "effective_rating": eff_rating,
+            "lampa_popularity": row["lampa_popularity"] if "lampa_popularity" in keys else 0.0,
+            "popularity": row["lampa_popularity"] if "lampa_popularity" in keys and row["lampa_popularity"] else (row["popularity"] if "popularity" in keys else 0.0),
+            "age_limit": age_limit,
             "kinopoisk_id": row["kinopoisk_id"],
+            "tmdb_id": row["tmdb_id"] if "tmdb_id" in keys else None,
             "genres": genres,
+            "actors": row["actors"] if "actors" in keys else None,
+            "cast": cast,
+            "director": row["director"] if "director" in keys else None,
+            "directors_list": directors_list,
+            "recommendations": recommendations,
+            "tags": tags,
             "episodes_info": extra.get("episodes_info"),
             "extra_data": extra
         }

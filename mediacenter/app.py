@@ -104,8 +104,9 @@ kodik = KodikSource()
 anilibria = AnilibriaSource()
 zona = ZonaSource()
 
-from mediacenter.core.media_registry import media_registry
+from mediacenter.core.media_registry import media_registry, compute_effective_rating, compute_effective_age_limit
 from mediacenter.core.media_harvester import media_harvester
+from mediacenter.core.lampa_source import lampa_source
 
 @app.on_event("startup")
 def startup_event():
@@ -169,85 +170,86 @@ def serve_apk(version: Optional[str] = None):
     if os.path.exists(fallback_path):
         return FileResponse(fallback_path, media_type="application/vnd.android.package-archive", filename="ShowHub.apk")
     raise HTTPException(status_code=404, detail="APK not found")
+@app.api_route("/ShowHub-Mobile.apk", methods=["GET", "HEAD"])
+@app.api_route("/ShowHub-Mobile-v{version}.apk", methods=["GET", "HEAD"])
+@app.api_route("/apk/mobile", methods=["GET", "HEAD"])
+def serve_mobile_apk(version: Optional[str] = None):
+    _get_or_increment_installs(is_install=True)
+    if version:
+        static_target = os.path.join(static_dir, f"ShowHub-Mobile-v{version}.apk")
+        if os.path.exists(static_target):
+            return FileResponse(static_target, media_type="application/vnd.android.package-archive", filename=f"ShowHub-Mobile-v{version}.apk")
+    static_apk = os.path.join(static_dir, "ShowHub-Mobile.apk")
+    if os.path.exists(static_apk):
+        return FileResponse(static_apk, media_type="application/vnd.android.package-archive", filename="ShowHub-Mobile.apk")
+
+    if version:
+        target_name = f"ShowHub-Mobile-v{version}.apk"
+        apk_path = os.path.join(PARENT_DIR, target_name)
+        if os.path.exists(apk_path):
+            return FileResponse(apk_path, media_type="application/vnd.android.package-archive", filename=target_name)
+
+    candidates = [f for f in os.listdir(PARENT_DIR) if f.startswith("ShowHub-Mobile-v") and f.endswith(".apk")]
+    if candidates:
+        latest = sorted(candidates)[-1]
+        return FileResponse(os.path.join(PARENT_DIR, latest), media_type="application/vnd.android.package-archive", filename=latest)
+
+    fallback_path = os.path.join(PARENT_DIR, "ShowHub-Mobile.apk")
+    if os.path.exists(fallback_path):
+        return FileResponse(fallback_path, media_type="application/vnd.android.package-archive", filename="ShowHub-Mobile.apk")
+    raise HTTPException(status_code=404, detail="Mobile APK not found")
+
+@app.api_route("/ShowHub-PC.zip", methods=["GET", "HEAD"])
+@app.api_route("/ShowHub-PC.exe", methods=["GET", "HEAD"])
+@app.api_route("/pc", methods=["GET", "HEAD"])
+def serve_pc_distribution():
+    pc_zip = os.path.join(static_dir, "ShowHub-PC.zip")
+    if os.path.exists(pc_zip):
+        return FileResponse(pc_zip, media_type="application/zip", filename="ShowHub-PC.zip")
+    pc_parent = os.path.join(PARENT_DIR, "ShowHub-PC.zip")
+    if os.path.exists(pc_parent):
+        return FileResponse(pc_parent, media_type="application/zip", filename="ShowHub-PC.zip")
+    raise HTTPException(status_code=404, detail="PC package not found")
+
 @app.get("/api/popular")
 def get_popular() -> List[Dict[str, Any]]:
-    """Returns dynamic curated trending & popular hits with verified ratings."""
+    """Returns dynamic curated trending & popular hits powered by Lampa and MediaRegistry."""
+    # 1. Primary: Fast (<2ms) indexed query from MediaRegistry with genuine Lampa popularity ranking
+    try:
+        reg_items = media_registry.query_catalog(category="all", sort_by="popular", limit=40)
+        if len(reg_items) >= 10:
+            for it in reg_items:
+                if not it.get("rating") or it.get("rating") == 0:
+                    it["rating"] = it.get("effective_rating") or it.get("rating_lampa") or it.get("rating_kp") or it.get("rating_rezka") or it.get("rating_imdb") or 7.0
+            return reg_items
+    except Exception as e:
+        logger.debug(f"MediaRegistry get_popular error: {e}")
+
     items = []
     seen_titles = set()
     try:
-        tmdb_trending = tmdb.get_trending(page=1)
-        for t in tmdb_trending:
+        lampa_cards = lampa_source.get_main_screen_feeds(max_pages_per_feed=1)
+        for t in lampa_cards:
             t_key = t["title"].lower().strip()
             if t_key not in seen_titles and t.get("poster"):
                 seen_titles.add(t_key)
                 items.append({
-                    "id": f"tmdb_{t['tmdb_id']}",
+                    "id": t["id"],
                     "title": t["title"],
                     "original_title": t.get("original_title"),
                     "year": t.get("year"),
                     "poster": t.get("poster"),
+                    "backdrop": t.get("backdrop"),
                     "description": t.get("description"),
-                    "rating": t.get("rating"),
-                    "rating_imdb": t.get("rating"),
-                    "rating_kp": t.get("rating"),
+                    "rating": t.get("rating_lampa") or 7.5,
+                    "rating_lampa": t.get("rating_lampa"),
+                    "rating_imdb": t.get("rating_lampa"),
+                    "rating_kp": None,
+                    "effective_rating": t.get("rating_lampa"),
+                    "lampa_popularity": t.get("lampa_popularity", 0.0),
                     "is_series": t.get("is_series", False),
-                    "source_name": "tmdb"
+                    "source_name": "lampa"
                 })
-    except Exception:
-        pass
-
-    try:
-        pop_m = tmdb.get_popular_movies(page=1)
-        for m in pop_m:
-            t_key = m["title"].lower().strip()
-            if t_key not in seen_titles and m.get("poster"):
-                seen_titles.add(t_key)
-                items.append({
-                    "id": f"tmdb_{m['tmdb_id']}",
-                    "title": m["title"],
-                    "original_title": m.get("original_title"),
-                    "year": m.get("year"),
-                    "poster": m.get("poster"),
-                    "description": m.get("description"),
-                    "rating": m.get("rating"),
-                    "rating_imdb": m.get("rating"),
-                    "rating_kp": m.get("rating"),
-                    "is_series": False,
-                    "source_name": "tmdb"
-                })
-    except Exception:
-        pass
-
-    try:
-        pop_s = tmdb.get_popular_series(page=1)
-        for s in pop_s:
-            t_key = s["title"].lower().strip()
-            if t_key not in seen_titles and s.get("poster"):
-                seen_titles.add(t_key)
-                items.append({
-                    "id": f"tmdb_{s['tmdb_id']}",
-                    "title": s["title"],
-                    "original_title": s.get("original_title"),
-                    "year": s.get("year"),
-                    "poster": s.get("poster"),
-                    "description": s.get("description"),
-                    "rating": s.get("rating"),
-                    "rating_imdb": s.get("rating"),
-                    "rating_kp": s.get("rating"),
-                    "is_series": True,
-                    "source_name": "tmdb"
-                })
-    except Exception:
-        pass
-
-    # Merge top catalog items
-    try:
-        cat_items = get_catalog(category="all", sort_by="popular", page=1)
-        for c in cat_items:
-            t_key = c.get("title", "").lower().strip()
-            if t_key not in seen_titles:
-                seen_titles.add(t_key)
-                items.append(c)
     except Exception:
         pass
 
@@ -1999,6 +2001,41 @@ def _fetch_media_details(
         for field in ("title", "original_title", "description", "director", "actors"):
             if details.get(field):
                 details[field] = clean_html_text(details[field])
+
+    # 8. Apply User Conflict Priority Hierarchy: Lampa > Kinopoisk > HDRezka > Others
+    eff_rating = compute_effective_rating(
+        r_lampa=details.get("rating_lampa") or (tmdb_info.get("rating") if (locals().get("tmdb_info") and tmdb_info) else None),
+        r_kp=details.get("rating_kp"),
+        r_rezka=details.get("rating_rezka"),
+        r_imdb=details.get("rating_imdb")
+    )
+    details["effective_rating"] = eff_rating
+    details["rating"] = eff_rating or 7.0
+
+    eff_age = compute_effective_age_limit(
+        age_lampa=tmdb_info.get("age_limit") if (locals().get("tmdb_info") and tmdb_info) else None,
+        age_kp=details.get("ratingAgeLimits"),
+        age_rezka=details.get("age_limit"),
+        age_other=details.get("age_limit")
+    )
+    if eff_age:
+        details["age_limit"] = eff_age
+
+    if locals().get("tmdb_info") and tmdb_info:
+        if tmdb_info.get("backdrop") and not details.get("backdrop"):
+            details["backdrop"] = tmdb_info["backdrop"]
+        if tmdb_info.get("recommendations") and not details.get("recommendations"):
+            details["recommendations"] = tmdb_info["recommendations"]
+        if tmdb_info.get("tags") and not details.get("tags"):
+            details["tags"] = tmdb_info["tags"]
+        if tmdb_info.get("lampa_popularity"):
+            details["lampa_popularity"] = tmdb_info["lampa_popularity"]
+
+    # Auto-enrich registry in background
+    try:
+        media_registry.upsert_item(details)
+    except Exception:
+        pass
 
     if details.get("seasons") or details.get("translators") or details.get("description"):
         _details_cache[cache_key] = (now_ts, details)

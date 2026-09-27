@@ -33,8 +33,9 @@ object UpdateManager {
 
     fun isApkReady(context: Context, targetVersionCode: Int): Boolean {
         return try {
+            val prefix = if (com.example.tvmediaapp.BuildConfig.PLATFORM_TYPE == "mobile") "ShowHub-Mobile-update" else "ShowHub-update"
             val cacheDir = context.externalCacheDir ?: context.cacheDir
-            val apkFile = File(cacheDir, if (targetVersionCode > 0) "ShowHub-update-v$targetVersionCode.apk" else "ShowHub-update.apk")
+            val apkFile = File(cacheDir, if (targetVersionCode > 0) "$prefix-v$targetVersionCode.apk" else "$prefix.apk")
             if (!apkFile.exists() || apkFile.length() < 5_000_000L) return false
             val archiveInfo = context.packageManager.getPackageArchiveInfo(apkFile.absolutePath, 0) ?: return false
             val code = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) archiveInfo.longVersionCode.toInt() else archiveInfo.versionCode
@@ -49,14 +50,17 @@ object UpdateManager {
         if (isApkReady(context, info.versionCode)) return@withContext true
         isPredownloading = true
         try {
+            val isMobile = com.example.tvmediaapp.BuildConfig.PLATFORM_TYPE == "mobile"
+            val prefix = if (isMobile) "ShowHub-Mobile-update" else "ShowHub-update"
+            val defaultApkName = if (isMobile) "ShowHub-Mobile.apk" else "ShowHub.apk"
             val cacheDir = context.externalCacheDir ?: context.cacheDir
-            val targetFile = File(cacheDir, if (info.versionCode > 0) "ShowHub-update-v${info.versionCode}.apk" else "ShowHub-update.apk")
-            val partFile = File(cacheDir, if (info.versionCode > 0) "ShowHub-update-v${info.versionCode}.apk.part" else "ShowHub-update.apk.part")
+            val targetFile = File(cacheDir, if (info.versionCode > 0) "$prefix-v${info.versionCode}.apk" else "$prefix.apk")
+            val partFile = File(cacheDir, if (info.versionCode > 0) "$prefix-v${info.versionCode}.apk.part" else "$prefix.apk.part")
 
             // Clean older updates
             try {
                 cacheDir.listFiles()?.forEach { file ->
-                    if (file.name.startsWith("ShowHub-update") && file.name != targetFile.name && file.name != partFile.name) {
+                    if (file.name.startsWith(prefix) && file.name != targetFile.name && file.name != partFile.name) {
                         file.delete()
                     }
                 }
@@ -64,10 +68,10 @@ object UpdateManager {
 
             val candidateUrls = listOf(
                 info.downloadUrl,
-                "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
-                "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/ShowHub.apk",
-                "https://showhub-server.onrender.com/ShowHub.apk"
-            ).distinct()
+                "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/$defaultApkName",
+                "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/$defaultApkName",
+                "https://showhub-server.onrender.com/$defaultApkName"
+            ).filter { it.isNotBlank() }.distinct()
 
             for (currentUrl in candidateUrls) {
                 if (partFile.exists()) {
@@ -149,10 +153,16 @@ object UpdateManager {
                     if (conn.responseCode == 200) {
                         val body = conn.inputStream.bufferedReader().use { it.readText() }
                         val json = JSONObject(body)
-                        val sCode = json.optInt("version_code", 0)
-                        val sName = json.optString("version_name", "2.8.18")
-                        val sUrl = json.optString("download_url", json.optString("apk_url", "https://showhub-server.onrender.com/ShowHub.apk"))
-                        val sChangelog = json.optString("changelog", "Новая версия ShowHub TV")
+                        val platform = com.example.tvmediaapp.BuildConfig.PLATFORM_TYPE
+                        val platformObj = json.optJSONObject(platform)
+
+                        val sCode = platformObj?.optInt("version_code") ?: json.optInt("version_code", 0)
+                        val sName = platformObj?.optString("version_name") ?: json.optString("version_name", "2.8.60")
+                        val defaultApkName = if (platform == "mobile") "ShowHub-Mobile.apk" else "ShowHub.apk"
+                        val sUrl = platformObj?.optString("download_url", platformObj.optString("apk_url", ""))
+                            ?.takeIf { it.isNotBlank() }
+                            ?: json.optString("download_url", json.optString("apk_url", "https://showhub-server.onrender.com/$defaultApkName"))
+                        val sChangelog = json.optString("changelog", "Новая версия ShowHub")
                         val forceUpdateFlag = json.optBoolean("force_update", false)
                         val minVersionCode = json.optInt("min_version_code", 0)
                         val hasUpdate = sCode > currentVersionCode
@@ -195,13 +205,16 @@ object UpdateManager {
                 onProgress?.invoke("Подключение к серверу...", 0)
             }
 
+            val isMobile = com.example.tvmediaapp.BuildConfig.PLATFORM_TYPE == "mobile"
+            val prefix = if (isMobile) "ShowHub-Mobile-update" else "ShowHub-update"
+            val defaultApkName = if (isMobile) "ShowHub-Mobile.apk" else "ShowHub.apk"
             val cacheDir = activity.externalCacheDir ?: activity.cacheDir
-            val apkFile = File(cacheDir, if (targetVersionCode > 0) "ShowHub-update-v$targetVersionCode.apk" else "ShowHub-update.apk")
+            val apkFile = File(cacheDir, if (targetVersionCode > 0) "$prefix-v$targetVersionCode.apk" else "$prefix.apk")
 
             // Clean up any stale update files from older versions to prevent storage bloat and version confusion
             try {
                 cacheDir.listFiles()?.forEach { file ->
-                    if (file.name.startsWith("ShowHub-update") && file.name != apkFile.name) {
+                    if (file.name.startsWith(prefix) && file.name != apkFile.name) {
                         file.delete()
                     }
                 }
@@ -226,10 +239,10 @@ object UpdateManager {
             } else {
             val candidateUrls = listOf(
                 apkUrl,
-                "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
-                "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/ShowHub.apk",
-                "https://showhub-server.onrender.com/ShowHub.apk"
-            ).distinct()
+                "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/$defaultApkName",
+                "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/$defaultApkName",
+                "https://showhub-server.onrender.com/$defaultApkName"
+            ).filter { it.isNotBlank() }.distinct()
 
             var downloadSuccess = false
             for (currentUrl in candidateUrls) {

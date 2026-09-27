@@ -11,6 +11,8 @@
 !/README.md
 !/version.json
 !/TvMediaApp/
+!/pc-client/
+!/tests/
 !/.github/
 
 # Ignore build artifacts and caches
@@ -19,6 +21,9 @@ TvMediaApp/**/build/
 TvMediaApp/local.properties
 TvMediaApp/.idea/
 TvMediaApp/**/*.iml
+pc-client/bin/
+pc-client/obj/
+pc-client/publish/
 
 # Inside mediacenter, ignore caches and temp files
 **/__pycache__/

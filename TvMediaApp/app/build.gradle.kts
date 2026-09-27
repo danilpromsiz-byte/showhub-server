@@ -11,11 +11,29 @@ android {
         applicationId = "com.showhub.tv"
         minSdk = 21
         targetSdk = 34
-        versionCode = 118
-        versionName = "2.8.59"
+        versionCode = 119
+        versionName = "2.8.60"
 
         vectorDrawables {
             useSupportLibrary = true
+        }
+    }
+
+    flavorDimensions += "platform"
+    productFlavors {
+        create("tv") {
+            dimension = "platform"
+            applicationId = "com.showhub.tv"
+            manifestPlaceholders["leanbackRequired"] = "true"
+            manifestPlaceholders["screenOrientation"] = "landscape"
+            buildConfigField("String", "PLATFORM_TYPE", "\"tv\"")
+        }
+        create("mobile") {
+            dimension = "platform"
+            applicationId = "com.showhub.mobile"
+            manifestPlaceholders["leanbackRequired"] = "false"
+            manifestPlaceholders["screenOrientation"] = "sensorLandscape"
+            buildConfigField("String", "PLATFORM_TYPE", "\"mobile\"")
         }
     }
 

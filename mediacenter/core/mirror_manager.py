@@ -16,19 +16,15 @@ class MirrorManager:
 
     # Tested and working mirrors from HDrezkaTV v1.4.0 (LR8/o; enum) and KinoHD remote config
     HDREZKA_APK_MIRRORS = [
-        "https://rezka.fi",
-        "https://rezka.ag",
-        "https://rezka.si",
-        "https://omnirezka.tv",
-        "https://hello-rezka.tv",
-        "https://hdrezka.me",
         "https://hdrezka-home.tv",
+        "https://omnirezka.tv",
+        "https://hdrezka.me",
+        "https://hello-rezka.tv",
+        "https://hdrezka.club",
+        "https://rezka.ag",
         "https://hdrezka.name",
         "https://hdrezka.sh",
-        "https://hdrezka.sb",
         "https://hdrezka.in",
-        "https://hdrezka.club",
-        "https://hdrezka.cm",
         "https://hdrezka.kim",
         "https://rezka.pub",
         "https://rezka-kz.tv",
@@ -37,7 +33,11 @@ class MirrorManager:
         "https://rezka-ua.in",
         "https://rezka-ua.co",
         "https://rezka-ua.pub",
-        "https://rezkery.com"
+        "https://rezkery.com",
+        "https://rezka.fi",
+        "https://rezka.si",
+        "https://hdrezka.sb",
+        "https://hdrezka.cm",
     ]
 
     DEFAULT_MIRRORS = {

@@ -1,79 +1,79 @@
 {
   "total_sources": 7,
-  "ok_sources": 6,
-  "broken_sources": 1,
-  "has_warnings": true,
-  "last_checked": 1790438657.9332914,
+  "ok_sources": 7,
+  "broken_sources": 0,
+  "has_warnings": false,
+  "last_checked": 1790604613.6229482,
   "reports": [
     {
-      "source_name": "filmix",
+      "source_name": "hdrezka",
       "is_active": true,
       "status": "OK",
-      "latency_ms": 91.40419960021973,
-      "message": "Filmix Partner API online (Гостевой режим; войдите в аккаунт Filmix для стримов до 720p/1080p)",
+      "latency_ms": 3859.119653701782,
+      "message": "HDRezka полностью онлайн на EU Proxy (rezka.ag)! Anubis PoW решён за 3859мс. Плеер и потоки активны.",
       "needs_rework": false,
-      "endpoint_tested": "http://5.61.56.18/partner_api/list?search=matrix",
-      "last_tested": 1790438635.4439628
-    },
-    {
-      "source_name": "videocdn",
-      "is_active": true,
-      "status": "OK",
-      "latency_ms": 662.69850730896,
-      "message": "Alloha + Vibix fully operational! Active player: https://bayas.allarknow.online/?token_movie=7...",
-      "needs_rework": false,
-      "endpoint_tested": "https://api.apbugall.org/?token=bfbb025034f40bbe51d8d640f8d182&kp=301",
-      "last_tested": 1790438636.014248
+      "endpoint_tested": "https://hdrezka-home.tv/search/?do=search&subaction=search&q=Matrix",
+      "last_tested": 1790604575.0315099
     },
     {
       "source_name": "delivembd",
       "is_active": true,
       "status": "OK",
-      "latency_ms": 779.6454429626465,
-      "message": "Collaps/Delivembd fully operational! Direct HLS master.m3u8 active (780ms).",
+      "latency_ms": 11694.485187530518,
+      "message": "Collaps/Delivembd fully operational! Direct HLS master.m3u8 active (11694ms).",
       "needs_rework": false,
       "endpoint_tested": "https://api.namy.ws/embed/kp/301",
-      "last_tested": 1790438636.1251965
+      "last_tested": 1790604580.6448972
     },
     {
       "source_name": "anilibria",
       "is_active": true,
       "status": "OK",
-      "latency_ms": 790.0514602661133,
+      "latency_ms": 11700.00696182251,
       "message": "AniLibria API online! Direct HLS streams (cache.libria.fun) available.",
       "needs_rework": false,
       "endpoint_tested": "https://wwnd.space/public/api/index.php",
-      "last_tested": 1790438636.1456177
+      "last_tested": 1790604580.6584275
+    },
+    {
+      "source_name": "videocdn",
+      "is_active": true,
+      "status": "OK",
+      "latency_ms": 11721.39024734497,
+      "message": "Alloha + Vibix fully operational! Active player: https://bayas.allarknow.online/?token_movie=7...",
+      "needs_rework": false,
+      "endpoint_tested": "https://api.apbugall.org/?token=bfbb025034f40bbe51d8d640f8d182&kp=301",
+      "last_tested": 1790604580.672802
+    },
+    {
+      "source_name": "filmix",
+      "is_active": true,
+      "status": "OK",
+      "latency_ms": 11735.754251480103,
+      "message": "Filmix Partner API online (Гостевой режим; войдите в аккаунт Filmix для стримов до 720p/1080p)",
+      "needs_rework": false,
+      "endpoint_tested": "http://5.61.56.18/partner_api/list?search=matrix",
+      "last_tested": 1790604580.6881669
     },
     {
       "source_name": "torrents",
       "is_active": true,
       "status": "OK",
-      "latency_ms": 917.9065227508545,
+      "latency_ms": 11837.549209594727,
       "message": "Rutor Tracker fully online! Found 100 torrent magnets with seeders.",
       "needs_rework": false,
       "endpoint_tested": "http://rutor.info/search/0/0/0/0/Matrix",
-      "last_tested": 1790438636.341567
+      "last_tested": 1790604580.8539603
     },
     {
       "source_name": "zona",
       "is_active": true,
       "status": "OK",
-      "latency_ms": 1924.3056774139404,
+      "latency_ms": 11897.544145584106,
       "message": "Zona Android API online! Direct MP4 streams (vibio.tv) active.",
       "needs_rework": false,
       "endpoint_tested": "https://android1.mzona.net/api/v1/search/%D0%BC%D0%B0%D1%82%D1%80%D0%B8%D1%86%D0%B0",
-      "last_tested": 1790438637.2788546
-    },
-    {
-      "source_name": "hdrezka",
-      "is_active": false,
-      "status": "CHANGED / BROKEN",
-      "latency_ms": 714.5295143127441,
-      "message": "HDRezka mirror returned HTTP 403.",
-      "needs_rework": true,
-      "endpoint_tested": "https://rezka.fi/search/?do=search&subaction=search&q=Matrix",
-      "last_tested": 1790438640.343415
+      "last_tested": 1790604580.8549607
     }
   ]
 }

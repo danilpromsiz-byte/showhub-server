@@ -838,6 +838,7 @@ function initNavigation() {
     });
 
     document.getElementById("btn-dismiss-banner")?.addEventListener("click", () => {
+        try { sessionStorage.setItem("dismissed_canary_banner", "1"); } catch (e) {}
         const b = document.getElementById("canary-warning-banner");
         if (b) b.style.display = "none";
     });
@@ -5878,13 +5879,18 @@ function updateHealthUI(summary) {
     const brokenReports = summary.reports.filter(r => r.needs_rework);
 
     if (brokenReports.length > 0) {
-        banner.style.display = "flex";
+        let isDismissed = false;
+        try { isDismissed = !!sessionStorage.getItem("dismissed_canary_banner"); } catch (e) {}
+        if (!isDismissed) {
+            banner.style.display = "flex";
+        }
         const brokenNames = brokenReports.map(r => r.source_name.toUpperCase()).join(", ");
         warningDetails.textContent = `Обнаружены изменения/поломки в источниках: [${brokenNames}]. Требуется актуализация парсеров или смена зеркал.`;
         if (healthIcon) healthIcon.className = "status-dot warning";
         alertBadge.style.display = "inline-block";
         alertBadge.textContent = `${brokenReports.length} требуют внимания`;
     } else {
+        try { sessionStorage.removeItem("dismissed_canary_banner"); } catch (e) {}
         banner.style.display = "none";
         if (healthIcon) healthIcon.className = "status-dot online";
         alertBadge.style.display = "none";

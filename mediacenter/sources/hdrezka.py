@@ -251,10 +251,10 @@ class HDRezkaSource(BaseSource):
 
     def _get_with_anubis(self, url: str, base_url: str) -> requests.Response:
         is_item_page = bool(re.search(r'\.html(?:\?|$)', url))
-        # If we already have an active EU proxy session for item pages, use it immediately!
-        if is_item_page and self._using_proxy_for_ag and self.proxy_session:
+        # If we already have an active EU proxy session, use it immediately!
+        if self._using_proxy_for_ag and self.proxy_session:
             proxy_r = self._get_via_eu_proxy(url)
-            if proxy_r is not None:
+            if proxy_r is not None and proxy_r.status_code == 200:
                 return proxy_r
 
         candidate_mirrors = [base_url] + [m for m in mirror_manager.get_mirrors("hdrezka") if m != base_url]
@@ -272,10 +272,10 @@ class HDRezkaSource(BaseSource):
                 if "anubis_challenge" in r.text:
                     r = self._solve_anubis(mirror, r.text, current_url)
                 if r.status_code == 200:
-                    # Check if mirror returned login gate (<title>Вход</title> / id="check-form") for a movie/series page
-                    if is_item_page and ('id="check-form"' in r.text or '<title>Вход</title>' in r.text):
+                    # Check if mirror returned login gate (<title>Вход</title> / id="check-form")
+                    if 'id="check-form"' in r.text or '<title>Вход</title>' in r.text:
                         last_resp = r
-                        # All RU mirrors share the same auth gate; break immediately to EU proxy fallback!
+                        # All direct mirrors share the same auth gate; break to EU proxy fallback!
                         break
                     self.active_mirror = mirror
                     self._using_proxy_for_ag = False
@@ -285,11 +285,10 @@ class HDRezkaSource(BaseSource):
                 last_error = e
                 continue
 
-        # If item page was blocked by 403 or login gate across direct mirrors, use EU proxy on rezka.ag!
-        if is_item_page:
-            proxy_r = self._get_via_eu_proxy(url)
-            if proxy_r is not None:
-                return proxy_r
+        # If direct mirrors were blocked (403, login gate, cloudflare), fall back to EU proxy on rezka.ag!
+        proxy_r = self._get_via_eu_proxy(url)
+        if proxy_r is not None and proxy_r.status_code == 200:
+            return proxy_r
 
         if last_resp is not None:
             return last_resp
@@ -1001,16 +1000,22 @@ class HDRezkaSource(BaseSource):
             latency = (time.time() - start_t) * 1000
 
             if res.status_code != 200:
-                return CanaryReport(
-                    source_name=self.name,
-                    is_active=False,
-                    status="CHANGED / BROKEN",
-                    latency_ms=latency,
-                    message=f"HDRezka mirror returned HTTP {res.status_code}.",
-                    needs_rework=True,
-                    endpoint_tested=test_url,
-                    last_tested=time.time()
-                )
+                # Direct mirrors might be IP-blocked on server; try EU proxy
+                proxy_res = self._get_via_eu_proxy("/search/?do=search&subaction=search&q=Matrix")
+                if proxy_res and proxy_res.status_code == 200:
+                    res = proxy_res
+                    self._using_proxy_for_ag = True
+                else:
+                    return CanaryReport(
+                        source_name=self.name,
+                        is_active=False,
+                        status="CHANGED / BROKEN",
+                        latency_ms=latency,
+                        message=f"HDRezka mirror returned HTTP {res.status_code}.",
+                        needs_rework=True,
+                        endpoint_tested=test_url,
+                        last_tested=time.time()
+                    )
 
             soup = BeautifulSoup(res.text, "html.parser")
             items = soup.select(".b-content__inline_item")
@@ -1018,15 +1023,16 @@ class HDRezkaSource(BaseSource):
             # Also verify stream extraction for Matrix
             test_movie_url = f"{base}/films/fiction/981-matrica-1999-latest.html"
             res_movie = self._get_with_anubis(test_movie_url, base)
-            has_player = bool(re.search(r'data-id="(\d+)"', res_movie.text))
+            has_player = bool(re.search(r'data-id="(\d+)"', res_movie.text)) if res_movie and res_movie.status_code == 200 else False
 
+            active_host = "EU Proxy (rezka.ag)" if self._using_proxy_for_ag else base
             if has_player:
                 return CanaryReport(
                     source_name=self.name,
                     is_active=True,
                     status="OK",
                     latency_ms=latency,
-                    message=f"HDRezka полностью онлайн на {base}! Anubis PoW решён за {latency:.0f}мс. Плеер и потоки активны.",
+                    message=f"HDRezka полностью онлайн на {active_host}! Anubis PoW решён за {latency:.0f}мс. Плеер и потоки активны.",
                     needs_rework=False,
                     endpoint_tested=test_url,
                     last_tested=time.time()
@@ -1037,7 +1043,7 @@ class HDRezkaSource(BaseSource):
                     is_active=True,
                     status="OK",
                     latency_ms=latency,
-                    message=f"HDRezka каталог онлайн на {base} ({len(items)} результатов).",
+                    message=f"HDRezka каталог онлайн на {active_host} ({len(items)} результатов).",
                     needs_rework=False,
                     endpoint_tested=test_url,
                     last_tested=time.time()

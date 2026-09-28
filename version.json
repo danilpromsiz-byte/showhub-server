@@ -25,10 +25,10 @@
     "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-PC.zip"
   },
   "alert_screensaver": {
-    "version_name": "1.0.17",
-    "version_code": 18,
+    "version_name": "1.0.18",
+    "version_code": 19,
     "download_url": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/AlertScreensaver.apk",
     "apk_url": "https://showhub-server.onrender.com/AlertScreensaver.apk",
-    "changelog": "v1.0.17: Виправлено логіку «НА ВАС» (скасування попередження при зміні курсу чи відльоті дрона), додано зум та переміщення карти (+ / − / 100% на екрані, кнопки пульта, тач-жести), напівпрозорий бейдж «НА ВАС», налаштування увімкнення/вимкнення показу дронів і траєкторій (Преміум), та стартові підказки з дисклеймером для нових клієнтів."
+    "changelog": "v1.0.18: Окремі красиві вікна покрокових підказок для нових клієнтів (без піктограм), включаючи застереження щодо точності даних радара, інтерактивний зум карти з кнопками та жестами, виправлена поведінка «НА ВАС» та напівпрозорий бейдж."
   }
 }

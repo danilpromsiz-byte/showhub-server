@@ -25,10 +25,10 @@
     "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-PC.zip"
   },
   "alert_screensaver": {
-    "version_name": "1.0.10",
-    "version_code": 11,
+    "version_name": "1.0.11",
+    "version_code": 12,
     "download_url": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/AlertScreensaver.apk",
     "apk_url": "https://showhub-server.onrender.com/AlertScreensaver.apk",
-    "changelog": "v1.0.10: Дизайн карти у стилі скломорфізму (Glassmorphism: матове скло, об'ємне світіння, відблиски граней та скляні бейджі областей), блимання всіх регіонів лише перші 5 секунд після зміни статусу, локальний архів усіх версій APK."
+    "changelog": "v1.0.11: Повернено класичний контрастний дизайн карти без скломорфізму, додано накладання живих координат та курсу руху БПЛА/загроз у реальному часі з радара «Флюгер» (radar.quick.ua), блимання регіонів перші 5 секунд після зміни статусу."
   }
 }

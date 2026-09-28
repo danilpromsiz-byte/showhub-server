@@ -25,10 +25,10 @@
     "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-PC.zip"
   },
   "alert_screensaver": {
-    "version_name": "1.0.5",
-    "version_code": 6,
+    "version_name": "1.0.6",
+    "version_code": 7,
     "download_url": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/AlertScreensaver.apk",
     "apk_url": "https://showhub-server.onrender.com/AlertScreensaver.apk",
-    "changelog": "v1.0.5: Підтримка червоних та жовтих тривог (по районах та областях), повне меню «Налаштування» з вибором локацій для сповіщень, звуковим сигналом та примусовим оновленням, чистий інтерфейс без емодзі."
+    "changelog": "v1.0.6: Виправлено запуск заставки з системного меню ТБ, живе оновлення даних у режимі заставки, сортування областей за відстанню (км) до обраних локацій, 5.6-секундна сирена на початок тривоги та мелодійний сигнал на відбій."
   }
 }

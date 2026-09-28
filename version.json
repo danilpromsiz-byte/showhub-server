@@ -25,10 +25,10 @@
     "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-PC.zip"
   },
   "alert_screensaver": {
-    "version_name": "1.0.7",
-    "version_code": 8,
+    "version_name": "1.0.8",
+    "version_code": 9,
     "download_url": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/AlertScreensaver.apk",
     "apk_url": "https://showhub-server.onrender.com/AlertScreensaver.apk",
-    "changelog": "v1.0.7: Додано кнопки тесту звуків сирени та відбою в «Налаштування», оновлено банер та іконку в меню додатків Android TV з чітким написом «ТРИВОГИ УКРАЇНИ»."
+    "changelog": "v1.0.8: Повноекранна заставка з картою на всю висоту (82%) та бічною панеллю (18%), вибір інтервалу оновлення (3-60 с), натуральний звук сирени, компактний список областей з часом після відбою."
   }
 }

@@ -25,10 +25,10 @@
     "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-PC.zip"
   },
   "alert_screensaver": {
-    "version_name": "1.0.19",
-    "version_code": 20,
+    "version_name": "1.0.20",
+    "version_code": 21,
     "download_url": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/AlertScreensaver.apk",
     "apk_url": "https://showhub-server.onrender.com/AlertScreensaver.apk",
-    "changelog": "v1.0.19: Покрокові красиві картки порад та застережень при першому запуску, перегляд довідки у Налаштуваннях, прибрано біжучий рядок унизу для максимальної площі карти, та покращене керування фокусом."
+    "changelog": "v1.0.20: Збереження та спадкування масштабу та позиції карти в системній заставці (Daydream), новий пункт вибору масштабу в Налаштуваннях (100%–300%) та синхронізація зуму між додатком і заставкою."
   }
 }

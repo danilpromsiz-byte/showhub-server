@@ -25,42 +25,36 @@
     "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-PC.zip"
   },
   "alert_screensaver": {
-    "version_name": "1.0.26",
-    "version_code": 27,
+    "version_name": "1.0.27",
+    "version_code": 28,
     "download_url": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/AlertScreensaver.apk",
     "apk_url": "https://showhub-server.onrender.com/AlertScreensaver.apk",
-    "changelog": "v1.0.26: Постійне фокусування на обраній області без таймера 30с, кнопка повернення «Вся Україна», оптимізація сповіщень про БПЛА."
+    "changelog": "v1.0.27: Вимкнено промо-банери, оптимізація та підвищення стабільності."
   },
   "alert_mobile": {
-    "version_name": "1.0.26",
-    "version_code": 27,
+    "version_name": "1.0.27",
+    "version_code": 28,
     "download_url": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/Alert-Mobile.apk",
     "apk_url": "https://showhub-server.onrender.com/Alert-Mobile.apk",
-    "changelog": "v1.0.26: Динамічна адаптація карти віджета при зміні його розміру на робочому столі, розширений діапазон масштабу (0.5x-3.5x), постійне фокусування на обраній області без скидання через 30с, кнопка повернення «Вся Україна», лаконічне сповіщення про наближення БПЛА без зайвого тексту."
+    "changelog": "v1.0.27: Вимкнено промо-банери, покращення віджета та оптимізація карти."
   },
   "ads": {
-    "enabled": true,
+    "enabled": false,
     "tv": {
-      "enabled": true,
-      "id": "showhub_tv_promo",
-      "title": "🎬 ShowHub TV — Фільми та серіали онлайн",
-      "text": "Дивіться новинки кіно у 4K Ultra HD безкоштовно на вашому Android TV",
-      "target_url": "https://showhub-server.onrender.com",
-      "badge_text": "РЕКЛАМА",
-      "bg_color": "#162036",
-      "text_color": "#F8FAFC",
-      "accent_color": "#00E5FF"
+      "enabled": false,
+      "id": "none",
+      "title": "",
+      "text": "",
+      "target_url": "",
+      "badge_text": ""
     },
     "mobile": {
-      "enabled": true,
-      "id": "showhub_mobile_promo",
-      "title": "🎬 ShowHub для Android — Кіно завжди з тобою",
-      "text": "Завантажуйте онлайн-кінотеатр для перегляду фільмів та ТБ на смартфоні",
-      "target_url": "https://showhub-server.onrender.com",
-      "badge_text": "РЕКЛАМА",
-      "bg_color": "#162036",
-      "text_color": "#F8FAFC",
-      "accent_color": "#00E5FF"
+      "enabled": false,
+      "id": "none",
+      "title": "",
+      "text": "",
+      "target_url": "",
+      "badge_text": ""
     }
   }
 }

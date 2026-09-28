@@ -25,18 +25,18 @@
     "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-PC.zip"
   },
   "alert_screensaver": {
-    "version_name": "1.0.23",
-    "version_code": 24,
+    "version_name": "1.0.24",
+    "version_code": 25,
     "download_url": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/AlertScreensaver.apk",
     "apk_url": "https://showhub-server.onrender.com/AlertScreensaver.apk",
-    "changelog": "v1.0.23: Налаштування масштабу шрифтів (85%-150%), розумний масштаб карти (LOD) без нагромадження тексту, виправлено стрибки карти та масштабування, додано повноекранний режим карти."
+    "changelog": "v1.0.24: Тактичний темний дизайн діалогів та налаштувань, звук «Тільки тривога» за замовчуванням, виправлено роботу повного екрана на ТВ пультом, обмеження банера тривоги кнопкою закриття."
   },
   "alert_mobile": {
-    "version_name": "1.0.23",
-    "version_code": 24,
+    "version_name": "1.0.24",
+    "version_code": 25,
     "download_url": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/Alert-Mobile.apk",
     "apk_url": "https://showhub-server.onrender.com/Alert-Mobile.apk",
-    "changelog": "v1.0.23: Повноекранна кнопка карти як у відео, виправлено додавання віджета на робочий стіл, живий індикатор масштабу пальцями, виправлено перемикання областей при дотику, налаштування розміру шрифту."
+    "changelog": "v1.0.24: Жива оперативна карта України у віджеті на робочому столі, прибрано другу зайву кнопку повного екрана, банер тривоги оптимізовано та додано кнопку закриття, тактичний стиль діалогів, звук «Тільки тривога» за замовчуванням."
   },
   "ads": {
     "enabled": true,

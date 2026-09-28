@@ -25,10 +25,10 @@
     "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-PC.zip"
   },
   "alert_screensaver": {
-    "version_name": "1.0.20",
-    "version_code": 21,
+    "version_name": "1.0.21",
+    "version_code": 22,
     "download_url": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/AlertScreensaver.apk",
     "apk_url": "https://showhub-server.onrender.com/AlertScreensaver.apk",
-    "changelog": "v1.0.20: Збереження та спадкування масштабу та позиції карти в системній заставці (Daydream), новий пункт вибору масштабу в Налаштуваннях (100%–300%) та синхронізація зуму між додатком і заставкою."
+    "changelog": "v1.0.21: 1) Тимчасовий огляд області на 30 секунд при натисканні на область або на карті з таймером зворотного відліку. 2) Новий 3-й режим звукових сповіщень: «Без сповіщення БПЛА» (тільки сирена тривоги та відбій, без звукового радара дронів)."
   }
 }

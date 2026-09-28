@@ -25,10 +25,10 @@
     "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-PC.zip"
   },
   "alert_screensaver": {
-    "version_name": "1.0.12",
-    "version_code": 13,
+    "version_name": "1.0.13",
+    "version_code": 14,
     "download_url": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/AlertScreensaver.apk",
     "apk_url": "https://showhub-server.onrender.com/AlertScreensaver.apk",
-    "changelog": "v1.0.12: Постійне відображення активних БПЛА/загроз без зникнення між циклами радара, зменшений компактний розмір іконок дронів, плавне спокійне блимання, режим відображення «Вся Україна» або «Обрана область (вся Україна зменшена в кутку)», заокруглені кути кордонів областей та України."
+    "changelog": "v1.0.13: Виправлено розпізнавання та триангуляцію повітряних цілей із радара «Флюгер» (radar.quick.ua) при активних червоних кільцях (low/medium/high) без явних азимутів; прискорено опитування районів у 6 потоків."
   }
 }

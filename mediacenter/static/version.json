@@ -25,18 +25,18 @@
     "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-PC.zip"
   },
   "alert_screensaver": {
-    "version_name": "1.0.48",
-    "version_code": 49,
+    "version_name": "1.0.49",
+    "version_code": 50,
     "download_url": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/AlertScreensaver.apk",
     "apk_url": "https://showhub-server.onrender.com/AlertScreensaver.apk",
-    "changelog": "v1.0.48: Додано кнопку швидкого приховування та повернення списку областей (на мапі та в заголовку списку). Повна синхронізація масштабу і позиціонування карти. Оновлено фонове сповіщення."
+    "changelog": "v1.0.49: Замість кнопки зроблено зручну перетягувану шторку-розділювач між картою та списком областей (плавне регулювання розміру або повне приховування). Виправлено статус району при частковій тривозі в області."
   },
   "alert_mobile": {
-    "version_name": "1.0.48",
-    "version_code": 49,
+    "version_name": "1.0.49",
+    "version_code": 50,
     "download_url": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/Alert-Mobile.apk",
     "apk_url": "https://showhub-server.onrender.com/Alert-Mobile.apk",
-    "changelog": "v1.0.48: Точна синхронізація масштабу та позиціонування між головним екраном і розгорнутим віджетом. Додано кнопку приховування/показу списку областей. Виправлено іконку фонового сповіщення та скомпоновано лаконічний статус без зайвих піктограм."
+    "changelog": "v1.0.49: Додано перетягувану шторку-розділювач між картою та списком областей (можна тягнути вгору/вниз на будь-яку висоту або до повного приховування). Виправлено хибний показ «Підвищеної небезпеки» для спокійних районів та залишено один охайний індикатор-кульку на початку повідомлення в шторці."
   },
   "ads": {
     "enabled": false,

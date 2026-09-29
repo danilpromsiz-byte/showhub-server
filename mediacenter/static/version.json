@@ -25,18 +25,18 @@
     "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-PC.zip"
   },
   "alert_screensaver": {
-    "version_name": "1.0.35",
-    "version_code": 36,
+    "version_name": "1.0.36",
+    "version_code": 37,
     "download_url": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/AlertScreensaver.apk",
     "apk_url": "https://showhub-server.onrender.com/AlertScreensaver.apk",
-    "changelog": "v1.0.35: Видалено кнопку оновлення з віджета (авто-оновлення); збільшено розмір маркерів загроз та траєкторій польоту БПЛА для смартфонів; прибрано рекламу ShowHub з мобільної версії; виправлено фокусування на м. Київ (відображення саме міста Києва, а не області)."
+    "changelog": "v1.0.36: Виправлено синхронізацію віджета при виборі «Вся Україна» (віджет тепер миттєво перемикається на загальну карту); додано налаштування показу підписів на карті при малому масштабі (за замовчуванням вимкнено для чистого огляду)."
   },
   "alert_mobile": {
-    "version_name": "1.0.35",
-    "version_code": 36,
+    "version_name": "1.0.36",
+    "version_code": 37,
     "download_url": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/Alert-Mobile.apk",
     "apk_url": "https://showhub-server.onrender.com/Alert-Mobile.apk",
-    "changelog": "v1.0.35: Видалено кнопку оновлення з віджета (авто-оновлення); збільшено розмір маркерів загроз та траєкторій польоту БПЛА для смартфонів; прибрано рекламу ShowHub з мобільної версії; виправлено фокусування на м. Київ (відображення саме міста Києва, а не області)."
+    "changelog": "v1.0.36: Виправлено синхронізацію віджета при виборі «Вся Україна» (віджет тепер миттєво перемикається на загальну карту); додано налаштування показу підписів на карті при малому масштабі (за замовчуванням вимкнено для чистого огляду)."
   },
   "ads": {
     "enabled": false,

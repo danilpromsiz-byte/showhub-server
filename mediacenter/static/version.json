@@ -25,18 +25,18 @@
     "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-PC.zip"
   },
   "alert_screensaver": {
-    "version_name": "1.0.44",
-    "version_code": 45,
+    "version_name": "1.0.45",
+    "version_code": 46,
     "download_url": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/AlertScreensaver.apk",
     "apk_url": "https://showhub-server.onrender.com/AlertScreensaver.apk",
-    "changelog": "v1.0.44: Оновлення даних щосекунди (1 с) за замовчуванням. Віброрежим на смартфонах при сирені, відбої та наближенні БПЛА. Фоновий моніторинг тривог із постійним оновленням статусу при згорнутому додатку та вимкненому екрані."
+    "changelog": "v1.0.45: 6 візуальних тем карти на вибір у налаштуваннях: Класична, Темне скло, Глибока ніч (OLED #000000), Світла контрастна, Глассморфізм (неон) та Пастельна. Підтримка тем у додатку, на віджетах та заставці."
   },
   "alert_mobile": {
-    "version_name": "1.0.44",
-    "version_code": 45,
+    "version_name": "1.0.45",
+    "version_code": 46,
     "download_url": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/Alert-Mobile.apk",
     "apk_url": "https://showhub-server.onrender.com/Alert-Mobile.apk",
-    "changelog": "v1.0.44: Оновлення даних щосекунди (1 с) за замовчуванням. Віброрежим на смартфонах при сирені, відбої та наближенні БПЛА. Фоновий моніторинг тривог із постійним оновленням статусу при згорнутому додатку та вимкненому екрані."
+    "changelog": "v1.0.45: 6 візуальних тем карти на вибір у налаштуваннях: Класична, Темне скло, Глибока ніч (OLED #000000), Світла контрастна, Глассморфізм (неон) та Пастельна. Підтримка тем у додатку, на віджетах та заставці."
   },
   "ads": {
     "enabled": false,

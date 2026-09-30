@@ -25,18 +25,18 @@
     "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-PC.zip"
   },
   "alert_screensaver": {
-    "version_name": "1.0.63",
-    "version_code": 64,
+    "version_name": "1.0.64",
+    "version_code": 65,
     "download_url": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/AlertScreensaver.apk",
     "apk_url": "https://showhub-server.onrender.com/AlertScreensaver.apk",
-    "changelog": "v1.0.63: Серверне дзеркалювання всіх джерел даних без зовнішніх URL, чітка кольорова диференціація списку областей (червоні та жовті тривоги, виділення відстежуваної області), виправлено довжину траєкторій БПЛА за відстанню (коротка ~25 км, середня ~75 км, повна ~180 км) зі згасанням у прозорість."
+    "changelog": "v1.0.64: Виправлено відображення жовтої тривоги в мобільній версії — кружечок-індикатор у сповіщенні та віджеті тепер жовтий (🟡), значок у рядку стану Android забарвлюється в жовтий колір, а також виправлено колір заголовку банера тривог для жовтого рівня."
   },
   "alert_mobile": {
-    "version_name": "1.0.63",
-    "version_code": 64,
+    "version_name": "1.0.64",
+    "version_code": 65,
     "download_url": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/Alert-Mobile.apk",
     "apk_url": "https://showhub-server.onrender.com/Alert-Mobile.apk",
-    "changelog": "v1.0.63: Серверне дзеркалювання всіх джерел даних без зовнішніх URL, чітка кольорова диференціація списку областей (червоні та жовті тривоги, виділення відстежуваної області), виправлено довжину траєкторій БПЛА за відстанню (коротка ~25 км, середня ~75 км, повна ~180 км) зі згасанням у прозорість."
+    "changelog": "v1.0.64: Виправлено відображення жовтої тривоги в мобільній версії — кружечок-індикатор у сповіщенні та віджеті тепер жовтий (🟡), значок у рядку стану Android забарвлюється в жовтий колір, а також виправлено колір заголовку банера тривог для жовтого рівня."
   },
   "ads": {
     "enabled": false,

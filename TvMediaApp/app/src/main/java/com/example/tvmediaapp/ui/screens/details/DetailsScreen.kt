@@ -186,6 +186,8 @@ fun DetailsScreen(
     var selectedDetailTab by remember { mutableIntStateOf(0) }
     var comments by remember { mutableStateOf<List<CommentItem>>(emptyList()) }
     var isLoadingComments by remember { mutableStateOf(false) }
+    var isLoadingDetails by remember { mutableStateOf(currentMovie.seasons.isEmpty() && currentMovie.audioTracks.isEmpty()) }
+    var isLoadingStreams by remember { mutableStateOf(true) }
 
     val availableSourcesInfo = remember(currentMovie.sources, currentMovie.audioTracks, currentMovie.seasons, selectedSeason, streamOptions, currentMovie.isSeries) {
         val detectedSources = linkedSetOf<String>()
@@ -195,8 +197,14 @@ fun DetailsScreen(
             val name = when {
                 s.contains("kodik", ignoreCase = true) || trk.id.startsWith("kodik_") -> "Kodik"
                 s.contains("filmix", ignoreCase = true) -> "Filmix"
-                s.contains("rezka", ignoreCase = true) || (!trk.id.startsWith("kodik_") && s.isNotEmpty()) -> "HDRezka"
-                else -> if (s.isNotEmpty()) s.replaceFirstChar { it.uppercase() } else ""
+                s.contains("videocdn", ignoreCase = true) -> "VideoCDN"
+                s.contains("collaps", ignoreCase = true) || s.contains("delivembd", ignoreCase = true) -> "Collaps"
+                s.contains("anilibria", ignoreCase = true) -> "AniLibria"
+                s.contains("bazon", ignoreCase = true) -> "Bazon"
+                s.contains("zona", ignoreCase = true) -> "Zona"
+                s.contains("rezka", ignoreCase = true) -> "HDRezka"
+                s.isNotEmpty() -> s.replaceFirstChar { it.uppercase() }
+                else -> ""
             }
             if (name.isNotEmpty()) detectedSources.add(name)
         }
@@ -207,8 +215,11 @@ fun DetailsScreen(
                 s.contains("Filmix", ignoreCase = true) -> "Filmix"
                 s.contains("Kodik", ignoreCase = true) -> "Kodik"
                 s.contains("VideoCDN", ignoreCase = true) || st.url.contains("allarknow") || st.url.contains("bayas") || st.url.contains("videoframe") -> "VideoCDN"
-                s.contains("Collaps", ignoreCase = true) || s.contains("Delivembd", ignoreCase = true) -> "Collaps"
+                s.contains("Collaps", ignoreCase = true) || s.contains("Delivembd", ignoreCase = true) || st.url.contains("interkh") || st.url.contains("namy.ws") -> "Collaps"
+                s.contains("AniLibria", ignoreCase = true) || st.url.contains("libria") -> "AniLibria"
                 s.contains("Bazon", ignoreCase = true) -> "Bazon"
+                s.contains("Zona", ignoreCase = true) -> "Zona"
+                s.contains("Торрент", ignoreCase = true) || s.contains("torrent", ignoreCase = true) -> "Торренты (TorrServe)"
                 s.isNotEmpty() -> s.replaceFirstChar { it.uppercase() }
                 else -> ""
             }
@@ -231,15 +242,18 @@ fun DetailsScreen(
                     sKey.contains("rezka") -> stSrc.contains("rezka")
                     sKey.contains("filmix") -> stSrc.contains("filmix")
                     sKey.contains("videocdn") -> stSrc.contains("videocdn") || st.url.contains("allarknow") || st.url.contains("bayas") || st.url.contains("videoframe")
-                    sKey.contains("bazon") -> stSrc.contains("bazon")
                     sKey.contains("collaps") || sKey.contains("delivembd") -> stSrc.contains("collaps") || stSrc.contains("delivembd") || st.url.contains("interkh") || st.url.contains("namy.ws")
+                    sKey.contains("anilibria") -> stSrc.contains("anilibria") || st.url.contains("libria")
+                    sKey.contains("bazon") -> stSrc.contains("bazon")
+                    sKey.contains("zona") -> stSrc.contains("zona")
+                    sKey.contains("торрент") || sKey.contains("torrent") -> stSrc.contains("torrent")
                     else -> stSrc.contains(sKey)
                 }
             }
             val hasHls = if (srcStreams.isNotEmpty()) {
                 srcStreams.any { isDirectVideoStream(it.url) }
             } else {
-                sKey.contains("rezka") || sKey.contains("filmix")
+                sKey.contains("rezka") || sKey.contains("filmix") || sKey.contains("collaps") || sKey.contains("anilibria")
             }
             val bestQ = run {
                 val cleanStreams = srcStreams.filter { st ->
@@ -297,11 +311,13 @@ fun DetailsScreen(
                 val trackSrc = track.source.lowercase()
                 when {
                     sKey.contains("kodik") -> trackSrc.contains("kodik") || track.id.startsWith("kodik_")
-                    sKey.contains("rezka") -> trackSrc.contains("rezka") || (!track.id.startsWith("kodik_") && !trackSrc.contains("filmix") && !trackSrc.contains("videocdn") && !trackSrc.contains("bazon"))
+                    sKey.contains("rezka") -> trackSrc.contains("rezka") || (!track.id.startsWith("kodik_") && !trackSrc.contains("filmix") && !trackSrc.contains("videocdn") && !trackSrc.contains("bazon") && !trackSrc.contains("collaps") && !trackSrc.contains("delivembd") && !trackSrc.contains("anilibria"))
                     sKey.contains("filmix") -> trackSrc.contains("filmix")
                     sKey.contains("videocdn") -> trackSrc.contains("videocdn")
                     sKey.contains("collaps") || sKey.contains("delivembd") -> trackSrc.contains("collaps") || trackSrc.contains("delivembd")
+                    sKey.contains("anilibria") -> trackSrc.contains("anilibria")
                     sKey.contains("bazon") -> trackSrc.contains("bazon")
+                    sKey.contains("zona") -> trackSrc.contains("zona")
                     else -> trackSrc.contains(sKey)
                 }
             }
@@ -311,10 +327,12 @@ fun DetailsScreen(
                 val sourceStreams = streamOptions.filter { st ->
                     val src = st.source.lowercase()
                     when {
-                        sKey.contains("collaps") -> src.contains("collaps") || src.contains("delivembd") || st.url.contains("interkh") || st.url.contains("namy.ws")
+                        sKey.contains("collaps") || sKey.contains("delivembd") -> src.contains("collaps") || src.contains("delivembd") || st.url.contains("interkh") || st.url.contains("namy.ws")
                         sKey.contains("videocdn") -> src.contains("videocdn") || st.url.contains("allarknow") || st.url.contains("bayas")
+                        sKey.contains("anilibria") -> src.contains("anilibria") || st.url.contains("libria")
                         sKey.contains("kodik") -> src.contains("kodik")
                         sKey.contains("bazon") -> src.contains("bazon")
+                        sKey.contains("zona") -> src.contains("zona")
                         else -> src.contains(sKey)
                     }
                 }
@@ -525,31 +543,37 @@ fun DetailsScreen(
 
     // Fetch deep metadata (seasons, episodes, translators, KP rating) in background
     LaunchedEffect(movie.id) {
-        val detailed = withContext(Dispatchers.IO) {
-            val d = ShowHubApiClient.fetchMediaDetails(movie)
-            com.example.tvmediaapp.data.cache.MediaDiskCache.putCachedDetails(d)
-            d
-        }
-        currentMovie = detailed
-        if (detailed.seasons.isNotEmpty()) {
-            if (savedHistory == null || detailed.seasons.none { it.seasonNumber == selectedSeason }) {
-                selectedSeason = detailed.seasons.first().seasonNumber
+        isLoadingDetails = true
+        try {
+            val detailed = withContext(Dispatchers.IO) {
+                val d = ShowHubApiClient.fetchMediaDetails(movie)
+                com.example.tvmediaapp.data.cache.MediaDiskCache.putCachedDetails(d)
+                d
             }
-        }
-        if (detailed.audioTracks.isNotEmpty()) {
-            if (selectedAudioId.isEmpty() || detailed.audioTracks.none { it.id == selectedAudioId }) {
-                selectedAudioId = detailed.audioTracks.first().id
+            currentMovie = detailed
+            if (detailed.seasons.isNotEmpty()) {
+                if (savedHistory == null || detailed.seasons.none { it.seasonNumber == selectedSeason }) {
+                    selectedSeason = detailed.seasons.first().seasonNumber
+                }
             }
-        }
-        if (detailed.isSeries && detailed.seasons.isNotEmpty()) {
-            val total = detailed.seasons.sumOf { it.episodes.size }
-            val n = historyManager.updateKnownTotalEpisodes(detailed.id, total)
-            newEpisodesCount = n
+            if (detailed.audioTracks.isNotEmpty()) {
+                if (selectedAudioId.isEmpty() || detailed.audioTracks.none { it.id == selectedAudioId }) {
+                    selectedAudioId = detailed.audioTracks.first().id
+                }
+            }
+            if (detailed.isSeries && detailed.seasons.isNotEmpty()) {
+                val total = detailed.seasons.sumOf { it.episodes.size }
+                val n = historyManager.updateKnownTotalEpisodes(detailed.id, total)
+                newEpisodesCount = n
+            }
+        } finally {
+            isLoadingDetails = false
         }
     }
 
     // Pre-fetch streams in background: query native Rezka and server in parallel
     LaunchedEffect(currentMovie.id, selectedSeason, selectedEpisode, selectedAudioId) {
+        isLoadingStreams = true
         withContext(Dispatchers.IO) {
             try {
                 val isContentSeries = currentMovie.isSeries || currentMovie.seasons.isNotEmpty() || selectedSeason > 1 || selectedEpisode > 1
@@ -598,7 +622,19 @@ fun DetailsScreen(
                         audioId = selectedAudioId
                     )
                 }
+
+                // Progressive stream update: emit native streams immediately when available!
                 val nativeStreams = nativeDeferred.await()
+                if (nativeStreams.isNotEmpty()) {
+                    withContext(Dispatchers.Main) {
+                        val otherExisting = streamOptions.filterNot { it.source.contains("rezka", ignoreCase = true) || it.source.contains("filmix", ignoreCase = true) }
+                        val merged = (nativeStreams + otherExisting).distinctBy { it.url }.sortedByDescending { isDirectVideoStream(it.url) }
+                        if (merged.isNotEmpty()) {
+                            streamOptions = merged
+                        }
+                    }
+                }
+
                 val serverStreams = serverDeferred.await()
                 val isNativeFallback = nativeStreams.isNotEmpty() && nativeStreams.all { it.source.contains("fallback", ignoreCase = true) }
                 val hasServerDirect = serverStreams.any { isDirectVideoStream(it.url) && !it.source.contains("torrent", ignoreCase = true) }
@@ -618,11 +654,17 @@ fun DetailsScreen(
                 val sorted = combined.sortedByDescending { isDirectVideoStream(it.url) }
                 if (sorted.isNotEmpty()) {
                     withContext(Dispatchers.Main) {
-                        streamOptions = sorted
+                        // Merge with existing streams to preserve all discovered sources (Collaps, VideoCDN, AniLibria, etc.)
+                        val mergedAll = (sorted + streamOptions).distinctBy { it.url }.sortedByDescending { isDirectVideoStream(it.url) }
+                        streamOptions = mergedAll
                     }
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
+            } finally {
+                withContext(Dispatchers.Main) {
+                    isLoadingStreams = false
+                }
             }
         }
     }
@@ -2032,19 +2074,31 @@ fun DetailsScreen(
                     }
                 }
 
-                // Stream status message with NeonSpinner (only while resolving)
-                if (streamStatus != null || isResolving) {
+                // Informative Card Data & Stream Status message with NeonSpinner
+                val isCardDataLoading = isLoadingDetails || isLoadingStreams
+                if (isCardDataLoading || isResolving || streamStatus != null) {
                     Spacer(modifier = Modifier.height(10.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (isResolving) {
-                            NeonSpinner(size = 20.dp, strokeWidth = 2.5.dp)
-                            Spacer(modifier = Modifier.width(10.dp))
+                        if (isResolving || isCardDataLoading) {
+                            NeonSpinner(size = 18.dp, strokeWidth = 2.2.dp)
+                            Spacer(modifier = Modifier.width(8.dp))
                         }
-                        Text(
-                            text = streamStatus ?: "Поиск наилучшего видеопотока...",
-                            fontSize = 13.sp,
-                            color = if (isResolving) accent else if (streamStatus?.startsWith("▶") == true || streamStatus?.contains("Найден") == true) accent else Color(0xFFF87171)
-                        )
+                        val statusText = when {
+                            isResolving -> streamStatus ?: "Поиск наилучшего видеопотока..."
+                            isLoadingDetails -> "Подгрузка данных карточки (сезоны, озвучки, описание)..."
+                            isLoadingStreams && availableSourcesInfo.isNotEmpty() -> "Поиск потоков... Доступно источников: ${availableSourcesInfo.size} (${availableSourcesInfo.joinToString(", ") { it.name }})"
+                            isLoadingStreams -> "Поиск источников и видеопотоков (Collaps, HDRezka, Kodik, Filmix, AniLibria)..."
+                            streamStatus != null -> streamStatus!!
+                            availableSourcesInfo.isNotEmpty() -> "✓ Доступно источников: ${availableSourcesInfo.size} (${availableSourcesInfo.joinToString(", ") { it.name }})"
+                            else -> null
+                        }
+                        if (statusText != null) {
+                            Text(
+                                text = statusText,
+                                fontSize = 12.sp,
+                                color = if (isResolving || isCardDataLoading) accent else if (statusText.startsWith("▶") || statusText.startsWith("✓") || statusText.contains("Найден")) accent else Color(0xFFF87171)
+                            )
+                        }
                     }
                 }
 

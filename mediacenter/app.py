@@ -16,6 +16,7 @@ import urllib.parse
 import urllib.request
 import requests
 from typing import List, Dict, Any, Optional, Tuple
+import concurrent.futures
 from concurrent.futures import ThreadPoolExecutor
 
 def clean_html_text(val: Optional[str]) -> Optional[str]:
@@ -1736,11 +1737,24 @@ def _fetch_media_details(
     }
 
     # Determine real Kinopoisk ID if available
-    resolved_kp = kp_id
+    resolved_kp = kp_id if (kp_id and str(kp_id).strip().lower() not in ("null", "none", "")) else None
     if source in ("filmix", "kodik", "hdrezka") and resolved_kp and str(resolved_kp) == str(media_id):
         resolved_kp = None
-    if not resolved_kp and source in ["bazon", "videocdn", "delivembd", "kinopoisk", "kp"] and media_id.isdigit():
+    if not resolved_kp and source in ["bazon", "videocdn", "delivembd", "collaps", "kinopoisk", "kp"] and media_id.isdigit():
         resolved_kp = media_id
+
+    cached_kodik_items = []
+    if clean_title or resolved_kp:
+        try:
+            cached_kodik_items = kodik.search(clean_title, year=year_int, kp_id=resolved_kp)
+            if not resolved_kp and cached_kodik_items:
+                for kit in cached_kodik_items:
+                    if getattr(kit, "kinopoisk_id", None):
+                        resolved_kp = str(kit.kinopoisk_id)
+                        break
+        except Exception:
+            cached_kodik_items = []
+
     if not resolved_kp and clean_title:
         try:
             b_items = bazon.search(clean_title)
@@ -1750,28 +1764,29 @@ def _fetch_media_details(
         except Exception:
             pass
 
+    if resolved_kp:
+        details["kinopoisk_id"] = str(resolved_kp)
+
     # 0a. If source is kodik, pre-extract authentic metadata from Kodik immediately
-    if (source == "kodik" or not clean_title) and clean_title:
+    if (source == "kodik" or not clean_title) and cached_kodik_items:
         try:
-            kd_pre = kodik.search(clean_title, year=year_int, kp_id=resolved_kp)
-            if kd_pre:
-                first_k = kd_pre[0]
-                if first_k.extra_data.get("country"):
-                    details["country"] = first_k.extra_data["country"]
-                if first_k.extra_data.get("countries"):
-                    details["countries"] = first_k.extra_data["countries"]
-                if first_k.extra_data.get("actors"):
-                    details["actors"] = first_k.extra_data["actors"]
-                if first_k.extra_data.get("director"):
-                    details["director"] = first_k.extra_data["director"]
-                if first_k.extra_data.get("genres"):
-                    details["genres"] = first_k.extra_data["genres"]
-                if first_k.description:
-                    details["description"] = first_k.description
-                if first_k.rating_kp:
-                    details["rating_kp"] = first_k.rating_kp
-                if first_k.rating_imdb:
-                    details["rating_imdb"] = first_k.rating_imdb
+            first_k = cached_kodik_items[0]
+            if first_k.extra_data.get("country"):
+                details["country"] = first_k.extra_data["country"]
+            if first_k.extra_data.get("countries"):
+                details["countries"] = first_k.extra_data["countries"]
+            if first_k.extra_data.get("actors"):
+                details["actors"] = first_k.extra_data["actors"]
+            if first_k.extra_data.get("director"):
+                details["director"] = first_k.extra_data["director"]
+            if first_k.extra_data.get("genres"):
+                details["genres"] = first_k.extra_data["genres"]
+            if first_k.description:
+                details["description"] = first_k.description
+            if first_k.rating_kp:
+                details["rating_kp"] = first_k.rating_kp
+            if first_k.rating_imdb:
+                details["rating_imdb"] = first_k.rating_imdb
         except Exception:
             pass
 
@@ -1935,47 +1950,63 @@ def _fetch_media_details(
         k = _norm_t_name(t.get("name", ""))
         trans_map[k] = t
 
-    # Merge Filmix audio tracks
-    try:
-        fx_id = media_id if (source == "filmix" and media_id.isdigit()) else None
-        if not fx_id and clean_title:
-            fx_items = filmix.search(clean_title)
-            fx_match = find_best_match(fx_items, year_int, is_ser_bool, target_title=clean_title)
-            if fx_match:
-                fx_id = fx_match.id
-        if fx_id:
-            fx_res = filmix.get_streams(fx_id)
-            if fx_res.audio_tracks:
-                for t in fx_res.audio_tracks:
-                    k = _norm_t_name(t.name)
-                    if k not in trans_map:
-                        t_dict = t.model_dump()
-                        t_dict["source"] = "filmix"
-                        trans_map[k] = t_dict
-                        details["translators"].append(t_dict)
-    except Exception:
-        pass
+    # Merge Filmix, Collaps (delivembd), VideoCDN, and AniLibria availability & audio tracks in parallel
+    fx_available = False
+    collaps_available = False
+    videocdn_available = False
+    anilibria_available = False
 
-    # Enrich HDRezka translators with exact per-season episode counts
-    if details.get("is_series") and details.get("translators") and rz_id:
-        def _enrich_rz_tr(tr_item):
-            t_id = tr_item.get("id")
-            if t_id and str(t_id).isdigit() and not str(t_id).startswith("kodik_"):
-                try:
-                    eps = hdrezka.get_episodes(rz_id, str(t_id))
-                    if eps:
-                        s_eps = {}
-                        for s in eps:
-                            s_num = s.get("season_id") or s.get("season_number") or 1
-                            s_eps[int(s_num)] = len(s.get("episodes", []))
-                        tr_item["seasons_episodes"] = s_eps
-                        tr_item["episodes_count"] = max(s_eps.values(), default=0)
-                except Exception:
-                    pass
+    def _probe_filmix_details():
+        nonlocal fx_available
         try:
-            top_trs = details["translators"][:6]
-            with ThreadPoolExecutor(max_workers=6) as ex:
-                list(ex.map(_enrich_rz_tr, top_trs))
+            fx_id = media_id if (source == "filmix" and media_id.isdigit()) else None
+            if not fx_id and clean_title:
+                fx_items = filmix.search(clean_title)
+                fx_match = find_best_match(fx_items, year_int, is_ser_bool, target_title=clean_title)
+                if fx_match:
+                    fx_id = fx_match.id
+            if fx_id:
+                fx_res = filmix.get_streams(fx_id)
+                if fx_res.streams or fx_res.audio_tracks:
+                    fx_available = True
+                return fx_res.audio_tracks or []
+        except Exception:
+            pass
+        return []
+
+    def _probe_collaps_details():
+        nonlocal collaps_available
+        try:
+            d_id = resolved_kp or (media_id if source in ("delivembd", "collaps") else "")
+            if d_id or clean_title:
+                d_res = delivembd.get_streams(str(d_id or ""), season=1, episode=1, title=clean_title, year=year_int)
+                if d_res.streams or d_res.embed_url:
+                    collaps_available = True
+        except Exception:
+            pass
+
+    def _probe_videocdn_details():
+        nonlocal videocdn_available
+        try:
+            vc_id = resolved_kp or ""
+            if vc_id or clean_title:
+                vc_res = videocdn.get_streams(str(vc_id), season=1, episode=1, title=clean_title, year=year_int)
+                if vc_res.streams or vc_res.embed_url:
+                    videocdn_available = True
+        except Exception:
+            pass
+
+    def _probe_anilibria_details():
+        nonlocal anilibria_available
+        try:
+            if clean_title:
+                al_items = anilibria.search(clean_title, year=year_int)
+                for it in al_items[:2]:
+                    if _is_matching_title(it.title, clean_title):
+                        al_res = anilibria.get_streams(it.id, season=1, episode=1)
+                        if al_res.streams:
+                            anilibria_available = True
+                            break
         except Exception:
             pass
 
@@ -1994,12 +2025,55 @@ def _fetch_media_details(
             return True
         return False
 
-    # Merge Kodik translations & seasons
+    probe_pool = ThreadPoolExecutor(max_workers=10)
+    try:
+        fx_future = probe_pool.submit(_probe_filmix_details)
+        col_future = probe_pool.submit(_probe_collaps_details)
+        vc_future = probe_pool.submit(_probe_videocdn_details)
+        al_future = probe_pool.submit(_probe_anilibria_details)
+        rz_tr_futures = []
+        if details.get("is_series") and details.get("translators") and rz_id:
+            def _enrich_rz_tr(tr_item):
+                t_id = tr_item.get("id")
+                if t_id and str(t_id).isdigit() and not str(t_id).startswith("kodik_"):
+                    try:
+                        eps = hdrezka.get_episodes(rz_id, str(t_id))
+                        if eps:
+                            s_eps = {}
+                            for s in eps:
+                                s_num = s.get("season_id") or s.get("season_number") or 1
+                                s_eps[int(s_num)] = len(s.get("episodes", []))
+                            tr_item["seasons_episodes"] = s_eps
+                            tr_item["episodes_count"] = max(s_eps.values(), default=0)
+                    except Exception:
+                        pass
+            for tr_it in details["translators"][:6]:
+                rz_tr_futures.append(probe_pool.submit(_enrich_rz_tr, tr_it))
+
+        concurrent.futures.wait([fx_future, col_future, vc_future, al_future] + rz_tr_futures, timeout=3.5)
+        if fx_future.done():
+            try:
+                fx_tracks = fx_future.result(timeout=0.05)
+                for t in fx_tracks:
+                    k = _norm_t_name(t.name)
+                    if k not in trans_map:
+                        t_dict = t.model_dump()
+                        t_dict["source"] = "filmix"
+                        trans_map[k] = t_dict
+                        details["translators"].append(t_dict)
+            except Exception:
+                pass
+    except Exception:
+        pass
+    finally:
+        probe_pool.shutdown(wait=False, cancel_futures=True)
+
+    # Merge Kodik translations & seasons (reusing cached_kodik_items)
     kd_max_eps = 0
     kd_seasons_eps: Dict[int, int] = {}
     try:
-        if resolved_kp or clean_title:
-            k_raw_items = kodik.search(clean_title, year=year_int, kp_id=resolved_kp)
+        if cached_kodik_items or resolved_kp or clean_title:
+            k_raw_items = cached_kodik_items if cached_kodik_items else kodik.search(clean_title, year=year_int, kp_id=resolved_kp)
             # Filter strictly matching items only
             k_items = [
                 it for it in k_raw_items
@@ -2112,11 +2186,39 @@ def _fetch_media_details(
             "episodes_count": kd_max_eps if kd_max_eps > 0 else total_series_eps,
             "seasons_episodes": kd_seasons_eps
         })
-    if rz_max_eps > 0 or details.get("seasons"):
+    if rz_max_eps > 0 or details.get("seasons") or any(t.get("source") == "hdrezka" for t in details.get("translators", [])):
         sources_info.append({
             "source": "hdrezka",
             "name": "HDRezka",
             "episodes_count": rz_max_eps if rz_max_eps > 0 else total_series_eps,
+            "seasons_episodes": rz_seasons_eps
+        })
+    if collaps_available:
+        sources_info.append({
+            "source": "delivembd",
+            "name": "Collaps",
+            "episodes_count": total_series_eps,
+            "seasons_episodes": rz_seasons_eps
+        })
+    if fx_available or any(t.get("source") == "filmix" for t in details.get("translators", [])):
+        sources_info.append({
+            "source": "filmix",
+            "name": "Filmix",
+            "episodes_count": total_series_eps,
+            "seasons_episodes": rz_seasons_eps
+        })
+    if videocdn_available:
+        sources_info.append({
+            "source": "videocdn",
+            "name": "VideoCDN",
+            "episodes_count": total_series_eps,
+            "seasons_episodes": rz_seasons_eps
+        })
+    if anilibria_available:
+        sources_info.append({
+            "source": "anilibria",
+            "name": "AniLibria",
+            "episodes_count": total_series_eps,
             "seasons_episodes": rz_seasons_eps
         })
     details["sources_info"] = sources_info
@@ -2124,7 +2226,7 @@ def _fetch_media_details(
     # 4b. Enrich missing ratings from Kodik and Shikimori (especially for anime and fresh titles)
     if (not details.get("rating_kp") or details.get("rating_kp") == 0.0) or (not details.get("rating_imdb") or details.get("rating_imdb") == 0.0):
         try:
-            k_items_r = kodik.search(clean_title, year=year_int, kp_id=resolved_kp)
+            k_items_r = cached_kodik_items
             if k_items_r:
                 for kr in k_items_r:
                     if kr.rating_kp and (not details.get("rating_kp") or details.get("rating_kp") == 0.0):
@@ -2142,7 +2244,7 @@ def _fetch_media_details(
         if (not details.get("rating_kp") or details.get("rating_kp") == 0.0) and (details.get("is_series") or any("аним" in str(g).lower() for g in details.get("genres", []))):
             try:
                 shiki_url = f"https://shikimori.one/api/animes?search={urllib.parse.quote(clean_title)}"
-                shiki_res = requests.get(shiki_url, headers={"User-Agent": "ShowHubTV-MediaCenter/2.7.5"}, timeout=4).json()
+                shiki_res = requests.get(shiki_url, headers={"User-Agent": "ShowHubTV-MediaCenter/2.7.5"}, timeout=3).json()
                 if shiki_res and isinstance(shiki_res, list) and len(shiki_res) > 0:
                     score = shiki_res[0].get("score")
                     if score and float(score) > 0:
@@ -2153,26 +2255,29 @@ def _fetch_media_details(
     # 4c. Fallback to Kodik actors/directors/genres/country ONLY for confirmed anime/doramas or if source is kodik!
     cur_genres = [str(g).lower() for g in details.get("genres", [])]
     is_anime_or_dorama = (source == "kodik") or any("аним" in g or "дорам" in g for g in cur_genres)
-    if is_anime_or_dorama and (not details.get("actors") or not details.get("director")) and (resolved_kp or clean_title):
+    if is_anime_or_dorama and (not details.get("actors") or not details.get("director")) and cached_kodik_items:
         try:
-            k_items = kodik.search(clean_title, year=year_int, kp_id=resolved_kp)
-            if k_items:
-                matched_it = k_items[0]
-                if not details.get("actors") and matched_it.extra_data.get("actors"):
-                    details["actors"] = matched_it.extra_data["actors"]
-                if not details.get("director") and matched_it.extra_data.get("director"):
-                    details["director"] = matched_it.extra_data["director"]
-                if not details.get("country") and matched_it.extra_data.get("country"):
-                    details["country"] = matched_it.extra_data["country"]
-                if not details.get("genres") and matched_it.extra_data.get("genres"):
-                    details["genres"] = matched_it.extra_data["genres"]
-                if not details.get("description") and matched_it.description:
-                    details["description"] = matched_it.description
+            matched_it = cached_kodik_items[0]
+            if not details.get("actors") and matched_it.extra_data.get("actors"):
+                details["actors"] = matched_it.extra_data["actors"]
+            if not details.get("director") and matched_it.extra_data.get("director"):
+                details["director"] = matched_it.extra_data["director"]
+            if not details.get("country") and matched_it.extra_data.get("country"):
+                details["country"] = matched_it.extra_data["country"]
+            if not details.get("genres") and matched_it.extra_data.get("genres"):
+                details["genres"] = matched_it.extra_data["genres"]
+            if not details.get("description") and matched_it.description:
+                details["description"] = matched_it.description
         except Exception:
             pass
 
-    # 5. Populate Actors with Photos (preserve TMDb cast if available, else Wikipedia photos)
+    # 5 & 5b. Populate Actors & Directors with Photos in parallel
     actors_list = []
+    directors_list = []
+    photo_targets = []
+    actor_names = []
+    director_names = []
+
     if details.get("cast"):
         for idx, c_item in enumerate(details["cast"][:12]):
             actors_list.append({
@@ -2183,19 +2288,9 @@ def _fetch_media_details(
             })
     elif details.get("actors"):
         raw_actors = str(details.get("actors") or "")
-        names = [n.strip() for n in re.split(r'[,;•\n/]', raw_actors) if n.strip()]
-        for idx, a_name in enumerate(names[:10]):
-            photo = resolve_actor_photo(a_name)
-            actors_list.append({
-                "id": f"act_{idx+1}",
-                "name": a_name,
-                "role": "В главных ролях",
-                "photo": photo or ""
-            })
-    details["actors_list"] = actors_list
+        actor_names = [n.strip() for n in re.split(r'[,;•\n/]', raw_actors) if n.strip()][:10]
+        photo_targets.extend(actor_names)
 
-    # 5b. Populate Directors with Photos (preserve TMDb directors if available, else Wikipedia photos)
-    directors_list = []
     if details.get("directors_list"):
         for idx, d_item in enumerate(details["directors_list"][:5]):
             directors_list.append({
@@ -2206,14 +2301,42 @@ def _fetch_media_details(
             })
     elif details.get("director"):
         raw_director = str(details.get("director") or "")
-        d_names = [n.strip() for n in re.split(r'[,;•\n/]', raw_director) if n.strip()]
-        for idx, d_name in enumerate(d_names[:5]):
-            photo = resolve_actor_photo(d_name)
+        director_names = [n.strip() for n in re.split(r'[,;•\n/]', raw_director) if n.strip()][:5]
+        photo_targets.extend(director_names)
+
+    resolved_photos: Dict[str, Optional[str]] = {}
+    if photo_targets:
+        photo_pool = ThreadPoolExecutor(max_workers=8)
+        try:
+            p_futs = {photo_pool.submit(resolve_actor_photo, nm): nm for nm in photo_targets}
+            done_p, _ = concurrent.futures.wait(p_futs.keys(), timeout=2.0)
+            for pf in done_p:
+                try:
+                    resolved_photos[p_futs[pf]] = pf.result(timeout=0.05)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        finally:
+            photo_pool.shutdown(wait=False, cancel_futures=True)
+
+    if not actors_list and actor_names:
+        for idx, a_name in enumerate(actor_names):
+            actors_list.append({
+                "id": f"act_{idx+1}",
+                "name": a_name,
+                "role": "В главных ролях",
+                "photo": resolved_photos.get(a_name) or _actor_photo_cache.get(a_name) or ""
+            })
+    details["actors_list"] = actors_list
+
+    if not directors_list and director_names:
+        for idx, d_name in enumerate(director_names):
             directors_list.append({
                 "id": f"dir_{idx+1}",
                 "name": d_name,
                 "role": "Режиссёр",
-                "photo": photo or ""
+                "photo": resolved_photos.get(d_name) or _actor_photo_cache.get(d_name) or ""
             })
     details["directors_list"] = directors_list
 
@@ -2236,10 +2359,9 @@ def _fetch_media_details(
         has_asian_actors = bool(re.search(r'\b(чэнь|тун яо|линь|юань|пань|ван ян|сюй|чжан|бай лу|чжао лусы|минхо)\b', act_str) or
                                re.search(r'\b(ким|пак|сон|ли|чхве|чо|чон)\s+[а-яё]', act_str))
         if has_asian_actors and not any(a in c_str for a in ["китай", "коре", "япони", "тайван", "гонконг", "ази"]):
-            if clean_title:
+            if cached_kodik_items:
                 try:
-                    k_re = kodik.search(clean_title, year=year_int, kp_id=resolved_kp)
-                    for kit in k_re:
+                    for kit in cached_kodik_items:
                         if normalize_search_title(kit.title) == normalize_search_title(clean_title):
                             k_c = kit.extra_data.get("country")
                             if k_c and any(a in k_c.lower() for a in ["китай", "коре", "япони", "тайван"]):
@@ -2329,11 +2451,15 @@ def _fetch_media_streams(
 
     media_id_str = str(media_id or "").strip()
     resolved: Dict[str, Any] = {}
-    resolved_kp = kp_id
+    resolved_kp = kp_id if (kp_id and str(kp_id).strip().lower() not in ("null", "none", "")) else None
     if source in ("filmix", "kodik", "hdrezka") and resolved_kp and str(resolved_kp) == media_id_str:
         resolved_kp = None
     if not resolved_kp and source in ["bazon", "videocdn", "delivembd", "collaps", "kinopoisk", "kp"] and media_id_str and media_id_str.isdigit():
         resolved_kp = media_id_str
+
+    effective_audio_id = audio_id
+    if effective_audio_id and (str(effective_audio_id).startswith("src_") or str(effective_audio_id).startswith("synth_")):
+        effective_audio_id = None
 
     clean_title = re.sub(r'\(.*?\)|\[.*?\]', '', title).strip() if title else ""
     clean_title = clean_title.replace(":", " ").replace(" - ", " ")
@@ -2386,8 +2512,8 @@ def _fetch_media_streams(
             except Exception:
                 pass
 
-    # Sanity check: verify resolved_kp against target title and year
-    if resolved_kp and (clean_title or year_int):
+    # Sanity check: verify resolved_kp against target title and year ONLY if kp_id was not explicitly passed
+    if resolved_kp and not (kp_id and str(kp_id).strip().isdigit()) and (clean_title or year_int):
         try:
             b_info = bazon.get_details(str(resolved_kp))
             if b_info:
@@ -2412,11 +2538,12 @@ def _fetch_media_streams(
                     for it in rank_matches(fx_items, year_int, is_ser_bool, target_title=t_query):
                         if it.id not in candidate_fx_ids:
                             candidate_fx_ids.append(it.id)
+            fx_audio = effective_audio_id if (effective_audio_id and not str(effective_audio_id).startswith("kodik_")) else None
             for fx_id in candidate_fx_ids[:3]:
-                fx_streams = filmix.get_streams(fx_id, season=season, episode=episode, audio_id=audio_id)
+                fx_streams = filmix.get_streams(fx_id, season=season, episode=episode, audio_id=fx_audio)
                 if fx_streams.streams:
                     return ("filmix", fx_streams.model_dump())
-                if audio_id:
+                if fx_audio:
                     fx_streams_fallback = filmix.get_streams(fx_id, season=season, episode=episode, audio_id=None)
                     if fx_streams_fallback.streams:
                         return ("filmix", fx_streams_fallback.model_dump())
@@ -2430,7 +2557,7 @@ def _fetch_media_streams(
             if media_id_str and (media_id_str.startswith("http") or media_id_str.startswith("/") or "rezka" in media_id_str):
                 candidate_rz_ids.append(media_id_str)
 
-            rz_audio_id = audio_id if (audio_id and str(audio_id).isdigit()) else None
+            rz_audio_id = effective_audio_id if (effective_audio_id and str(effective_audio_id).isdigit()) else None
             for rz_id in candidate_rz_ids:
                 rz_streams = hdrezka.get_streams(rz_id, season=season, episode=episode, audio_id=rz_audio_id)
                 if rz_streams.streams:
@@ -2465,12 +2592,13 @@ def _fetch_media_streams(
         try:
             vc_id = resolved_kp or ""
             t_fallback = titles_to_try[0] if titles_to_try else (clean_title or title)
+            vc_audio = effective_audio_id if (effective_audio_id and not str(effective_audio_id).startswith("kodik_")) else None
             if vc_id or t_fallback:
                 vc_streams = videocdn.get_streams(
                     vc_id,
                     season=season,
                     episode=episode,
-                    audio_id=audio_id,
+                    audio_id=vc_audio,
                     title=t_fallback,
                     year=year_int
                 )
@@ -2484,12 +2612,13 @@ def _fetch_media_streams(
         try:
             d_id = resolved_kp or (media_id_str if source in ("delivembd", "collaps") else "")
             t_fallback = titles_to_try[0] if titles_to_try else (clean_title or title)
+            d_audio = effective_audio_id if (effective_audio_id and not str(effective_audio_id).startswith("kodik_")) else None
             if d_id or t_fallback:
                 d_streams = delivembd.get_streams(
                     d_id,
                     season=season,
                     episode=episode,
-                    audio_id=audio_id,
+                    audio_id=d_audio,
                     title=t_fallback,
                     year=year_int
                 )
@@ -2597,7 +2726,7 @@ def _fetch_media_streams(
                     if candidate_zona_ids:
                         break
             for z_id in candidate_zona_ids[:2]:
-                z_res = zona.get_streams(z_id, season=season, episode=episode, audio_id=audio_id)
+                z_res = zona.get_streams(z_id, season=season, episode=episode, audio_id=effective_audio_id)
                 if z_res.streams:
                     return ("zona", z_res.model_dump())
         except Exception:
@@ -2609,15 +2738,15 @@ def _fetch_media_streams(
             if clean_title:
                 al_items = anilibria.search(clean_title, year=year_int)
                 for it in al_items[:2]:
-                    al_res = anilibria.get_streams(it.id, season=season, episode=episode, audio_id=audio_id)
+                    al_res = anilibria.get_streams(it.id, season=season, episode=episode, audio_id=effective_audio_id)
                     if al_res.streams:
                         return ("anilibria", al_res.model_dump())
         except Exception:
             pass
         return None
 
-    import concurrent.futures
-    with ThreadPoolExecutor(max_workers=9) as executor:
+    executor = ThreadPoolExecutor(max_workers=9)
+    try:
         futures = [
             executor.submit(_resolve_filmix),
             executor.submit(_resolve_hdrezka),
@@ -2629,15 +2758,17 @@ def _fetch_media_streams(
             executor.submit(_resolve_bazon),
             executor.submit(_resolve_torrents)
         ]
-        done, _ = concurrent.futures.wait(futures, timeout=12.0)
+        done, _ = concurrent.futures.wait(futures, timeout=10.0)
         for f in done:
             try:
-                res = f.result(timeout=0.1)
+                res = f.result(timeout=0.05)
                 if res:
                     src_name, src_payload = res
                     resolved[src_name] = src_payload
             except Exception:
                 pass
+    finally:
+        executor.shutdown(wait=False, cancel_futures=True)
 
     # Filter out HDRezka paid-tariff promo stubs (rhtie.mp4 / Ultra without VIP) and tag premium streams
     has_rezka_vip = bool(hdrezka.session.cookies.get("dle_user_id"))

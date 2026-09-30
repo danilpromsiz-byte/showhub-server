@@ -1,27 +1,27 @@
 {
   "success": true,
-  "version_name": "2.8.70",
-  "version_code": 129,
+  "version_name": "2.8.72",
+  "version_code": 131,
   "force_update": true,
   "min_version_code": 108,
   "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
   "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
-  "changelog": "v2.8.70: Полная защита Bluetooth-кнопок и паузы — перехват на уровне Activity (Touch/TV), ForwardingPlayer для MediaSessionLegacyStub, жесткая блокировка авто-возобновления звука на паузе и отключение аудио-декодера в фоновых превью.",
+  "changelog": "v2.8.72: Восстановлено отображение всех источников (Collaps, Filmix, VideoCDN, AniLibria, HDRezka, Kodik) в карточке фильма и устранена потеря потоков при переключении. Добавлен наглядный неоновый индикатор загрузки данных карточки (сезонов, озвучек, источников) в реальном времени.",
   "tv": {
-    "version_name": "2.8.70",
-    "version_code": 129,
+    "version_name": "2.8.72",
+    "version_code": 131,
     "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
     "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk"
   },
   "mobile": {
-    "version_name": "2.8.70",
-    "version_code": 129,
+    "version_name": "2.8.72",
+    "version_code": 131,
     "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-Mobile.apk",
     "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-Mobile.apk"
   },
   "pc": {
-    "version_name": "2.8.70",
-    "version_code": 129,
+    "version_name": "2.8.72",
+    "version_code": 131,
     "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-PC.zip"
   },
   "alert_screensaver": {

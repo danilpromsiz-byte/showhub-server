@@ -405,7 +405,7 @@ object ShowHubApiClient {
                     directorsList = if (dirList.isNotEmpty()) dirList else movie.directorsList,
                     episodesSchedule = if (scheduleList.isNotEmpty()) scheduleList else movie.episodesSchedule,
                     ageRating = ageRating,
-                    kinopoiskId = obj.optString("kinopoisk_id", movie.kinopoiskId),
+                    kinopoiskId = obj.optString("kinopoisk_id", movie.kinopoiskId).let { if (it.isBlank() || it.equals("null", ignoreCase = true)) movie.kinopoiskId.takeIf { k -> !k.equals("null", ignoreCase = true) } ?: "" else it },
                     source = if (movie.source.isNotBlank()) movie.source else obj.optString("source_name", obj.optString("source", ""))
                 )
             }
@@ -427,7 +427,7 @@ object ShowHubApiClient {
             val encTitle = URLEncoder.encode(movie.title, "UTF-8")
             val encOrig = URLEncoder.encode(movie.originalTitle, "UTF-8")
             val srcParam = if (!source.isNullOrBlank()) source.lowercase().trim() else if (movie.source.isNotBlank()) movie.source else if (translatorId.startsWith("kodik_")) "kodik" else "hdrezka"
-            val kpParam = if (movie.kinopoiskId.isNotBlank()) movie.kinopoiskId else if (movie.source == "bazon" && movie.id.all { it.isDigit() }) movie.id else ""
+            val kpParam = if (movie.kinopoiskId.isNotBlank() && !movie.kinopoiskId.equals("null", ignoreCase = true)) movie.kinopoiskId else if (movie.source == "bazon" && movie.id.all { it.isDigit() }) movie.id else ""
             val kpQuery = if (kpParam.isNotBlank()) "&kp_id=$kpParam" else ""
             val isSer = if (movie.isSeries) "1" else "0"
             val urlStr = "$activeServerBase/api/media/episodes?source=$srcParam&media_id=$encId&translator_id=$encTrans&title=$encTitle&original_title=$encOrig&year=${movie.releaseYear}&is_series=$isSer$kpQuery"
@@ -481,7 +481,7 @@ object ShowHubApiClient {
             val encId = URLEncoder.encode(movie.id, "UTF-8")
             val isSeriesStr = if (movie.isSeries || (episode != null && episode > 1) || (season != null && season > 1)) "1" else "0"
             val srcParam = if (!source.isNullOrEmpty()) source.lowercase().trim() else if (movie.source.isNotBlank()) movie.source else "all"
-            val kpParam = if (movie.kinopoiskId.isNotBlank()) movie.kinopoiskId else if (movie.source == "bazon" && movie.id.all { it.isDigit() }) movie.id else ""
+            val kpParam = if (movie.kinopoiskId.isNotBlank() && !movie.kinopoiskId.equals("null", ignoreCase = true)) movie.kinopoiskId else if (movie.source == "bazon" && movie.id.all { it.isDigit() }) movie.id else ""
             val kpQuery = if (kpParam.isNotBlank()) "&kp_id=$kpParam" else ""
             val sb = StringBuilder("$activeServerBase/api/media/streams?source=$srcParam&media_id=$encId$kpQuery&title=$q&original_title=$origQ&year=${movie.releaseYear}&is_series=$isSeriesStr")
             if (season != null) sb.append("&season=$season")
@@ -869,7 +869,7 @@ object ShowHubApiClient {
 
             val givenAge = it.optString("age_limit", extraObj?.optString("age_limit", "") ?: "")
             val rawAge = classifyAgeRating(title, desc, genresList, givenAge)
-            val kinopoiskId = it.optString("kinopoisk_id", "").ifEmpty { extraObj?.optString("kinopoisk_id", "") ?: "" }
+            val kinopoiskId = it.optString("kinopoisk_id", "").ifEmpty { extraObj?.optString("kinopoisk_id", "") ?: "" }.let { k -> if (k.isBlank() || k.equals("null", ignoreCase = true)) "" else k }
             val srcName = it.optString("source_name", "").ifEmpty { it.optString("source", "") }
 
             outList.add(

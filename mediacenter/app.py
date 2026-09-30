@@ -34,7 +34,7 @@ logger = logging.getLogger("mediacenter")
 
 from fastapi import FastAPI, Query, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.responses import HTMLResponse, FileResponse, Response, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 # Ensure correct path
@@ -225,22 +225,17 @@ def serve_alert_screensaver_apk():
     raise HTTPException(status_code=404, detail="AlertScreensaver APK not found")
 
 _alerts_cache = {"timestamp": 0.0, "data": None}
-_ALERTS_CACHE_TTL = 15.0
+_ALERTS_CACHE_TTL = 4.0
 
-@app.get("/api/alerts")
-def get_alerts() -> Dict[str, Any]:
-    """Provides live Ukraine air alarm status by oblasts with high-speed 15s in-memory caching."""
+def _refresh_alerts_cache() -> Optional[Dict[str, Any]]:
     now = time.time()
-    if _alerts_cache["data"] and (now - _alerts_cache["timestamp"] < _ALERTS_CACHE_TTL):
-        return _alerts_cache["data"]
-
     # 1. Primary: Official differentiated statuses feed (red + yellow + districts)
     try:
         req = urllib.request.Request(
             "https://vadimklimenko.com/map/statuses.json",
             headers={"User-Agent": "AlertAPI/1.0"}
         )
-        with urllib.request.urlopen(req, timeout=6) as resp:
+        with urllib.request.urlopen(req, timeout=5) as resp:
             if resp.status == 200:
                 raw = json.loads(resp.read().decode("utf-8"))
                 states = raw.get("states", {})
@@ -290,10 +285,17 @@ def get_alerts() -> Dict[str, Any]:
                     }
                     _alerts_cache["timestamp"] = now
                     _alerts_cache["data"] = res
+                    try:
+                        static_statuses = os.path.join(CURRENT_DIR, "static", "statuses.json")
+                        with open(static_statuses, "w", encoding="utf-8") as sf:
+                            json.dump(res, sf, ensure_ascii=False)
+                    except Exception:
+                        pass
                     return res
     except Exception as e:
-        logger.warning(f"Failed to fetch statuses.json: {e}")
+        logger.debug(f"Failed to fetch statuses.json: {e}")
 
+    # 2. Fallbacks
     urls = [
         "https://ubilling.net.ua/aerialalerts/",
         "https://alerts.in.ua/api/states"
@@ -303,7 +305,7 @@ def get_alerts() -> Dict[str, Any]:
             req = urllib.request.Request(url, headers={"User-Agent": "AlertAPI/1.0"})
             with urllib.request.urlopen(req, timeout=5) as resp:
                 if resp.status == 200:
-                    raw = json.loads(resp.read().decode("utf-8"))
+                    raw = json.loads(resp.read().decode("utf-8", errors="ignore"))
                     states = raw.get("states", {})
                     if states:
                         regions = []
@@ -322,33 +324,95 @@ def get_alerts() -> Dict[str, Any]:
                         total = len(regions)
                         safe_count = total - active_count
                         percent = round((active_count / total * 100), 1) if total > 0 else 0.0
-                        level = "CLEAR" if active_count == 0 else ("LOW" if percent < 25 else ("MODERATE" if percent < 55 else ("HIGH" if percent < 80 else "CRITICAL")))
                         res = {
                             "success": True,
                             "cached_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                             "total_regions": total,
                             "active_alerts_count": active_count,
+                            "red_alerts_count": active_count,
+                            "yellow_alerts_count": 0,
                             "safe_regions_count": safe_count,
-                            "alert_level": level,
                             "percentage": percent,
+                            "states": states,
                             "regions": regions
                         }
                         _alerts_cache["timestamp"] = now
                         _alerts_cache["data"] = res
                         return res
         except Exception as e:
-            logger.warning(f"Failed to fetch alerts from {url}: {e}")
+            logger.debug(f"Failed to fetch alerts from {url}: {e}")
 
+    return _alerts_cache["data"]
+
+def _start_alerts_background_poller():
+    def _loop():
+        time.sleep(1.0)
+        while True:
+            try:
+                _refresh_alerts_cache()
+            except Exception as e:
+                logger.debug(f"Background alert poller error: {e}")
+            time.sleep(4.0)
+    t = threading.Thread(target=_loop, name="AlertPoller", daemon=True)
+    t.start()
+
+# Start background alert mirror poller
+_start_alerts_background_poller()
+
+@app.get("/api/alerts")
+def get_alerts() -> Dict[str, Any]:
+    """Provides live Ukraine air alarm status by oblasts with high-speed in-memory caching from background poller."""
     if _alerts_cache["data"]:
         return _alerts_cache["data"]
-
+    res = _refresh_alerts_cache()
+    if res:
+        return res
     return {
         "success": False,
-        "error": "Failed to fetch alert data",
+        "error": "Initializing alert mirror...",
         "total_regions": 0,
         "active_alerts_count": 0,
         "regions": []
     }
+
+@app.api_route("/api/radar", methods=["GET", "POST"])
+async def proxy_radar(request: Request):
+    """Secure mirror and proxy for radar drone/missile queries without exposing third-party host."""
+    body = await request.body()
+    try:
+        req = urllib.request.Request(
+            "https://radar.quick.ua/api-2026-09-01/information.php",
+            data=body if body else None,
+            headers={
+                "Content-Type": "application/x-www-form-urlencoded",
+                "User-Agent": "okhttp/4.12.0"
+            }
+        )
+        with urllib.request.urlopen(req, timeout=6) as resp:
+            resp_bytes = resp.read()
+            if len(resp_bytes) >= 2 and resp_bytes[:2] == b'\x1f\x8b':
+                import gzip
+                resp_bytes = gzip.decompress(resp_bytes)
+            return Response(content=resp_bytes, media_type="application/json")
+    except Exception as e:
+        logger.warning(f"Radar proxy failed: {e}")
+        return JSONResponse(status_code=502, content={"error": str(e), "radar": {}})
+
+@app.get("/api/alerts/history")
+def get_alert_history(regionId: str = ""):
+    """Mirrors region alarm history securely without client knowing the third-party origin."""
+    if not regionId:
+        return []
+    try:
+        req = urllib.request.Request(
+            f"https://siren.pp.ua/api/v3/alerts/regionHistory?regionId={urllib.parse.quote(regionId)}",
+            headers={"User-Agent": "okhttp/4.12.0"}
+        )
+        with urllib.request.urlopen(req, timeout=6) as resp:
+            return Response(content=resp.read(), media_type="application/json")
+    except Exception as e:
+        logger.warning(f"Alert history proxy failed: {e}")
+        return []
 
 
 @app.get("/api/popular")

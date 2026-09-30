@@ -25,18 +25,18 @@
     "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-PC.zip"
   },
   "alert_screensaver": {
-    "version_name": "1.0.54",
-    "version_code": 55,
+    "version_name": "1.0.55",
+    "version_code": 56,
     "download_url": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/AlertScreensaver.apk",
     "apk_url": "https://showhub-server.onrender.com/AlertScreensaver.apk",
-    "changelog": "v1.0.54: Власна тема з вибором кольорів (фону, спокійних зон, тривог, загроз, контурів та тексту), рухомий рядок внизу екрана та на заставці, пряма трансляція повідомлень з Telegram-каналів (@kpszsu, @vanek_nikolaev, @air_alert_ua та власні) та довільний власний текст."
+    "changelog": "v1.0.55: Виправлено відображення спецсимволів (&#33 тощо) у рухомому рядку Telegram. Відокремлено оновлення рухомого рядка від щосекундного оновлення карти для забезпечення плавного неперервного скролу без скидань."
   },
   "alert_mobile": {
-    "version_name": "1.0.54",
-    "version_code": 55,
+    "version_name": "1.0.55",
+    "version_code": 56,
     "download_url": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/Alert-Mobile.apk",
     "apk_url": "https://showhub-server.onrender.com/Alert-Mobile.apk",
-    "changelog": "v1.0.54: Власна тема з вибором кольорів (фону, спокійних зон, тривог, загроз, контурів та тексту), рухомий рядок внизу екрана та на заставці, пряма трансляція повідомлень з Telegram-каналів (@kpszsu, @vanek_nikolaev, @air_alert_ua та власні) та довільний власний текст."
+    "changelog": "v1.0.55: Виправлено відображення спецсимволів (&#33 тощо) у рухомому рядку Telegram. Відокремлено оновлення рухомого рядка від щосекундного оновлення карти для забезпечення плавного неперервного скролу без скидань."
   },
   "ads": {
     "enabled": false,

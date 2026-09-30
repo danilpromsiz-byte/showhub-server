@@ -715,23 +715,27 @@ def find_best_match(items: list, target_year: Optional[Any] = None, target_is_se
 
 _fast_search_cache: Dict[str, Tuple[float, List[Dict[str, Any]]]] = {}
 _FAST_SEARCH_CACHE_TTL = 300  # 5 minutes in-memory cache
+_search_pool = ThreadPoolExecutor(max_workers=18)
 
 def _bg_harvest_query(query_str: str):
     try:
         live_items = []
-        with ThreadPoolExecutor(max_workers=5) as executor:
-            f_filmix = executor.submit(filmix.search, query_str)
-            f_zona = executor.submit(zona.search, query_str)
-            f_anilibria = executor.submit(anilibria.search, query_str)
-            f_kodik = executor.submit(kodik.search, query_str)
-            f_videocdn = executor.submit(videocdn.search, query_str)
-            for f in [f_filmix, f_zona, f_anilibria, f_kodik, f_videocdn]:
-                try:
-                    res = f.result(timeout=2.0)
-                    if res:
-                        live_items.extend(res)
-                except Exception:
-                    pass
+        futures = [
+            _search_pool.submit(filmix.search, query_str),
+            _search_pool.submit(zona.search, query_str),
+            _search_pool.submit(anilibria.search, query_str),
+            _search_pool.submit(kodik.search, query_str),
+            _search_pool.submit(videocdn.search, query_str),
+            _search_pool.submit(hdrezka.search, query_str),
+        ]
+        done, _ = concurrent.futures.wait(futures, timeout=3.0)
+        for f in done:
+            try:
+                res = f.result(timeout=0.1)
+                if res:
+                    live_items.extend(res)
+            except Exception:
+                pass
         if live_items:
             media_registry.upsert_batch(live_items)
     except Exception:
@@ -786,7 +790,7 @@ def search_media(q: str = Query(..., min_length=1), type: Optional[str] = Query(
         _fast_search_cache[q_key] = (now_ts, indexed_matches)
         return indexed_matches
 
-    # 3. If local registry has few matches, query fast online sources with tight timeout (1.5s max)
+    # 3. If local registry has few matches, query fast online sources concurrently (2.2s hard cap, no shutdown block)
     all_items = []
     # Start with whatever local registry already found
     for im in indexed_matches:
@@ -806,21 +810,23 @@ def search_media(q: str = Query(..., min_length=1), type: Optional[str] = Query(
             extra_data=im.get("extra_data") or {}
         ))
 
-    with ThreadPoolExecutor(max_workers=6) as executor:
-        f_filmix = executor.submit(filmix.search, q)
-        f_zona = executor.submit(zona.search, q)
-        f_anilibria = executor.submit(anilibria.search, q)
-        f_videocdn = executor.submit(videocdn.search, q)
-        f_kodik = executor.submit(kodik.search, q)
-        f_bazon = executor.submit(bazon.search, q)
-
-        for f in [f_filmix, f_zona, f_anilibria, f_videocdn, f_kodik, f_bazon]:
-            try:
-                items = f.result(timeout=1.5)
-                if items:
-                    all_items.extend(items)
-            except Exception:
-                pass
+    search_futures = [
+        _search_pool.submit(filmix.search, q_clean),
+        _search_pool.submit(zona.search, q_clean),
+        _search_pool.submit(anilibria.search, q_clean),
+        _search_pool.submit(videocdn.search, q_clean),
+        _search_pool.submit(kodik.search, q_clean),
+        _search_pool.submit(bazon.search, q_clean),
+        _search_pool.submit(hdrezka.search, q_clean),
+    ]
+    done_futures, _ = concurrent.futures.wait(search_futures, timeout=2.2)
+    for f in done_futures:
+        try:
+            items = f.result(timeout=0.05)
+            if items:
+                all_items.extend(items)
+        except Exception:
+            pass
 
     # Upsert discovered items to registry in background
     if all_items:
@@ -875,14 +881,8 @@ def search_media(q: str = Query(..., min_length=1), type: Optional[str] = Query(
                 seen_kp[item.kinopoisk_id] = d_item
 
     res_list = list(deduped_dict.values())
-    for it in res_list:
-        p = str(it.get("poster") or "")
-        if not p or "no_image_poster" in p or "noposter" in p:
-            real_p = resolve_real_poster(it.get("title", ""), it.get("year"), it.get("kinopoisk_id"))
-            if real_p:
-                it["poster"] = real_p
 
-    # Sort results by relevance to query q
+    # Sort results by relevance to query q BEFORE any poster enrichment
     qn = normalize_search_title(q)
     def search_relevance(item):
         t = normalize_search_title(item.get("title", ""))
@@ -900,13 +900,36 @@ def search_media(q: str = Query(..., min_length=1), type: Optional[str] = Query(
         return overlap * 100 - len(t)
 
     res_list.sort(key=search_relevance, reverse=True)
+    res_list = res_list[:60]
+
     for it in res_list:
         for f in ("title", "original_title", "description"):
             if it.get(f):
                 it[f] = clean_html_text(it[f])
+        p = str(it.get("poster") or "")
+        if not p or "no_image_poster" in p or "noposter" in p:
+            year_int = safe_parse_year(it.get("year"))
+            cache_key = f"{str(it.get('title') or '').strip().lower()}_{year_int or 0}"
+            if cache_key in _poster_cache:
+                it["poster"] = _poster_cache[cache_key]
 
-    _fast_search_cache[q_key] = (now_ts, res_list[:60])
-    return res_list[:60]
+    missing_poster_items = [
+        it for it in res_list[:8]
+        if not it.get("poster") or "no_image_poster" in str(it.get("poster")) or "noposter" in str(it.get("poster"))
+    ]
+    if missing_poster_items:
+        def _enrich_missing_posters(items_to_enrich):
+            for m_it in items_to_enrich:
+                try:
+                    rp = resolve_real_poster(m_it.get("title", ""), m_it.get("year"), m_it.get("kinopoisk_id"))
+                    if rp:
+                        m_it["poster"] = rp
+                except Exception:
+                    pass
+        threading.Thread(target=_enrich_missing_posters, args=(missing_poster_items,), daemon=True).start()
+
+    _fast_search_cache[q_key] = (now_ts, res_list)
+    return res_list
 
 _poster_cache: Dict[str, str] = {}
 
@@ -2616,16 +2639,24 @@ def _fetch_media_streams(
             except Exception:
                 pass
 
-    # Tag streams requiring Premium (4K, Ultra, 2160p, 1440p, rhtie.mp4 teaser, Filmix 1080p without PRO)
+    # Filter out HDRezka paid-tariff promo stubs (rhtie.mp4 / Ultra without VIP) and tag premium streams
+    has_rezka_vip = bool(hdrezka.session.cookies.get("dle_user_id"))
     for src_name, src_data in resolved.items():
         if isinstance(src_data, dict) and "streams" in src_data and src_data["streams"]:
+            cleaned_streams = []
             for s in src_data["streams"]:
                 q = str(s.get("quality", "")).lower()
                 u = str(s.get("url", "")).lower()
-                if "rhtie.mp4" in u or any(k in q for k in ["ultra", "4k", "2160p", "1440p"]) or (src_name == "filmix" and "1080p" in q):
+                if "rhtie" in u or "/1/4/4/4/3/4/3/" in u:
+                    continue
+                if src_name == "hdrezka" and not has_rezka_vip and any(k in q for k in ["ultra", "4k", "2160", "1440"]):
+                    continue
+                if any(k in q for k in ["ultra", "4k", "2160p", "1440p"]) or (src_name == "filmix" and "1080p" in q):
                     s["is_premium"] = True
                 else:
                     s["is_premium"] = False
+                cleaned_streams.append(s)
+            src_data["streams"] = cleaned_streams
 
     return resolved
 

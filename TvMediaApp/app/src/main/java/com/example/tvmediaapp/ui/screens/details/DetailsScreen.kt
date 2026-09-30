@@ -220,7 +220,7 @@ fun DetailsScreen(
                 ?: currentMovie.seasons.sumOf { it.episodes.size }
         } else 0
 
-        val qualityOrder = listOf("4K Ultra", "4K", "2160", "1080p HD", "1080p", "1080", "720p", "720", "480p", "480", "360p", "360")
+        val qualityOrder = listOf("4K", "2160", "1080p HD", "1080p", "1080", "720p", "720", "480p", "480", "360p", "360")
 
         val sourceInfoList = detectedSources.map { srcName ->
             val sKey = srcName.lowercase()
@@ -242,11 +242,20 @@ fun DetailsScreen(
                 sKey.contains("rezka") || sKey.contains("filmix")
             }
             val bestQ = run {
+                val cleanStreams = srcStreams.filter { st ->
+                    val sq = st.quality.lowercase()
+                    val su = st.url.lowercase()
+                    !su.contains("rhtie") && !su.contains("/1/4/4/4/3/4/3/") &&
+                        !((st.source.contains("rezka", ignoreCase = true) || su.contains("voidboost")) && (sq.contains("ultra") || sq.contains("4k") || sq.contains("2160") || sq.contains("1440")))
+                }
                 for (q in qualityOrder) {
-                    val match = srcStreams.firstOrNull { it.quality.contains(q, ignoreCase = true) }
+                    val match = cleanStreams.firstOrNull { st ->
+                        val sq = st.quality.lowercase()
+                        sq.contains(q, ignoreCase = true) && (!q.contains("1080") || !sq.contains("ultra"))
+                    }
                     if (match != null) return@run match.quality.replace(Regex("\\(.*?\\)"), "").trim()
                 }
-                srcStreams.firstOrNull()?.quality?.replace(Regex("\\(.*?\\)"), "")?.trim() ?: ""
+                cleanStreams.firstOrNull()?.quality?.replace(Regex("\\(.*?\\)"), "")?.trim() ?: ""
             }
             val epC = if (currentMovie.isSeries) {
                 currentMovie.sources.firstOrNull { it.name.equals(srcName, ignoreCase = true) }?.seasonsEpisodes?.get(selectedSeason)
@@ -403,17 +412,23 @@ fun DetailsScreen(
 
     fun matchStreamQuality(stream: StreamOption, target: String): Boolean {
         if (!isDirectVideoStream(stream.url)) return false
+        val su = stream.url.lowercase()
+        if (su.contains("rhtie") || su.contains("/1/4/4/4/3/4/3/")) return false
         val sq = stream.quality.lowercase().trim()
         val tq = target.lowercase().trim()
+        if ((stream.source.contains("rezka", ignoreCase = true) || su.contains("voidboost")) &&
+            (sq.contains("ultra") || sq.contains("4k") || sq.contains("2160") || sq.contains("1440"))) {
+            return false
+        }
         if (tq.contains("ultra")) return sq.contains("ultra")
         if (tq.contains("4k") || tq.contains("2160")) return sq.contains("4k") || sq.contains("2160")
-        if (tq == "1080p" || tq == "1080") return sq.contains("1080") && !sq.contains("ultra")
+        if (tq.contains("1080")) return sq.contains("1080") && !sq.contains("ultra")
         return sq.contains(tq)
     }
 
     val availableQualities = remember(streamOptions, selectedSourceFilter, selectedAudioId) {
         val sKey = selectedSourceFilter.lowercase()
-        val candidateStreams = if (selectedSourceFilter == "Все" || selectedSourceFilter.startsWith("Все")) {
+        val rawCandidates = if (selectedSourceFilter == "Все" || selectedSourceFilter.startsWith("Все")) {
             streamOptions
         } else {
             val forSrc = streamOptions.filter { st ->
@@ -430,9 +445,16 @@ fun DetailsScreen(
             }
             if (forSrc.isNotEmpty()) forSrc else streamOptions
         }
+        val candidateStreams = rawCandidates.filter { st ->
+            val su = st.url.lowercase()
+            val sq = st.quality.lowercase()
+            !su.contains("rhtie") && !su.contains("/1/4/4/4/3/4/3/") &&
+                !((st.source.contains("rezka", ignoreCase = true) || su.contains("voidboost")) &&
+                    (sq.contains("ultra") || sq.contains("4k") || sq.contains("2160") || sq.contains("1440")))
+        }
 
         val qualSet = linkedSetOf<String>()
-        val order = listOf("4K Ultra", "1080p", "720p", "480p", "360p")
+        val order = listOf("4K", "1080p", "720p", "480p", "360p")
         for (target in order) {
             if (candidateStreams.any { matchStreamQuality(it, target) }) {
                 qualSet.add(target)
@@ -580,7 +602,15 @@ fun DetailsScreen(
                 val serverStreams = serverDeferred.await()
                 val isNativeFallback = nativeStreams.isNotEmpty() && nativeStreams.all { it.source.contains("fallback", ignoreCase = true) }
                 val hasServerDirect = serverStreams.any { isDirectVideoStream(it.url) && !it.source.contains("torrent", ignoreCase = true) }
-                val combined = if ((hasServerDirect || currentMovie.source == "filmix" || isNativeFallback) && serverStreams.isNotEmpty()) {
+                val combined = if (!isNativeFallback && nativeStreams.isNotEmpty()) {
+                    val nonRezkaServer = serverStreams.filterNot { it.source.contains("rezka", ignoreCase = true) }
+                    val rezkaServer = serverStreams.filter { it.source.contains("rezka", ignoreCase = true) }
+                    if ((hasServerDirect || currentMovie.source == "filmix") && nonRezkaServer.isNotEmpty()) {
+                        (nonRezkaServer + nativeStreams + rezkaServer).distinctBy { it.url }
+                    } else {
+                        (nativeStreams + serverStreams).distinctBy { it.url }
+                    }
+                } else if ((hasServerDirect || currentMovie.source == "filmix" || isNativeFallback) && serverStreams.isNotEmpty()) {
                     (serverStreams + nativeStreams).distinctBy { it.url }
                 } else {
                     (nativeStreams + serverStreams).distinctBy { it.url }
@@ -858,7 +888,15 @@ fun DetailsScreen(
             val serverStreams = serverDeferred.await()
             val isNativeFallback = nativeStreams.isNotEmpty() && nativeStreams.all { it.source.contains("fallback", ignoreCase = true) }
             val hasServerDirect = serverStreams.any { isDirectVideoStream(it.url) && !it.source.contains("torrent", ignoreCase = true) }
-            val combined = if ((hasServerDirect || currentMovie.source == "filmix" || isNativeFallback) && serverStreams.isNotEmpty()) {
+            val combined = if (!isNativeFallback && nativeStreams.isNotEmpty()) {
+                val nonRezkaServer = serverStreams.filterNot { it.source.contains("rezka", ignoreCase = true) }
+                val rezkaServer = serverStreams.filter { it.source.contains("rezka", ignoreCase = true) }
+                if ((hasServerDirect || currentMovie.source == "filmix") && nonRezkaServer.isNotEmpty()) {
+                    (nonRezkaServer + nativeStreams + rezkaServer).distinctBy { it.url }
+                } else {
+                    (nativeStreams + serverStreams).distinctBy { it.url }
+                }
+            } else if ((hasServerDirect || currentMovie.source == "filmix" || isNativeFallback) && serverStreams.isNotEmpty()) {
                 (serverStreams + nativeStreams).distinctBy { it.url }
             } else {
                 (nativeStreams + serverStreams).distinctBy { it.url }

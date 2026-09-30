@@ -207,6 +207,7 @@ fun SearchScreen(
     var query by remember { mutableStateOf(initialActiveQuery) }
     var results by remember { mutableStateOf<List<Movie>>(emptyList()) }
     var isSearching by remember { mutableStateOf(false) }
+    var activeSearchId by remember { mutableStateOf(0) }
     var searchJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     val coroutineScope = rememberCoroutineScope()
     val searchInputFocusRequester = remember { FocusRequester() }
@@ -223,6 +224,7 @@ fun SearchScreen(
     fun performSearch(q: String, byActor: Boolean = isActorSearch, debounceMs: Long = 400L) {
         query = q
         searchJob?.cancel()
+        val reqId = ++activeSearchId
         if (q.trim().isEmpty()) {
             isSearching = false
             results = emptyList()
@@ -230,21 +232,33 @@ fun SearchScreen(
         }
         isSearching = true
         searchJob = coroutineScope.launch {
-            if (debounceMs > 0L) {
-                delay(debounceMs)
-            }
             try {
-                val res = if (byActor) ShowHubApiClient.searchByActor(q.trim()) else ShowHubApiClient.searchMovies(q.trim())
-                results = if (res.isNotEmpty()) res else initialMovies.filter {
-                    it.title.contains(q, ignoreCase = true) ||
-                    it.originalTitle.contains(q, ignoreCase = true) ||
-                    it.actors.contains(q, ignoreCase = true) ||
-                    it.director.contains(q, ignoreCase = true)
+                // Show immediate local matches if available while network search runs
+                val localMatches = initialMovies.filter {
+                    it.title.contains(q.trim(), ignoreCase = true) ||
+                    it.originalTitle.contains(q.trim(), ignoreCase = true) ||
+                    it.actors.contains(q.trim(), ignoreCase = true) ||
+                    it.director.contains(q.trim(), ignoreCase = true)
                 }
+                if (localMatches.isNotEmpty() && reqId == activeSearchId) {
+                    results = localMatches
+                }
+                if (debounceMs > 0L) {
+                    delay(debounceMs)
+                }
+                if (reqId != activeSearchId) return@launch
+                val res = if (byActor) ShowHubApiClient.searchByActor(q.trim()) else ShowHubApiClient.searchMovies(q.trim())
+                if (reqId == activeSearchId) {
+                    results = if (res.isNotEmpty()) res else localMatches
+                }
+            } catch (ce: kotlinx.coroutines.CancellationException) {
+                throw ce
             } catch (e: Exception) {
                 e.printStackTrace()
             } finally {
-                isSearching = false
+                if (reqId == activeSearchId) {
+                    isSearching = false
+                }
             }
         }
     }
@@ -373,7 +387,10 @@ fun SearchScreen(
                                         KeyEvent.KEYCODE_ENTER,
                                         KeyEvent.KEYCODE_DPAD_CENTER -> {
                                             commitQuery(query)
-                                            if (results.isNotEmpty()) {
+                                            if (query.trim().isNotEmpty() && (isSearching || results.isEmpty())) {
+                                                performSearch(query, debounceMs = 0L)
+                                                true
+                                            } else if (results.isNotEmpty()) {
                                                 try { resultsFocusRequester.requestFocus(); true } catch (_: Exception) { false }
                                             } else false
                                         }
@@ -384,20 +401,64 @@ fun SearchScreen(
                     )
                 }
 
-                if (query.isNotEmpty()) {
-                    Button(
-                        onClick = { performSearch("", debounceMs = 0L) },
-                        colors = ButtonDefaults.colors(
-                            containerColor = Color.White.copy(alpha = 0.12f),
-                            focusedContainerColor = Color.Red,
-                            contentColor = TextWhite,
-                            focusedContentColor = TextWhite
-                        ),
-                        shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                        modifier = Modifier.height(28.dp)
-                    ) {
-                        Text(text = "Очистить", fontSize = 11.sp, lineHeight = 13.sp)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    if (isSearching) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier.padding(end = 4.dp)
+                        ) {
+                            NeonSpinner(size = 16.dp, strokeWidth = 2.dp)
+                            Text(
+                                text = "Идёт поиск...",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = accent
+                            )
+                        }
+                    }
+
+                    if (query.isNotEmpty()) {
+                        Button(
+                            onClick = {
+                                commitQuery(query)
+                                performSearch(query, debounceMs = 0L)
+                            },
+                            colors = ButtonDefaults.colors(
+                                containerColor = accent.copy(alpha = 0.22f),
+                                focusedContainerColor = focusColor,
+                                contentColor = TextWhite,
+                                focusedContentColor = Color.Black
+                            ),
+                            shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                            modifier = Modifier.height(28.dp)
+                        ) {
+                            Text(
+                                text = if (isSearching) "Ищем..." else "Найти",
+                                fontSize = 11.sp,
+                                lineHeight = 13.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+
+                        Button(
+                            onClick = { performSearch("", debounceMs = 0L) },
+                            colors = ButtonDefaults.colors(
+                                containerColor = Color.White.copy(alpha = 0.12f),
+                                focusedContainerColor = Color.Red,
+                                contentColor = TextWhite,
+                                focusedContentColor = TextWhite
+                            ),
+                            shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                            modifier = Modifier.height(28.dp)
+                        ) {
+                            Text(text = "Очистить", fontSize = 11.sp, lineHeight = 13.sp)
+                        }
                     }
                 }
             }
@@ -499,16 +560,46 @@ fun SearchScreen(
 
         Spacer(modifier = Modifier.height(10.dp))
 
+        // Persistent Search Progress Notification Banner (always visible while search is running)
         if (isSearching) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 10.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(accent.copy(alpha = 0.15f))
+                    .border(1.dp, accent.copy(alpha = 0.55f), RoundedCornerShape(10.dp))
+                    .padding(horizontal = 16.dp, vertical = 10.dp)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    NeonSpinner(size = 20.dp, strokeWidth = 2.5.dp)
+                    Text(
+                        text = "Идёт поиск «${query.trim()}» по всем источникам ShowHub, пожалуйста подождите...",
+                        color = TextWhite,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+        }
+
+        if (isSearching && results.isEmpty()) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(200.dp),
                 contentAlignment = Alignment.Center
             ) {
-                NeonSpinner(size = 48.dp, strokeWidth = 3.5.dp, message = "Поиск по всем источникам ShowHub...")
+                NeonSpinner(
+                    size = 48.dp,
+                    strokeWidth = 3.5.dp,
+                    message = "Идёт поиск «${query.trim()}» по всем источникам, подождите..."
+                )
             }
-        } else if (results.isEmpty() && query.isNotEmpty()) {
+        } else if (!isSearching && results.isEmpty() && query.isNotEmpty()) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()

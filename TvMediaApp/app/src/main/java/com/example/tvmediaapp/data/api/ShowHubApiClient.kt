@@ -507,7 +507,11 @@ object ShowHubApiClient {
                             val qStr = s.optString("quality", src.uppercase())
                             val uStr = s.optString("url", "")
                             val sType = s.optString("stream_type", "")
-                            if (uStr.startsWith("http") && !uStr.contains("rhtie.mp4")) {
+                            val qLow = qStr.lowercase()
+                            val uLow = uStr.lowercase()
+                            val isRezkaUltraStub = (src.equals("hdrezka", ignoreCase = true) || uLow.contains("voidboost")) &&
+                                    (qLow.contains("ultra") || qLow.contains("4k") || qLow.contains("2160") || qLow.contains("1440"))
+                            if (uStr.startsWith("http") && !uLow.contains("rhtie") && !uLow.contains("/1/4/4/4/3/4/3/") && !isRezkaUltraStub) {
                                 val isDirect = sType == "hls" || sType == "mp4" || sType == "torrent" ||
                                         uStr.contains(".m3u8") || uStr.contains(".mp4") || uStr.contains("voidboost") ||
                                         uStr.contains("/stream?link=")

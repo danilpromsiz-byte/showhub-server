@@ -967,9 +967,22 @@ class HDRezkaSource(BaseSource):
             if not candidates:
                 continue
 
-            working = [u for u in candidates if "ukrtelcdn" not in u] or candidates
+            has_vip_cookie = bool(self.session.cookies.get("dle_user_id"))
+            q_low = quality.lower()
+            is_ultra_or_4k = any(k in q_low for k in ["ultra", "4k", "2160", "1440"])
+            if is_ultra_or_4k and not has_vip_cookie:
+                continue
+
+            working = [
+                u for u in candidates
+                if "ukrtelcdn" not in u
+                and "rhtie" not in u.lower()
+                and "/1/4/4/4/3/4/3/" not in u
+            ]
+            if not working:
+                continue
             chosen_url = working[0]
-            is_prem = ("rhtie.mp4" in chosen_url) or any(k in quality.lower() for k in ["ultra", "4k", "2160", "1440"])
+            is_prem = is_ultra_or_4k
 
             result.streams.append(VideoStream(
                 quality=quality,

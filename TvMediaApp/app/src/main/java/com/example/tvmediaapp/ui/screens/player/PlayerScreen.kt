@@ -933,14 +933,21 @@ private fun NativeExoPlayerScreen(
     }
 
     fun extractQualities(streams: List<com.example.tvmediaapp.data.models.StreamOption>): List<String> {
+        val clean = streams.filter { st ->
+            val su = st.url.lowercase()
+            val sq = st.quality.lowercase()
+            !su.contains("rhtie") && !su.contains("/1/4/4/4/3/4/3/") &&
+                !((st.source.contains("rezka", ignoreCase = true) || su.contains("voidboost")) &&
+                    (sq.contains("ultra") || sq.contains("4k") || sq.contains("2160") || sq.contains("1440")))
+        }
         val qualSet = linkedSetOf<String>()
-        val order = listOf("4K", "1080p Ultra", "1080p", "720p", "480p", "360p")
+        val order = listOf("4K", "1080p", "720p", "480p", "360p")
         for (target in order) {
-            if (streams.any { matchQuality(it.quality, target) }) {
+            if (clean.any { matchQuality(it.quality, target) }) {
                 qualSet.add(target)
             }
         }
-        for (st in streams) {
+        for (st in clean) {
             val q = st.quality.trim()
             if (q.isNotBlank() && !qualSet.any { it.equals(q, ignoreCase = true) }) {
                 qualSet.add(q)
@@ -1028,11 +1035,22 @@ private fun NativeExoPlayerScreen(
 
                 val isNativeFallback = nativeStreams.isNotEmpty() && nativeStreams.all { it.source.contains("fallback", ignoreCase = true) }
                 val hasServerDirect = serverStreams.any { isDirectVideoStream(it.url) && !it.source.contains("torrent", ignoreCase = true) }
-                val prioritizeServer = hasServerDirect || currentMovieState.source == "filmix" || isNonRezkaTrack || isNativeFallback || !newSource.equals("HDrezka", ignoreCase = true)
-                val allResolved = if (prioritizeServer && serverStreams.isNotEmpty()) {
-                    (serverStreams + nativeStreams).distinctBy { it.url }
+                val prioritizeServer = (hasServerDirect || currentMovieState.source == "filmix" || isNonRezkaTrack || isNativeFallback) && !newSource.equals("HDrezka", ignoreCase = true)
+                val mergedRaw = if (!isNativeFallback && nativeStreams.isNotEmpty() && newSource.equals("HDrezka", ignoreCase = true)) {
+                    (nativeStreams + serverStreams).distinctBy { it.url }
+                } else if (prioritizeServer && serverStreams.isNotEmpty()) {
+                    val nonRezkaServer = serverStreams.filterNot { it.source.contains("rezka", ignoreCase = true) }
+                    val rezkaServer = serverStreams.filter { it.source.contains("rezka", ignoreCase = true) }
+                    (nonRezkaServer + nativeStreams + rezkaServer).distinctBy { it.url }
                 } else {
                     (nativeStreams + serverStreams).distinctBy { it.url }
+                }
+                val allResolved = mergedRaw.filter { st ->
+                    val su = st.url.lowercase()
+                    val sq = st.quality.lowercase()
+                    !su.contains("rhtie") && !su.contains("/1/4/4/4/3/4/3/") &&
+                        !((st.source.contains("rezka", ignoreCase = true) || su.contains("voidboost")) &&
+                            (sq.contains("ultra") || sq.contains("4k") || sq.contains("2160") || sq.contains("1440")))
                 }
                 allStreamOptions = allResolved
 

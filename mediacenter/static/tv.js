@@ -2135,11 +2135,46 @@ async function loadCatalog(isAppend = false) {
     }
 }
 
+let _searchDebounceTimer = null;
+let _activeSearchSeq = 0;
+
+function setSearchLoadingBanner(isSearching, queryText = "") {
+    let banner = document.getElementById("search-progress-notification");
+    const hero = document.querySelector(".search-view-hero");
+    if (!banner && hero) {
+        banner = document.createElement("div");
+        banner.id = "search-progress-notification";
+        banner.style.cssText = "display: none; margin-top: 14px; padding: 12px 18px; border-radius: 10px; background: rgba(99, 102, 241, 0.16); border: 1.5px solid rgba(129, 140, 248, 0.55); color: #e0e7ff; font-size: 15px; font-weight: 600; align-items: center; gap: 12px; box-shadow: 0 4px 16px rgba(99, 102, 241, 0.2);";
+        hero.appendChild(banner);
+    }
+    const viewBtn = document.getElementById("btn-search-view-submit");
+    const modalBtn = document.getElementById("btn-search-modal-submit");
+    const topBtn = document.getElementById("search-btn");
+
+    if (isSearching) {
+        if (banner) {
+            banner.style.display = "flex";
+            banner.innerHTML = `<div class="spinner-neon-sm"></div><span>Идёт поиск «${queryText}» по всем источникам, пожалуйста подождите...</span>`;
+        }
+        if (viewBtn) viewBtn.textContent = "Ищем...";
+        if (modalBtn) modalBtn.textContent = "Ищем...";
+        if (topBtn) topBtn.textContent = "Ищем...";
+    } else {
+        if (banner) {
+            banner.style.display = "none";
+        }
+        if (viewBtn) viewBtn.textContent = "Найти";
+        if (modalBtn) modalBtn.textContent = "Найти";
+        if (topBtn) topBtn.textContent = "Найти";
+    }
+}
+
 function initSearch() {
     const input = document.getElementById("search-input");
     const btn = document.getElementById("search-btn");
 
     btn?.addEventListener("click", () => {
+        if (_searchDebounceTimer) clearTimeout(_searchDebounceTimer);
         performSearch(input.value);
     });
 
@@ -2150,9 +2185,26 @@ function initSearch() {
     const openModalBtn = document.getElementById("btn-open-search-modal");
 
     viewBtn?.addEventListener("click", () => {
+        if (_searchDebounceTimer) clearTimeout(_searchDebounceTimer);
         performSearch(viewInput?.value);
     });
+    viewInput?.addEventListener("input", () => {
+        const val = (viewInput.value || "").trim();
+        if (_searchDebounceTimer) clearTimeout(_searchDebounceTimer);
+        if (val.length >= 2) {
+            setSearchLoadingBanner(true, val);
+            const subtitle = document.getElementById("search-subtitle");
+            if (subtitle) subtitle.textContent = `Идёт поиск: "${val}" во всех источниках...`;
+            _searchDebounceTimer = setTimeout(() => {
+                performSearch(val);
+            }, 550);
+        } else if (val.length === 0) {
+            setSearchLoadingBanner(false);
+        }
+    });
     viewClear?.addEventListener("click", () => {
+        if (_searchDebounceTimer) clearTimeout(_searchDebounceTimer);
+        setSearchLoadingBanner(false);
         if (viewInput) { viewInput.value = ""; viewInput.focus(); }
     });
     openModalBtn?.addEventListener("click", () => {
@@ -2167,6 +2219,7 @@ function initSearch() {
     const modalCancel = document.getElementById("btn-search-modal-cancel");
 
     modalBtn?.addEventListener("click", () => {
+        if (_searchDebounceTimer) clearTimeout(_searchDebounceTimer);
         const val = modalInput?.value;
         closeSearchModal();
         performSearch(val);
@@ -2180,6 +2233,7 @@ function initSearch() {
     // Suggestion chips in both view and modal
     document.querySelectorAll(".search-chip").forEach(chip => {
         chip.addEventListener("click", () => {
+            if (_searchDebounceTimer) clearTimeout(_searchDebounceTimer);
             const q = chip.getAttribute("data-query");
             closeSearchModal();
             performSearch(q);
@@ -2190,14 +2244,19 @@ function initSearch() {
 async function performSearch(query) {
     if (!query || !query.trim()) return;
     const cleanQuery = query.trim();
+    if (_searchDebounceTimer) {
+        clearTimeout(_searchDebounceTimer);
+        _searchDebounceTimer = null;
+    }
+    const seq = ++_activeSearchSeq;
 
     // Sync all search inputs
     const topInput = document.getElementById("search-input");
     const viewInput = document.getElementById("search-view-input");
     const modalInput = document.getElementById("search-modal-input");
-    if (topInput) topInput.value = cleanQuery;
-    if (viewInput) viewInput.value = cleanQuery;
-    if (modalInput) modalInput.value = cleanQuery;
+    if (topInput && topInput.value !== cleanQuery) topInput.value = cleanQuery;
+    if (viewInput && viewInput.value !== cleanQuery) viewInput.value = cleanQuery;
+    if (modalInput && modalInput.value !== cleanQuery) modalInput.value = cleanQuery;
 
     saveSearchHistory(cleanQuery);
 
@@ -2213,20 +2272,25 @@ async function performSearch(query) {
 
     const grid = document.getElementById("search-grid");
     const subtitle = document.getElementById("search-subtitle");
-    subtitle.textContent = `Поиск: "${cleanQuery}" во всех источниках...`;
-    showGridSkeleton(grid, `Поиск "${cleanQuery}" во всех источниках...`);
+    subtitle.textContent = `Идёт поиск: "${cleanQuery}" во всех источниках, подождите...`;
+    setSearchLoadingBanner(true, cleanQuery);
+    showGridSkeleton(grid, `Идёт поиск "${cleanQuery}" во всех источниках, подождите...`);
 
     try {
         const res = await fetch(`/api/search?q=${encodeURIComponent(cleanQuery)}`);
         if (!res.ok) throw new Error("HTTP " + res.status);
         const items = await res.json();
+        if (seq !== _activeSearchSeq) return;
+        setSearchLoadingBanner(false);
         subtitle.textContent = `Найдено результатов: ${items.length} для "${cleanQuery}"`;
         renderMediaCards(items, grid);
     } catch (err) {
+        if (seq !== _activeSearchSeq) return;
         console.warn("PC search failed, running direct autonomous TV search:", err);
         try {
             const bazonRes = await originalFetch(`https://bazon.cc/api/search?token=8488e0b2067756f2e82f5b82fb2ec686&title=${encodeURIComponent(cleanQuery)}`);
             const bData = await bazonRes.json();
+            if (seq !== _activeSearchSeq) return;
             const bItems = (bData && bData.results) ? bData.results.map(it => ({
                 id: String(it.kinopoisk_id || it.id),
                 source_name: "bazon",
@@ -2237,9 +2301,12 @@ async function performSearch(query) {
                 kinopoisk_id: it.kinopoisk_id,
                 extra_data: { embed: it.link, playlists: it.playlists }
             })) : [];
+            setSearchLoadingBanner(false);
             subtitle.textContent = `Найдено результатов: ${bItems.length} для "${cleanQuery}" (Автономно)`;
             renderMediaCards(bItems, grid);
         } catch (e2) {
+            if (seq !== _activeSearchSeq) return;
+            setSearchLoadingBanner(false);
             grid.innerHTML = `<div class="error-state">Ошибка поиска: ${err.message}</div>`;
         }
     }
@@ -3146,7 +3213,25 @@ async function resolveDeviceStreams(title, year, isSeries, season, episode, tran
                         const ajaxParsed = JSON.parse(ajaxRaw);
                         if (ajaxParsed.status === 200 && ajaxParsed.body) {
                             const cdnData = JSON.parse(ajaxParsed.body);
-                            const streamStr = cdnData.url || cdnData.streams || "";
+                            let streamStr = cdnData.url || cdnData.streams || "";
+                            if (streamStr && typeof streamStr === "string" && streamStr.startsWith("#h")) {
+                                const trash = [
+                                    "$$!!@$$@^!@#$$@", "$$$$##!@#$$", "####^!!##!@@", "^^^!@!@@!!", "!!@!@@@!#@!",
+                                    "//_//",
+                                    "JCQhIUAkJEBeIUAjJCRA", "JCQkJCMjIUAjJCQ=", "IyMjI14hISMhQEA=", "Xl5eIUAhQEAhIQ==", "ISFAhQEAhI0Ah",
+                                    "QEBAQEAhIyMhXl5e", "IyMjI15eXiQhIUA=", "JCQhIUAkJEBeIUA=", "Xl5eIUAhQEAhIUA=", "ISFAhQEAhI0AhQA=="
+                                ];
+                                let clean = streamStr.substring(2);
+                                for (let pass = 0; pass < 3; pass++) {
+                                    for (const tc of trash) clean = clean.split(tc).join("");
+                                }
+                                clean = clean.replace(/[^A-Za-z0-9+/=]/g, "");
+                                while (clean.length % 4 !== 0) clean += "=";
+                                try {
+                                    const dec = atob(clean);
+                                    if (dec.includes("[") && dec.includes("http")) streamStr = dec;
+                                } catch (e) {}
+                            }
                             if (streamStr && typeof streamStr === "string" && streamStr.length > 5) {
                                 const streams = [];
                                 const parts = streamStr.split(/,\s*(?=\[[^\]]+\])/);
@@ -3154,16 +3239,18 @@ async function resolveDeviceStreams(title, year, isSeries, season, episode, tran
                                     const m = part.match(/\[([^\]]+)\](.*)/);
                                     if (m) {
                                         const quality = m[1].replace(/<[^>]+>/g, '').trim();
-                                        const urls = m[2].split(" or ").map(u => u.trim().replace(/\\\//g, '/')).filter(u => u.startsWith("http"));
+                                        if (/ultra|4k|2160|1440/i.test(quality)) continue;
+                                        const urls = m[2].split(" or ").map(u => u.trim().replace(/\\\//g, '/')).filter(u =>
+                                            u.startsWith("http") && !u.toLowerCase().includes("rhtie") && !u.includes("/1/4/4/4/3/4/3/")
+                                        );
                                         const working = urls.filter(u => !u.includes("ukrtelcdn"))[0] || urls[0];
                                         if (working) {
-                                            const isPrem = working.includes("rhtie.mp4") || /ultra|4k|2160|1440/i.test(quality);
                                             streams.push({
                                                 quality: `${quality} (HDRezka Direct)`,
                                                 url: working,
                                                 stream_type: working.includes(".m3u8") ? "hls" : "mp4",
                                                 headers: { "Referer": `${rezkaBase}/`, "User-Agent": "Mozilla/5.0" },
-                                                is_premium: isPrem
+                                                is_premium: false
                                             });
                                         }
                                     }
@@ -3361,7 +3448,16 @@ function parseStreamHeight(qualityStr) {
     return 0;
 }
 
-function pickBestStreamIndex(streams, requestedQuality) {
+function isBlockedPromoStream(s, srcKey) {
+    if (!s) return true;
+    const u = String(s.url || "").toLowerCase();
+    const q = String(s.quality || "").toLowerCase();
+    if (u.includes("rhtie") || u.includes("/1/4/4/4/3/4/3/")) return true;
+    if ((srcKey === "hdrezka" || u.includes("voidboost")) && (s.is_premium || /ultra|4k|2160|1440/i.test(q))) return true;
+    return false;
+}
+
+function pickBestStreamIndex(streams, requestedQuality, sourceKey = "") {
     if (!streams || streams.length === 0) return 0;
     const targetHeight = parseStreamHeight(requestedQuality) || 1080;
     const isFilmixLoggedIn = Boolean(typeof filmixProfile !== "undefined" && filmixProfile && filmixProfile.is_logged_in);
@@ -3370,7 +3466,7 @@ function pickBestStreamIndex(streams, requestedQuality) {
     const nonStubs = [];
     const directIndices = [];
     streams.forEach((s, idx) => {
-        if (s.url && s.url.includes("rhtie.mp4")) return;
+        if (isBlockedPromoStream(s, sourceKey)) return;
         nonStubs.push(idx);
         if (s.stream_type === "hls" || s.stream_type === "mp4") {
             directIndices.push(idx);
@@ -3380,11 +3476,11 @@ function pickBestStreamIndex(streams, requestedQuality) {
 
     const basePool = directIndices.length > 0 ? directIndices : nonStubs;
 
-    // 2. Filter free streams if user is not logged in
+    // 2. Filter free streams unless source is filmix and user is logged in to Filmix
     const freePool = basePool.filter(idx => {
         const s = streams[idx];
         const isPrem = s.is_premium || (s.quality && /4k|2160|ultra/i.test(s.quality));
-        if (isPrem && !isFilmixLoggedIn) return false;
+        if (isPrem && !(sourceKey === "filmix" && isFilmixLoggedIn)) return false;
         return true;
     });
 
@@ -3421,12 +3517,22 @@ function selectSource(sourceKey, preferredQuality) {
         return;
     }
 
-    const streams = sourceObj.streams.length ? sourceObj.streams : [
+    const validStreams = (sourceObj.streams || []).filter(s => !isBlockedPromoStream(s, sourceKey));
+    if (sourceObj.streams && sourceObj.streams.length !== validStreams.length) {
+        sourceObj.streams = validStreams;
+    }
+
+    const streams = validStreams.length ? validStreams : (sourceObj.embed_url ? [
         { quality: "Embed Player", url: sourceObj.embed_url, stream_type: "iframe" }
-    ];
+    ] : []);
+
+    if (!streams.length) {
+        streamsContainer.innerHTML = `<span class="error-state">Нет доступных стримов для этого источника</span>`;
+        return;
+    }
 
     const settings = getSettings();
-    const defaultIdx = pickBestStreamIndex(streams, preferredQuality || settings.quality);
+    const defaultIdx = pickBestStreamIndex(streams, preferredQuality || settings.quality, sourceKey);
 
     streamsContainer.innerHTML = streams.map((s, idx) => {
         const isPro = s.is_premium || (s.quality && /4k|2160|ultra/i.test(s.quality));
@@ -4876,12 +4982,15 @@ function openQualityDrawer() {
             qualities.push({ id: idx, label: height, type: 'hls_level' });
         });
     } else if (currentStreams && activeSource && currentStreams[activeSource] && currentStreams[activeSource].streams) {
-        qualities = currentStreams[activeSource].streams.map((s, idx) => ({
-            id: idx,
-            label: s.quality,
-            url: s.url,
-            type: 'stream_obj'
-        }));
+        qualities = currentStreams[activeSource].streams
+            .map((s, idx) => ({
+                id: idx,
+                label: s.quality,
+                url: s.url,
+                stream: s,
+                type: 'stream_obj'
+            }))
+            .filter(item => !isBlockedPromoStream(item.stream, activeSource));
     } else {
         qualities = [{ id: 0, label: selectedStream?.quality || "1080p", type: 'fixed' }];
     }
@@ -5461,14 +5570,17 @@ function switchToNextStreamOrSource() {
     if (!currentStreams || !activeSource) return;
     const sourceObj = currentStreams[activeSource];
 
-    // Try next stream in current source
+    // Try next non-promo stream in current source
     if (sourceObj && sourceObj.streams && sourceObj.streams.length > 1) {
-        const curIdx = sourceObj.streams.findIndex(s => s.url === selectedStream?.url);
-        const nextIdx = (curIdx + 1) % sourceObj.streams.length;
-        if (nextIdx !== curIdx) {
-            selectedStream = sourceObj.streams[nextIdx];
-            playStream(selectedStream);
-            return;
+        const validList = sourceObj.streams.filter(s => !isBlockedPromoStream(s, activeSource));
+        if (validList.length > 1) {
+            const curIdx = validList.findIndex(s => s.url === selectedStream?.url);
+            const nextIdx = (curIdx + 1) % validList.length;
+            if (nextIdx !== curIdx) {
+                selectedStream = validList[nextIdx];
+                playStream(selectedStream);
+                return;
+            }
         }
     }
 

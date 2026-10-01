@@ -25,18 +25,18 @@
     "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-PC.zip"
   },
   "alert_screensaver": {
-    "version_name": "1.0.76",
-    "version_code": 77,
+    "version_name": "1.0.77",
+    "version_code": 78,
     "download_url": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/AlertScreensaver.apk",
     "apk_url": "https://showhub-server.onrender.com/AlertScreensaver.apk",
-    "changelog": "v1.0.76: 1) Класична тактична темна тема карти встановлена за замовчуванням. 2) Додано режими сповіщень для смартфонів: 'Звук та вібро', 'Тільки вібро', 'Тільки звук' та 'Без звуку'. 3) Виправлено відтворення сирени на TV при оголошенні тривоги у вашому районі/секторі (виправлено скидання вихідного рівня та блокування звуку через попередні локальні тривоги в області)."
+    "changelog": "v1.0.77: Виправлено оновлення віджета на робочому столі: 1) Усунено помилку переповнення пам'яті Binder (TransactionTooLargeException) через великі бітмапи карти; 2) Додано фонове оновлення через AlarmManager (setAndAllowWhileIdle) для роботи в Doze-режимі; 3) Додано кнопку ручного оновлення (🔄); 4) Синхронізовано віджет із фоновою службою моніторингу в реальному часі."
   },
   "alert_mobile": {
-    "version_name": "1.0.76",
-    "version_code": 77,
+    "version_name": "1.0.77",
+    "version_code": 78,
     "download_url": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/Alert-Mobile.apk",
     "apk_url": "https://showhub-server.onrender.com/Alert-Mobile.apk",
-    "changelog": "v1.0.76: 1) Класична тактична темна тема карти встановлена за замовчуванням. 2) Додано режими сповіщень для смартфонів: 'Звук та вібро', 'Тільки вібро', 'Тільки звук' та 'Без звуку'. 3) Виправлено відтворення сирени на TV при оголошенні тривоги у вашому районі/секторі (виправлено скидання вихідного рівня та блокування звуку через попередні локальні тривоги в області)."
+    "changelog": "v1.0.77: Виправлено оновлення віджета на робочому столі: 1) Усунено помилку переповнення пам'яті Binder (TransactionTooLargeException) через великі бітмапи карти; 2) Додано фонове оновлення через AlarmManager (setAndAllowWhileIdle) для роботи в Doze-режимі; 3) Додано кнопку ручного оновлення (🔄); 4) Синхронізовано віджет із фоновою службою моніторингу в реальному часі."
   },
   "ads": {
     "enabled": false,

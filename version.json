@@ -1,42 +1,42 @@
 {
   "success": true,
-  "version_name": "2.8.72",
-  "version_code": 131,
+  "version_name": "2.8.73",
+  "version_code": 132,
   "force_update": true,
   "min_version_code": 108,
   "download_url": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/ShowHub.apk",
   "apk_url": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/ShowHub.apk",
-  "changelog": "v2.8.72: Восстановлено отображение всех источников (Collaps, Filmix, VideoCDN, AniLibria, HDRezka, Kodik) в карточке фильма и устранена потеря потоков при переключении. Добавлен наглядный неоновый индикатор загрузки данных карточки (сезонов, озвучек, источников) в реальном времени.",
+  "changelog": "v2.8.73: Полный график выхода серий теперь содержит точные календарные даты для всех сезонов (а не только последнего), а также реальные даты даже для уже вышедших эпизодов. Устранено дублирование карточек при сортировке по рейтингу, году и популярности — одинаковые фильмы и сериалы из разных источников теперь объединяются в одну карточку с максимальным качеством и метаданными.",
   "tv": {
-    "version_name": "2.8.72",
-    "version_code": 131,
+    "version_name": "2.8.73",
+    "version_code": 132,
     "download_url": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/ShowHub.apk",
     "apk_url": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/ShowHub.apk"
   },
   "mobile": {
-    "version_name": "2.8.72",
-    "version_code": 131,
+    "version_name": "2.8.73",
+    "version_code": 132,
     "download_url": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/ShowHub-Mobile.apk",
     "apk_url": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/ShowHub-Mobile.apk"
   },
   "pc": {
-    "version_name": "2.8.72",
-    "version_code": 131,
+    "version_name": "2.8.73",
+    "version_code": 132,
     "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-PC.zip"
   },
   "alert_screensaver": {
-    "version_name": "1.0.70",
-    "version_code": 71,
+    "version_name": "1.0.75",
+    "version_code": 76,
     "download_url": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/AlertScreensaver.apk",
     "apk_url": "https://showhub-server.onrender.com/AlertScreensaver.apk",
-    "changelog": "v1.0.70: Тема «Нічний бурштин» встановлена за замовчуванням для нових користувачів, незалежний потік рендерингу біжучого рядка та двошаровий кеш карти."
+    "changelog": "v1.0.75: Гармонізовано кольорове оформлення інтерфейсу та банерів сповіщень. Пріоритет статусу обраного сектора/району (жовтий рівень більше не конфліктує з червоним від далеких тривог), усунено мерехтіння кольорів карток і вдосконалено фон вікна налаштувань."
   },
   "alert_mobile": {
-    "version_name": "1.0.70",
-    "version_code": 71,
+    "version_name": "1.0.75",
+    "version_code": 76,
     "download_url": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/Alert-Mobile.apk",
     "apk_url": "https://showhub-server.onrender.com/Alert-Mobile.apk",
-    "changelog": "v1.0.70: Тема «Нічний бурштин» встановлена за замовчуванням для нових користувачів, незалежний потік рендерингу біжучого рядка та двошаровий кеш карти."
+    "changelog": "v1.0.75: Гармонізовано кольорове оформлення інтерфейсу та банерів сповіщень. Пріоритет статусу обраного сектора/району (жовтий рівень більше не конфліктує з червоним від далеких тривог), усунено мерехтіння кольорів карток і вдосконалено фон вікна налаштувань."
   },
   "ads": {
     "enabled": false,

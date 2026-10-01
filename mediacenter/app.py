@@ -225,6 +225,19 @@ def serve_alert_screensaver_apk():
         return FileResponse(vid_apk, media_type="application/vnd.android.package-archive", filename="AlertScreensaver.apk")
     raise HTTPException(status_code=404, detail="AlertScreensaver APK not found")
 
+@app.api_route("/Alert-Mobile.apk", methods=["GET", "HEAD"])
+def serve_alert_mobile_apk():
+    static_apk = os.path.join(static_dir, "Alert-Mobile.apk")
+    if os.path.exists(static_apk):
+        return FileResponse(static_apk, media_type="application/vnd.android.package-archive", filename="Alert-Mobile.apk")
+    alert_apk = os.path.join(r"c:\WORK\Alert", "Alert-Mobile.apk")
+    if os.path.exists(alert_apk):
+        return FileResponse(alert_apk, media_type="application/vnd.android.package-archive", filename="Alert-Mobile.apk")
+    vid_apk = os.path.join(PARENT_DIR, "Alert-Mobile.apk")
+    if os.path.exists(vid_apk):
+        return FileResponse(vid_apk, media_type="application/vnd.android.package-archive", filename="Alert-Mobile.apk")
+    raise HTTPException(status_code=404, detail="Alert-Mobile APK not found")
+
 _alerts_cache = {"timestamp": 0.0, "data": None}
 _ALERTS_CACHE_TTL = 4.0
 

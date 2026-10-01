@@ -1657,6 +1657,62 @@ def get_catalog(
             if it.get(f):
                 it[f] = clean_html_text(it[f])
 
+    # Resolve untranslated Asian (Hangul/Hanzi/Kana) titles to Russian translations via Kodik & TMDb
+    asian_untranslated = [
+        it for it in all_items
+        if re.search(r'[\uac00-\ud7a3\u1100-\u11ff\u3040-\u30ff\u4e00-\u9fff]', str(it.get("title") or ""))
+        and not re.search(r'[\u0400-\u04FF]', str(it.get("title") or ""))
+    ]
+    if asian_untranslated:
+        import concurrent.futures
+        def _resolve_asian(item):
+            t_orig = item.get("title") or ""
+            o_title = item.get("original_title") or ""
+            # 1. Search Kodik for Russian title
+            for query in [t_orig, o_title]:
+                if not query:
+                    continue
+                try:
+                    k_res = kodik.search(query)
+                    for cand in k_res:
+                        if cand.title and re.search(r'[\u0400-\u04FF]', cand.title):
+                            item["title"] = cand.title
+                            if cand.kinopoisk_id:
+                                item["kinopoisk_id"] = cand.kinopoisk_id
+                            if not item.get("description") and cand.description:
+                                item["description"] = cand.description
+                            return
+                except Exception:
+                    pass
+            # 2. Check TMDb English name or translations if available
+            raw_id = str(item.get("id") or "")
+            if raw_id.startswith("tmdb_"):
+                tm_id = raw_id.replace("tmdb_", "")
+                is_ser = item.get("is_series", False)
+                mtype = "tv" if is_ser else "movie"
+                try:
+                    info_url = f"https://api.themoviedb.org/3/{mtype}/{tm_id}?api_key={tmdb.api_key}&language=en-US"
+                    resp = tmdb.session.get(info_url, timeout=3)
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        en_name = data.get("name") or data.get("title")
+                        if en_name and not re.search(r'[\uac00-\ud7a3\u1100-\u11ff\u3040-\u30ff\u4e00-\u9fff]', en_name):
+                            item["title"] = en_name
+                except Exception:
+                    pass
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=6) as executor:
+            list(executor.map(_resolve_asian, asian_untranslated))
+
+        # Filter out residual untranslated Asian titles with no Cyrillic or Latin names
+        all_items = [
+            it for it in all_items
+            if not (
+                re.search(r'[\uac00-\ud7a3\u1100-\u11ff\u3040-\u30ff\u4e00-\u9fff]', str(it.get("title") or ""))
+                and not re.search(r'[\u0400-\u04FFa-zA-Z]', str(it.get("title") or ""))
+            )
+        ]
+
     # Canonical deduplication pass: merge duplicate movies across sources into single cards
     merged_catalog: Dict[str, Dict[str, Any]] = {}
     for it in all_items:
@@ -1668,6 +1724,8 @@ def get_catalog(
 
         if kp and kp.isdigit() and kp != "0":
             key = f"kp_{kp}"
+        elif t_clean and yr:
+            key = f"t_{t_clean}_{yr}_{is_s}"
         elif raw_id.startswith("tmdb_"):
             key = raw_id
         else:
@@ -1675,6 +1733,12 @@ def get_catalog(
 
         if key in merged_catalog:
             existing = merged_catalog[key]
+            has_cyr_it = any('\u0400' <= ch <= '\u04FF' for ch in str(it.get("title") or ""))
+            has_cyr_ex = any('\u0400' <= ch <= '\u04FF' for ch in str(existing.get("title") or ""))
+            if has_cyr_it and not has_cyr_ex:
+                existing["title"] = it["title"]
+            if not existing.get("kinopoisk_id") and it.get("kinopoisk_id"):
+                existing["kinopoisk_id"] = it["kinopoisk_id"]
             if not existing.get("description") and it.get("description"):
                 existing["description"] = it["description"]
             if it.get("rating_kp") and (not existing.get("rating_kp") or existing["rating_kp"] == 0):

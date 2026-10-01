@@ -195,13 +195,16 @@ fun getMovieCanonicalKey(movie: Movie): String {
     if (kp.isNotEmpty() && kp != "0" && !kp.equals("null", ignoreCase = true) && !kp.equals("none", ignoreCase = true)) {
         return "kp_$kp"
     }
-    if (movie.id.startsWith("tmdb_")) {
-        return movie.id
-    }
     val clean = normalizeMovieTitle(movie.title)
     val yr = movie.releaseYear.filter { it.isDigit() }.take(4)
     val sType = if (movie.isSeries) "s" else "m"
-    return "t_${clean}_${yr}_${sType}"
+    if (clean.isNotEmpty() && yr.isNotEmpty()) {
+        return "t_${clean}_${yr}_${sType}"
+    }
+    if (movie.id.startsWith("tmdb_")) {
+        return movie.id
+    }
+    return if (clean.isNotEmpty()) "t_${clean}_${sType}" else movie.id
 }
 
 fun mergeTwoMovies(primary: Movie, secondary: Movie): Movie {
@@ -228,6 +231,13 @@ fun mergeTwoMovies(primary: Movie, secondary: Movie): Movie {
         secondary.kinopoiskId.isNotBlank() && secondary.kinopoiskId != "0" && !secondary.kinopoiskId.equals("null", ignoreCase = true) -> secondary.kinopoiskId
         else -> ""
     }
+    val hasCyr = { s: String -> s.any { it in '\u0400'..'\u04FF' } }
+    val bestTitle = when {
+        hasCyr(primary.title) && !hasCyr(secondary.title) -> primary.title
+        !hasCyr(primary.title) && hasCyr(secondary.title) -> secondary.title
+        primary.title.isNotBlank() -> primary.title
+        else -> secondary.title
+    }
     val bestDesc = if (primary.description.length >= secondary.description.length) primary.description else secondary.description
     val bestYear = if (primary.releaseYear.isNotBlank()) primary.releaseYear else secondary.releaseYear
     val bestRating = maxOf(primary.rating, secondary.rating)
@@ -246,7 +256,7 @@ fun mergeTwoMovies(primary: Movie, secondary: Movie): Movie {
 
     return primary.copy(
         id = bestId,
-        title = if (primary.title.isNotBlank()) primary.title else secondary.title,
+        title = bestTitle,
         originalTitle = if (primary.originalTitle.isNotBlank()) primary.originalTitle else secondary.originalTitle,
         description = bestDesc,
         posterUrl = bestPoster,

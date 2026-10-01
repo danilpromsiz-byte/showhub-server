@@ -25,18 +25,18 @@
     "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-PC.zip"
   },
   "alert_screensaver": {
-    "version_name": "1.0.79",
-    "version_code": 80,
+    "version_name": "1.0.80",
+    "version_code": 81,
     "download_url": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/AlertScreensaver.apk",
     "apk_url": "https://showhub-server.onrender.com/AlertScreensaver.apk",
-    "changelog": "v1.0.79: Карта у віджеті тепер адаптивно займає всю доступну висоту: 1) Усунуто штучні обмеження висоти та чорні смуги зверху/знизу; 2) Співвідношення сторін карти тепер динамічно підлаштовується під розмір віджета на робочому столі; 3) Збільшено роздільну здатність та оптимізовано внутрішні відступи."
+    "changelog": "v1.0.80: Виправлено артефакт розльоту дронів з одного хвоста в протилежні сторони: 1) Впроваджено строге дводольне зіставлення 1-до-1 між цілями радара та попередніми треками (усунено клонування ID та хвостів); 2) Додано інерційний фільтр курсів проти дрижання радарних проб; 3) Оптимізовано синтез траєкторій для нових цілей."
   },
   "alert_mobile": {
-    "version_name": "1.0.79",
-    "version_code": 80,
+    "version_name": "1.0.80",
+    "version_code": 81,
     "download_url": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/Alert-Mobile.apk",
     "apk_url": "https://showhub-server.onrender.com/Alert-Mobile.apk",
-    "changelog": "v1.0.79: Карта у віджеті тепер адаптивно займає всю доступну висоту: 1) Усунуто штучні обмеження висоти та чорні смуги зверху/знизу; 2) Співвідношення сторін карти тепер динамічно підлаштовується під розмір віджета на робочому столі; 3) Збільшено роздільну здатність та оптимізовано внутрішні відступи."
+    "changelog": "v1.0.80: Виправлено артефакт розльоту дронів з одного хвоста в протилежні сторони: 1) Впроваджено строге дводольне зіставлення 1-до-1 між цілями радара та попередніми треками (усунено клонування ID та хвостів); 2) Додано інерційний фільтр курсів проти дрижання радарних проб; 3) Оптимізовано синтез траєкторій для нових цілей."
   },
   "ads": {
     "enabled": false,

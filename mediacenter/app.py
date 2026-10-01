@@ -296,7 +296,11 @@ def _refresh_alerts_cache() -> Optional[Dict[str, Any]]:
     except Exception as e:
         logger.debug(f"Failed to fetch statuses.json: {e}")
 
-    # 2. Fallbacks
+    # If we already have recent rich statuses (< 120s old), keep them to prevent flickering
+    if _alerts_cache.get("data") and (now - _alerts_cache.get("timestamp", 0) < 120):
+        return _alerts_cache["data"]
+
+    # 2. Fallbacks (only if primary cache is cold or stale > 2 minutes)
     urls = [
         "https://ubilling.net.ua/aerialalerts/",
         "https://alerts.in.ua/api/states"

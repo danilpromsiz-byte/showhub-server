@@ -605,12 +605,15 @@ object RezkaNativeResolver {
                     if (m.find()) {
                         val quality = m.group(1)?.replace(Regex("<[^>]+>"), "")?.trim() ?: "HD"
                         val qLow = quality.lowercase()
-                        if (qLow.contains("ultra") || qLow.contains("4k") || qLow.contains("2160") || qLow.contains("1440")) {
+                        if (qLow.contains("ultra") || qLow.contains("4k") || qLow.contains("2160") || qLow.contains("1440") ||
+                            qLow.contains("premium") || qLow.contains("vip") || qLow.contains("sub")) {
                             continue
                         }
                         val urls = m.group(2)?.split(" or ")?.map { it.trim().replace("\\/", "/") }?.filter { 
                             val uLow = it.lowercase()
-                            it.startsWith("http") && !uLow.contains("rhtie") && !uLow.contains("/1/4/4/4/3/4/3/") && !uLow.contains("trial") && !uLow.contains("promo")
+                            it.startsWith("http") && !uLow.contains("rhtie") && !uLow.contains("/1/4/4/4/3/4/3/") &&
+                                !uLow.contains("trial") && !uLow.contains("promo") && !uLow.contains("teaser") &&
+                                !uLow.contains("premium") && !uLow.contains("vip")
                         } ?: emptyList()
                         // Prioritize voidboost streams or non-ukrtelcdn direct CDNs
                         val workingUrl = urls.firstOrNull { it.contains("voidboost") }
@@ -621,6 +624,19 @@ object RezkaNativeResolver {
                             val srcLabel = if (isFallback) "HDrezka (дубляж fallback)" else "HDrezka"
                             streams.add(StreamOption(quality = quality, url = workingUrl, isHls = isHls, source = srcLabel))
                         }
+                    }
+                }
+                // Sort streams in DESCENDING order of quality so 1080p is always top/primary
+                streams.sortByDescending {
+                    val q = it.quality.lowercase()
+                    when {
+                        q.contains("4k") || q.contains("2160") || q.contains("ultra") -> 2160
+                        q.contains("1440") || q.contains("2k") -> 1440
+                        q.contains("1080") -> 1080
+                        q.contains("720") -> 720
+                        q.contains("480") -> 480
+                        q.contains("360") -> 360
+                        else -> 0
                     }
                 }
             }

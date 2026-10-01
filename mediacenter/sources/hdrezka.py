@@ -969,7 +969,7 @@ class HDRezkaSource(BaseSource):
 
             has_vip_cookie = bool(self.session.cookies.get("dle_user_id"))
             q_low = quality.lower()
-            is_ultra_or_4k = any(k in q_low for k in ["ultra", "4k", "2160", "1440"])
+            is_ultra_or_4k = any(k in q_low for k in ["ultra", "4k", "2160", "1440", "premium", "vip", "sub"])
             if is_ultra_or_4k and not has_vip_cookie:
                 continue
 
@@ -978,6 +978,9 @@ class HDRezkaSource(BaseSource):
                 if "ukrtelcdn" not in u
                 and "rhtie" not in u.lower()
                 and "/1/4/4/4/3/4/3/" not in u
+                and "trial" not in u.lower()
+                and "promo" not in u.lower()
+                and "teaser" not in u.lower()
             ]
             if not working:
                 continue
@@ -991,6 +994,18 @@ class HDRezkaSource(BaseSource):
                 headers={"User-Agent": "Mozilla/5.0", "Referer": f"{base}/"},
                 is_premium=is_prem
             ))
+
+        # Sort streams in DESCENDING order of quality (1080p -> 720p -> 480p -> 360p)
+        def _hdrezka_q_rank(s: VideoStream) -> int:
+            ql = s.quality.lower()
+            if any(k in ql for k in ["4k", "2160", "ultra"]): return 2160
+            if any(k in ql for k in ["1440", "2k"]): return 1440
+            if "1080" in ql: return 1080
+            if "720" in ql: return 720
+            if "480" in ql: return 480
+            if "360" in ql: return 360
+            return 0
+        result.streams.sort(key=_hdrezka_q_rank, reverse=True)
 
         # Parse subtitles if provided
         if sub_str:

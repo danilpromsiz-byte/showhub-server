@@ -56,6 +56,7 @@ from mediacenter.sources.anilibria import AnilibriaSource
 from mediacenter.sources.zona import ZonaSource
 from mediacenter.sources.base import MediaItem, StreamResult
 from mediacenter.core.tmdb import tmdb
+from mediacenter.core.schedule_harvester import harvest_tv_schedule
 
 app = FastAPI(title="MediaCenter TV Aggregator", version="1.0.0")
 
@@ -2470,7 +2471,7 @@ def _fetch_media_details(
         if tmdb_info.get("lampa_popularity"):
             details["lampa_popularity"] = tmdb_info["lampa_popularity"]
 
-    # 9. Enrich and complete episode release schedule with real calendar dates
+    # 9. Enrich and complete episode release schedule with real calendar dates from open sources (TMDb, MyShows, TVMaze, HDRezka)
     if details.get("is_series") or len(details.get("seasons", [])) > 0:
         tmdb_sched = tmdb_info.get("episodes_schedule") if (locals().get("tmdb_info") and tmdb_info) else None
         if not tmdb_sched and locals().get("tmdb_info") and tmdb_info and tmdb_info.get("tmdb_id"):
@@ -2480,55 +2481,36 @@ def _fetch_media_details(
                 tmdb_sched = None
 
         cur_sched = details.get("episodes_schedule") or []
-        if tmdb_sched:
-            merged_sched_map = {}
-            for item in tmdb_sched:
-                s_num = item.get("season", 1)
-                ep_num = item.get("episode_num", 1)
-                merged_sched_map[(s_num, ep_num)] = item.copy()
+        effective_title = details.get("title") or clean_title or title
+        effective_orig = details.get("original_title") or (tmdb_info.get("original_title") if locals().get("tmdb_info") and tmdb_info else None)
+        effective_kp = resolved_kp or details.get("kinopoisk_id")
+        effective_imdb = details.get("imdb_id") or (tmdb_info.get("imdb_id") if locals().get("tmdb_info") and tmdb_info else None)
 
-            for rz_item in cur_sched:
-                ep_text = rz_item.get("episode", "")
-                m = re.search(r'(?:(\d+)\s+сезон)?.*?(\d+)\s+серия', ep_text)
-                if m:
-                    s_n = int(m.group(1)) if m.group(1) else 1
-                    ep_n = int(m.group(2))
-                    if (s_n, ep_n) in merged_sched_map:
-                        existing = merged_sched_map[(s_n, ep_n)]
-                        if rz_item.get("date") and rz_item["date"] not in ("Вышла", "Доступна", "Дата уточняется"):
-                            existing["date"] = rz_item["date"]
-                        if rz_item.get("status"):
-                            existing["status"] = rz_item["status"]
-                        if rz_item.get("title") and not existing.get("title"):
-                            existing["title"] = rz_item["title"]
-                    else:
-                        merged_sched_map[(s_n, ep_n)] = rz_item
+        try:
+            full_harvested = harvest_tv_schedule(
+                title=effective_title,
+                year=year_int,
+                kp_id=effective_kp,
+                imdb_id=effective_imdb,
+                existing_schedule=cur_sched,
+                tmdb_schedule=tmdb_sched,
+                original_title=effective_orig
+            )
+            if full_harvested:
+                details["episodes_schedule"] = full_harvested
+        except Exception as e:
+            logger.warning(f"Failed to harvest schedule: {e}")
 
-            def _sort_key(x):
-                ep_s = x.get("season")
-                if not ep_s:
-                    m_s = re.search(r'(\d+)\s+сезон', x.get("episode", ""))
-                    ep_s = int(m_s.group(1)) if m_s else 1
-                ep_e = x.get("episode_num")
-                if not ep_e:
-                    m_e = re.search(r'(\d+)\s+серия', x.get("episode", ""))
-                    ep_e = int(m_e.group(1)) if m_e else 0
-                return (ep_s, ep_e)
-
-            sorted_sched = sorted(merged_sched_map.values(), key=_sort_key, reverse=True)
-            details["episodes_schedule"] = sorted_sched
-        elif cur_sched:
-            for item in cur_sched:
-                if item.get("date") in ("Вышла", "Доступна", ""):
-                    item["date"] = f"{year_int} г." if year_int else "Дата уточняется"
-            details["episodes_schedule"] = cur_sched
-        elif details.get("seasons"):
+        # If still empty but seasons exist, create fallback list with release year
+        if not details.get("episodes_schedule") and details.get("seasons"):
             fallback_sched = []
             for s in details["seasons"]:
                 s_id = s.get("season_id", 1)
                 for ep in s.get("episodes", []):
                     fallback_sched.append({
                         "episode": f"{s_id} сезон {ep.get('episode_id')} серия",
+                        "season": s_id,
+                        "episode_num": ep.get("episode_id", 1),
                         "title": ep.get("title") or f"Серия {ep.get('episode_id')}",
                         "date": f"{year_int} г." if year_int else "Дата уточняется",
                         "status": "Вышла"
@@ -3253,7 +3235,7 @@ def get_media_preview_stream(
         if getattr(st, "stream_type", "hls") not in ["hls", "mp4"]:
             return False
         u = str(st.url).lower()
-        if any(bad in u for bad in ["rhtie.mp4", "rhtie", "trial", "preview", "teaser", "promo"]):
+        if any(bad in u for bad in ["rhtie.mp4", "rhtie", "trial", "preview", "teaser", "promo", "ultra", "vip", "premium", "/1/4/4/4/3/4/3/"]):
             return False
         # Server-resolved voidboost streams are IP-bound to server IP and return 404 for client devices!
         if any(bad in u for bad in ["stream.voidboost", "voidboost.one", "voidboost"]):
@@ -3261,7 +3243,7 @@ def get_media_preview_stream(
         if getattr(st, "is_premium", False):
             return False
         q = str(st.quality).lower()
-        if any(bad in q for bad in ["ultra", "4k", "2160", "1440", "vip", "premium"]):
+        if any(bad in q for bad in ["ultra", "4k", "2160", "1440", "vip", "premium", "sub"]):
             return False
         return True
 

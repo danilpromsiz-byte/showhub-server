@@ -891,11 +891,14 @@ private fun NativeExoPlayerScreen(
     fun matchQuality(streamQuality: String, targetQuality: String): Boolean {
         val s = streamQuality.lowercase()
         val t = targetQuality.lowercase()
+        if (t.contains("max") || t.contains("макс") || t.contains("авто") || t.contains("auto")) {
+            return true
+        }
         return when {
             t.contains("ultra") || t.contains("4k") || t.contains("2160") ->
                 s.contains("ultra") || s.contains("4k") || s.contains("2160")
             t.contains("1080") ->
-                s.contains("1080") && !s.contains("ultra") && !s.contains("vip")
+                s.contains("1080") && !s.contains("ultra") && !s.contains("vip") && !s.contains("premium")
             t.contains("720") ->
                 s.contains("720")
             t.contains("480") ->
@@ -1093,14 +1096,27 @@ private fun NativeExoPlayerScreen(
                     } else st
                 }
 
+                fun getStreamQualityRank(q: String): Int {
+                    val ql = q.lowercase()
+                    return when {
+                        ql.contains("4k") || ql.contains("2160") || ql.contains("ultra") -> 2160
+                        ql.contains("1440") || ql.contains("2k") -> 1440
+                        ql.contains("1080") -> 1080
+                        ql.contains("720") -> 720
+                        ql.contains("480") -> 480
+                        ql.contains("360") -> 360
+                        else -> 0
+                    }
+                }
+
                 val targetStream = adjustedStreams.firstOrNull { matchQuality(it.quality, newQuality) && isDirectVideoStream(it.url) }
-                    ?: adjustedStreams.firstOrNull { isDirectVideoStream(it.url) }
+                    ?: adjustedStreams.filter { isDirectVideoStream(it.url) }.maxByOrNull { getStreamQualityRank(it.quality) }
                     ?: if (newSource.equals("HDrezka", ignoreCase = true) || newSource.equals("Все", ignoreCase = true)) {
                         allResolved.firstOrNull { matchQuality(it.quality, newQuality) && isDirectVideoStream(it.url) }
-                            ?: allResolved.firstOrNull { isDirectVideoStream(it.url) }
-                            ?: adjustedStreams.firstOrNull()
+                            ?: allResolved.filter { isDirectVideoStream(it.url) }.maxByOrNull { getStreamQualityRank(it.quality) }
+                            ?: adjustedStreams.maxByOrNull { getStreamQualityRank(it.quality) }
                     } else {
-                        adjustedStreams.firstOrNull()
+                        adjustedStreams.maxByOrNull { getStreamQualityRank(it.quality) }
                     }
 
                 if (targetStream != null) {

@@ -242,7 +242,7 @@ fun mergeTwoMovies(primary: Movie, secondary: Movie): Movie {
     val bestSeasons = if (primary.seasons.sumOf { it.episodes.size } >= secondary.seasons.sumOf { it.episodes.size }) primary.seasons else secondary.seasons
     val bestCast = if (primary.cast.size >= secondary.cast.size) primary.cast else secondary.cast
     val bestDirectorsList = if (primary.directorsList.size >= secondary.directorsList.size) primary.directorsList else secondary.directorsList
-    val bestSched = if (primary.episodesSchedule.size >= secondary.episodesSchedule.size) primary.episodesSchedule else secondary.episodesSchedule
+    val bestSched = mergeEpisodeSchedules(primary.episodesSchedule, secondary.episodesSchedule)
 
     return primary.copy(
         id = bestId,
@@ -302,4 +302,63 @@ fun deduplicateAndMergeMovies(movies: List<Movie>): List<Movie> {
         }
     }
     return map.values.toList()
+}
+
+fun mergeEpisodeSchedules(schedA: List<EpisodeScheduleItem>, schedB: List<EpisodeScheduleItem>): List<EpisodeScheduleItem> {
+    if (schedA.isEmpty()) return schedB
+    if (schedB.isEmpty()) return schedA
+
+    val parseKey = { epStr: String ->
+        val sMatch = Regex("""(?:(\d+)\s*(?:сезон|season|s)|s(\d+))""", RegexOption.IGNORE_CASE).find(epStr)
+        val eMatch = Regex("""(?:(\d+)\s*(?:серия|эпизод|ep|e|серии)|e(\d+))""", RegexOption.IGNORE_CASE).find(epStr)
+        val season = sMatch?.let { it.groupValues[1].toIntOrNull() ?: it.groupValues[2].toIntOrNull() } ?: 1
+        val ep = eMatch?.let { it.groupValues[1].toIntOrNull() ?: it.groupValues[2].toIntOrNull() }
+            ?: Regex("""\b(\d+)\b""").find(epStr)?.groupValues?.get(1)?.toIntOrNull() ?: 1
+        Pair(season, ep)
+    }
+
+    val isGoodDate = { d: String ->
+        val clean = d.trim().lowercase()
+        clean.isNotEmpty() &&
+            clean !in setOf("вышла", "доступна", "дата уточняется", "ожидается", "в эфире", "неизвестно") &&
+            (listOf("янв", "фев", "мар", "апр", "ма", "июн", "июл", "авг", "сен", "окт", "ноя", "дек").any { clean.contains(it) } ||
+                Regex("""\d{4}""").containsMatchIn(clean))
+    }
+
+    val mergedMap = LinkedHashMap<Pair<Int, Int>, EpisodeScheduleItem>()
+    val allItems = schedA + schedB
+
+    for (item in allItems) {
+        val key = parseKey(item.episode)
+        val existing = mergedMap[key]
+        if (existing == null) {
+            mergedMap[key] = item
+        } else {
+            val bestDate = when {
+                isGoodDate(item.date) && !isGoodDate(existing.date) -> item.date
+                !isGoodDate(item.date) && isGoodDate(existing.date) -> existing.date
+                item.date.isNotBlank() && existing.date.isBlank() -> item.date
+                else -> if (item.date.length > existing.date.length) item.date else existing.date
+            }
+            val bestTitle = when {
+                item.title.isNotBlank() && !item.title.matches(Regex("""(?i)Серия\s*\d+""")) && existing.title.matches(Regex("""(?i)Серия\s*\d+""")) -> item.title
+                existing.title.isNotBlank() && !existing.title.matches(Regex("""(?i)Серия\s*\d+""")) -> existing.title
+                item.title.isNotBlank() -> item.title
+                else -> existing.title
+            }
+            val bestStatus = if (item.status.isNotBlank()) item.status else existing.status
+            val bestEpLabel = if (item.episode.contains("сезон") && item.episode.contains("серия")) item.episode else existing.episode
+
+            mergedMap[key] = existing.copy(
+                episode = bestEpLabel,
+                title = bestTitle,
+                date = bestDate,
+                status = bestStatus
+            )
+        }
+    }
+
+    return mergedMap.entries
+        .sortedWith(compareBy({ it.key.first }, { it.key.second }))
+        .map { it.value }
 }

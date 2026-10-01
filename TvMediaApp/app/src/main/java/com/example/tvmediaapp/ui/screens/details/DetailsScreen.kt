@@ -259,13 +259,13 @@ fun DetailsScreen(
                 val cleanStreams = srcStreams.filter { st ->
                     val sq = st.quality.lowercase()
                     val su = st.url.lowercase()
-                    !su.contains("rhtie") && !su.contains("/1/4/4/4/3/4/3/") &&
-                        !((st.source.contains("rezka", ignoreCase = true) || su.contains("voidboost")) && (sq.contains("ultra") || sq.contains("4k") || sq.contains("2160") || sq.contains("1440")))
+                    !su.contains("rhtie") && !su.contains("/1/4/4/4/3/4/3/") && !su.contains("trial") && !su.contains("promo") && !su.contains("teaser") &&
+                        !((st.source.contains("rezka", ignoreCase = true) || su.contains("voidboost")) && (sq.contains("ultra") || sq.contains("4k") || sq.contains("2160") || sq.contains("1440") || sq.contains("premium") || sq.contains("vip") || sq.contains("sub")))
                 }
                 for (q in qualityOrder) {
                     val match = cleanStreams.firstOrNull { st ->
                         val sq = st.quality.lowercase()
-                        sq.contains(q, ignoreCase = true) && (!q.contains("1080") || !sq.contains("ultra"))
+                        sq.contains(q, ignoreCase = true) && (!q.contains("1080") || (!sq.contains("ultra") && !sq.contains("premium")))
                     }
                     if (match != null) return@run match.quality.replace(Regex("\\(.*?\\)"), "").trim()
                 }
@@ -428,19 +428,35 @@ fun DetailsScreen(
         }
     }
 
+    fun getStreamQualityRank(q: String): Int {
+        val ql = q.lowercase()
+        return when {
+            ql.contains("4k") || ql.contains("2160") || ql.contains("ultra") -> 2160
+            ql.contains("1440") || ql.contains("2k") -> 1440
+            ql.contains("1080") -> 1080
+            ql.contains("720") -> 720
+            ql.contains("480") -> 480
+            ql.contains("360") -> 360
+            else -> 0
+        }
+    }
+
     fun matchStreamQuality(stream: StreamOption, target: String): Boolean {
         if (!isDirectVideoStream(stream.url)) return false
         val su = stream.url.lowercase()
-        if (su.contains("rhtie") || su.contains("/1/4/4/4/3/4/3/")) return false
+        if (su.contains("rhtie") || su.contains("/1/4/4/4/3/4/3/") || su.contains("trial") || su.contains("promo") || su.contains("teaser")) return false
         val sq = stream.quality.lowercase().trim()
         val tq = target.lowercase().trim()
         if ((stream.source.contains("rezka", ignoreCase = true) || su.contains("voidboost")) &&
-            (sq.contains("ultra") || sq.contains("4k") || sq.contains("2160") || sq.contains("1440"))) {
+            (sq.contains("ultra") || sq.contains("4k") || sq.contains("2160") || sq.contains("1440") || sq.contains("premium") || sq.contains("vip") || sq.contains("sub"))) {
             return false
+        }
+        if (tq.contains("max") || tq.contains("макс") || tq.contains("авто") || tq.contains("auto")) {
+            return true
         }
         if (tq.contains("ultra")) return sq.contains("ultra")
         if (tq.contains("4k") || tq.contains("2160")) return sq.contains("4k") || sq.contains("2160")
-        if (tq.contains("1080")) return sq.contains("1080") && !sq.contains("ultra")
+        if (tq.contains("1080")) return sq.contains("1080") && !sq.contains("ultra") && !sq.contains("premium")
         return sq.contains(tq)
     }
 
@@ -466,9 +482,9 @@ fun DetailsScreen(
         val candidateStreams = rawCandidates.filter { st ->
             val su = st.url.lowercase()
             val sq = st.quality.lowercase()
-            !su.contains("rhtie") && !su.contains("/1/4/4/4/3/4/3/") &&
+            !su.contains("rhtie") && !su.contains("/1/4/4/4/3/4/3/") && !su.contains("trial") && !su.contains("promo") && !su.contains("teaser") &&
                 !((st.source.contains("rezka", ignoreCase = true) || su.contains("voidboost")) &&
-                    (sq.contains("ultra") || sq.contains("4k") || sq.contains("2160") || sq.contains("1440")))
+                    (sq.contains("ultra") || sq.contains("4k") || sq.contains("2160") || sq.contains("1440") || sq.contains("premium") || sq.contains("vip") || sq.contains("sub")))
         }
 
         val qualSet = linkedSetOf<String>()
@@ -496,12 +512,22 @@ fun DetailsScreen(
     fun pickSafePreviewStream(streams: List<StreamOption>): String? {
         val nonPremium = streams.filter {
             val q = it.quality.lowercase()
-            !q.contains("ultra") && !q.contains("4k") && !q.contains("2160") && !q.contains("vip") && isDirectVideoStream(it.url)
+            val u = it.url.lowercase()
+            !q.contains("ultra") && !q.contains("4k") && !q.contains("2160") && !q.contains("1440") &&
+                !q.contains("vip") && !q.contains("premium") && !q.contains("sub") &&
+                !u.contains("rhtie") && !u.contains("trial") && !u.contains("preview") &&
+                !u.contains("teaser") && !u.contains("promo") && !u.contains("vip") &&
+                !u.contains("ultra") && !u.contains("premium") && !u.contains("/1/4/4/4/3/4/3/") &&
+                isDirectVideoStream(it.url)
         }
-        return nonPremium.firstOrNull { it.quality.contains("720") }?.url
-            ?: nonPremium.firstOrNull { it.quality.contains("1080") }?.url
-            ?: nonPremium.firstOrNull { it.quality.contains("480") }?.url
-            ?: nonPremium.firstOrNull()?.url
+        // Non-Rezka sources (Collaps, Filmix, VideoCDN, AniLibria) never have HDRezka promo ads - prioritize them first
+        val nonRezka = nonPremium.filterNot { it.source.contains("rezka", ignoreCase = true) || it.url.contains("voidboost") }
+        val pool = if (nonRezka.isNotEmpty()) nonRezka else nonPremium
+
+        return pool.firstOrNull { it.quality.contains("720") }?.url
+            ?: pool.firstOrNull { it.quality.contains("1080") && !it.quality.contains("ultra", true) && !it.quality.contains("premium", true) }?.url
+            ?: pool.firstOrNull { it.quality.contains("480") }?.url
+            ?: pool.firstOrNull()?.url
     }
 
     // Focus Requesters for instant TV remote control & bidirectional navigation
@@ -543,6 +569,17 @@ fun DetailsScreen(
 
     // Fetch deep metadata (seasons, episodes, translators, KP rating) in background
     LaunchedEffect(movie.id) {
+        // Immediately release old preview player when moving to a new movie
+        val oldPlayer = detailsPreviewPlayer
+        detailsPreviewPlayer = null
+        isDetailsPreviewPlaying = false
+        oldPlayer?.let { p ->
+            try {
+                p.clearMediaItems()
+                p.stop()
+                p.release()
+            } catch (_: Exception) {}
+        }
         isLoadingDetails = true
         try {
             val detailed = withContext(Dispatchers.IO) {
@@ -628,7 +665,8 @@ fun DetailsScreen(
                 if (nativeStreams.isNotEmpty()) {
                     withContext(Dispatchers.Main) {
                         val otherExisting = streamOptions.filterNot { it.source.contains("rezka", ignoreCase = true) || it.source.contains("filmix", ignoreCase = true) }
-                        val merged = (nativeStreams + otherExisting).distinctBy { it.url }.sortedByDescending { isDirectVideoStream(it.url) }
+                        val merged = (nativeStreams + otherExisting).distinctBy { it.url }
+                            .sortedWith(compareByDescending<StreamOption> { isDirectVideoStream(it.url) }.thenByDescending { getStreamQualityRank(it.quality) })
                         if (merged.isNotEmpty()) {
                             streamOptions = merged
                         }
@@ -651,11 +689,12 @@ fun DetailsScreen(
                 } else {
                     (nativeStreams + serverStreams).distinctBy { it.url }
                 }
-                val sorted = combined.sortedByDescending { isDirectVideoStream(it.url) }
+                val sorted = combined.sortedWith(compareByDescending<StreamOption> { isDirectVideoStream(it.url) }.thenByDescending { getStreamQualityRank(it.quality) })
                 if (sorted.isNotEmpty()) {
                     withContext(Dispatchers.Main) {
                         // Merge with existing streams to preserve all discovered sources (Collaps, VideoCDN, AniLibria, etc.)
-                        val mergedAll = (sorted + streamOptions).distinctBy { it.url }.sortedByDescending { isDirectVideoStream(it.url) }
+                        val mergedAll = (sorted + streamOptions).distinctBy { it.url }
+                            .sortedWith(compareByDescending<StreamOption> { isDirectVideoStream(it.url) }.thenByDescending { getStreamQualityRank(it.quality) })
                         streamOptions = mergedAll
                     }
                 }
@@ -690,7 +729,11 @@ fun DetailsScreen(
                     sUrl = pickSafePreviewStream(streamOptions)
                 }
                 if (sUrl.isNullOrEmpty() && !currentMovie.videoUrl.isNullOrBlank() && isDirectVideoStream(currentMovie.videoUrl)) {
-                    sUrl = currentMovie.videoUrl
+                    val cu = currentMovie.videoUrl.lowercase()
+                    if (!cu.contains("rhtie") && !cu.contains("trial") && !cu.contains("promo") && !cu.contains("teaser") &&
+                        !cu.contains("vip") && !cu.contains("ultra") && !cu.contains("premium") && !cu.contains("/1/4/4/4/3/4/3/")) {
+                        sUrl = currentMovie.videoUrl
+                    }
                 }
                 // Step 3: Native Rezka resolver on-device fallback
                 if (sUrl.isNullOrEmpty()) {
@@ -988,8 +1031,11 @@ fun DetailsScreen(
                 }
 
                 val matched = candidateStreams.firstOrNull { matchStreamQuality(it, selectedQuality) }
-                    ?: candidateStreams.firstOrNull { isDirectVideoStream(it.url) && !it.quality.contains("ultra", ignoreCase = true) && !it.quality.contains("4k", ignoreCase = true) }
-                    ?: candidateStreams.firstOrNull { isDirectVideoStream(it.url) }
+                    ?: candidateStreams.filter { isDirectVideoStream(it.url) && !it.quality.contains("ultra", ignoreCase = true) && !it.quality.contains("4k", ignoreCase = true) && !it.quality.contains("premium", ignoreCase = true) }
+                        .maxByOrNull { getStreamQualityRank(it.quality) }
+                    ?: candidateStreams.filter { isDirectVideoStream(it.url) }
+                        .maxByOrNull { getStreamQualityRank(it.quality) }
+                    ?: candidateStreams.maxByOrNull { getStreamQualityRank(it.quality) }
                     ?: candidateStreams.first()
 
                 val isHls = isDirectVideoStream(matched.url)

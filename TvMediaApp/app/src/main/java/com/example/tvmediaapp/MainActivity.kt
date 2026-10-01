@@ -32,6 +32,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import coil.compose.AsyncImage
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.key
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -624,31 +625,33 @@ fun TvAppNavHost(activity: MainActivity) {
 
             Screen.DETAILS -> {
                 selectedMovie?.let { movie ->
-                    val isFav = homeViewModel.isFavorite(movie.id)
-                    DetailsScreen(
-                        movie = movie,
-                        onPlayClick = { detailedMovie, streamUrl, startPos, season, episode, audioId ->
-                            navigateTo(
-                                Screen.PLAYER,
-                                movie = detailedMovie,
-                                videoUrl = streamUrl,
-                                positionMs = startPos,
-                                season = season,
-                                episode = episode,
-                                audioId = audioId
-                            )
-                        },
-                        onBackClick = {
-                            navigateBack()
-                        },
-                        onToggleFavorite = {
-                            homeViewModel.toggleFavorite(it)
-                        },
-                        isFavorite = isFav,
-                        onSearchClick = { actorName ->
-                            navigateTo(Screen.SEARCH, searchQuery = actorName, searchIsActorVal = true)
-                        }
-                    )
+                    key(movie.id) {
+                        val isFav = homeViewModel.isFavorite(movie.id)
+                        DetailsScreen(
+                            movie = movie,
+                            onPlayClick = { detailedMovie, streamUrl, startPos, season, episode, audioId ->
+                                navigateTo(
+                                    Screen.PLAYER,
+                                    movie = detailedMovie,
+                                    videoUrl = streamUrl,
+                                    positionMs = startPos,
+                                    season = season,
+                                    episode = episode,
+                                    audioId = audioId
+                                )
+                            },
+                            onBackClick = {
+                                navigateBack()
+                            },
+                            onToggleFavorite = {
+                                homeViewModel.toggleFavorite(it)
+                            },
+                            isFavorite = isFav,
+                            onSearchClick = { actorName ->
+                                navigateTo(Screen.SEARCH, searchQuery = actorName, searchIsActorVal = true)
+                            }
+                        )
+                    }
                 } ?: run {
                     currentScreen = Screen.HOME
                 }

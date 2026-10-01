@@ -1,27 +1,27 @@
 {
   "success": true,
-  "version_name": "2.8.73",
-  "version_code": 132,
+  "version_name": "2.8.74",
+  "version_code": 133,
   "force_update": true,
   "min_version_code": 108,
   "download_url": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/ShowHub.apk",
   "apk_url": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/ShowHub.apk",
-  "changelog": "v2.8.73: Полный график выхода серий теперь содержит точные календарные даты для всех сезонов (а не только последнего), а также реальные даты даже для уже вышедших эпизодов. Устранено дублирование карточек при сортировке по рейтингу, году и популярности — одинаковые фильмы и сериалы из разных источников теперь объединяются в одну карточку с максимальным качеством и метаданными.",
+  "changelog": "v2.8.74: Точные даты выхода серий из открытых источников (Кинопоиск, MyShows, TVMaze, HDRezka). Приоритет качества 1080p для HDRezka вместо 360p. Исправлено залипание видеопредпросмотра при переходе между карточками. Полностью заблокированы рекламные промо-вставки 'HDRezka Premium' в предпросмотре и плеере.",
   "tv": {
-    "version_name": "2.8.73",
-    "version_code": 132,
+    "version_name": "2.8.74",
+    "version_code": 133,
     "download_url": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/ShowHub.apk",
     "apk_url": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/ShowHub.apk"
   },
   "mobile": {
-    "version_name": "2.8.73",
-    "version_code": 132,
+    "version_name": "2.8.74",
+    "version_code": 133,
     "download_url": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/ShowHub-Mobile.apk",
     "apk_url": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/ShowHub-Mobile.apk"
   },
   "pc": {
-    "version_name": "2.8.73",
-    "version_code": 132,
+    "version_name": "2.8.74",
+    "version_code": 133,
     "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-PC.zip"
   },
   "alert_screensaver": {

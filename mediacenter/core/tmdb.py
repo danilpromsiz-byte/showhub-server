@@ -361,11 +361,85 @@ class TMDbClient:
                 "is_series": (resolved_type == "tv")
             }
 
+            if resolved_type == "tv":
+                res_obj["episodes_schedule"] = self.get_tv_schedule(m_id)
+
             _cache[cache_key] = res_obj
             return res_obj
 
         except Exception:
             return None
+
+    def get_tv_schedule(self, tmdb_id: int) -> List[Dict[str, Any]]:
+        """Fetches full episode release schedule across all seasons with real calendar dates for a TV series."""
+        try:
+            cache_key = f"tv_sched_{tmdb_id}"
+            if cache_key in _cache:
+                return _cache[cache_key]
+            url = f"{BASE_URL}/tv/{tmdb_id}?api_key={self.api_key}&language=ru-RU"
+            resp = self.session.get(url, timeout=4)
+            if resp.status_code != 200:
+                return []
+            data = resp.json()
+            seasons = [s["season_number"] for s in data.get("seasons", []) if s.get("season_number", 0) > 0]
+            if not seasons:
+                return []
+
+            append_str = ",".join([f"season/{s}" for s in seasons[:20]])
+            det_url = f"{BASE_URL}/tv/{tmdb_id}?api_key={self.api_key}&language=ru-RU&append_to_response={append_str}"
+            det_resp = self.session.get(det_url, timeout=5)
+            if det_resp.status_code != 200:
+                return []
+            all_data = det_resp.json()
+
+            months_ru = {
+                1: "января", 2: "февраля", 3: "марта", 4: "апреля",
+                5: "мая", 6: "июня", 7: "июля", 8: "августа",
+                9: "сентября", 10: "октября", 11: "ноября", 12: "декабря"
+            }
+
+            import datetime
+            today_str = datetime.date.today().isoformat()
+
+            schedule = []
+            for s in seasons[:20]:
+                s_key = f"season/{s}"
+                if s_key in all_data:
+                    for ep in all_data[s_key].get("episodes", []):
+                        ep_num = ep.get("episode_number")
+                        air_date = ep.get("air_date") or ""
+                        formatted_date = ""
+                        if air_date:
+                            try:
+                                parts = [int(p) for p in air_date.split("-")]
+                                if len(parts) == 3:
+                                    y, m, d = parts
+                                    m_ru = months_ru.get(m, "")
+                                    formatted_date = f"{d} {m_ru} {y}".strip()
+                            except Exception:
+                                formatted_date = air_date
+
+                        if not formatted_date:
+                            formatted_date = "Дата уточняется"
+                            status = "Ожидается"
+                        elif air_date and air_date <= today_str:
+                            status = "Вышла"
+                        else:
+                            status = "Ожидается"
+
+                        schedule.append({
+                            "episode": f"{s} сезон {ep_num} серия",
+                            "title": ep.get("name") or f"Серия {ep_num}",
+                            "date": formatted_date,
+                            "air_date": air_date,
+                            "status": status,
+                            "season": s,
+                            "episode_num": ep_num
+                        })
+            _cache[cache_key] = schedule
+            return schedule
+        except Exception:
+            return []
 
     def get_trending(self, page: int = 1) -> List[Dict[str, Any]]:
         """Fetches worldwide trending movies and series for the week in Russian."""

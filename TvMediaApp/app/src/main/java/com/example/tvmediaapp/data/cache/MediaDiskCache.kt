@@ -175,30 +175,14 @@ object MediaDiskCache {
             if (movies.isEmpty()) return
             val validNew = movies.filter { !it.id.contains("test", ignoreCase = true) && !it.title.contains("Тестов", ignoreCase = true) }
             val existing = getCachedCatalog() ?: emptyList()
-            // When isFirstPage is true, page 1 (Lampa top hits) must strictly be at the front!
-            // When isFirstPage is false (background pagination), existing top hits are preserved and new movies are appended!
-            val map = LinkedHashMap<String, Movie>()
-            if (isFirstPage) {
-                for (m in validNew) {
-                    if (m.id.isNotBlank()) map[m.id] = m
-                }
-                for (m in existing) {
-                    if (m.id.isNotBlank() && !map.containsKey(m.id)) {
-                        map[m.id] = m
-                    }
-                }
+            val combined = if (isFirstPage) {
+                validNew + existing
             } else {
-                for (m in existing) {
-                    if (m.id.isNotBlank()) map[m.id] = m
-                }
-                for (m in validNew) {
-                    if (m.id.isNotBlank() && !map.containsKey(m.id)) {
-                        map[m.id] = m
-                    }
-                }
+                existing + validNew
             }
+            val deduplicated = com.example.tvmediaapp.data.models.deduplicateAndMergeMovies(combined)
             val arr = JSONArray()
-            for (m in map.values) {
+            for (m in deduplicated) {
                 arr.put(serializeMovie(m))
             }
             getCatalogFile().writeText(arr.toString())

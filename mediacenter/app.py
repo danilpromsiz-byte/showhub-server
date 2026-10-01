@@ -1656,6 +1656,52 @@ def get_catalog(
             if it.get(f):
                 it[f] = clean_html_text(it[f])
 
+    # Canonical deduplication pass: merge duplicate movies across sources into single cards
+    merged_catalog: Dict[str, Dict[str, Any]] = {}
+    for it in all_items:
+        kp = str(it.get("kinopoisk_id") or "").strip()
+        raw_id = str(it.get("id") or "").strip()
+        t_clean = normalize_search_title(it.get("title") or "")
+        yr = str(it.get("year") or "").strip()[:4]
+        is_s = "s" if it.get("is_series") else "m"
+
+        if kp and kp.isdigit() and kp != "0":
+            key = f"kp_{kp}"
+        elif raw_id.startswith("tmdb_"):
+            key = raw_id
+        else:
+            key = f"t_{t_clean}_{yr}_{is_s}"
+
+        if key in merged_catalog:
+            existing = merged_catalog[key]
+            if not existing.get("description") and it.get("description"):
+                existing["description"] = it["description"]
+            if it.get("rating_kp") and (not existing.get("rating_kp") or existing["rating_kp"] == 0):
+                existing["rating_kp"] = it["rating_kp"]
+            if it.get("rating_imdb") and (not existing.get("rating_imdb") or existing["rating_imdb"] == 0):
+                existing["rating_imdb"] = it["rating_imdb"]
+            if (it.get("rating") or 0) > (existing.get("rating") or 0):
+                existing["rating"] = it["rating"]
+            if not existing.get("country") and it.get("country"):
+                existing["country"] = it["country"]
+            if not existing.get("actors") and it.get("actors"):
+                existing["actors"] = it["actors"]
+            if not existing.get("director") and it.get("director"):
+                existing["director"] = it["director"]
+            if not existing.get("episodes_info") and it.get("episodes_info"):
+                existing["episodes_info"] = it.get("episodes_info")
+            if not existing.get("poster") and it.get("poster"):
+                existing["poster"] = it["poster"]
+            ex_genres = set(existing.get("genres") or [])
+            for g in (it.get("genres") or []):
+                if g and g not in ex_genres:
+                    existing.setdefault("genres", []).append(g)
+                    ex_genres.add(g)
+        else:
+            merged_catalog[key] = it
+
+    all_items = list(merged_catalog.values())
+
     _catalog_cache[cache_key] = (now_ts, all_items)
     if all_items:
         threading.Thread(target=media_registry.upsert_batch, args=(all_items,), daemon=True).start()
@@ -2423,6 +2469,72 @@ def _fetch_media_details(
             details["tags"] = tmdb_info["tags"]
         if tmdb_info.get("lampa_popularity"):
             details["lampa_popularity"] = tmdb_info["lampa_popularity"]
+
+    # 9. Enrich and complete episode release schedule with real calendar dates
+    if details.get("is_series") or len(details.get("seasons", [])) > 0:
+        tmdb_sched = tmdb_info.get("episodes_schedule") if (locals().get("tmdb_info") and tmdb_info) else None
+        if not tmdb_sched and locals().get("tmdb_info") and tmdb_info and tmdb_info.get("tmdb_id"):
+            try:
+                tmdb_sched = tmdb.get_tv_schedule(tmdb_info["tmdb_id"])
+            except Exception:
+                tmdb_sched = None
+
+        cur_sched = details.get("episodes_schedule") or []
+        if tmdb_sched:
+            merged_sched_map = {}
+            for item in tmdb_sched:
+                s_num = item.get("season", 1)
+                ep_num = item.get("episode_num", 1)
+                merged_sched_map[(s_num, ep_num)] = item.copy()
+
+            for rz_item in cur_sched:
+                ep_text = rz_item.get("episode", "")
+                m = re.search(r'(?:(\d+)\s+сезон)?.*?(\d+)\s+серия', ep_text)
+                if m:
+                    s_n = int(m.group(1)) if m.group(1) else 1
+                    ep_n = int(m.group(2))
+                    if (s_n, ep_n) in merged_sched_map:
+                        existing = merged_sched_map[(s_n, ep_n)]
+                        if rz_item.get("date") and rz_item["date"] not in ("Вышла", "Доступна", "Дата уточняется"):
+                            existing["date"] = rz_item["date"]
+                        if rz_item.get("status"):
+                            existing["status"] = rz_item["status"]
+                        if rz_item.get("title") and not existing.get("title"):
+                            existing["title"] = rz_item["title"]
+                    else:
+                        merged_sched_map[(s_n, ep_n)] = rz_item
+
+            def _sort_key(x):
+                ep_s = x.get("season")
+                if not ep_s:
+                    m_s = re.search(r'(\d+)\s+сезон', x.get("episode", ""))
+                    ep_s = int(m_s.group(1)) if m_s else 1
+                ep_e = x.get("episode_num")
+                if not ep_e:
+                    m_e = re.search(r'(\d+)\s+серия', x.get("episode", ""))
+                    ep_e = int(m_e.group(1)) if m_e else 0
+                return (ep_s, ep_e)
+
+            sorted_sched = sorted(merged_sched_map.values(), key=_sort_key, reverse=True)
+            details["episodes_schedule"] = sorted_sched
+        elif cur_sched:
+            for item in cur_sched:
+                if item.get("date") in ("Вышла", "Доступна", ""):
+                    item["date"] = f"{year_int} г." if year_int else "Дата уточняется"
+            details["episodes_schedule"] = cur_sched
+        elif details.get("seasons"):
+            fallback_sched = []
+            for s in details["seasons"]:
+                s_id = s.get("season_id", 1)
+                for ep in s.get("episodes", []):
+                    fallback_sched.append({
+                        "episode": f"{s_id} сезон {ep.get('episode_id')} серия",
+                        "title": ep.get("title") or f"Серия {ep.get('episode_id')}",
+                        "date": f"{year_int} г." if year_int else "Дата уточняется",
+                        "status": "Вышла"
+                    })
+            fallback_sched.reverse()
+            details["episodes_schedule"] = fallback_sched
 
     # Auto-enrich registry in background
     try:

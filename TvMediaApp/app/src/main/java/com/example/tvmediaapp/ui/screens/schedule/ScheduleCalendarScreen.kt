@@ -443,7 +443,12 @@ fun CalendarEpisodeCard(
                     "След: $datePart"
                 }
                 entry.isSummary -> "Смотреть сериал →"
-                else -> entry.scheduleItem.date
+                else -> {
+                    val d = entry.scheduleItem.date.trim()
+                    if (d.isEmpty() || d.equals("вышла", ignoreCase = true) || d.equals("доступна", ignoreCase = true)) {
+                        if (entry.movie.releaseYear.isNotBlank()) "${entry.movie.releaseYear} г." else d
+                    } else d
+                }
             }
             if (dateLabel.isNotBlank()) {
                 Text(
@@ -460,33 +465,59 @@ fun CalendarEpisodeCard(
 }
 
 fun parseDateCal(dateStr: String): java.util.Calendar? {
-    val dLower = dateStr.lowercase()
-    val match = Regex("""(\d{1,2})\s+([а-я]+)(?:\s+(\d{4}))?""").find(dLower) ?: return null
-    val dayStr = match.groupValues[1]
-    val monthRu = match.groupValues[2]
-    val yearStr = match.groupValues.getOrNull(3).orEmpty()
-    val day = dayStr.toIntOrNull() ?: return null
-    val currentCal = java.util.Calendar.getInstance()
-    val year = if (yearStr.isNotBlank()) (yearStr.toIntOrNull() ?: currentCal.get(java.util.Calendar.YEAR)) else currentCal.get(java.util.Calendar.YEAR)
-    val monthIdx = when {
-        monthRu.startsWith("янв") -> 0
-        monthRu.startsWith("фев") -> 1
-        monthRu.startsWith("мар") -> 2
-        monthRu.startsWith("апр") -> 3
-        monthRu.startsWith("ма") -> 4
-        monthRu.startsWith("июн") -> 5
-        monthRu.startsWith("июл") -> 6
-        monthRu.startsWith("авг") -> 7
-        monthRu.startsWith("сен") -> 8
-        monthRu.startsWith("окт") -> 9
-        monthRu.startsWith("ноя") -> 10
-        monthRu.startsWith("дек") -> 11
-        else -> return null
+    val dLower = dateStr.lowercase().trim()
+    // 1. ISO format: 2024-06-16
+    val isoMatch = Regex("""^(\d{4})-(\d{2})-(\d{2})""").find(dLower)
+    if (isoMatch != null) {
+        val y = isoMatch.groupValues[1].toIntOrNull() ?: return null
+        val m = (isoMatch.groupValues[2].toIntOrNull() ?: 1) - 1
+        val d = isoMatch.groupValues[3].toIntOrNull() ?: 1
+        return java.util.Calendar.getInstance().apply {
+            set(y, m, d, 12, 0, 0)
+            set(java.util.Calendar.MILLISECOND, 0)
+        }
     }
-    return java.util.Calendar.getInstance().apply {
-        set(year, monthIdx, day, 12, 0, 0)
-        set(java.util.Calendar.MILLISECOND, 0)
+    // 2. Russian text format: 16 июня 2024
+    val match = Regex("""(\d{1,2})\s+([а-я]+)(?:\s+(\d{4}))?""").find(dLower)
+    if (match != null) {
+        val dayStr = match.groupValues[1]
+        val monthRu = match.groupValues[2]
+        val yearStr = match.groupValues.getOrNull(3).orEmpty()
+        val day = dayStr.toIntOrNull() ?: return null
+        val currentCal = java.util.Calendar.getInstance()
+        val year = if (yearStr.isNotBlank()) (yearStr.toIntOrNull() ?: currentCal.get(java.util.Calendar.YEAR)) else currentCal.get(java.util.Calendar.YEAR)
+        val monthIdx = when {
+            monthRu.startsWith("янв") -> 0
+            monthRu.startsWith("фев") -> 1
+            monthRu.startsWith("мар") -> 2
+            monthRu.startsWith("апр") -> 3
+            monthRu.startsWith("ма") -> 4
+            monthRu.startsWith("июн") -> 5
+            monthRu.startsWith("июл") -> 6
+            monthRu.startsWith("авг") -> 7
+            monthRu.startsWith("сен") -> 8
+            monthRu.startsWith("окт") -> 9
+            monthRu.startsWith("ноя") -> 10
+            monthRu.startsWith("дек") -> 11
+            else -> return null
+        }
+        return java.util.Calendar.getInstance().apply {
+            set(year, monthIdx, day, 12, 0, 0)
+            set(java.util.Calendar.MILLISECOND, 0)
+        }
     }
+    // 3. Dot format: 16.06.2024
+    val dotMatch = Regex("""^(\d{1,2})\.(\d{1,2})\.(\d{4})""").find(dLower)
+    if (dotMatch != null) {
+        val d = dotMatch.groupValues[1].toIntOrNull() ?: return null
+        val m = (dotMatch.groupValues[2].toIntOrNull() ?: 1) - 1
+        val y = dotMatch.groupValues[3].toIntOrNull() ?: return null
+        return java.util.Calendar.getInstance().apply {
+            set(y, m, d, 12, 0, 0)
+            set(java.util.Calendar.MILLISECOND, 0)
+        }
+    }
+    return null
 }
 
 fun isDatePast(dateStr: String): Boolean {
@@ -565,6 +596,13 @@ fun buildCalendarGroups(movies: List<Movie>, historyManager: WatchHistoryManager
                 ep.episodeNumber > lwEp && !(historyManager?.isEpisodeWatched(m.id, targetSeason, ep.episodeNumber, m.title) ?: false)
             } ?: emptyList()
 
+            val epDateLookup = { sNum: Int, epNum: Int ->
+                m.episodesSchedule.firstOrNull { s ->
+                    s.episode.contains("${sNum} сезон") && s.episode.contains("${epNum} серия")
+                }?.date?.takeIf { it.isNotBlank() && !it.equals("вышла", ignoreCase = true) && !it.equals("доступна", ignoreCase = true) }
+                    ?: (if (m.releaseYear.isNotBlank()) "${m.releaseYear} г." else "В эфире")
+            }
+
             if (targetUnwatched.size > 2) {
                 val firstUnwatched = targetUnwatched.first()
                 unwatchedSummaryEntries.add(
@@ -573,7 +611,7 @@ fun buildCalendarGroups(movies: List<Movie>, historyManager: WatchHistoryManager
                         scheduleItem = EpisodeScheduleItem(
                             episode = "${targetSeason} сезон, ${firstUnwatched.episodeNumber} серия",
                             title = "${targetSeason} сезон: не просмотрено ${targetUnwatched.size} сер.",
-                            date = "В эфире",
+                            date = epDateLookup(targetSeason, firstUnwatched.episodeNumber),
                             status = "Не просмотрено"
                         ),
                         isSummary = true,
@@ -588,7 +626,7 @@ fun buildCalendarGroups(movies: List<Movie>, historyManager: WatchHistoryManager
                             scheduleItem = EpisodeScheduleItem(
                                 episode = "${targetSeason} сезон ${ep.episodeNumber} серия",
                                 title = ep.title.ifEmpty { "Серия ${ep.episodeNumber}" },
-                                date = "Доступна",
+                                date = epDateLookup(targetSeason, ep.episodeNumber),
                                 status = "Вышла"
                             )
                         )

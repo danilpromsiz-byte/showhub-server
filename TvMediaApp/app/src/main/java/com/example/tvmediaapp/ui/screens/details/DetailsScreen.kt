@@ -2745,14 +2745,15 @@ fun DetailsScreen(
                                     currentMovie.episodesSchedule
                                 } else {
                                     val list = mutableListOf<com.example.tvmediaapp.data.models.EpisodeScheduleItem>()
+                                    val defaultDate = if (currentMovie.releaseYear.isNotBlank()) "${currentMovie.releaseYear} г." else "Дата уточняется"
                                     currentMovie.seasons.forEach { s ->
                                         s.episodes.forEach { ep ->
                                             list.add(
                                                 com.example.tvmediaapp.data.models.EpisodeScheduleItem(
                                                     episode = "${s.seasonNumber} сезон ${ep.episodeNumber} серия",
                                                     title = ep.title,
-                                                    date = "Вышла",
-                                                    status = "Доступна"
+                                                    date = defaultDate,
+                                                    status = "Вышла"
                                                 )
                                             )
                                         }
@@ -2773,6 +2774,28 @@ fun DetailsScreen(
                                     val isAired = itemLower.contains("вышла") || itemLower.contains("доступна") || itemLower.contains("вчера") || itemLower.contains("сегодня")
                                     val statusBg = if (isAired) Color(0xFF1B5E20).copy(alpha = 0.85f) else Color(0xFF0D47A1).copy(alpha = 0.85f)
                                     val statusFg = if (isAired) Color(0xFF81C784) else Color(0xFF90CAF9)
+
+                                    val displayDate = remember(item.date, currentMovie.releaseYear) {
+                                        val d = item.date.trim()
+                                        when {
+                                            d.isEmpty() || d.equals("вышла", ignoreCase = true) || d.equals("доступна", ignoreCase = true) -> {
+                                                if (currentMovie.releaseYear.isNotBlank()) "${currentMovie.releaseYear} г." else "Дата уточняется"
+                                            }
+                                            Regex("""^\d{4}-\d{2}-\d{2}$""").matches(d) -> {
+                                                val parts = d.split("-")
+                                                val y = parts[0]
+                                                val m = parts[1].toIntOrNull() ?: 1
+                                                val day = parts[2].toIntOrNull() ?: 1
+                                                val mRu = when (m) {
+                                                    1 -> "янв"; 2 -> "фев"; 3 -> "мар"; 4 -> "апр"; 5 -> "мая"; 6 -> "июн"
+                                                    7 -> "июл"; 8 -> "авг"; 9 -> "сен"; 10 -> "окт"; 11 -> "ноя"; 12 -> "дек"
+                                                    else -> ""
+                                                }
+                                                if (mRu.isNotEmpty()) "$day $mRu $y г." else "$day.$m.$y"
+                                            }
+                                            else -> d
+                                        }
+                                    }
 
                                     var isRowFocused by remember { mutableStateOf(false) }
                                     Row(
@@ -2813,9 +2836,9 @@ fun DetailsScreen(
                                             horizontalArrangement = Arrangement.spacedBy(10.dp),
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
-                                            if (item.date.isNotBlank()) {
+                                            if (displayDate.isNotBlank()) {
                                                 Text(
-                                                    text = item.date,
+                                                    text = displayDate,
                                                     fontSize = 12.sp,
                                                     color = if (isRowFocused) TextWhite.copy(alpha = 0.9f) else TextGray
                                                 )

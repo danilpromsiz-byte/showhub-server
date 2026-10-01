@@ -523,6 +523,9 @@ class CatalogRepository(context: Context? = null) {
             res = res.filter { matchesCountry(it, country) }
         }
 
+        // Deduplicate & merge movies across different sources into a single card
+        res = com.example.tvmediaapp.data.models.deduplicateAndMergeMovies(res)
+
         // Sorting
         return when (sortBy) {
             "rating" -> res.sortedByDescending { it.rating }
@@ -565,7 +568,7 @@ class CatalogRepository(context: Context? = null) {
         }
 
         fun buildCategories(movies: List<Movie>): List<MovieCategory> {
-            var effective = movies.distinctBy { it.id }
+            var effective = com.example.tvmediaapp.data.models.deduplicateAndMergeMovies(movies)
             val hiddenIds = hiddenMoviesManager?.getHiddenIds() ?: emptySet()
             if (hiddenIds.isNotEmpty()) {
                 effective = effective.filter { it.id !in hiddenIds }

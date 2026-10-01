@@ -749,6 +749,7 @@ object ShowHubApiClient {
     }
 
     private fun parseMoviesJson(arr: JSONArray, outList: MutableList<Movie>, isRanked: Boolean = false) {
+        val parsed = mutableListOf<Movie>()
         for (i in 0 until arr.length()) {
             val it = arr.getJSONObject(i)
             val id = it.optString("id", i.toString())
@@ -872,7 +873,7 @@ object ShowHubApiClient {
             val kinopoiskId = it.optString("kinopoisk_id", "").ifEmpty { extraObj?.optString("kinopoisk_id", "") ?: "" }.let { k -> if (k.isBlank() || k.equals("null", ignoreCase = true)) "" else k }
             val srcName = it.optString("source_name", "").ifEmpty { it.optString("source", "") }
 
-            outList.add(
+            parsed.add(
                 Movie(
                     id = id,
                     title = title,
@@ -885,7 +886,7 @@ object ShowHubApiClient {
                     ratingImdb = imdbRating,
                     ratingLampa = if (lampaRating > 0.0) lampaRating else if (effRating > 0.0) effRating else 0.0,
                     lampaPopularity = lampaPopularity,
-                    rankIndex = if (isRanked) outList.size + 1 else 0,
+                    rankIndex = if (isRanked) parsed.size + 1 else 0,
                     releaseYear = year,
                     duration = if (isSeries) "\u0421\u0435\u0440\u0438\u0430\u043b" else "\u0424\u0438\u043b\u044c\u043c",
                     country = country,
@@ -901,6 +902,8 @@ object ShowHubApiClient {
                 )
             )
         }
+        val deduplicated = com.example.tvmediaapp.data.models.deduplicateAndMergeMovies(parsed)
+        outList.addAll(deduplicated)
     }
 
     suspend fun sendBugReport(

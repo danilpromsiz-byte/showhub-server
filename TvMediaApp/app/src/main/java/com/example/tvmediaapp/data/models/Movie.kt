@@ -178,3 +178,128 @@ data class CommentItem(
     val rating: String? = null,
     val text: String
 )
+
+fun normalizeMovieTitle(title: String): String {
+    if (title.isBlank()) return ""
+    var t = title.lowercase().trim()
+    t = t.replace(Regex("""\([^)]*\)|\[[^]]*\]|\{[^}]*\}"""), " ")
+    t = t.replace(Regex("""\b(\d+)\s*(сезон|сери[йия]|часть)\b"""), " ")
+    t = t.replace(Regex("""\b(сезон|серия|часть)\s*(\d+)\b"""), " ")
+    t = t.replace(Regex("""\b(сериал|фильм|мультфильм|аниме)\b"""), " ")
+    t = t.replace(Regex("""[^\p{L}\p{Nd}\s]"""), " ")
+    return t.replace(Regex("""\s+"""), " ").trim()
+}
+
+fun getMovieCanonicalKey(movie: Movie): String {
+    val kp = movie.kinopoiskId.trim()
+    if (kp.isNotEmpty() && kp != "0" && !kp.equals("null", ignoreCase = true) && !kp.equals("none", ignoreCase = true)) {
+        return "kp_$kp"
+    }
+    if (movie.id.startsWith("tmdb_")) {
+        return movie.id
+    }
+    val clean = normalizeMovieTitle(movie.title)
+    val yr = movie.releaseYear.filter { it.isDigit() }.take(4)
+    val sType = if (movie.isSeries) "s" else "m"
+    return "t_${clean}_${yr}_${sType}"
+}
+
+fun mergeTwoMovies(primary: Movie, secondary: Movie): Movie {
+    val bestId = when {
+        primary.id.startsWith("http") -> primary.id
+        secondary.id.startsWith("http") -> secondary.id
+        primary.id.startsWith("tmdb_") -> primary.id
+        secondary.id.startsWith("tmdb_") -> secondary.id
+        else -> primary.id
+    }
+    val bestPoster = when {
+        primary.posterUrl.isNotBlank() && !primary.posterUrl.contains("noposter") && !primary.posterUrl.contains("no_image") -> primary.posterUrl
+        secondary.posterUrl.isNotBlank() && !secondary.posterUrl.contains("noposter") && !secondary.posterUrl.contains("no_image") -> secondary.posterUrl
+        primary.posterUrl.isNotBlank() -> primary.posterUrl
+        else -> secondary.posterUrl
+    }
+    val bestBackdrop = when {
+        primary.backdropUrl.isNotBlank() && !primary.backdropUrl.contains("noposter") -> primary.backdropUrl
+        secondary.backdropUrl.isNotBlank() && !secondary.backdropUrl.contains("noposter") -> secondary.backdropUrl
+        else -> primary.backdropUrl
+    }
+    val bestKpId = when {
+        primary.kinopoiskId.isNotBlank() && primary.kinopoiskId != "0" && !primary.kinopoiskId.equals("null", ignoreCase = true) -> primary.kinopoiskId
+        secondary.kinopoiskId.isNotBlank() && secondary.kinopoiskId != "0" && !secondary.kinopoiskId.equals("null", ignoreCase = true) -> secondary.kinopoiskId
+        else -> ""
+    }
+    val bestDesc = if (primary.description.length >= secondary.description.length) primary.description else secondary.description
+    val bestYear = if (primary.releaseYear.isNotBlank()) primary.releaseYear else secondary.releaseYear
+    val bestRating = maxOf(primary.rating, secondary.rating)
+    val bestRatingKp = maxOf(primary.ratingKp, secondary.ratingKp)
+    val bestRatingImdb = maxOf(primary.ratingImdb, secondary.ratingImdb)
+    val bestRatingLampa = maxOf(primary.ratingLampa, secondary.ratingLampa)
+    val bestLampaPop = maxOf(primary.lampaPopularity, secondary.lampaPopularity)
+    val combinedGenres = (primary.genres + secondary.genres).distinct()
+    val combinedStreams = (primary.streams + secondary.streams).distinctBy { it.url }
+    val combinedAudio = (primary.audioTracks + secondary.audioTracks).distinctBy { it.id.ifEmpty { it.name } }
+    val combinedSources = (primary.sources + secondary.sources).distinctBy { it.id.ifEmpty { it.name } }
+    val bestSeasons = if (primary.seasons.sumOf { it.episodes.size } >= secondary.seasons.sumOf { it.episodes.size }) primary.seasons else secondary.seasons
+    val bestCast = if (primary.cast.size >= secondary.cast.size) primary.cast else secondary.cast
+    val bestDirectorsList = if (primary.directorsList.size >= secondary.directorsList.size) primary.directorsList else secondary.directorsList
+    val bestSched = if (primary.episodesSchedule.size >= secondary.episodesSchedule.size) primary.episodesSchedule else secondary.episodesSchedule
+
+    return primary.copy(
+        id = bestId,
+        title = if (primary.title.isNotBlank()) primary.title else secondary.title,
+        originalTitle = if (primary.originalTitle.isNotBlank()) primary.originalTitle else secondary.originalTitle,
+        description = bestDesc,
+        posterUrl = bestPoster,
+        backdropUrl = bestBackdrop,
+        rating = bestRating,
+        ratingKp = bestRatingKp,
+        ratingImdb = bestRatingImdb,
+        ratingLampa = bestRatingLampa,
+        lampaPopularity = bestLampaPop,
+        releaseYear = bestYear,
+        duration = if (primary.duration.isNotBlank()) primary.duration else secondary.duration,
+        country = if (primary.country.isNotBlank()) primary.country else secondary.country,
+        director = if (primary.director.isNotBlank()) primary.director else secondary.director,
+        actors = if (primary.actors.isNotBlank()) primary.actors else secondary.actors,
+        episodesInfo = if (primary.episodesInfo.isNotBlank()) primary.episodesInfo else secondary.episodesInfo,
+        genres = combinedGenres,
+        videoUrl = if (primary.videoUrl.isNotBlank()) primary.videoUrl else secondary.videoUrl,
+        streams = combinedStreams,
+        isSeries = primary.isSeries || secondary.isSeries,
+        seasons = bestSeasons,
+        audioTracks = combinedAudio,
+        sources = combinedSources,
+        cast = bestCast,
+        directorsList = bestDirectorsList,
+        episodesSchedule = bestSched,
+        ageRating = if (primary.ageRating.isNotBlank()) primary.ageRating else secondary.ageRating,
+        isFavorite = primary.isFavorite || secondary.isFavorite,
+        kinopoiskId = bestKpId
+    )
+}
+
+fun deduplicateAndMergeMovies(movies: List<Movie>): List<Movie> {
+    if (movies.size <= 1) return movies
+    val map = LinkedHashMap<String, Movie>()
+    for (m in movies) {
+        if (m.id.isBlank() && m.title.isBlank()) continue
+        val key = getMovieCanonicalKey(m)
+        val existing = map[key]
+        if (existing != null) {
+            map[key] = mergeTwoMovies(existing, m)
+        } else {
+            val kp = m.kinopoiskId.trim()
+            val existingByKp = if (kp.isNotEmpty() && kp != "0" && !kp.equals("null", ignoreCase = true) && !kp.equals("none", ignoreCase = true)) {
+                map.values.firstOrNull { it.kinopoiskId.trim() == kp }
+            } else null
+
+            if (existingByKp != null) {
+                val oldKey = getMovieCanonicalKey(existingByKp)
+                map[oldKey] = mergeTwoMovies(existingByKp, m)
+            } else {
+                map[key] = m
+            }
+        }
+    }
+    return map.values.toList()
+}

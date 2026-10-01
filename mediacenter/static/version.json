@@ -29,14 +29,14 @@
     "version_code": 72,
     "download_url": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/AlertScreensaver.apk",
     "apk_url": "https://showhub-server.onrender.com/AlertScreensaver.apk",
-    "changelog": "v1.0.71: Додано вибір аудіопрофілів тривоги та відбою (ДСНС, НАТО, Пульсар, Нічний, Гонг) з живим прослуховуванням; оновлено алгоритм синхронізації та усунуто миготіння статусів тривог."
+    "changelog": "v1.0.71: Додано студійні аудіопрофілі тривоги: м'які (арфа, маримба, Zen-дзвін, авіаційний Ding-Dong) та нейтральні (Pixel/Sirius, радар Sonar, вокзальний дзвін, сучасний пульс); покращено відбій."
   },
   "alert_mobile": {
     "version_name": "1.0.71",
     "version_code": 72,
     "download_url": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/Alert-Mobile.apk",
     "apk_url": "https://showhub-server.onrender.com/Alert-Mobile.apk",
-    "changelog": "v1.0.71: Додано вибір аудіопрофілів тривоги та відбою (ДСНС, НАТО, Пульсар, Нічний, Гонг) з живим прослуховуванням; оновлено алгоритм синхронізації та усунуто миготіння статусів тривог."
+    "changelog": "v1.0.71: Додано студійні аудіопрофілі тривоги: м'які (арфа, маримба, Zen-дзвін, авіаційний Ding-Dong) та нейтральні (Pixel/Sirius, радар Sonar, вокзальний дзвін, сучасний пульс); покращено відбій."
   },
   "ads": {
     "enabled": false,

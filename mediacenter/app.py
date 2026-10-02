@@ -488,7 +488,7 @@ def get_popular(
         pass
 
     # Filter unreleased content from fallback results (same logic as MediaRegistry)
-    max_year = min(datetime.datetime.now().year, 2024)
+    max_year = max(datetime.datetime.now().year + 1, 2026)
     if not include_unreleased_movies:
         items = [it for it in items if it.get("is_series") or not it.get("year") or (safe_parse_year(it.get("year")) or 0) <= max_year]
     if not include_unreleased_series:
@@ -1419,7 +1419,7 @@ def get_catalog(
         all_items = [it for it in all_items if it.get("is_series")]
 
     # 5b. Filter unreleased content from live source fallback results
-    max_year_cap = min(datetime.datetime.now().year, 2024)
+    max_year_cap = max(datetime.datetime.now().year + 1, 2026)
     if not include_unreleased_movies:
         all_items = [it for it in all_items if it.get("is_series") or not it.get("year") or (safe_parse_year(it.get("year")) or 0) <= max_year_cap]
     if not include_unreleased_series:
@@ -2110,7 +2110,7 @@ def _fetch_media_details(
             d_id = resolved_kp or (media_id if source in ("delivembd", "collaps") else "")
             if d_id or clean_title:
                 d_res = delivembd.get_streams(str(d_id or ""), season=1, episode=1, title=clean_title, year=year_int)
-                if d_res.streams or d_res.embed_url:
+                if d_res.streams:
                     collaps_available = True
         except Exception:
             pass
@@ -2121,7 +2121,7 @@ def _fetch_media_details(
             vc_id = resolved_kp or ""
             if vc_id or clean_title:
                 vc_res = videocdn.get_streams(str(vc_id), season=1, episode=1, title=clean_title, year=year_int)
-                if vc_res.streams or vc_res.embed_url:
+                if vc_res.streams:
                     videocdn_available = True
         except Exception:
             pass
@@ -3313,6 +3313,9 @@ def get_media_preview_stream(
             return False
         # Server-resolved voidboost streams are IP-bound to server IP and return 404 for client devices!
         if any(bad in u for bad in ["stream.voidboost", "voidboost.one", "voidboost"]):
+            return False
+        # Server-resolved Filmix CDN streams are ALSO IP-bound to the server IP and return 404/403 for client devices!
+        if any(bad in u for bad in ["werkecdn", "cdnsqu", "filmix", "fxapi"]):
             return False
         if getattr(st, "is_premium", False):
             return False

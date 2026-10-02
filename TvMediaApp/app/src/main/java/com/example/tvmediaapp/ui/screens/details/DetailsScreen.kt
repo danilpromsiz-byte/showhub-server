@@ -251,8 +251,13 @@ fun DetailsScreen(
 
         val qualityOrder = listOf("4K", "2160", "1080p HD", "1080p", "1080", "720p", "720", "480p", "480", "360p", "360")
 
-        val sourceInfoList = detectedSources.map { srcName ->
+        val isTv = com.example.tvmediaapp.BuildConfig.PLATFORM_TYPE == "tv"
+        val sourceInfoList = detectedSources.mapNotNull { srcName ->
             val sKey = srcName.lowercase()
+            if (isTv && sKey.contains("videocdn")) {
+                // VideoCDN only provides web iframe embeds that cannot be operated/played by Android TV ExoPlayer
+                return@mapNotNull null
+            }
             val srcStreams = streamOptions.filter { st ->
                 val stSrc = st.source.lowercase()
                 when {
@@ -268,13 +273,30 @@ fun DetailsScreen(
                     else -> stSrc.contains(sKey)
                 }
             }
+            val hasTracks = currentMovie.audioTracks.any { trk ->
+                val tSrc = trk.source.lowercase()
+                when {
+                    sKey.contains("kodik") -> tSrc.contains("kodik") || trk.id.startsWith("kodik_")
+                    sKey.contains("rezka") -> tSrc.contains("rezka") || (!trk.id.startsWith("kodik_") && !tSrc.contains("filmix") && !tSrc.contains("videocdn") && !tSrc.contains("bazon"))
+                    sKey.contains("filmix") -> tSrc.contains("filmix")
+                    sKey.contains("videocdn") -> tSrc.contains("videocdn")
+                    sKey.contains("collaps") || sKey.contains("delivembd") -> tSrc.contains("collaps") || tSrc.contains("delivembd")
+                    sKey.contains("anilibria") -> tSrc.contains("anilibria")
+                    sKey.contains("bazon") -> tSrc.contains("bazon")
+                    else -> tSrc.contains(sKey)
+                }
+            }
+            val cleanStreams = srcStreams.filter { !isStreamStub(it) }
+            // Filter out sources that have neither playable clean streams nor audio tracks once streams are loaded
+            if (streamOptions.isNotEmpty() && cleanStreams.isEmpty() && !hasTracks) {
+                return@mapNotNull null
+            }
             val hasHls = if (srcStreams.isNotEmpty()) {
-                srcStreams.any { isDirectVideoStream(it.url) }
+                cleanStreams.any { isDirectVideoStream(it.url) }
             } else {
                 sKey.contains("rezka") || sKey.contains("filmix") || sKey.contains("collaps") || sKey.contains("anilibria")
             }
             val bestQ = run {
-                val cleanStreams = srcStreams.filter { !isStreamStub(it) }
                 for (q in qualityOrder) {
                     val match = cleanStreams.firstOrNull { st ->
                         val resP = st.quality.substringBefore("(").trim().lowercase()
@@ -520,7 +542,12 @@ fun DetailsScreen(
         val nonPremium = streams.filter {
             val q = it.quality.lowercase()
             val u = it.url.lowercase()
-            !q.contains("ultra") && !q.contains("4k") && !q.contains("2160") && !q.contains("1440") &&
+            val resP = q.substringBefore("(").trim()
+            val isFx = it.source.contains("filmix", ignoreCase = true) || u.contains("cdnsqu.com") || u.contains("werkecdn.me")
+            if (isFx && !isFilmixPro && (resP.contains("1080") || resP.contains("1440") || resP.contains("4k") || resP.contains("2160") || resP.contains("ultra"))) {
+                return@filter false
+            }
+            !resP.contains("ultra") && !resP.contains("4k") && !resP.contains("2160") && !resP.contains("1440") &&
                 !q.contains("vip") && !q.contains("premium") && !q.contains("sub") &&
                 !u.contains("rhtie") && !u.contains("zrkms") && !u.contains("/1/4/4/4/3/4/3/") && !u.contains("/1/5/3/6/4/2/4/") &&
                 !u.contains("trial") && !u.contains("preview") &&
@@ -533,7 +560,11 @@ fun DetailsScreen(
         val pool = if (nonRezka.isNotEmpty()) nonRezka else nonPremium
 
         return pool.firstOrNull { it.quality.contains("720") }?.url
-            ?: pool.firstOrNull { it.quality.contains("1080") && !it.quality.contains("ultra", true) && !it.quality.contains("premium", true) }?.url
+            ?: pool.firstOrNull {
+                val resP = it.quality.substringBefore("(").trim().lowercase()
+                val isFx = it.source.contains("filmix", ignoreCase = true) || it.url.lowercase().contains("cdnsqu.com") || it.url.lowercase().contains("werkecdn.me")
+                resP.contains("1080") && (!isFx || isFilmixPro) && !it.quality.contains("ultra", true) && !it.quality.contains("premium", true)
+            }?.url
             ?: pool.firstOrNull { it.quality.contains("480") }?.url
             ?: pool.firstOrNull()?.url
     }
@@ -765,6 +796,25 @@ fun DetailsScreen(
                         }
                     } catch (_: Exception) {}
                 }
+
+                // Step 4: Native Filmix resolver on-device fallback
+                if (sUrl.isNullOrEmpty()) {
+                    try {
+                        kotlinx.coroutines.withTimeoutOrNull(2000) {
+                            val fxStreams = FilmixNativeResolver.resolveStreams(
+                                movieId = currentMovie.id,
+                                title = currentMovie.title,
+                                year = currentMovie.releaseYear,
+                                isSeries = currentMovie.isSeries,
+                                season = if (currentMovie.isSeries) selectedSeason else 1,
+                                episode = if (currentMovie.isSeries) selectedEpisode else 1,
+                                isPro = false,
+                                isProPlus = false
+                            )
+                            sUrl = pickSafePreviewStream(fxStreams)
+                        }
+                    } catch (_: Exception) {}
+                }
                 sUrl
             }
 
@@ -784,7 +834,7 @@ fun DetailsScreen(
                                 headers["Referer"] = "https://api.namy.ws/"
                                 headers["Origin"] = "https://api.namy.ws"
                             }
-                            u.contains("filmix") -> {
+                            u.contains("filmix") || u.contains("werkecdn") || u.contains("cdnsqu") -> {
                                 headers["Referer"] = "https://filmix.my/"
                             }
                             u.contains("bazon") -> {
@@ -816,10 +866,6 @@ fun DetailsScreen(
                         .setLoadControl(loadControl)
                         .build().apply {
                             val targetSeekMs = 60_000L
-                            trackSelectionParameters = trackSelectionParameters
-                                .buildUpon()
-                                .setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_AUDIO, true)
-                                .build()
                             setMediaItem(MediaItem.fromUri(validStreamUrl))
                             volume = 0f
                             repeatMode = Player.REPEAT_MODE_ALL
@@ -1024,12 +1070,12 @@ fun DetailsScreen(
 
             if (streams.isNotEmpty()) {
                 val cleanStreams = streams.filter { !isStreamStub(it) }
-                val pool = if (cleanStreams.isNotEmpty()) cleanStreams else streams
+                val targetPool = if (cleanStreams.isNotEmpty()) cleanStreams else streams
                 val candidateStreams = if (selectedSourceFilter == "Все" || selectedSourceFilter.startsWith("Все")) {
-                    pool
+                    cleanStreams.ifEmpty { targetPool }
                 } else {
                     val sKey = selectedSourceFilter.lowercase()
-                    val filtered = pool.filter { st ->
+                    val filteredClean = cleanStreams.filter { st ->
                         val stSrc = st.source.lowercase()
                         when {
                             sKey.contains("kodik") -> stSrc.contains("kodik")
@@ -1041,21 +1087,36 @@ fun DetailsScreen(
                             else -> stSrc.contains(sKey)
                         }
                     }
-                    if (filtered.isNotEmpty()) filtered else pool
+                    if (filteredClean.isNotEmpty()) {
+                        filteredClean
+                    } else {
+                        // Fallback to all clean streams if specific source only has premium/stub streams
+                        cleanStreams.ifEmpty { targetPool }
+                    }
                 }
 
-                val matched = candidateStreams.firstOrNull { matchStreamQuality(it, selectedQuality) }
+                val matched = candidateStreams.firstOrNull { matchStreamQuality(it, selectedQuality) && !isStreamStub(it) }
+                    ?: candidateStreams.firstOrNull { matchStreamQuality(it, selectedQuality) }
+                    ?: candidateStreams.filter { isDirectVideoStream(it.url) && !isStreamStub(it) }
+                        .maxByOrNull { getStreamQualityRank(it.quality) }
                     ?: candidateStreams.filter { isDirectVideoStream(it.url) && !it.quality.contains("ultra", ignoreCase = true) && !it.quality.contains("4k", ignoreCase = true) && !it.quality.contains("premium", ignoreCase = true) }
                         .maxByOrNull { getStreamQualityRank(it.quality) }
                     ?: candidateStreams.filter { isDirectVideoStream(it.url) }
                         .maxByOrNull { getStreamQualityRank(it.quality) }
                     ?: candidateStreams.maxByOrNull { getStreamQualityRank(it.quality) }
-                    ?: candidateStreams.first()
+                    ?: candidateStreams.firstOrNull()
 
-                val isHls = isDirectVideoStream(matched.url)
-                android.util.Log.d("StartPlayback", "Selected: ${matched.quality} from ${matched.source} (${if (isHls) "HLS" else "EMBED"}) url=${matched.url.take(80)}")
+                if (matched != null && isStreamStub(matched)) {
+                    streamStatus = "⚠️ Выбранный поток требует подписку (PRO/Премиум). Выберите 720p или другой источник."
+                    return@launch
+                }
 
-                if (matched.url.isNotBlank() && matched.url.startsWith("http")) {
+                val isHls = matched != null && isDirectVideoStream(matched.url)
+                if (matched != null) {
+                    android.util.Log.d("StartPlayback", "Selected: ${matched.quality} from ${matched.source} (${if (isHls) "HLS" else "EMBED"}) url=${matched.url.take(80)}")
+                }
+
+                if (matched != null && matched.url.isNotBlank() && matched.url.startsWith("http")) {
                     streamStatus = "▶ ${matched.quality} (${matched.source}, ${if (isHls) "HLS" else "IFRAME"}) | Всего: $hlsCount HLS, $embedCount embed"
                     val movieToPlay = (if (isContentSeries) currentMovie.copy(isSeries = true) else currentMovie)
                         .copy(source = matched.source, videoUrl = matched.url, streams = streams)

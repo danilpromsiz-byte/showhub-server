@@ -74,6 +74,7 @@ import coil.compose.SubcomposeAsyncImage
 import com.example.tvmediaapp.data.api.ShowHubApiClient
 import com.example.tvmediaapp.data.models.Movie
 import com.example.tvmediaapp.data.resolver.RezkaNativeResolver
+import com.example.tvmediaapp.data.resolver.FilmixNativeResolver
 import com.example.tvmediaapp.ui.screens.player.isDirectVideoStream
 import com.example.tvmediaapp.ui.theme.LocalAccentColor
 import com.example.tvmediaapp.ui.theme.LocalFocusColor
@@ -165,11 +166,11 @@ fun MovieCard(
                     } catch (_: Exception) {}
                 }
 
-                // Step 2: Native Rezka resolver fallback if server returned null
+                // Step 2: Native on-device resolvers fallback (running from device's own IP)
                 if (streamUrl.isNullOrEmpty()) {
                     try {
                         withContext(kotlinx.coroutines.Dispatchers.IO) {
-                            kotlinx.coroutines.withTimeoutOrNull(2000) {
+                            kotlinx.coroutines.withTimeoutOrNull(2500) {
                                 val rezkaMediaUrl = if (movie.id.startsWith("http") || movie.id.contains("hdrezka") || movie.id.startsWith("rezka:")) {
                                     movie.id
                                 } else null
@@ -186,7 +187,7 @@ fun MovieCard(
                                     val resP = q.substringBefore("(").trim()
                                     !resP.contains("ultra") && !resP.contains("4k") && !resP.contains("2160") && !resP.contains("1440") && !resP.contains("vip") && !resP.contains("premium") &&
                                     !u.contains("rhtie") && !u.contains("zrkms") && !u.contains("/1/4/4/4/3/4/3/") && !u.contains("/1/5/3/6/4/2/4/") &&
-                                    !u.contains("trial") && !u.contains("preview") &&
+                                    !u.contains("trial") &&
                                     !u.contains("teaser") && !u.contains("promo") && !u.contains("vip") && !u.contains("ultra") &&
                                     isDirectVideoStream(it.url)
                                 }
@@ -196,9 +197,35 @@ fun MovieCard(
                                     ?: nonPremium.firstOrNull()?.url
                             }
                         }
-                    } catch (e: Exception) {
-                        // native resolver failed
-                    }
+                    } catch (_: Exception) {}
+                }
+
+                // Step 3: Native Filmix resolver fallback on device
+                if (streamUrl.isNullOrEmpty()) {
+                    try {
+                        withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            kotlinx.coroutines.withTimeoutOrNull(2500) {
+                                val fxStreams = FilmixNativeResolver.resolveStreams(
+                                    movieId = movie.id,
+                                    title = movie.title,
+                                    year = movie.releaseYear,
+                                    isSeries = movie.isSeries,
+                                    season = 1,
+                                    episode = 1,
+                                    isPro = false,
+                                    isProPlus = false
+                                )
+                                val cleanFx = fxStreams.filter {
+                                    val resP = it.quality.substringBefore("(").trim().lowercase()
+                                    !resP.contains("1080") && !resP.contains("4k") && !resP.contains("2160") && !resP.contains("1440") &&
+                                    isDirectVideoStream(it.url)
+                                }
+                                streamUrl = cleanFx.firstOrNull { it.quality.contains("720") }?.url
+                                    ?: cleanFx.firstOrNull { it.quality.contains("480") }?.url
+                                    ?: cleanFx.firstOrNull()?.url
+                            }
+                        }
+                    } catch (_: Exception) {}
                 }
 
                 val validStreamUrl = streamUrl
@@ -220,7 +247,7 @@ fun MovieCard(
                                     headers["Referer"] = "https://api.namy.ws/"
                                     headers["Origin"] = "https://api.namy.ws"
                                 }
-                                u.contains("filmix") -> {
+                                u.contains("filmix") || u.contains("werkecdn") || u.contains("cdnsqu") -> {
                                     headers["Referer"] = "https://filmix.my/"
                                 }
                                 u.contains("bazon") -> {
@@ -252,10 +279,6 @@ fun MovieCard(
                             .setLoadControl(loadControl)
                             .build()
                             .apply {
-                                trackSelectionParameters = trackSelectionParameters
-                                    .buildUpon()
-                                    .setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_AUDIO, true)
-                                    .build()
                                 setMediaItem(MediaItem.fromUri(validStreamUrl))
                                 volume = 0f // strictly silent
                                 repeatMode = Player.REPEAT_MODE_ALL

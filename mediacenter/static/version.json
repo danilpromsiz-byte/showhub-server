@@ -1,27 +1,27 @@
 {
   "success": true,
-  "version_name": "2.8.78",
-  "version_code": 137,
+  "version_name": "2.8.79",
+  "version_code": 138,
   "force_update": true,
   "min_version_code": 108,
   "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
   "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
-  "changelog": "v2.8.78: Сверхбыстрая доставка обновлений через Cloudflare Edge CDN (jsDelivr), отображение реальной скорости скачивания в интерфейсе и интеллектуальный сторожевой таймер с мгновенным переключением зеркал при просадке скорости провайдеров.",
+  "changelog": "v2.8.79: Восстановлен фоновый предпросмотр видео в карточках и на детальном экране (тихий запуск без сбоев HLS), фильтрация неработающих источников и iframe на ТВ, защита от показа заглушек подписки PRO/Ultra, исправление ранжирования новинок (2024-2026) с умной сортировкой по рейтингу и популярности из актуальных фидов Lampa.",
   "tv": {
-    "version_name": "2.8.78",
-    "version_code": 137,
+    "version_name": "2.8.79",
+    "version_code": 138,
     "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
     "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk"
   },
   "mobile": {
-    "version_name": "2.8.78",
-    "version_code": 137,
+    "version_name": "2.8.79",
+    "version_code": 138,
     "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-Mobile.apk",
     "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-Mobile.apk"
   },
   "pc": {
-    "version_name": "2.8.78",
-    "version_code": 137,
+    "version_name": "2.8.79",
+    "version_code": 138,
     "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-PC.zip"
   },
   "alert_screensaver": {
@@ -36,7 +36,7 @@
     "version_code": 91,
     "download_url": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/Alert-Mobile.apk",
     "apk_url": "https://showhub-server.onrender.com/Alert-Mobile.apk",
-    "changelog": "v1.0.90: 1) Чітка карта у віджеті без замилювання (1:1 фізичні пікселі). 2) Спливаючі сповіщення (Heads-up) поверх усіх програм при тривозі/відбої. 3) Фоновий сервіс 24/7 із автоперезапуском при витісненні. 4) ТВ: плаваючий кольоровий значок статусу в правому кутку поверх других програм."
+    "changelog": "v1.0.90: 1) Чітка карта у віджеті без замилювання (1:1 фізичні пікселі). 2) Спливаючі сповіщення (Heads-up) поверх усіх програм при тривозі/відбої. 3) Фоновий сервіс 24/7 із автоперезапуском при витісненні. 4) ТВ: плаваючий кольоровий значок статусу в правому кутку поверх інших програм."
   },
   "ads": {
     "enabled": false,

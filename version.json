@@ -1,27 +1,27 @@
 {
   "success": true,
-  "version_name": "2.8.78",
-  "version_code": 137,
+  "version_name": "2.8.79",
+  "version_code": 138,
   "force_update": true,
   "min_version_code": 108,
   "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
   "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
-  "changelog": "v2.8.78: Сверхбыстрая доставка обновлений через Cloudflare Edge CDN (jsDelivr), отображение реальной скорости скачивания в интерфейсе и интеллектуальный сторожевой таймер с мгновенным переключением зеркал при просадке скорости провайдеров.",
+  "changelog": "v2.8.79: Восстановлен фоновый предпросмотр видео в карточках и на детальном экране (тихий запуск без сбоев HLS), фильтрация неработающих источников и iframe на ТВ, защита от показа заглушек подписки PRO/Ultra, исправление ранжирования новинок (2024-2026) с умной сортировкой по рейтингу и популярности из актуальных фидов Lampa.",
   "tv": {
-    "version_name": "2.8.78",
-    "version_code": 137,
+    "version_name": "2.8.79",
+    "version_code": 138,
     "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
     "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk"
   },
   "mobile": {
-    "version_name": "2.8.78",
-    "version_code": 137,
+    "version_name": "2.8.79",
+    "version_code": 138,
     "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-Mobile.apk",
     "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-Mobile.apk"
   },
   "pc": {
-    "version_name": "2.8.78",
-    "version_code": 137,
+    "version_name": "2.8.79",
+    "version_code": 138,
     "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-PC.zip"
   },
   "alert_screensaver": {

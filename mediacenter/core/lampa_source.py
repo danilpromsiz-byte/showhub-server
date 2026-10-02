@@ -88,14 +88,14 @@ class LampaSource:
         - movie/upcoming (Скоро)
         """
         feeds = [
-            ("trending/movie/day", False, 1.3),
-            ("trending/movie/week", False, 1.2),
-            ("movie/now_playing", False, 1.15),
-            ("movie/popular", False, 1.1),
+            ("trending/movie/day", False, 1.4),
+            ("trending/movie/week", False, 1.3),
+            ("movie/now_playing", False, 1.35),
+            ("movie/popular", False, 1.2),
+            ("trending/tv/day", True, 1.4),
             ("trending/tv/week", True, 1.3),
-            ("tv/popular", True, 1.1),
-            ("movie/top_rated", False, 1.0),
-            ("tv/top_rated", True, 1.0),
+            ("tv/popular", True, 1.2),
+            ("tv/on_the_air", True, 1.25),
         ]
 
         seen_keys = set()

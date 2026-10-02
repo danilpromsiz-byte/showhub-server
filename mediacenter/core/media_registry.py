@@ -593,9 +593,9 @@ class MediaRegistry:
         conditions = ["1=1"]
         params: List[Any] = []
 
-        # 0. Unreleased content filtering (Avatar 3, Avatar 4, Avatar 5, future announcements)
+        # 0. Unreleased content filtering (future announcements)
         import datetime
-        current_year = min(datetime.date.today().year, 2024)
+        current_year = max(datetime.date.today().year + 1, 2026)
         if not include_unreleased_movies:
             conditions.append("(is_series = 1 OR year IS NULL OR year <= ?)")
             params.append(current_year)
@@ -666,16 +666,21 @@ class MediaRegistry:
                 conditions.append("genres NOT LIKE ?")
                 params.append(f"%{ex}%")
 
-        # 8. True Global Sorting powered by Lampa Popularity & Ratings
+        # 8. True Global Sorting powered by Freshness (Новинки) & Lampa Popularity & Ratings
         if sort_by == "rating":
             order_by = "COALESCE(effective_rating, rating_kp, rating_imdb, 0) DESC, COALESCE(lampa_popularity, popularity, 0) DESC, updated_at DESC"
         elif sort_by == "year":
-            order_by = "COALESCE(year, 0) DESC, COALESCE(lampa_popularity, 0) DESC, COALESCE(effective_rating, rating_kp, 0) DESC"
+            order_by = "COALESCE(year, 0) DESC, COALESCE(effective_rating, rating_kp, 0) DESC, COALESCE(lampa_popularity, 0) DESC"
         elif sort_by == "popular":
-            order_by = "COALESCE(lampa_popularity, popularity, 0) DESC, COALESCE(effective_rating, rating_kp, 0) DESC"
-        else:  # "newest" / default home page catalog
-            # Popular hits are prioritized above obscure titles so high-demand releases stay on top!
-            order_by = "COALESCE(lampa_popularity, 0) DESC, updated_at DESC, COALESCE(year, 0) DESC"
+            order_by = "CASE WHEN COALESCE(year, 0) >= 2023 THEN 1 ELSE 0 END DESC, COALESCE(lampa_popularity, popularity, 0) DESC, COALESCE(effective_rating, rating_kp, 0) DESC, COALESCE(year, 0) DESC"
+        else:  # "newest" / default home page catalog: Fresh releases (Новинки 2024-2026) ranked by Rating & Lampa Popularity
+            order_by = (
+                "CASE WHEN COALESCE(year, 0) >= 2024 THEN 1 ELSE 0 END DESC, "
+                "COALESCE(year, 0) DESC, "
+                "COALESCE(effective_rating, rating_kp, rating_imdb, 0) DESC, "
+                "COALESCE(lampa_popularity, popularity, 0) DESC, "
+                "updated_at DESC"
+            )
 
         offset = max(0, (page - 1) * limit)
         sql = f"""

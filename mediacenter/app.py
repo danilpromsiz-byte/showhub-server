@@ -490,8 +490,8 @@ def get_popular(
                     "title": t["title"],
                     "original_title": t.get("original_title"),
                     "year": t.get("year"),
-                    "poster": t.get("poster"),
-                    "backdrop": t.get("backdrop"),
+                    "poster": t.get("poster") if (t.get("poster") and not t.get("poster").startswith("/covers/") and not t.get("poster").startswith("/api/media/image")) else None,
+                    "backdrop": t.get("backdrop") if (t.get("backdrop") and not t.get("backdrop").startswith("/covers/") and not t.get("backdrop").startswith("/api/media/image")) else None,
                     "description": t.get("description"),
                     "rating": t.get("rating_lampa") or 7.5,
                     "rating_lampa": t.get("rating_lampa"),
@@ -1811,8 +1811,18 @@ def get_catalog(
     all_items = list(merged_catalog.values())
 
     for it in all_items:
-        if it.get("poster"):
-            cover_cache.enqueue_url(it["poster"])
+        p = it.get("poster")
+        if p:
+            if p.startswith("/covers/") or p.startswith("/api/media/image"):
+                it["poster"] = None
+            else:
+                cover_cache.enqueue_url(p)
+        b = it.get("backdrop")
+        if b:
+            if b.startswith("/covers/") or b.startswith("/api/media/image"):
+                it["backdrop"] = None
+            else:
+                cover_cache.enqueue_url(b)
 
     _catalog_cache[cache_key] = (now_ts, all_items)
     if all_items:
@@ -1975,11 +1985,15 @@ def _fetch_media_details(
         if reg_item.get("directors_list"):
             details["directors_list"] = reg_item["directors_list"]
         if reg_item.get("poster"):
-            details["poster"] = reg_item["poster"]
-            cover_cache.enqueue_url(reg_item["poster"])
+            p = reg_item["poster"]
+            if not p.startswith("/covers/") and not p.startswith("/api/media/image"):
+                details["poster"] = p
+                cover_cache.enqueue_url(p)
         if reg_item.get("backdrop"):
-            details["backdrop"] = reg_item["backdrop"]
-            cover_cache.enqueue_url(reg_item["backdrop"])
+            b = reg_item["backdrop"]
+            if not b.startswith("/covers/") and not b.startswith("/api/media/image"):
+                details["backdrop"] = b
+                cover_cache.enqueue_url(b)
         if reg_item.get("rating_kp"):
             details["rating_kp"] = reg_item["rating_kp"]
         if reg_item.get("rating_imdb"):
@@ -2695,9 +2709,15 @@ def _fetch_media_details(
 
     # Enqueue background cache on local disk while keeping direct CDN URLs for clients
     if details.get("poster"):
-        cover_cache.enqueue_url(details["poster"])
+        if details["poster"].startswith("/covers/") or details["poster"].startswith("/api/media/image"):
+            details["poster"] = None
+        else:
+            cover_cache.enqueue_url(details["poster"])
     if details.get("backdrop"):
-        cover_cache.enqueue_url(details["backdrop"])
+        if details["backdrop"].startswith("/covers/") or details["backdrop"].startswith("/api/media/image"):
+            details["backdrop"] = None
+        else:
+            cover_cache.enqueue_url(details["backdrop"])
 
     # Auto-enrich registry on local machine disk
     try:

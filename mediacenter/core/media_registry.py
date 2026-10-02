@@ -885,7 +885,11 @@ class MediaRegistry:
 
         # Keep direct high-speed CDN URLs for clients
         poster = row["poster"]
+        if poster and (poster.startswith("/covers/") or poster.startswith("/api/media/image")):
+            poster = None
         backdrop = row["backdrop"] if "backdrop" in keys else None
+        if backdrop and (backdrop.startswith("/covers/") or backdrop.startswith("/api/media/image")):
+            backdrop = None
 
         age_limit = row["age_limit"] if "age_limit" in keys and row["age_limit"] else None
 

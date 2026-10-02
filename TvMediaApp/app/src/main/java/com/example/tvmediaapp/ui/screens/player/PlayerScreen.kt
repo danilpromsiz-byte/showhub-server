@@ -528,11 +528,41 @@ private fun NativeExoPlayerScreen(
     val coroutineScope = rememberCoroutineScope()
     val historyManager = remember { WatchHistoryManager(context) }
     val prefs = remember { context.getSharedPreferences("showhub_prefs", Context.MODE_PRIVATE) }
+    val isFilmixPro = remember(prefs) { prefs.getBoolean("filmix_is_pro", false) }
+    val isFilmixProPlus = remember(prefs) { prefs.getString("filmix_tariff", "")?.contains("PRO+", ignoreCase = true) == true }
+
+    fun isStubStreamUrl(url: String): Boolean {
+        if (isStubUrl(url)) return true
+        val su = url.lowercase().trim()
+        val isFx = su.contains("cdnsqu.com") || su.contains("werkecdn.me")
+        if (isFx) {
+            if (!isFilmixPro && (su.contains("_1080.mp4") || su.contains("_1440.mp4") || su.contains("_2160.mp4"))) return true
+            if (!isFilmixProPlus && (su.contains("_1440.mp4") || su.contains("_2160.mp4"))) return true
+        }
+        return false
+    }
+
+    fun isStubStream(st: com.example.tvmediaapp.data.models.StreamOption): Boolean {
+        if (isStubStreamUrl(st.url)) return true
+        val su = st.url.lowercase().trim()
+        val sq = st.quality.lowercase().trim()
+        val resP = sq.substringBefore("(").trim()
+        if ((st.source.contains("rezka", ignoreCase = true) || su.contains("voidboost")) &&
+            (resP.contains("ultra") || resP.contains("4k") || resP.contains("2160") || resP.contains("1440") || resP.contains("premium") || resP.contains("vip") || resP.contains("sub") || st.isPremium)) return true
+        val isFx = st.source.contains("filmix", ignoreCase = true) || su.contains("cdnsqu.com") || su.contains("werkecdn.me")
+        if (isFx) {
+            val hasFxStubExt = su.contains("_1080.mp4") || su.contains("_1440.mp4") || su.contains("_2160.mp4")
+            if (!isFilmixPro && (resP.contains("1080") || resP.contains("1440") || resP.contains("4k") || resP.contains("2160") || resP.contains("ultra") || hasFxStubExt || st.isPremium)) return true
+            if (!isFilmixProPlus && (resP.contains("1440") || resP.contains("4k") || resP.contains("2160") || resP.contains("ultra") || su.contains("_1440.mp4") || su.contains("_2160.mp4"))) return true
+        }
+        return false
+    }
+
     val lifecycleOwner = LocalLifecycleOwner.current
 
     var currentSeason by remember { mutableIntStateOf(season) }
     var currentEpisode by remember { mutableIntStateOf(episode) }
-    var currentStreamUrl by remember { mutableStateOf(if (isStubUrl(movie.videoUrl)) "" else movie.videoUrl) }
+    var currentStreamUrl by remember { mutableStateOf(if (isStubStreamUrl(movie.videoUrl)) "" else movie.videoUrl) }
     var currentStreamQuality by remember { mutableStateOf("") }
     var currentAudioId by remember { mutableStateOf(audioId.ifEmpty { movie.audioTracks.firstOrNull()?.id ?: "" }) }
     var selectedQuality by remember { mutableStateOf(prefs.getString("pref_quality", "1080p") ?: "1080p") }
@@ -897,14 +927,16 @@ private fun NativeExoPlayerScreen(
     }
 
     fun matchQuality(streamQuality: String, targetQuality: String): Boolean {
-        val s = streamQuality.lowercase()
-        val t = targetQuality.lowercase()
+        val s = streamQuality.substringBefore("(").lowercase().trim()
+        val t = targetQuality.lowercase().trim()
         if (t.contains("max") || t.contains("макс") || t.contains("авто") || t.contains("auto")) {
             return true
         }
         return when {
             t.contains("ultra") || t.contains("4k") || t.contains("2160") ->
                 s.contains("ultra") || s.contains("4k") || s.contains("2160")
+            t.contains("1440") || t.contains("2k") ->
+                s.contains("1440") || s.contains("2k")
             t.contains("1080") ->
                 s.contains("1080") && !s.contains("ultra") && !s.contains("vip") && !s.contains("premium")
             t.contains("720") ->
@@ -944,14 +976,7 @@ private fun NativeExoPlayerScreen(
     }
 
     fun extractQualities(streams: List<com.example.tvmediaapp.data.models.StreamOption>): List<String> {
-        val clean = streams.filter { st ->
-            val su = st.url.lowercase()
-            val sq = st.quality.lowercase()
-            !su.contains("rhtie") && !su.contains("zrkms") && !su.contains("/1/4/4/4/3/4/3/") && !su.contains("/1/5/3/6/4/2/4/") &&
-                !su.contains("trial") && !su.contains("promo") && !su.contains("teaser") &&
-                !((st.source.contains("rezka", ignoreCase = true) || su.contains("voidboost")) &&
-                    (sq.contains("ultra") || sq.contains("4k") || sq.contains("2160") || sq.contains("1440") || sq.contains("premium") || sq.contains("vip") || sq.contains("sub")))
-        }
+        val clean = streams.filter { !isStubStream(it) }
         val qualSet = linkedSetOf<String>()
         val order = listOf("4K", "1080p", "720p", "480p", "360p")
         for (target in order) {
@@ -1057,14 +1082,7 @@ private fun NativeExoPlayerScreen(
                 } else {
                     (nativeStreams + serverStreams).distinctBy { it.url }
                 }
-                val allResolved = mergedRaw.filter { st ->
-                    val su = st.url.lowercase()
-                    val sq = st.quality.lowercase()
-                    !su.contains("rhtie") && !su.contains("zrkms") && !su.contains("/1/4/4/4/3/4/3/") && !su.contains("/1/5/3/6/4/2/4/") &&
-                        !su.contains("trial") && !su.contains("promo") && !su.contains("teaser") &&
-                        !((st.source.contains("rezka", ignoreCase = true) || su.contains("voidboost")) &&
-                            (sq.contains("ultra") || sq.contains("4k") || sq.contains("2160") || sq.contains("1440") || sq.contains("premium") || sq.contains("vip") || sq.contains("sub")))
-                }
+                val allResolved = mergedRaw.filter { !isStubStream(it) }
                 allStreamOptions = allResolved
 
                 val discovered = extractSources(allResolved)
@@ -1107,7 +1125,7 @@ private fun NativeExoPlayerScreen(
                 }
 
                 fun getStreamQualityRank(q: String): Int {
-                    val ql = q.lowercase()
+                    val ql = q.substringBefore("(").lowercase().trim()
                     return when {
                         ql.contains("4k") || ql.contains("2160") || ql.contains("ultra") -> 2160
                         ql.contains("1440") || ql.contains("2k") -> 1440
@@ -1195,7 +1213,7 @@ private fun NativeExoPlayerScreen(
     }
 
     LaunchedEffect(Unit) {
-        if (currentStreamUrl.isEmpty() || isStubUrl(currentStreamUrl)) {
+        if (currentStreamUrl.isEmpty() || isStubStreamUrl(currentStreamUrl)) {
             currentStreamUrl = ""
             switchStream(newSeason = currentSeason, newEpisode = currentEpisode, userInitiated = false)
         }

@@ -157,10 +157,19 @@ object FilmixNativeResolver {
         isSeries: Boolean = false,
         season: Int = 1,
         episode: Int = 1,
-        audioId: String = ""
+        audioId: String = "",
+        isPro: Boolean = false,
+        isProPlus: Boolean = false
     ): List<StreamOption> = withContext(Dispatchers.IO) {
         val resultStreams = mutableListOf<StreamOption>()
         val base = getBaseUrl()
+
+        fun isBlockedQuality(q: String): Boolean {
+            val qLow = q.lowercase().trim()
+            if (!isPro && (qLow.contains("1080") || qLow.contains("1440") || qLow.contains("4k") || qLow.contains("2160") || qLow.contains("ultra"))) return true
+            if (!isProPlus && (qLow.contains("1440") || qLow.contains("4k") || qLow.contains("2160") || qLow.contains("ultra"))) return true
+            return false
+        }
 
         val postId = if (movieId.all { it.isDigit() } && movieId.toIntOrNull() != null && movieId.toInt() > 1000) {
             movieId
@@ -245,6 +254,7 @@ object FilmixNativeResolver {
                                                     while (matcher.find()) {
                                                         val qual = matcher.group(1) ?: "HD"
                                                         val sUrl = matcher.group(2) ?: ""
+                                                        if (isBlockedQuality(qual)) continue
                                                         if (sUrl.startsWith("http")) {
                                                             resultStreams.add(
                                                                 StreamOption(
@@ -268,6 +278,7 @@ object FilmixNativeResolver {
                             while (matcher.find()) {
                                 val qual = matcher.group(1) ?: "HD"
                                 val sUrl = matcher.group(2) ?: ""
+                                if (isBlockedQuality(qual)) continue
                                 if (sUrl.startsWith("http")) {
                                     resultStreams.add(
                                         StreamOption(

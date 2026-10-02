@@ -183,7 +183,8 @@ fun MovieCard(
                                 val nonPremium = nativeStreams.filter {
                                     val q = it.quality.lowercase()
                                     val u = it.url.lowercase()
-                                    !q.contains("ultra") && !q.contains("4k") && !q.contains("vip") && !q.contains("premium") &&
+                                    val resP = q.substringBefore("(").trim()
+                                    !resP.contains("ultra") && !resP.contains("4k") && !resP.contains("2160") && !resP.contains("1440") && !resP.contains("vip") && !resP.contains("premium") &&
                                     !u.contains("rhtie") && !u.contains("zrkms") && !u.contains("/1/4/4/4/3/4/3/") && !u.contains("/1/5/3/6/4/2/4/") &&
                                     !u.contains("trial") && !u.contains("preview") &&
                                     !u.contains("teaser") && !u.contains("promo") && !u.contains("vip") && !u.contains("ultra") &&

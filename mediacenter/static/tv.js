@@ -3438,7 +3438,8 @@ function renderSourceTabs(sourcesData) {
 
 function parseStreamHeight(qualityStr) {
     if (!qualityStr) return 0;
-    const q = String(qualityStr).toLowerCase();
+    // Strip studio name in parentheses before parsing resolution
+    const q = String(qualityStr).split("(")[0].toLowerCase().trim();
     if (q.includes("4k") || q.includes("2160") || q.includes("ultra")) return 2160;
     if (q.includes("1440") || q.includes("2k")) return 1440;
     if (q.includes("1080") || q.includes("fhd")) return 1080;
@@ -3452,15 +3453,24 @@ function isBlockedPromoStream(s, srcKey) {
     if (!s) return true;
     const u = String(s.url || "").toLowerCase();
     const q = String(s.quality || "").toLowerCase();
-    if (u.includes("rhtie") || u.includes("zrkms") || u.includes("/1/4/4/4/3/4/3/") || u.includes("/1/5/3/6/4/2/4/")) return true;
-    if ((srcKey === "hdrezka" || u.includes("voidboost")) && (s.is_premium || /ultra|4k|2160|1440/i.test(q))) return true;
+    const resP = q.split("(")[0].trim();
+    if (u.includes("rhtie") || u.includes("zrkms") || u.includes("/1/4/4/4/3/4/3/") || u.includes("/1/5/3/6/4/2/4/") || u.includes("trial") || u.includes("promo") || u.includes("teaser")) return true;
+    if ((srcKey === "hdrezka" || u.includes("voidboost")) && (s.is_premium || /ultra|4k|2160|1440/i.test(resP))) return true;
+    const isFilmix = srcKey === "filmix" || u.includes("cdnsqu") || u.includes("werkecdn") || u.includes("filmix");
+    const isFxPro = Boolean(window.filmixProfile && (window.filmixProfile.is_pro || window.filmixProfile.is_pro_plus));
+    const isFxProPlus = Boolean(window.filmixProfile && window.filmixProfile.is_pro_plus);
+    if (isFilmix) {
+        if (!isFxPro && (s.is_premium || /1080|1440|4k|2160|ultra/i.test(resP))) return true;
+        if (!isFxProPlus && /1440|4k|2160|ultra/i.test(resP)) return true;
+    }
     return false;
 }
 
 function pickBestStreamIndex(streams, requestedQuality, sourceKey = "") {
     if (!streams || streams.length === 0) return 0;
     const targetHeight = parseStreamHeight(requestedQuality) || 1080;
-    const isFilmixLoggedIn = Boolean(typeof filmixProfile !== "undefined" && filmixProfile && filmixProfile.is_logged_in);
+    const isFxPro = Boolean(window.filmixProfile && (window.filmixProfile.is_pro || window.filmixProfile.is_pro_plus));
+    const isFxProPlus = Boolean(window.filmixProfile && window.filmixProfile.is_pro_plus);
 
     // 1. Filter out voidboost stubs and prefer direct streams over iframes
     const nonStubs = [];
@@ -3476,11 +3486,17 @@ function pickBestStreamIndex(streams, requestedQuality, sourceKey = "") {
 
     const basePool = directIndices.length > 0 ? directIndices : nonStubs;
 
-    // 2. Filter free streams unless source is filmix and user is logged in to Filmix
+    // 2. Filter free streams unless source has valid subscription
     const freePool = basePool.filter(idx => {
         const s = streams[idx];
-        const isPrem = s.is_premium || (s.quality && /4k|2160|ultra/i.test(s.quality));
-        if (isPrem && !(sourceKey === "filmix" && isFilmixLoggedIn)) return false;
+        const resP = String(s.quality || "").split("(")[0].trim().toLowerCase();
+        const isPrem = s.is_premium || /4k|2160|ultra|1440/i.test(resP);
+        if (sourceKey === "filmix") {
+            if (/1440|4k|2160|ultra/i.test(resP) && !isFxProPlus) return false;
+            if (/1080/i.test(resP) && !isFxPro) return false;
+            return true;
+        }
+        if (isPrem) return false;
         return true;
     });
 

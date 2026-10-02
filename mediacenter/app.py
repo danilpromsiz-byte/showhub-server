@@ -2945,19 +2945,27 @@ def _fetch_media_streams(
     finally:
         executor.shutdown(wait=False, cancel_futures=True)
 
-    # Filter out HDRezka paid-tariff promo stubs (rhtie.mp4 / Ultra without VIP) and tag premium streams
+    # Filter out HDRezka and Filmix paid-tariff promo stubs (rhtie.mp4, zrkms.mp4, PRO/PRO+ stubs) and tag premium streams
     has_rezka_vip = bool(hdrezka.session.cookies.get("dle_user_id"))
+    has_filmix_pro = bool(filmix.user_profile.get("is_pro") or filmix.user_profile.get("is_pro_plus"))
+    has_filmix_pro_plus = bool(filmix.user_profile.get("is_pro_plus"))
     for src_name, src_data in resolved.items():
         if isinstance(src_data, dict) and "streams" in src_data and src_data["streams"]:
             cleaned_streams = []
             for s in src_data["streams"]:
                 q = str(s.get("quality", "")).lower()
                 u = str(s.get("url", "")).lower()
+                res_p = q.split("(")[0].strip()
                 if any(bad in u for bad in ["rhtie", "zrkms", "/1/4/4/4/3/4/3/", "/1/5/3/6/4/2/4/", "trial", "promo", "teaser"]):
                     continue
-                if src_name == "hdrezka" and not has_rezka_vip and any(k in q for k in ["ultra", "4k", "2160", "1440"]):
+                if src_name == "hdrezka" and not has_rezka_vip and any(k in res_p for k in ["ultra", "4k", "2160", "1440"]):
                     continue
-                if any(k in q for k in ["ultra", "4k", "2160p", "1440p"]) or (src_name == "filmix" and "1080p" in q):
+                if src_name == "filmix":
+                    if not has_filmix_pro and (s.get("is_premium") or any(k in res_p for k in ["1080", "1440", "4k", "2160", "ultra"])):
+                        continue
+                    if not has_filmix_pro_plus and any(k in res_p for k in ["1440", "4k", "2160", "ultra"]):
+                        continue
+                if any(k in res_p for k in ["ultra", "4k", "2160", "1440"]) or (src_name == "filmix" and "1080" in res_p):
                     s["is_premium"] = True
                 else:
                     s["is_premium"] = False

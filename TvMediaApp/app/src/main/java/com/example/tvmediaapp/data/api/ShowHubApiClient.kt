@@ -30,7 +30,11 @@ object ShowHubApiClient {
     @Volatile
     private var cachedAppVersion: String = com.example.tvmediaapp.BuildConfig.VERSION_NAME
 
+    @Volatile
+    private var appContext: android.content.Context? = null
+
     fun init(context: android.content.Context, appVersion: String) {
+        appContext = context.applicationContext
         cachedAppVersion = appVersion
         cachedDeviceId = getOrCreateDeviceId(context)
         try {
@@ -493,6 +497,15 @@ object ShowHubApiClient {
             conn.readTimeout = 25000
             prepareConnection(conn)
             conn.connect()
+            val isFilmixPro = try {
+                val p = appContext?.getSharedPreferences("showhub_prefs", android.content.Context.MODE_PRIVATE)
+                p?.getBoolean("filmix_is_pro", false) ?: false
+            } catch (_: Exception) { false }
+            val isFilmixProPlus = try {
+                val p = appContext?.getSharedPreferences("showhub_prefs", android.content.Context.MODE_PRIVATE)
+                p?.getString("filmix_tariff", "")?.contains("PRO+", ignoreCase = true) == true
+            } catch (_: Exception) { false }
+
             if (conn.responseCode == 200) {
                 val body = BufferedReader(InputStreamReader(conn.inputStream, "UTF-8")).use { it.readText() }
                 val root = JSONObject(body)
@@ -509,11 +522,19 @@ object ShowHubApiClient {
                             val sType = s.optString("stream_type", "")
                             val qLow = qStr.lowercase()
                             val uLow = uStr.lowercase()
+                            val resP = qLow.substringBefore("(").trim()
+                            val isPremFlag = s.optBoolean("is_premium", false)
+                            val isFilmix = src.equals("filmix", ignoreCase = true) || uLow.contains("cdnsqu.com") || uLow.contains("werkecdn.me")
+                            val isFilmixStub = isFilmix && (
+                                    (!isFilmixPro && (resP.contains("1080") || resP.contains("1440") || resP.contains("4k") || resP.contains("2160") || resP.contains("ultra") || isPremFlag)) ||
+                                    (!isFilmixProPlus && (resP.contains("1440") || resP.contains("4k") || resP.contains("2160") || resP.contains("ultra")))
+                            )
                             val isRezkaUltraStub = (src.equals("hdrezka", ignoreCase = true) || uLow.contains("voidboost")) &&
-                                    (qLow.contains("ultra") || qLow.contains("4k") || qLow.contains("2160") || qLow.contains("1440") || qLow.contains("premium") || qLow.contains("vip"))
+                                    (resP.contains("ultra") || resP.contains("4k") || resP.contains("2160") || resP.contains("1440") || resP.contains("premium") || resP.contains("vip") || isPremFlag)
                             val isStub = uLow.contains("rhtie") || uLow.contains("/1/4/4/4/3/4/3/") ||
                                     uLow.contains("zrkms") || uLow.contains("/1/5/3/6/4/2/4/") ||
-                                    uLow.contains("trial") || uLow.contains("promo") || uLow.contains("teaser")
+                                    uLow.contains("trial") || uLow.contains("promo") || uLow.contains("teaser") ||
+                                    isFilmixStub
                             if (uStr.startsWith("http") && !isStub && !isRezkaUltraStub) {
                                 val isDirect = sType == "hls" || sType == "mp4" || sType == "torrent" ||
                                         uStr.contains(".m3u8") || uStr.contains(".mp4") || uStr.contains("voidboost") ||
@@ -534,7 +555,8 @@ object ShowHubApiClient {
                                             quality = if (sType == "torrent") "P2P $qStr" else qStr,
                                             url = uStr,
                                             isHls = uStr.contains(".m3u8"),
-                                            source = sourceName
+                                            source = sourceName,
+                                            isPremium = isPremFlag
                                         )
                                     )
                                 } else {
@@ -543,7 +565,8 @@ object ShowHubApiClient {
                                             quality = qStr,
                                             url = uStr,
                                             isHls = false,
-                                            source = sourceName
+                                            source = sourceName,
+                                            isPremium = isPremFlag
                                         )
                                     )
                                 }

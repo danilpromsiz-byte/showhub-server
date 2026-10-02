@@ -1,27 +1,27 @@
 {
   "success": true,
-  "version_name": "2.8.76",
-  "version_code": 135,
+  "version_name": "2.8.77",
+  "version_code": 136,
   "force_update": true,
   "min_version_code": 108,
   "download_url": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/ShowHub.apk",
   "apk_url": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/ShowHub.apk",
-  "changelog": "v2.8.76: Полная фильтрация заглушек HDRezka Premium (zrkms.mp4 / promo) и интеллектуальный fallback озвучек: автоматическое распознавание платных VIP-дорожек и перенаправление на бесплатные рабочие переводы (Coldfilm, LostFilm, Red Head Sound, TVShows) в качестве 1080p без рекламы и требований премиума.",
+  "changelog": "v2.8.77: Устранена ошибка ложного распознавания 4K из названий студий перевода (например, Дубляж [RHS, 4K]), полная фильтрация промо-заглушек Filmix PRO/PRO+ (видеоролики с требованием покупки подписки) для пользователей без подписки и автоматический переход на реальные видеопотоки (HDRezka 1080p, Collaps, Filmix 720p).",
   "tv": {
-    "version_name": "2.8.76",
-    "version_code": 135,
+    "version_name": "2.8.77",
+    "version_code": 136,
     "download_url": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/ShowHub.apk",
     "apk_url": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/ShowHub.apk"
   },
   "mobile": {
-    "version_name": "2.8.76",
-    "version_code": 135,
+    "version_name": "2.8.77",
+    "version_code": 136,
     "download_url": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/ShowHub-Mobile.apk",
     "apk_url": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/ShowHub-Mobile.apk"
   },
   "pc": {
-    "version_name": "2.8.76",
-    "version_code": 135,
+    "version_name": "2.8.77",
+    "version_code": 136,
     "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-PC.zip"
   },
   "alert_screensaver": {

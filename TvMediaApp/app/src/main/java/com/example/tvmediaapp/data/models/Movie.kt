@@ -4,7 +4,8 @@ data class StreamOption(
     val quality: String,
     val url: String,
     val isHls: Boolean = true,
-    val source: String = ""
+    val source: String = "",
+    val isPremium: Boolean = false
 )
 
 data class EpisodeInfo(

@@ -145,6 +145,8 @@ fun DetailsScreen(
     val focusColor = LocalFocusColor.current
 
     val prefs = remember { context.getSharedPreferences("showhub_prefs", Context.MODE_PRIVATE) }
+    val isFilmixPro = remember(prefs) { prefs.getBoolean("filmix_is_pro", false) }
+    val isFilmixProPlus = remember(prefs) { prefs.getString("filmix_tariff", "")?.contains("PRO+", ignoreCase = true) == true }
     val rightPaneScrollState = rememberScrollState()
     var isFav by remember(movie.id, isFavorite) { mutableStateOf(isFavorite) }
     var currentMovie by remember {
@@ -188,6 +190,22 @@ fun DetailsScreen(
     var isLoadingComments by remember { mutableStateOf(false) }
     var isLoadingDetails by remember { mutableStateOf(currentMovie.seasons.isEmpty() && currentMovie.audioTracks.isEmpty()) }
     var isLoadingStreams by remember { mutableStateOf(true) }
+
+    fun isStreamStub(st: StreamOption): Boolean {
+        val su = st.url.lowercase()
+        val sq = st.quality.lowercase()
+        val resP = sq.substringBefore("(").trim()
+        if (su.contains("rhtie") || su.contains("zrkms") || su.contains("/1/4/4/4/3/4/3/") || su.contains("/1/5/3/6/4/2/4/") ||
+            su.contains("trial") || su.contains("promo") || su.contains("teaser")) return true
+        if ((st.source.contains("rezka", ignoreCase = true) || su.contains("voidboost")) &&
+            (resP.contains("ultra") || resP.contains("4k") || resP.contains("2160") || resP.contains("1440") || resP.contains("premium") || resP.contains("vip") || resP.contains("sub") || st.isPremium)) return true
+        val isFx = st.source.contains("filmix", ignoreCase = true) || su.contains("cdnsqu.com") || su.contains("werkecdn.me")
+        if (isFx) {
+            if (!isFilmixPro && (resP.contains("1080") || resP.contains("1440") || resP.contains("4k") || resP.contains("2160") || resP.contains("ultra") || st.isPremium)) return true
+            if (!isFilmixProPlus && (resP.contains("1440") || resP.contains("4k") || resP.contains("2160") || resP.contains("ultra"))) return true
+        }
+        return false
+    }
 
     val availableSourcesInfo = remember(currentMovie.sources, currentMovie.audioTracks, currentMovie.seasons, selectedSeason, streamOptions, currentMovie.isSeries) {
         val detectedSources = linkedSetOf<String>()
@@ -256,16 +274,11 @@ fun DetailsScreen(
                 sKey.contains("rezka") || sKey.contains("filmix") || sKey.contains("collaps") || sKey.contains("anilibria")
             }
             val bestQ = run {
-                val cleanStreams = srcStreams.filter { st ->
-                    val sq = st.quality.lowercase()
-                    val su = st.url.lowercase()
-                    !su.contains("rhtie") && !su.contains("zrkms") && !su.contains("/1/4/4/4/3/4/3/") && !su.contains("/1/5/3/6/4/2/4/") && !su.contains("trial") && !su.contains("promo") && !su.contains("teaser") &&
-                        !((st.source.contains("rezka", ignoreCase = true) || su.contains("voidboost")) && (sq.contains("ultra") || sq.contains("4k") || sq.contains("2160") || sq.contains("1440") || sq.contains("premium") || sq.contains("vip") || sq.contains("sub")))
-                }
+                val cleanStreams = srcStreams.filter { !isStreamStub(it) }
                 for (q in qualityOrder) {
                     val match = cleanStreams.firstOrNull { st ->
-                        val sq = st.quality.lowercase()
-                        sq.contains(q, ignoreCase = true) && (!q.contains("1080") || (!sq.contains("ultra") && !sq.contains("premium")))
+                        val resP = st.quality.substringBefore("(").trim().lowercase()
+                        resP.contains(q.lowercase()) && (!q.contains("1080") || (!resP.contains("ultra") && !resP.contains("premium")))
                     }
                     if (match != null) return@run match.quality.replace(Regex("\\(.*?\\)"), "").trim()
                 }
@@ -429,7 +442,7 @@ fun DetailsScreen(
     }
 
     fun getStreamQualityRank(q: String): Int {
-        val ql = q.lowercase()
+        val ql = q.substringBefore("(").lowercase().trim()
         return when {
             ql.contains("4k") || ql.contains("2160") || ql.contains("ultra") -> 2160
             ql.contains("1440") || ql.contains("2k") -> 1440
@@ -443,21 +456,21 @@ fun DetailsScreen(
 
     fun matchStreamQuality(stream: StreamOption, target: String): Boolean {
         if (!isDirectVideoStream(stream.url)) return false
-        val su = stream.url.lowercase()
-        if (su.contains("rhtie") || su.contains("zrkms") || su.contains("/1/4/4/4/3/4/3/") || su.contains("/1/5/3/6/4/2/4/") || su.contains("trial") || su.contains("promo") || su.contains("teaser")) return false
+        if (isStreamStub(stream)) return false
         val sq = stream.quality.lowercase().trim()
         val tq = target.lowercase().trim()
-        if ((stream.source.contains("rezka", ignoreCase = true) || su.contains("voidboost")) &&
-            (sq.contains("ultra") || sq.contains("4k") || sq.contains("2160") || sq.contains("1440") || sq.contains("premium") || sq.contains("vip") || sq.contains("sub"))) {
-            return false
-        }
+        val resP = sq.substringBefore("(").trim()
         if (tq.contains("max") || tq.contains("макс") || tq.contains("авто") || tq.contains("auto")) {
             return true
         }
-        if (tq.contains("ultra")) return sq.contains("ultra")
-        if (tq.contains("4k") || tq.contains("2160")) return sq.contains("4k") || sq.contains("2160")
-        if (tq.contains("1080")) return sq.contains("1080") && !sq.contains("ultra") && !sq.contains("premium")
-        return sq.contains(tq)
+        if (tq.contains("ultra")) return resP.contains("ultra")
+        if (tq.contains("4k") || tq.contains("2160")) return resP.contains("4k") || resP.contains("2160")
+        if (tq.contains("1440") || tq.contains("2k")) return resP.contains("1440") || resP.contains("2k")
+        if (tq.contains("1080")) return resP.contains("1080") && !resP.contains("ultra") && !resP.contains("premium")
+        if (tq.contains("720")) return resP.contains("720")
+        if (tq.contains("480")) return resP.contains("480")
+        if (tq.contains("360")) return resP.contains("360")
+        return resP.contains(tq)
     }
 
     val availableQualities = remember(streamOptions, selectedSourceFilter, selectedAudioId) {
@@ -479,13 +492,7 @@ fun DetailsScreen(
             }
             if (forSrc.isNotEmpty()) forSrc else streamOptions
         }
-        val candidateStreams = rawCandidates.filter { st ->
-            val su = st.url.lowercase()
-            val sq = st.quality.lowercase()
-            !su.contains("rhtie") && !su.contains("zrkms") && !su.contains("/1/4/4/4/3/4/3/") && !su.contains("/1/5/3/6/4/2/4/") && !su.contains("trial") && !su.contains("promo") && !su.contains("teaser") &&
-                !((st.source.contains("rezka", ignoreCase = true) || su.contains("voidboost")) &&
-                    (sq.contains("ultra") || sq.contains("4k") || sq.contains("2160") || sq.contains("1440") || sq.contains("premium") || sq.contains("vip") || sq.contains("sub")))
-        }
+        val candidateStreams = rawCandidates.filter { !isStreamStub(it) }
 
         val qualSet = linkedSetOf<String>()
         val order = listOf("4K", "1080p", "720p", "480p", "360p")
@@ -645,7 +652,9 @@ fun DetailsScreen(
                                     isSeries = isContentSeries,
                                     season = selectedSeason,
                                     episode = selectedEpisode,
-                                    audioId = selectedAudioId
+                                    audioId = selectedAudioId,
+                                    isPro = isFilmixPro,
+                                    isProPlus = isFilmixProPlus
                                 )
                             } ?: emptyList()
                         } catch (_: Exception) { emptyList() }
@@ -954,7 +963,9 @@ fun DetailsScreen(
                                 isSeries = isContentSeries,
                                 season = targetSeason,
                                 episode = targetEpisode,
-                                audioId = targetAudioId
+                                audioId = targetAudioId,
+                                isPro = isFilmixPro,
+                                isProPlus = isFilmixProPlus
                             )
                         } ?: emptyList()
                     } catch (_: Exception) { emptyList() }
@@ -1012,14 +1023,7 @@ fun DetailsScreen(
             }
 
             if (streams.isNotEmpty()) {
-                val cleanStreams = streams.filter { st ->
-                    val su = st.url.lowercase()
-                    val sq = st.quality.lowercase()
-                    !su.contains("rhtie") && !su.contains("zrkms") && !su.contains("/1/4/4/4/3/4/3/") && !su.contains("/1/5/3/6/4/2/4/") &&
-                        !su.contains("trial") && !su.contains("promo") && !su.contains("teaser") &&
-                        !((st.source.contains("rezka", ignoreCase = true) || su.contains("voidboost")) &&
-                            (sq.contains("ultra") || sq.contains("4k") || sq.contains("2160") || sq.contains("1440") || sq.contains("premium") || sq.contains("vip") || sq.contains("sub")))
-                }
+                val cleanStreams = streams.filter { !isStreamStub(it) }
                 val pool = if (cleanStreams.isNotEmpty()) cleanStreams else streams
                 val candidateStreams = if (selectedSourceFilter == "Все" || selectedSourceFilter.startsWith("Все")) {
                     pool
@@ -1938,7 +1942,9 @@ fun DetailsScreen(
                                                     isSeries = currentMovie.isSeries,
                                                     season = selectedSeason,
                                                     episode = selectedEpisode,
-                                                    audioId = selectedAudioId
+                                                    audioId = selectedAudioId,
+                                                    isPro = isFilmixPro,
+                                                    isProPlus = isFilmixProPlus
                                                 )
                                             } catch (_: Exception) { emptyList() }
                                         }

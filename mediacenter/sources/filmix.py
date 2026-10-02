@@ -402,6 +402,7 @@ class FilmixSource(BaseSource):
             all_streams: List[VideoStream] = []
             seasons_list: List[SeasonItem] = []
             is_pro = self.user_profile.get("is_pro", False) or self.user_profile.get("is_pro_plus", False)
+            is_pro_plus = self.user_profile.get("is_pro_plus", False)
 
             # Iterate translation studios
             for tr_idx, studio in enumerate(data):
@@ -450,15 +451,19 @@ class FilmixSource(BaseSource):
                                     for f in files:
                                         f_url = f.get("url", "")
                                         q_val = f.get("quality", 720)
+                                        pro_plus_req = f.get("proPlus", False)
                                         if f_url:
                                             st = "hls" if ".m3u8" in f_url else "mp4"
-                                            is_prem = (q_val >= 1080 and not is_pro)
+                                            is_prem = (pro_plus_req and not is_pro_plus) or (q_val >= 1440 and not is_pro_plus) or (q_val >= 1080 and not is_pro)
+                                            # Discard promo stubs ("купите PRO+") when user does not have required subscription
+                                            if is_prem:
+                                                continue
                                             all_streams.append(VideoStream(
                                                 quality=f"{q_val}p ({studio_name})",
                                                 url=f_url,
                                                 stream_type=st,
                                                 headers={"User-Agent": "Mozilla/5.0"},
-                                                is_premium=is_prem
+                                                is_premium=False
                                             ))
                             break
                 elif "files" in studio and studio.get("files"):
@@ -467,15 +472,18 @@ class FilmixSource(BaseSource):
                     for f in files:
                         f_url = f.get("url", "")
                         q_val = f.get("quality", 720)
+                        pro_plus_req = f.get("proPlus", False)
                         if f_url:
                             st = "hls" if ".m3u8" in f_url else "mp4"
-                            is_prem = (q_val >= 1080 and not is_pro)
+                            is_prem = (pro_plus_req and not is_pro_plus) or (q_val >= 1440 and not is_pro_plus) or (q_val >= 1080 and not is_pro)
+                            if is_prem:
+                                continue
                             all_streams.append(VideoStream(
                                 quality=f"{q_val}p ({studio_name})",
                                 url=f_url,
                                 stream_type=st,
                                 headers={"User-Agent": "Mozilla/5.0"},
-                                is_premium=is_prem
+                                is_premium=False
                             ))
 
             # If filtered by audio_id yielded no streams, fallback to all studios

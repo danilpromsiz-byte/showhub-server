@@ -3241,7 +3241,7 @@ async function resolveDeviceStreams(title, year, isSeries, season, episode, tran
                                         const quality = m[1].replace(/<[^>]+>/g, '').trim();
                                         if (/ultra|4k|2160|1440/i.test(quality)) continue;
                                         const urls = m[2].split(" or ").map(u => u.trim().replace(/\\\//g, '/')).filter(u =>
-                                            u.startsWith("http") && !u.toLowerCase().includes("rhtie") && !u.includes("/1/4/4/4/3/4/3/")
+                                            u.startsWith("http") && !u.toLowerCase().includes("rhtie") && !u.toLowerCase().includes("zrkms") && !u.includes("/1/4/4/4/3/4/3/") && !u.includes("/1/5/3/6/4/2/4/")
                                         );
                                         const working = urls.filter(u => !u.includes("ukrtelcdn"))[0] || urls[0];
                                         if (working) {
@@ -3391,8 +3391,8 @@ function renderSourceTabs(sourcesData) {
     const sourceKeys = Object.keys(sourcesData).sort((a, b) => {
         const sa = sourcesData[a];
         const sb = sourcesData[b];
-        const aHasDirect = Boolean(sa.streams && sa.streams.some(st => (st.stream_type === "hls" || st.stream_type === "mp4") && (!st.url || !st.url.includes("rhtie.mp4"))));
-        const bHasDirect = Boolean(sb.streams && sb.streams.some(st => (st.stream_type === "hls" || st.stream_type === "mp4") && (!st.url || !st.url.includes("rhtie.mp4"))));
+        const aHasDirect = Boolean(sa.streams && sa.streams.some(st => (st.stream_type === "hls" || st.stream_type === "mp4") && (!st.url || (!st.url.includes("rhtie.mp4") && !st.url.includes("zrkms.mp4") && !st.url.includes("/1/5/3/6/4/2/4/")))));
+        const bHasDirect = Boolean(sb.streams && sb.streams.some(st => (st.stream_type === "hls" || st.stream_type === "mp4") && (!st.url || (!st.url.includes("rhtie.mp4") && !st.url.includes("zrkms.mp4") && !st.url.includes("/1/5/3/6/4/2/4/")))));
         if (aHasDirect !== bHasDirect) {
             return aHasDirect ? -1 : 1;
         }
@@ -3452,7 +3452,7 @@ function isBlockedPromoStream(s, srcKey) {
     if (!s) return true;
     const u = String(s.url || "").toLowerCase();
     const q = String(s.quality || "").toLowerCase();
-    if (u.includes("rhtie") || u.includes("/1/4/4/4/3/4/3/")) return true;
+    if (u.includes("rhtie") || u.includes("zrkms") || u.includes("/1/4/4/4/3/4/3/") || u.includes("/1/5/3/6/4/2/4/")) return true;
     if ((srcKey === "hdrezka" || u.includes("voidboost")) && (s.is_premium || /ultra|4k|2160|1440/i.test(q))) return true;
     return false;
 }
@@ -3697,7 +3697,7 @@ function initModalEvents() {
                 for (const k of sortedKeys) {
                     const srcObj = currentStreams[k];
                     if (srcObj && srcObj.streams && srcObj.streams.length > 0) {
-                        const direct = srcObj.streams.filter(s => (s.stream_type === "hls" || s.stream_type === "mp4") && (!s.url || !s.url.includes("rhtie.mp4")));
+                        const direct = srcObj.streams.filter(s => (s.stream_type === "hls" || s.stream_type === "mp4") && (!s.url || (!s.url.includes("rhtie.mp4") && !s.url.includes("zrkms.mp4") && !s.url.includes("/1/5/3/6/4/2/4/"))));
                         if (direct.length > 0) {
                             selectSource(k);
                             const tabs = document.querySelectorAll("#modal-source-tabs .source-tab-btn");

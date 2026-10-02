@@ -259,7 +259,7 @@ fun DetailsScreen(
                 val cleanStreams = srcStreams.filter { st ->
                     val sq = st.quality.lowercase()
                     val su = st.url.lowercase()
-                    !su.contains("rhtie") && !su.contains("/1/4/4/4/3/4/3/") && !su.contains("trial") && !su.contains("promo") && !su.contains("teaser") &&
+                    !su.contains("rhtie") && !su.contains("zrkms") && !su.contains("/1/4/4/4/3/4/3/") && !su.contains("/1/5/3/6/4/2/4/") && !su.contains("trial") && !su.contains("promo") && !su.contains("teaser") &&
                         !((st.source.contains("rezka", ignoreCase = true) || su.contains("voidboost")) && (sq.contains("ultra") || sq.contains("4k") || sq.contains("2160") || sq.contains("1440") || sq.contains("premium") || sq.contains("vip") || sq.contains("sub")))
                 }
                 for (q in qualityOrder) {
@@ -444,7 +444,7 @@ fun DetailsScreen(
     fun matchStreamQuality(stream: StreamOption, target: String): Boolean {
         if (!isDirectVideoStream(stream.url)) return false
         val su = stream.url.lowercase()
-        if (su.contains("rhtie") || su.contains("/1/4/4/4/3/4/3/") || su.contains("trial") || su.contains("promo") || su.contains("teaser")) return false
+        if (su.contains("rhtie") || su.contains("zrkms") || su.contains("/1/4/4/4/3/4/3/") || su.contains("/1/5/3/6/4/2/4/") || su.contains("trial") || su.contains("promo") || su.contains("teaser")) return false
         val sq = stream.quality.lowercase().trim()
         val tq = target.lowercase().trim()
         if ((stream.source.contains("rezka", ignoreCase = true) || su.contains("voidboost")) &&
@@ -482,7 +482,7 @@ fun DetailsScreen(
         val candidateStreams = rawCandidates.filter { st ->
             val su = st.url.lowercase()
             val sq = st.quality.lowercase()
-            !su.contains("rhtie") && !su.contains("/1/4/4/4/3/4/3/") && !su.contains("trial") && !su.contains("promo") && !su.contains("teaser") &&
+            !su.contains("rhtie") && !su.contains("zrkms") && !su.contains("/1/4/4/4/3/4/3/") && !su.contains("/1/5/3/6/4/2/4/") && !su.contains("trial") && !su.contains("promo") && !su.contains("teaser") &&
                 !((st.source.contains("rezka", ignoreCase = true) || su.contains("voidboost")) &&
                     (sq.contains("ultra") || sq.contains("4k") || sq.contains("2160") || sq.contains("1440") || sq.contains("premium") || sq.contains("vip") || sq.contains("sub")))
         }
@@ -515,9 +515,10 @@ fun DetailsScreen(
             val u = it.url.lowercase()
             !q.contains("ultra") && !q.contains("4k") && !q.contains("2160") && !q.contains("1440") &&
                 !q.contains("vip") && !q.contains("premium") && !q.contains("sub") &&
-                !u.contains("rhtie") && !u.contains("trial") && !u.contains("preview") &&
+                !u.contains("rhtie") && !u.contains("zrkms") && !u.contains("/1/4/4/4/3/4/3/") && !u.contains("/1/5/3/6/4/2/4/") &&
+                !u.contains("trial") && !u.contains("preview") &&
                 !u.contains("teaser") && !u.contains("promo") && !u.contains("vip") &&
-                !u.contains("ultra") && !u.contains("premium") && !u.contains("/1/4/4/4/3/4/3/") &&
+                !u.contains("ultra") && !u.contains("premium") &&
                 isDirectVideoStream(it.url)
         }
         // Non-Rezka sources (Collaps, Filmix, VideoCDN, AniLibria) never have HDRezka promo ads - prioritize them first
@@ -730,8 +731,8 @@ fun DetailsScreen(
                 }
                 if (sUrl.isNullOrEmpty() && !currentMovie.videoUrl.isNullOrBlank() && isDirectVideoStream(currentMovie.videoUrl)) {
                     val cu = currentMovie.videoUrl.lowercase()
-                    if (!cu.contains("rhtie") && !cu.contains("trial") && !cu.contains("promo") && !cu.contains("teaser") &&
-                        !cu.contains("vip") && !cu.contains("ultra") && !cu.contains("premium") && !cu.contains("/1/4/4/4/3/4/3/")) {
+                    if (!cu.contains("rhtie") && !cu.contains("zrkms") && !cu.contains("trial") && !cu.contains("promo") && !cu.contains("teaser") &&
+                        !cu.contains("vip") && !cu.contains("ultra") && !cu.contains("premium") && !cu.contains("/1/4/4/4/3/4/3/") && !cu.contains("/1/5/3/6/4/2/4/")) {
                         sUrl = currentMovie.videoUrl
                     }
                 }
@@ -1011,11 +1012,20 @@ fun DetailsScreen(
             }
 
             if (streams.isNotEmpty()) {
+                val cleanStreams = streams.filter { st ->
+                    val su = st.url.lowercase()
+                    val sq = st.quality.lowercase()
+                    !su.contains("rhtie") && !su.contains("zrkms") && !su.contains("/1/4/4/4/3/4/3/") && !su.contains("/1/5/3/6/4/2/4/") &&
+                        !su.contains("trial") && !su.contains("promo") && !su.contains("teaser") &&
+                        !((st.source.contains("rezka", ignoreCase = true) || su.contains("voidboost")) &&
+                            (sq.contains("ultra") || sq.contains("4k") || sq.contains("2160") || sq.contains("1440") || sq.contains("premium") || sq.contains("vip") || sq.contains("sub")))
+                }
+                val pool = if (cleanStreams.isNotEmpty()) cleanStreams else streams
                 val candidateStreams = if (selectedSourceFilter == "Все" || selectedSourceFilter.startsWith("Все")) {
-                    streams
+                    pool
                 } else {
                     val sKey = selectedSourceFilter.lowercase()
-                    val filtered = streams.filter { st ->
+                    val filtered = pool.filter { st ->
                         val stSrc = st.source.lowercase()
                         when {
                             sKey.contains("kodik") -> stSrc.contains("kodik")
@@ -1027,7 +1037,7 @@ fun DetailsScreen(
                             else -> stSrc.contains(sKey)
                         }
                     }
-                    if (filtered.isNotEmpty()) filtered else streams
+                    if (filtered.isNotEmpty()) filtered else pool
                 }
 
                 val matched = candidateStreams.firstOrNull { matchStreamQuality(it, selectedQuality) }

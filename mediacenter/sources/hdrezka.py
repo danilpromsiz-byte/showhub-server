@@ -507,13 +507,21 @@ class HDRezkaSource(BaseSource):
             for t in soup.select(".b-translator__item"):
                 t_id = t.get("data-translator_id")
                 t_name = t.text.strip()
-                is_act = "active" in t.get("class", [])
+                classes = t.get("class", [])
+                is_act = "active" in classes
+                is_prem = "b-prem_translator" in classes
+                if is_prem and not t_name.endswith("[VIP]"):
+                    t_name += " [VIP]"
                 if t_id and t_name:
                     translators.append({
                         "id": t_id,
                         "name": t_name,
-                        "is_default": is_act
+                        "is_default": is_act,
+                        "is_premium": is_prem
                     })
+
+            # Sort translators so free / non-VIP ones are presented first
+            translators.sort(key=lambda tr: (1 if tr.get("is_premium") else 0, 0 if tr.get("is_default") else 1))
 
             if not translators:
                 m_init = re.search(r'initCDN(?:Movies|Series)Events\(\s*(\d+)\s*,\s*(\d+)', res.text)
@@ -899,24 +907,50 @@ class HDRezkaSource(BaseSource):
                     post_data["episode"] = str(episode or 1)
 
                 r_ajax = self._post_ajax(base, page_url, post_data)
+                has_vip_cookie = bool(self.session.cookies.get("dle_user_id"))
                 if r_ajax is not None and r_ajax.status_code == 200:
                     json_data = r_ajax.json()
-                    url_str = json_data.get("url") or json_data.get("streams", "")
-                    sub_str = json_data.get("subtitle", "")
-                    skip_raw = json_data.get("skip") or json_data.get("intro") or json_data.get("time_skip")
-                    if skip_raw:
-                        skip_dict = {}
-                        if isinstance(skip_raw, dict):
-                            skip_dict = {k: float(v) for k, v in skip_raw.items() if isinstance(v, (int, float, str)) and str(v).replace('.', '', 1).isdigit()}
-                        elif isinstance(skip_raw, list) and len(skip_raw) >= 2:
-                            skip_dict = {"intro_start": float(skip_raw[0]), "intro_end": float(skip_raw[1])}
-                        elif isinstance(skip_raw, str) and "-" in skip_raw:
-                            sp = skip_raw.split("-")
-                            if len(sp) == 2 and sp[0].strip().isdigit() and sp[1].strip().isdigit():
-                                skip_dict = {"intro_start": float(sp[0].strip()), "intro_end": float(sp[1].strip())}
-                        if skip_dict:
-                            result.skip_time = skip_dict
-                    self._populate_streams_from_string(url_str, sub_str, eff_base, result)
+                    is_prem_content = json_data.get("premium_content") == 1
+                    if not (is_prem_content and not has_vip_cookie):
+                        url_str = json_data.get("url") or json_data.get("streams", "")
+                        sub_str = json_data.get("subtitle", "")
+                        skip_raw = json_data.get("skip") or json_data.get("intro") or json_data.get("time_skip")
+                        if skip_raw:
+                            skip_dict = {}
+                            if isinstance(skip_raw, dict):
+                                skip_dict = {k: float(v) for k, v in skip_raw.items() if isinstance(v, (int, float, str)) and str(v).replace('.', '', 1).isdigit()}
+                            elif isinstance(skip_raw, list) and len(skip_raw) >= 2:
+                                skip_dict = {"intro_start": float(skip_raw[0]), "intro_end": float(skip_raw[1])}
+                            elif isinstance(skip_raw, str) and "-" in skip_raw:
+                                sp = skip_raw.split("-")
+                                if len(sp) == 2 and sp[0].strip().isdigit() and sp[1].strip().isdigit():
+                                    skip_dict = {"intro_start": float(sp[0].strip()), "intro_end": float(sp[1].strip())}
+                            if skip_dict:
+                                result.skip_time = skip_dict
+                        self._populate_streams_from_string(url_str, sub_str, eff_base, result)
+
+                # Fallback if no streams resolved (e.g. VIP-only translator or voice track missing for this season)
+                if not result.streams and is_series and data_id:
+                    details = self.get_media_details(media_id)
+                    all_trans = details.get("translators", []) if details else []
+                    candidate_fallbacks = [default_trans, "35", "1", "474", "56"] + [t.get("id") for t in all_trans if t.get("id")]
+                    for fb_id in dict.fromkeys(candidate_fallbacks):
+                        if not fb_id or str(fb_id) == str(trans_id):
+                            continue
+                        post_data["translator_id"] = str(fb_id)
+                        r_fb = self._post_ajax(base, page_url, post_data)
+                        if r_fb is not None and r_fb.status_code == 200:
+                            try:
+                                j_fb = r_fb.json()
+                                if j_fb.get("premium_content") == 1 and not has_vip_cookie:
+                                    continue
+                                fb_url = j_fb.get("url") or j_fb.get("streams", "")
+                                if fb_url:
+                                    self._populate_streams_from_string(fb_url, j_fb.get("subtitle", ""), eff_base, result)
+                                    if result.streams:
+                                        break
+                            except Exception:
+                                continue
         except Exception as e:
             result.error = str(e)
 
@@ -978,6 +1012,8 @@ class HDRezkaSource(BaseSource):
                 if "ukrtelcdn" not in u
                 and "rhtie" not in u.lower()
                 and "/1/4/4/4/3/4/3/" not in u
+                and "zrkms" not in u.lower()
+                and "/1/5/3/6/4/2/4/" not in u
                 and "trial" not in u.lower()
                 and "promo" not in u.lower()
                 and "teaser" not in u.lower()

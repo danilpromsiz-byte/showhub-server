@@ -142,12 +142,20 @@ object MediaKeyDispatcher {
     }
 }
 
+fun isStubUrl(url: String): Boolean {
+    val clean = url.lowercase().trim()
+    return clean.contains("rhtie") || clean.contains("/1/4/4/4/3/4/3/") ||
+           clean.contains("zrkms") || clean.contains("/1/5/3/6/4/2/4/") ||
+           clean.contains("trial") || clean.contains("promo") || clean.contains("teaser")
+}
+
 fun isDirectVideoStream(url: String): Boolean {
     val clean = url.lowercase().trim()
     if (clean.contains("embed") || clean.contains("allarknow") || clean.contains("bayas") || clean.contains("bazon.cc") || 
         clean.contains("delivembd") || clean.contains("namy.ws") || clean.contains("embess.ws") || clean.contains("nextembed.ws") ||
         clean.contains("videoframe") || clean.contains("kinobase") || clean.contains("iframe") || 
         clean.contains("kodikplayer") || clean.contains("kodik.info") ||
+        isStubUrl(clean) ||
         clean.endsWith(".html") || clean.contains(".html?")) {
         return false
     }
@@ -524,7 +532,7 @@ private fun NativeExoPlayerScreen(
 
     var currentSeason by remember { mutableIntStateOf(season) }
     var currentEpisode by remember { mutableIntStateOf(episode) }
-    var currentStreamUrl by remember { mutableStateOf(movie.videoUrl) }
+    var currentStreamUrl by remember { mutableStateOf(if (isStubUrl(movie.videoUrl)) "" else movie.videoUrl) }
     var currentStreamQuality by remember { mutableStateOf("") }
     var currentAudioId by remember { mutableStateOf(audioId.ifEmpty { movie.audioTracks.firstOrNull()?.id ?: "" }) }
     var selectedQuality by remember { mutableStateOf(prefs.getString("pref_quality", "1080p") ?: "1080p") }
@@ -939,9 +947,10 @@ private fun NativeExoPlayerScreen(
         val clean = streams.filter { st ->
             val su = st.url.lowercase()
             val sq = st.quality.lowercase()
-            !su.contains("rhtie") && !su.contains("/1/4/4/4/3/4/3/") &&
+            !su.contains("rhtie") && !su.contains("zrkms") && !su.contains("/1/4/4/4/3/4/3/") && !su.contains("/1/5/3/6/4/2/4/") &&
+                !su.contains("trial") && !su.contains("promo") && !su.contains("teaser") &&
                 !((st.source.contains("rezka", ignoreCase = true) || su.contains("voidboost")) &&
-                    (sq.contains("ultra") || sq.contains("4k") || sq.contains("2160") || sq.contains("1440")))
+                    (sq.contains("ultra") || sq.contains("4k") || sq.contains("2160") || sq.contains("1440") || sq.contains("premium") || sq.contains("vip") || sq.contains("sub")))
         }
         val qualSet = linkedSetOf<String>()
         val order = listOf("4K", "1080p", "720p", "480p", "360p")
@@ -1051,9 +1060,10 @@ private fun NativeExoPlayerScreen(
                 val allResolved = mergedRaw.filter { st ->
                     val su = st.url.lowercase()
                     val sq = st.quality.lowercase()
-                    !su.contains("rhtie") && !su.contains("/1/4/4/4/3/4/3/") &&
+                    !su.contains("rhtie") && !su.contains("zrkms") && !su.contains("/1/4/4/4/3/4/3/") && !su.contains("/1/5/3/6/4/2/4/") &&
+                        !su.contains("trial") && !su.contains("promo") && !su.contains("teaser") &&
                         !((st.source.contains("rezka", ignoreCase = true) || su.contains("voidboost")) &&
-                            (sq.contains("ultra") || sq.contains("4k") || sq.contains("2160") || sq.contains("1440")))
+                            (sq.contains("ultra") || sq.contains("4k") || sq.contains("2160") || sq.contains("1440") || sq.contains("premium") || sq.contains("vip") || sq.contains("sub")))
                 }
                 allStreamOptions = allResolved
 
@@ -1181,6 +1191,13 @@ private fun NativeExoPlayerScreen(
             } finally {
                 isLoadingStream = false
             }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        if (currentStreamUrl.isEmpty() || isStubUrl(currentStreamUrl)) {
+            currentStreamUrl = ""
+            switchStream(newSeason = currentSeason, newEpisode = currentEpisode, userInitiated = false)
         }
     }
 

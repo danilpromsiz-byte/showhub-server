@@ -2953,7 +2953,7 @@ def _fetch_media_streams(
             for s in src_data["streams"]:
                 q = str(s.get("quality", "")).lower()
                 u = str(s.get("url", "")).lower()
-                if "rhtie" in u or "/1/4/4/4/3/4/3/" in u:
+                if any(bad in u for bad in ["rhtie", "zrkms", "/1/4/4/4/3/4/3/", "/1/5/3/6/4/2/4/", "trial", "promo", "teaser"]):
                     continue
                 if src_name == "hdrezka" and not has_rezka_vip and any(k in q for k in ["ultra", "4k", "2160", "1440"]):
                     continue
@@ -3299,7 +3299,7 @@ def get_media_preview_stream(
         if getattr(st, "stream_type", "hls") not in ["hls", "mp4"]:
             return False
         u = str(st.url).lower()
-        if any(bad in u for bad in ["rhtie.mp4", "rhtie", "trial", "preview", "teaser", "promo", "ultra", "vip", "premium", "/1/4/4/4/3/4/3/"]):
+        if any(bad in u for bad in ["rhtie.mp4", "rhtie", "zrkms.mp4", "zrkms", "trial", "preview", "teaser", "promo", "ultra", "vip", "premium", "/1/4/4/4/3/4/3/", "/1/5/3/6/4/2/4/"]):
             return False
         # Server-resolved voidboost streams are IP-bound to server IP and return 404 for client devices!
         if any(bad in u for bad in ["stream.voidboost", "voidboost.one", "voidboost"]):

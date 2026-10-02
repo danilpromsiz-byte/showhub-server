@@ -53,7 +53,14 @@ object RezkaNativeResolver {
 
     fun isPremiumQuality(quality: String): Boolean {
         val q = quality.lowercase().trim()
-        return q.contains("ultra") || q.contains("4k") || q.contains("2160") || q.contains("vip")
+        return q.contains("ultra") || q.contains("4k") || q.contains("2160") || q.contains("1440") || q.contains("vip") || q.contains("prem")
+    }
+
+    fun isStubUrl(url: String): Boolean {
+        val u = url.lowercase().trim()
+        return u.contains("rhtie") || u.contains("/1/4/4/4/3/4/3/") ||
+               u.contains("zrkms") || u.contains("/1/5/3/6/4/2/4/") ||
+               u.contains("trial") || u.contains("promo") || u.contains("teaser")
     }
 
     data class RezkaDetails(
@@ -321,27 +328,49 @@ object RezkaNativeResolver {
         val pageHtml = httpGet(pageUrl, "$baseUrl/", baseUrl = baseUrl) ?: return null
 
         val audioTracks = mutableListOf<AudioTrackInfo>()
-        // 1. Match translators
-        val trMatcher = Pattern.compile("data-translator_id=\"(\\d+)\"[^>]*title=\"([^\"]+)\"").matcher(pageHtml)
-        while (trMatcher.find()) {
-            val tid = trMatcher.group(1) ?: continue
-            var tname = trMatcher.group(2)?.trim() ?: ""
+        // 1. Match translators with VIP and Active classification
+        val rawTrMatcher = Pattern.compile("<li[^>]*class=\"([^\"]*b-translator__item[^\"]*)\"[^>]*data-translator_id=\"(\\d+)\"[^>]*title=\"([^\"]+)\"").matcher(pageHtml)
+        val trData = mutableListOf<Triple<AudioTrackInfo, Boolean, Boolean>>() // track, isPrem, isActive
+        while (rawTrMatcher.find()) {
+            val cls = rawTrMatcher.group(1) ?: ""
+            val tid = rawTrMatcher.group(2) ?: continue
+            var tname = rawTrMatcher.group(3)?.trim() ?: ""
             tname = tname.replace(Regex("<[^>]+>"), "").trim()
-            if (tname.isNotEmpty() && audioTracks.none { it.id == tid }) {
-                audioTracks.add(AudioTrackInfo(id = tid, name = tname, episodesCount = 0, source = "hdrezka"))
+            val isPrem = cls.contains("b-prem_translator")
+            val isActive = cls.contains("active")
+            val displayName = if (isPrem && !tname.contains("[VIP]")) "$tname [VIP]" else tname
+            if (tname.isNotEmpty() && trData.none { it.first.id == tid }) {
+                trData.add(Triple(AudioTrackInfo(id = tid, name = displayName, episodesCount = 0, source = "hdrezka"), isPrem, isActive))
             }
         }
-
-        if (audioTracks.isEmpty()) {
-            val fallbackMatcher = Pattern.compile("<li[^>]*class=\"[^\"]*b-translator__item[^\"]*\"[^>]*data-translator_id=\"(\\d+)\"[^>]*>([\\s\\S]*?)</li>").matcher(pageHtml)
-            while (fallbackMatcher.find()) {
-                val tid = fallbackMatcher.group(1) ?: continue
-                val rawInner = fallbackMatcher.group(2)?.replace(Regex("<[^>]+>"), "")?.trim() ?: ""
-                if (rawInner.isNotEmpty() && audioTracks.none { it.id == tid }) {
-                    audioTracks.add(AudioTrackInfo(id = tid, name = rawInner, episodesCount = 0, source = "hdrezka"))
+        if (trData.isEmpty()) {
+            val trMatcher = Pattern.compile("data-translator_id=\"(\\d+)\"[^>]*title=\"([^\"]+)\"").matcher(pageHtml)
+            while (trMatcher.find()) {
+                val tid = trMatcher.group(1) ?: continue
+                var tname = trMatcher.group(2)?.trim() ?: ""
+                tname = tname.replace(Regex("<[^>]+>"), "").trim()
+                if (tname.isNotEmpty() && trData.none { it.first.id == tid }) {
+                    trData.add(Triple(AudioTrackInfo(id = tid, name = tname, episodesCount = 0, source = "hdrezka"), false, false))
                 }
             }
         }
+        if (trData.isEmpty()) {
+            val fallbackMatcher = Pattern.compile("<li[^>]*class=\"([^\"]*b-translator__item[^\"]*)\"[^>]*data-translator_id=\"(\\d+)\"[^>]*>([\\s\\S]*?)</li>").matcher(pageHtml)
+            while (fallbackMatcher.find()) {
+                val cls = fallbackMatcher.group(1) ?: ""
+                val tid = fallbackMatcher.group(2) ?: continue
+                var rawInner = fallbackMatcher.group(3)?.replace(Regex("<[^>]+>"), "")?.trim() ?: ""
+                val isPrem = cls.contains("b-prem_translator")
+                val isActive = cls.contains("active")
+                val displayName = if (isPrem && !rawInner.contains("[VIP]")) "$rawInner [VIP]" else rawInner
+                if (rawInner.isNotEmpty() && trData.none { it.first.id == tid }) {
+                    trData.add(Triple(AudioTrackInfo(id = tid, name = displayName, episodesCount = 0, source = "hdrezka"), isPrem, isActive))
+                }
+            }
+        }
+        // Sort: Free active first, free other translators next, VIP translators last!
+        trData.sortWith(compareBy({ if (it.second) 1 else 0 }, { if (it.third) 0 else 1 }))
+        audioTracks.addAll(trData.map { it.first })
 
         if (audioTracks.isEmpty()) {
             val mInit = Pattern.compile("initCDN(?:Movies|Series)Events\\(\\s*\\d+\\s*,\\s*(\\d+)").matcher(pageHtml)
@@ -566,6 +595,9 @@ object RezkaNativeResolver {
                 val resp = httpPost(ajaxUrl, postData.toString(), headers, baseUrl = baseUrl)
                 if (resp != null && resp.trim().startsWith("{")) {
                     val j = JSONObject(resp)
+                    if (j.optInt("premium_content", 0) == 1) {
+                        return ""
+                    }
                     return j.optString("url").ifEmpty { j.optString("streams", "") }
                 }
                 return ""
@@ -593,10 +625,6 @@ object RezkaNativeResolver {
                 }
             }
 
-            if (streamStr.isEmpty()) {
-                return emptyList()
-            }
-
             fun parseStreams(rawInput: String, isFallback: Boolean = false) {
                 val raw = decryptStreamUrl(rawInput)
                 val parts = raw.split(Regex(",\\s*(?=\\[[^\\]]+\\])"))
@@ -611,8 +639,7 @@ object RezkaNativeResolver {
                         }
                         val urls = m.group(2)?.split(" or ")?.map { it.trim().replace("\\/", "/") }?.filter { 
                             val uLow = it.lowercase()
-                            it.startsWith("http") && !uLow.contains("rhtie") && !uLow.contains("/1/4/4/4/3/4/3/") &&
-                                !uLow.contains("trial") && !uLow.contains("promo") && !uLow.contains("teaser") &&
+                            it.startsWith("http") && !isStubUrl(it) &&
                                 !uLow.contains("premium") && !uLow.contains("vip")
                         } ?: emptyList()
                         // Prioritize voidboost streams or non-ukrtelcdn direct CDNs
@@ -645,24 +672,14 @@ object RezkaNativeResolver {
                 parseStreams(streamStr, isFallback = false)
             }
 
-            // Fallback: If translator did not voice this season/episode, retry with default translators
-            val fallbackIds = listOf(pageDefaultTransId, "56").distinct().filter { it != transId }
-            for (fbId in fallbackIds) {
-                if (streams.isNotEmpty()) break
-                val fbPostData = StringBuilder()
-                    .append("id=").append(dataId)
-                    .append("&translator_id=").append(fbId)
-                    .append("&action=").append(if (actualIsSeries) "get_stream" else "get_movie")
-                if (favsVal.isNotEmpty()) {
-                    fbPostData.append("&favs=").append(favsVal)
-                }
-                if (actualIsSeries) {
-                    fbPostData.append("&season=").append(season).append("&episode=").append(episode)
-                }
-                val fbResp = httpPost(ajaxUrl, fbPostData.toString(), headers, baseUrl = baseUrl)
-                if (fbResp != null && fbResp.trim().startsWith("{")) {
-                    val fbJson = JSONObject(fbResp)
-                    val fbStreamStr = fbJson.optString("url").ifEmpty { fbJson.optString("streams", "") }
+            // Fallback: If translator is premium-only or did not voice this season/episode, retry with default and available translators
+            if (streams.isEmpty()) {
+                val fallbackIds = (listOf(pageDefaultTransId, "35", "1", "474", "56") + allPageTranslators)
+                    .distinct()
+                    .filter { it != transId }
+                for (fbId in fallbackIds) {
+                    if (streams.isNotEmpty()) break
+                    val fbStreamStr = makeAjaxCall(fbId, season, episode)
                     if (fbStreamStr.length > 5) {
                         parseStreams(fbStreamStr, isFallback = true)
                     }

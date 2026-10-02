@@ -510,8 +510,11 @@ object ShowHubApiClient {
                             val qLow = qStr.lowercase()
                             val uLow = uStr.lowercase()
                             val isRezkaUltraStub = (src.equals("hdrezka", ignoreCase = true) || uLow.contains("voidboost")) &&
-                                    (qLow.contains("ultra") || qLow.contains("4k") || qLow.contains("2160") || qLow.contains("1440"))
-                            if (uStr.startsWith("http") && !uLow.contains("rhtie") && !uLow.contains("/1/4/4/4/3/4/3/") && !isRezkaUltraStub) {
+                                    (qLow.contains("ultra") || qLow.contains("4k") || qLow.contains("2160") || qLow.contains("1440") || qLow.contains("premium") || qLow.contains("vip"))
+                            val isStub = uLow.contains("rhtie") || uLow.contains("/1/4/4/4/3/4/3/") ||
+                                    uLow.contains("zrkms") || uLow.contains("/1/5/3/6/4/2/4/") ||
+                                    uLow.contains("trial") || uLow.contains("promo") || uLow.contains("teaser")
+                            if (uStr.startsWith("http") && !isStub && !isRezkaUltraStub) {
                                 val isDirect = sType == "hls" || sType == "mp4" || sType == "torrent" ||
                                         uStr.contains(".m3u8") || uStr.contains(".mp4") || uStr.contains("voidboost") ||
                                         uStr.contains("/stream?link=")

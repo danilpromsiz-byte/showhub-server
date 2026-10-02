@@ -19,6 +19,18 @@ BASE_URLS = [
 ]
 IMG_BASE = "https://image.tmdb.org/t/p"
 
+NON_RU_LATIN_SCRIPT = re.compile(
+    r'[\u4e00-\u9fff\u3400-\u4dbf\uac00-\ud7af\u1100-\u11ff\u3040-\u309f\u30a0-\u30ff'
+    r'\u0900-\u097f\u0d00-\u0d7f\u0b80-\u0bff\u0c00-\u0c7f\u0e00-\u0e7f\u0600-\u06ff\u0590-\u05ff]'
+)
+READABLE_CHARS = re.compile(r'[\u0400-\u04ffA-Za-z]')
+
+def is_untranslated_script(s: Optional[str]) -> bool:
+    if not s:
+        return False
+    clean = str(s).strip()
+    return bool(NON_RU_LATIN_SCRIPT.search(clean)) and not bool(READABLE_CHARS.search(clean))
+
 ISO_COUNTRY_MAP = {
     "IT": "Италия", "AR": "Аргентина", "US": "США", "RU": "Россия", "SU": "СССР",
     "FR": "Франция", "DE": "Германия", "GB": "Великобритания", "UK": "Великобритания",
@@ -133,11 +145,19 @@ class LampaSource:
             return None
 
         orig_title = it.get("original_title") or it.get("original_name")
+        if is_untranslated_script(title):
+            if orig_title and not is_untranslated_script(orig_title) and READABLE_CHARS.search(orig_title):
+                title = orig_title
+            else:
+                return None
+
         date_str = it.get("release_date") or it.get("first_air_date") or ""
         year = int(date_str[:4]) if len(date_str) >= 4 and date_str[:4].isdigit() else None
 
         raw_pop = float(it.get("popularity") or 0.0)
         pop_score = raw_pop * weight
+        if is_ser and year and year < 2024:
+            pop_score = min(pop_score * 0.05, 5.0)
 
         raw_vote = float(it.get("vote_average") or 0.0)
         votes = int(it.get("vote_count") or 0)

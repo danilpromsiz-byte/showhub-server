@@ -1,27 +1,27 @@
 {
   "success": true,
-  "version_name": "2.8.80",
-  "version_code": 139,
+  "version_name": "2.8.81",
+  "version_code": 140,
   "force_update": true,
   "min_version_code": 108,
   "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
   "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
-  "changelog": "v2.8.80: Локальное постоянное хранение на сервере всех описаний, характеристик фильмов и сериалов (актеры, режиссеры, жанры, страны, возрастные рейтинги, график выхода серий) в SQLite базе данных, а также постоянное скачивание и кеширование обложек и фонов (posters, backdrops) на локальный диск машины для мгновенной отдачи (<2 мс) клиентам по локальной сети без зависимости от внешних CDN.",
+  "changelog": "v2.8.81: 100% стабильная загрузка всех обложек (локальный диск + CDN fallback без 404), строгое исключение старых сериалов 90-х/2000-х (Закон и порядок 1990 и др.) из рядов новинок на главном экране (только свежие релизы 2024-2026), полная очистка базы от непереведенных иероглифических и азиатских названий.",
   "tv": {
-    "version_name": "2.8.80",
-    "version_code": 139,
+    "version_name": "2.8.81",
+    "version_code": 140,
     "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
     "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk"
   },
   "mobile": {
-    "version_name": "2.8.80",
-    "version_code": 139,
+    "version_name": "2.8.81",
+    "version_code": 140,
     "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-Mobile.apk",
     "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-Mobile.apk"
   },
   "pc": {
-    "version_name": "2.8.80",
-    "version_code": 139,
+    "version_name": "2.8.81",
+    "version_code": 140,
     "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-PC.zip"
   },
   "alert_screensaver": {

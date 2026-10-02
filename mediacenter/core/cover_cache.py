@@ -43,6 +43,9 @@ class CoverCacheManager:
     def session(self) -> requests.Session:
         if self._session is None:
             s = requests.Session()
+            adapter = requests.adapters.HTTPAdapter(pool_connections=64, pool_maxsize=64, max_retries=1)
+            s.mount("http://", adapter)
+            s.mount("https://", adapter)
             s.headers.update({
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
                 "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
@@ -94,8 +97,8 @@ class CoverCacheManager:
         h = get_image_hash(url)
         with self._lock:
             fail_time = self._failed_hashes.get(h)
-            # Retry failed images after 10 minutes
-            if fail_time and (time.time() - fail_time < 600):
+            # Retry failed images after 60 seconds
+            if fail_time and (time.time() - fail_time < 60):
                 return None
 
         headers = self.get_headers_for_url(url)
@@ -167,12 +170,13 @@ class CoverCacheManager:
         """
         Converts an image URL into a local server URL.
         If already cached on local disk: returns direct static path `/covers/{hash}.jpg`.
-        If not yet cached: returns `/api/media/image?url=...` and enqueues download in background.
+        If not yet cached on local disk: returns original direct URL (so client never gets broken covers)
+        and enqueues background download to save it to local machine disk!
         """
         if not url or not str(url).strip():
             return None
         u_str = str(url).strip()
-        if u_str.startswith("/covers/") or u_str.startswith("/api/media/image"):
+        if u_str.startswith("/covers/"):
             return u_str
         if not u_str.startswith("http"):
             return u_str
@@ -181,9 +185,7 @@ class CoverCacheManager:
         if self.is_cached(u_str):
             return f"/covers/{h}.jpg"
 
-        # Enqueue background cache and provide on-demand proxy fallback
-        self.enqueue_url(u_str)
-        return f"/api/media/image?url={urllib.parse.quote(u_str, safe='')}"
+        return u_str
 
     def preload_registry_covers(self, db_path: str):
         """Asynchronously scans the SQLite media registry and downloads all posters & backdrops to disk."""

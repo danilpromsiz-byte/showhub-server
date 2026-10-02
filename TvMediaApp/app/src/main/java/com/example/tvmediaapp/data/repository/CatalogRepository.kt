@@ -567,12 +567,30 @@ class CatalogRepository(context: Context? = null) {
                    !lower.contains("10592371/4c676451")
         }
 
+        fun hasReadableTitle(title: String): Boolean {
+            if (title.isBlank()) return false
+            val hasCyrillicOrLatin = title.any { c ->
+                (c in 'a'..'z') || (c in 'A'..'Z') || (c in '\u0400'..'\u04FF')
+            }
+            val hasUntranslatedScript = title.any { c ->
+                val code = c.code
+                (code in 0x4e00..0x9fff) || (code in 0x3400..0x4dbf) ||
+                (code in 0xac00..0xd7af) || (code in 0x1100..0x11ff) ||
+                (code in 0x3040..0x309f) || (code in 0x30a0..0x30ff) ||
+                (code in 0x0900..0x097f) || (code in 0x0d00..0x0d7f) ||
+                (code in 0x0b80..0x0bff) || (code in 0x0c00..0x0c7f) ||
+                (code in 0x0e00..0x0e7f) || (code in 0x0600..0x06ff)
+            }
+            return hasCyrillicOrLatin && !hasUntranslatedScript
+        }
+
         fun buildCategories(movies: List<Movie>): List<MovieCategory> {
             var effective = com.example.tvmediaapp.data.models.deduplicateAndMergeMovies(movies)
             val hiddenIds = hiddenMoviesManager?.getHiddenIds() ?: emptySet()
             if (hiddenIds.isNotEmpty()) {
                 effective = effective.filter { it.id !in hiddenIds }
             }
+            effective = effective.filter { hasReadableTitle(it.title) }
             if (onlyWithPoster) {
                 effective = effective.filter { m -> hasValidPoster(m.posterUrl) }
             }
@@ -604,7 +622,7 @@ class CatalogRepository(context: Context? = null) {
 
             val includeUnreleasedMovies = prefs?.getBoolean("pref_unreleased_movies", false) ?: false
             val includeUnreleasedSeries = prefs?.getBoolean("pref_unreleased_series", true) ?: true
-            val currentYear = minOf(java.util.Calendar.getInstance().get(java.util.Calendar.YEAR), 2024)
+            val currentYear = maxOf(java.util.Calendar.getInstance().get(java.util.Calendar.YEAR) + 1, 2026)
 
             if (!includeUnreleasedMovies) {
                 effective = effective.filter { m ->
@@ -634,14 +652,19 @@ class CatalogRepository(context: Context? = null) {
                 (year.isNullOrEmpty() || year == "all")
 
             return if (isPureDefault) {
-                val rankedPopular = effective.mapIndexed { idx, m ->
+                // Main screen novelty rows are strictly focused on fresh releases (2024-2026)
+                val freshMovies = effective.filter { m ->
+                    val yr = m.releaseYear.filter { it.isDigit() }.toIntOrNull()
+                    yr == null || yr >= 2024
+                }
+                val rankedPopular = freshMovies.mapIndexed { idx, m ->
                     m.copy(rankIndex = idx + 1)
                 }
                 listOf(
                     MovieCategory(id = "popular", title = "Популярные новинки", movies = rankedPopular),
-                    MovieCategory(id = "top_rated", title = "Топ рейтинга", movies = effective.sortedByDescending { it.rating }.map { it.copy(rankIndex = 0) }),
-                    MovieCategory(id = "series", title = "Сериалы", movies = effective.filter { it.isSeries }.map { it.copy(rankIndex = 0) }),
-                    MovieCategory(id = "movies", title = "Фильмы", movies = effective.filter { !it.isSeries }.map { it.copy(rankIndex = 0) })
+                    MovieCategory(id = "top_rated", title = "Топ рейтинга", movies = freshMovies.sortedByDescending { it.rating }.map { it.copy(rankIndex = 0) }),
+                    MovieCategory(id = "series", title = "Сериалы", movies = freshMovies.filter { it.isSeries }.map { it.copy(rankIndex = 0) }),
+                    MovieCategory(id = "movies", title = "Фильмы", movies = freshMovies.filter { !it.isSeries }.map { it.copy(rankIndex = 0) })
                 )
             } else {
                 val rankedEffective = if (sortBy == "popular") {

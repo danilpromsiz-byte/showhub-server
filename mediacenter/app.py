@@ -96,6 +96,17 @@ os.makedirs(static_dir, exist_ok=True)
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 from mediacenter.core.cover_cache import cover_cache, COVERS_DIR
+
+@app.get("/covers/{filename}")
+def serve_cover_file(filename: str):
+    file_path = os.path.join(COVERS_DIR, filename)
+    if os.path.isfile(file_path) and os.path.getsize(file_path) >= 500:
+        return FileResponse(file_path, media_type="image/jpeg", headers={"Cache-Control": "public, max-age=31536000, immutable"})
+    noposter = os.path.join(static_dir, "noposter.png")
+    if os.path.isfile(noposter):
+        return FileResponse(noposter, media_type="image/png")
+    return Response(status_code=404)
+
 app.mount("/covers", StaticFiles(directory=COVERS_DIR), name="covers")
 
 # Source instances
@@ -1054,12 +1065,12 @@ def get_proxied_image(url: str = Query(...)):
     if cover_cache.is_cached(url):
         return FileResponse(local_path, media_type="image/jpeg", headers={"Cache-Control": "public, max-age=31536000, immutable"})
 
-    # Download and save synchronously to local disk
-    saved = cover_cache.download_and_save(url)
-    if saved and os.path.exists(saved):
-        return FileResponse(saved, media_type="image/jpeg", headers={"Cache-Control": "public, max-age=31536000, immutable"})
+    # Enqueue download for permanent local disk storage
+    cover_cache.enqueue_url(url)
 
-    return FileResponse(os.path.join(static_dir, "noposter.png"))
+    # Redirect directly to original CDN URL so the client never waits or gets broken image
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url=url, status_code=302)
 
 
 @app.api_route("/api/updates/check", methods=["GET", "HEAD"])

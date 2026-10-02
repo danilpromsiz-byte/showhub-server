@@ -796,6 +796,28 @@ object ShowHubApiClient {
                 }
             }
 
+            fun isUntranslated(s: String): Boolean {
+                val hasReadable = s.any { c -> (c in 'a'..'z') || (c in 'A'..'Z') || (c in '\u0400'..'\u04FF') }
+                val hasAsianScript = s.any { c ->
+                    val code = c.code
+                    (code in 0x4e00..0x9fff) || (code in 0x3400..0x4dbf) ||
+                    (code in 0xac00..0xd7af) || (code in 0x1100..0x11ff) ||
+                    (code in 0x3040..0x309f) || (code in 0x30a0..0x30ff) ||
+                    (code in 0x0900..0x097f) || (code in 0x0d00..0x0d7f) ||
+                    (code in 0x0b80..0x0bff) || (code in 0x0c00..0x0c7f) ||
+                    (code in 0x0e00..0x0e7f) || (code in 0x0600..0x06ff)
+                }
+                return hasAsianScript && !hasReadable
+            }
+
+            if (isUntranslated(title)) {
+                if (orig.isNotEmpty() && !isUntranslated(orig)) {
+                    title = orig
+                } else {
+                    continue
+                }
+            }
+
             val rawDesc = it.optString("description", "")
             val desc = (if (rawDesc.isBlank() || rawDesc.equals("null", ignoreCase = true)) "" else rawDesc).unescapeHtml()
             val poster = it.optString("poster", "")

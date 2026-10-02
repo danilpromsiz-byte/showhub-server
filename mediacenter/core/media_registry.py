@@ -23,6 +23,18 @@ logger = logging.getLogger("media_registry")
 DB_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
 DB_PATH = os.path.join(DB_DIR, "media_registry.db")
 
+NON_RU_LATIN_SCRIPT = re.compile(
+    r'[\u4e00-\u9fff\u3400-\u4dbf\uac00-\ud7af\u1100-\u11ff\u3040-\u309f\u30a0-\u30ff'
+    r'\u0900-\u097f\u0d00-\u0d7f\u0b80-\u0bff\u0c00-\u0c7f\u0e00-\u0e7f\u0600-\u06ff\u0590-\u05ff]'
+)
+READABLE_CHARS = re.compile(r'[\u0400-\u04ffA-Za-z]')
+
+def is_untranslated_script(s: Optional[str]) -> bool:
+    if not s:
+        return False
+    clean = str(s).strip()
+    return bool(NON_RU_LATIN_SCRIPT.search(clean)) and not bool(READABLE_CHARS.search(clean))
+
 def normalize_title(s: Optional[str]) -> str:
     if not s:
         return ""
@@ -347,6 +359,15 @@ class MediaRegistry:
                 if not title:
                     continue
 
+                orig_title = data.get("original_title")
+
+                # Reject completely untranslated Asian/Indic/hieroglyphic titles
+                if is_untranslated_script(title):
+                    if orig_title and not is_untranslated_script(orig_title) and READABLE_CHARS.search(orig_title):
+                        title = orig_title
+                    else:
+                        continue
+
                 source_name = str(data.get("source_name") or "registry").lower()
                 clean = normalize_title(title)
                 if not clean:
@@ -359,7 +380,6 @@ class MediaRegistry:
                     year = None
 
                 is_ser = 1 if bool(data.get("is_series")) else 0
-                orig_title = data.get("original_title")
 
                 # Canonical deduplication: check if this movie/series already exists in DB
                 kp_id = str(data.get("kinopoisk_id") or "").strip()
@@ -449,8 +469,10 @@ class MediaRegistry:
                 age_other = normalize_age_limit(data.get("age_limit"))
                 eff_age = compute_effective_age_limit(age_lampa, age_kp, age_rezka, age_other)
 
-                # Popularity: Lampa popularity is primary
+                # Popularity: Lampa popularity is primary (dampen pre-2024 content so it never displaces novelties)
                 l_pop = safe_float(data.get("lampa_popularity") or (data.get("popularity") if source_name == "lampa" else None)) or 0.0
+                if year and year < 2024:
+                    l_pop = min(l_pop * 0.05, 5.0)
 
                 # Cast, Directors, Recs, Tags
                 cast_val = data.get("cast")
@@ -660,6 +682,10 @@ class MediaRegistry:
                 conditions.append("year BETWEEN 2000 AND 2009")
             elif year == "before_2000":
                 conditions.append("year < 2000")
+        elif sort_by in ("newest", "popular"):
+            # When requesting default fresh releases / новинки without an explicit historical year filter:
+            # strictly limit to fresh releases (2024-2026) so ancient series (e.g. 1990) never pollute novelty rows!
+            conditions.append("(year IS NULL OR year >= 2024)")
 
         # 5. Rating filtering using effective priority rating
         if min_rating and min_rating > 0:
@@ -684,7 +710,7 @@ class MediaRegistry:
         elif sort_by == "year":
             order_by = "COALESCE(year, 0) DESC, COALESCE(effective_rating, rating_kp, 0) DESC, COALESCE(lampa_popularity, 0) DESC"
         elif sort_by == "popular":
-            order_by = "CASE WHEN COALESCE(year, 0) >= 2023 THEN 1 ELSE 0 END DESC, COALESCE(lampa_popularity, popularity, 0) DESC, COALESCE(effective_rating, rating_kp, 0) DESC, COALESCE(year, 0) DESC"
+            order_by = "CASE WHEN COALESCE(year, 0) >= 2024 THEN 1 ELSE 0 END DESC, COALESCE(lampa_popularity, popularity, 0) DESC, COALESCE(effective_rating, rating_kp, 0) DESC, COALESCE(year, 0) DESC"
         else:  # "newest" / default home page catalog: Fresh releases (Новинки 2024-2026) ranked by Rating & Lampa Popularity
             order_by = (
                 "CASE WHEN COALESCE(year, 0) >= 2024 THEN 1 ELSE 0 END DESC, "

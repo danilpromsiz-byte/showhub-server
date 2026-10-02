@@ -369,7 +369,12 @@ object ShowHubApiClient {
                     rawAge = apiAge ?: movie.ageRating
                 )
                 val rawPoster = obj.optString("poster", "")
-                val updatedPoster = if (rawPoster.startsWith("http") && !rawPoster.contains("no_image") && !rawPoster.contains("noposter") && !rawPoster.contains("st.kp.yandex.net")) rawPoster else movie.posterUrl
+                val parsedPoster = if (rawPoster.startsWith("http")) rawPoster else if (rawPoster.isNotEmpty()) "$activeServerBase$rawPoster" else ""
+                val updatedPoster = if (parsedPoster.isNotEmpty() && !parsedPoster.contains("no_image") && !parsedPoster.contains("noposter") && !parsedPoster.contains("st.kp.yandex.net")) parsedPoster else movie.posterUrl
+
+                val rawBackdrop = obj.optString("backdrop", "")
+                val parsedBackdrop = if (rawBackdrop.startsWith("http")) rawBackdrop else if (rawBackdrop.isNotEmpty()) "$activeServerBase$rawBackdrop" else ""
+                val updatedBackdrop = if (parsedBackdrop.isNotEmpty() && !parsedBackdrop.contains("no_image") && !parsedBackdrop.contains("noposter")) parsedBackdrop else (if (movie.backdropUrl.isNotEmpty()) movie.backdropUrl else updatedPoster)
 
                 val lampaRating = obj.optDouble("rating_lampa", obj.optDouble("effective_rating", movie.ratingLampa))
                 val kpRating = obj.optDouble("rating_kp", movie.ratingKp)
@@ -393,7 +398,7 @@ object ShowHubApiClient {
                     title = if (title.isNotBlank()) title else movie.title,
                     originalTitle = if (orig.isNotBlank()) orig else movie.originalTitle,
                     posterUrl = updatedPoster,
-                    backdropUrl = updatedPoster,
+                    backdropUrl = updatedBackdrop,
                     ratingKp = if (kpRating > 0) kpRating else movie.ratingKp,
                     ratingImdb = if (imdbRating > 0) imdbRating else movie.ratingImdb,
                     ratingLampa = if (lampaRating > 0) lampaRating else movie.ratingLampa,
@@ -795,6 +800,8 @@ object ShowHubApiClient {
             val desc = (if (rawDesc.isBlank() || rawDesc.equals("null", ignoreCase = true)) "" else rawDesc).unescapeHtml()
             val poster = it.optString("poster", "")
             val posterUrl = if (poster.startsWith("http")) poster else if (poster.isNotEmpty()) "$activeServerBase$poster" else ""
+            val rawBackdrop = it.optString("backdrop", "")
+            val backdropUrl = if (rawBackdrop.startsWith("http")) rawBackdrop else if (rawBackdrop.isNotEmpty()) "$activeServerBase$rawBackdrop" else posterUrl
             val lampaRating = if (it.has("rating_lampa") && !it.isNull("rating_lampa")) it.optDouble("rating_lampa", 0.0) else 0.0
             val effRating = if (it.has("effective_rating") && !it.isNull("effective_rating")) it.optDouble("effective_rating", 0.0) else 0.0
             val kpRating = if (it.has("rating_kp") && !it.isNull("rating_kp")) it.optDouble("rating_kp", 0.0) else 0.0
@@ -906,7 +913,7 @@ object ShowHubApiClient {
                     originalTitle = orig,
                     description = desc,
                     posterUrl = posterUrl,
-                    backdropUrl = posterUrl,
+                    backdropUrl = backdropUrl,
                     rating = rating,
                     ratingKp = kpRating,
                     ratingImdb = imdbRating,

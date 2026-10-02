@@ -30,6 +30,7 @@ pc-client/publish/
 **/*.pyc
 **/*.log
 mediacenter/static/ShowHub-PC/
+mediacenter/data/covers/
 !/mediacenter/data/
 !/mediacenter/data/users_stats.json
 

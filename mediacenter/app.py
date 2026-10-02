@@ -95,6 +95,9 @@ static_dir = os.path.join(CURRENT_DIR, "static")
 os.makedirs(static_dir, exist_ok=True)
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
+from mediacenter.core.cover_cache import cover_cache, COVERS_DIR
+app.mount("/covers", StaticFiles(directory=COVERS_DIR), name="covers")
+
 # Source instances
 bazon = BazonSource()
 delivembd = DelivembdSource()
@@ -106,7 +109,7 @@ kodik = KodikSource()
 anilibria = AnilibriaSource()
 zona = ZonaSource()
 
-from mediacenter.core.media_registry import media_registry, compute_effective_rating, compute_effective_age_limit
+from mediacenter.core.media_registry import media_registry, compute_effective_rating, compute_effective_age_limit, DB_PATH
 from mediacenter.core.media_harvester import media_harvester
 from mediacenter.core.lampa_source import lampa_source
 
@@ -116,6 +119,10 @@ def startup_event():
         media_harvester.start_background_harvest()
     except Exception as e:
         logger.warning(f"Failed to start media harvester: {e}")
+    try:
+        cover_cache.preload_registry_covers(DB_PATH)
+    except Exception as e:
+        logger.warning(f"Failed to start cover preloader: {e}")
 
 @app.api_route("/", methods=["GET", "HEAD"], response_class=HTMLResponse)
 async def serve_index():
@@ -472,8 +479,8 @@ def get_popular(
                     "title": t["title"],
                     "original_title": t.get("original_title"),
                     "year": t.get("year"),
-                    "poster": t.get("poster"),
-                    "backdrop": t.get("backdrop"),
+                    "poster": cover_cache.get_local_url(t.get("poster")),
+                    "backdrop": cover_cache.get_local_url(t.get("backdrop")),
                     "description": t.get("description"),
                     "rating": t.get("rating_lampa") or 7.5,
                     "rating_lampa": t.get("rating_lampa"),
@@ -1029,7 +1036,30 @@ def resolve_real_poster(title: str, year: Optional[Any] = None, kp_id: Optional[
 @app.get("/api/media/poster")
 def get_media_poster(title: str = Query(...), year: Optional[str] = None, kp_id: Optional[str] = None) -> Dict[str, Any]:
     poster = resolve_real_poster(title, year, kp_id)
+    if poster:
+        poster = cover_cache.get_local_url(poster)
     return {"success": bool(poster), "poster": poster or "/noposter.png"}
+
+
+@app.get("/api/media/image")
+def get_proxied_image(url: str = Query(...)):
+    """
+    On-demand cached cover & backdrop proxy.
+    Checks local machine disk first. If not cached, fetches, saves to disk, and streams.
+    """
+    if not url or not url.startswith("http"):
+        return FileResponse(os.path.join(static_dir, "noposter.png"))
+
+    local_path = cover_cache.get_file_path(url)
+    if cover_cache.is_cached(url):
+        return FileResponse(local_path, media_type="image/jpeg", headers={"Cache-Control": "public, max-age=31536000, immutable"})
+
+    # Download and save synchronously to local disk
+    saved = cover_cache.download_and_save(url)
+    if saved and os.path.exists(saved):
+        return FileResponse(saved, media_type="image/jpeg", headers={"Cache-Control": "public, max-age=31536000, immutable"})
+
+    return FileResponse(os.path.join(static_dir, "noposter.png"))
 
 
 @app.api_route("/api/updates/check", methods=["GET", "HEAD"])
@@ -1769,6 +1799,12 @@ def get_catalog(
 
     all_items = list(merged_catalog.values())
 
+    for it in all_items:
+        if it.get("poster"):
+            it["poster"] = cover_cache.get_local_url(it["poster"])
+        if it.get("backdrop"):
+            it["backdrop"] = cover_cache.get_local_url(it["backdrop"])
+
     _catalog_cache[cache_key] = (now_ts, all_items)
     if all_items:
         threading.Thread(target=media_registry.upsert_batch, args=(all_items,), daemon=True).start()
@@ -1897,58 +1933,120 @@ def _fetch_media_details(
     if resolved_kp:
         details["kinopoisk_id"] = str(resolved_kp)
 
+    # 0. Primary: check local media registry on local machine disk
+    reg_item = None
+    try:
+        if media_id and not str(media_id).startswith("http"):
+            reg_item = media_registry.get_item(media_id)
+        if not reg_item and (clean_title or title or resolved_kp):
+            reg_item = media_registry.find_item(title=clean_title or title, year=year_int, kp_id=resolved_kp)
+    except Exception as e:
+        logger.debug(f"Local registry lookup error: {e}")
+
+    if reg_item:
+        if not resolved_kp and reg_item.get("kinopoisk_id"):
+            resolved_kp = str(reg_item["kinopoisk_id"])
+            details["kinopoisk_id"] = resolved_kp
+        if reg_item.get("tmdb_id"):
+            details["tmdb_id"] = str(reg_item["tmdb_id"])
+        if reg_item.get("description"):
+            details["description"] = reg_item["description"]
+        if reg_item.get("country"):
+            details["country"] = reg_item["country"]
+        if reg_item.get("countries"):
+            details["countries"] = reg_item["countries"]
+        if reg_item.get("genres"):
+            details["genres"] = reg_item["genres"]
+        if reg_item.get("actors"):
+            details["actors"] = reg_item["actors"]
+        if reg_item.get("cast"):
+            details["cast"] = reg_item["cast"]
+        if reg_item.get("director"):
+            details["director"] = reg_item["director"]
+        if reg_item.get("directors_list"):
+            details["directors_list"] = reg_item["directors_list"]
+        if reg_item.get("poster"):
+            details["poster"] = cover_cache.get_local_url(reg_item["poster"])
+        if reg_item.get("backdrop"):
+            details["backdrop"] = cover_cache.get_local_url(reg_item["backdrop"])
+        if reg_item.get("rating_kp"):
+            details["rating_kp"] = reg_item["rating_kp"]
+        if reg_item.get("rating_imdb"):
+            details["rating_imdb"] = reg_item["rating_imdb"]
+        if reg_item.get("rating_lampa"):
+            details["rating_lampa"] = reg_item["rating_lampa"]
+        if reg_item.get("effective_rating"):
+            details["effective_rating"] = reg_item["effective_rating"]
+            details["rating"] = reg_item["effective_rating"]
+        if reg_item.get("age_limit"):
+            details["age_limit"] = reg_item["age_limit"]
+        if reg_item.get("recommendations"):
+            details["recommendations"] = reg_item["recommendations"]
+        if reg_item.get("tags"):
+            details["tags"] = reg_item["tags"]
+        if reg_item.get("seasons"):
+            details["seasons"] = reg_item["seasons"]
+        if reg_item.get("translators"):
+            details["translators"] = reg_item["translators"]
+        if reg_item.get("episodes_schedule"):
+            details["episodes_schedule"] = reg_item["episodes_schedule"]
+        if reg_item.get("sources_info"):
+            details["sources_info"] = reg_item["sources_info"]
+
     # 0a. If source is kodik, pre-extract authentic metadata from Kodik immediately
     if (source == "kodik" or not clean_title) and cached_kodik_items:
         try:
             first_k = cached_kodik_items[0]
-            if first_k.extra_data.get("country"):
+            if not details.get("country") and first_k.extra_data.get("country"):
                 details["country"] = first_k.extra_data["country"]
-            if first_k.extra_data.get("countries"):
+            if not details.get("countries") and first_k.extra_data.get("countries"):
                 details["countries"] = first_k.extra_data["countries"]
-            if first_k.extra_data.get("actors"):
+            if not details.get("actors") and first_k.extra_data.get("actors"):
                 details["actors"] = first_k.extra_data["actors"]
-            if first_k.extra_data.get("director"):
+            if not details.get("director") and first_k.extra_data.get("director"):
                 details["director"] = first_k.extra_data["director"]
-            if first_k.extra_data.get("genres"):
+            if not details.get("genres") and first_k.extra_data.get("genres"):
                 details["genres"] = first_k.extra_data["genres"]
-            if first_k.description:
+            if not details.get("description") and first_k.description:
                 details["description"] = first_k.description
-            if first_k.rating_kp:
+            if not details.get("rating_kp") and first_k.rating_kp:
                 details["rating_kp"] = first_k.rating_kp
-            if first_k.rating_imdb:
+            if not details.get("rating_imdb") and first_k.rating_imdb:
                 details["rating_imdb"] = first_k.rating_imdb
         except Exception:
             pass
 
-    # 0. Query TMDb as the primary authoritative metadata provider
-    try:
-        tmdb_info = tmdb.search_and_enrich(title=title, year=year_int, is_series=is_ser_bool, original_title=original_title)
-        if tmdb_info:
-            if tmdb_info.get("actors"):
-                details["actors"] = tmdb_info["actors"]
-            if tmdb_info.get("cast"):
-                details["cast"] = tmdb_info["cast"]
-            if tmdb_info.get("director"):
-                details["director"] = tmdb_info["director"]
-            if tmdb_info.get("directors_list"):
-                details["directors_list"] = tmdb_info["directors_list"]
-            if tmdb_info.get("country"):
-                details["country"] = tmdb_info["country"]
-            if tmdb_info.get("countries"):
-                details["countries"] = tmdb_info["countries"]
-            if not details.get("description") and tmdb_info.get("description"):
-                details["description"] = tmdb_info["description"]
-            if (not details.get("poster") or "st.kp.yandex.net" in str(details.get("poster"))) and tmdb_info.get("poster"):
-                details["poster"] = tmdb_info["poster"]
-            if not details.get("rating_imdb") and tmdb_info.get("rating"):
-                details["rating_imdb"] = tmdb_info["rating"]
-            if tmdb_info.get("age_limit"):
-                details["age_limit"] = tmdb_info["age_limit"]
-    except Exception:
-        pass
+    # 0b. Query TMDb as metadata provider only if characteristics are missing
+    tmdb_info = None
+    if not details.get("description") or not details.get("actors") or not details.get("country"):
+        try:
+            tmdb_info = tmdb.search_and_enrich(title=title, year=year_int, is_series=is_ser_bool, original_title=original_title)
+            if tmdb_info:
+                if tmdb_info.get("actors"):
+                    details["actors"] = tmdb_info["actors"]
+                if tmdb_info.get("cast"):
+                    details["cast"] = tmdb_info["cast"]
+                if tmdb_info.get("director"):
+                    details["director"] = tmdb_info["director"]
+                if tmdb_info.get("directors_list"):
+                    details["directors_list"] = tmdb_info["directors_list"]
+                if tmdb_info.get("country"):
+                    details["country"] = tmdb_info["country"]
+                if tmdb_info.get("countries"):
+                    details["countries"] = tmdb_info["countries"]
+                if not details.get("description") and tmdb_info.get("description"):
+                    details["description"] = tmdb_info["description"]
+                if (not details.get("poster") or "st.kp.yandex.net" in str(details.get("poster"))) and tmdb_info.get("poster"):
+                    details["poster"] = tmdb_info["poster"]
+                if not details.get("rating_imdb") and tmdb_info.get("rating"):
+                    details["rating_imdb"] = tmdb_info["rating"]
+                if tmdb_info.get("age_limit"):
+                    details["age_limit"] = tmdb_info["age_limit"]
+        except Exception:
+            pass
 
-    # 1. Fetch Bazon details (ratings, synopsis, cast, genres)
-    if resolved_kp:
+    # 1. Fetch Bazon details (ratings, synopsis, cast, genres) only if missing
+    if resolved_kp and (not details.get("description") or not details.get("country")):
         try:
             b_info = bazon.get_details(resolved_kp)
             if b_info:
@@ -1972,8 +2070,8 @@ def _fetch_media_details(
         except Exception:
             pass
 
-    # 1b. Fetch authoritative Kinopoisk Unofficial details (official age limits & KP ratings)
-    if resolved_kp:
+    # 1b. Fetch authoritative Kinopoisk Unofficial details (official age limits & KP ratings) only if missing
+    if resolved_kp and (not details.get("rating_kp") or not details.get("age_limit")):
         try:
             kp_url = f"https://kinopoiskapiunofficial.tech/api/v2.2/films/{resolved_kp}"
             kp_req = urllib.request.Request(kp_url, headers={
@@ -2584,7 +2682,13 @@ def _fetch_media_details(
             fallback_sched.reverse()
             details["episodes_schedule"] = fallback_sched
 
-    # Auto-enrich registry in background
+    # Ensure local URLs for poster and backdrop
+    if details.get("poster"):
+        details["poster"] = cover_cache.get_local_url(details["poster"])
+    if details.get("backdrop"):
+        details["backdrop"] = cover_cache.get_local_url(details["backdrop"])
+
+    # Auto-enrich registry on local machine disk
     try:
         media_registry.upsert_item(details)
     except Exception:

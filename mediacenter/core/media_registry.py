@@ -429,6 +429,18 @@ class MediaRegistry:
                 extra = data.get("extra_data") or {}
                 if not isinstance(extra, dict):
                     extra = {}
+                for field in ("seasons", "translators", "episodes_schedule", "sources_info", "countries"):
+                    if field in data and data[field] and field not in extra:
+                        extra[field] = data[field]
+
+                try:
+                    from mediacenter.core.cover_cache import cover_cache
+                    if poster and str(poster).startswith("http"):
+                        cover_cache.enqueue_url(poster)
+                    if backdrop and str(backdrop).startswith("http"):
+                        cover_cache.enqueue_url(backdrop)
+                except Exception:
+                    pass
 
                 # Age limit parsing with priority
                 age_lampa = normalize_age_limit(data.get("age_limit") if source_name == "lampa" else None)
@@ -845,6 +857,18 @@ class MediaRegistry:
                 r_imdb=row["rating_imdb"] if "rating_imdb" in keys else None
             )
 
+        # Convert remote poster and backdrop to local cached path if available
+        poster = row["poster"]
+        backdrop = row["backdrop"] if "backdrop" in keys else None
+        try:
+            from mediacenter.core.cover_cache import cover_cache
+            if poster:
+                poster = cover_cache.get_local_url(poster)
+            if backdrop:
+                backdrop = cover_cache.get_local_url(backdrop)
+        except Exception:
+            pass
+
         age_limit = row["age_limit"] if "age_limit" in keys and row["age_limit"] else None
 
         return {
@@ -857,8 +881,8 @@ class MediaRegistry:
             "category": category,
             "country": country,
             "countries": countries,
-            "poster": row["poster"],
-            "backdrop": row["backdrop"] if "backdrop" in keys else None,
+            "poster": poster,
+            "backdrop": backdrop,
             "description": row["description"],
             "rating": eff_rating or 7.0,
             "rating_lampa": row["rating_lampa"] if "rating_lampa" in keys else None,
@@ -878,8 +902,59 @@ class MediaRegistry:
             "directors_list": directors_list,
             "recommendations": recommendations,
             "tags": tags,
+            "seasons": extra.get("seasons") or [],
+            "translators": extra.get("translators") or [],
+            "episodes_schedule": extra.get("episodes_schedule") or [],
+            "sources_info": extra.get("sources_info") or [],
             "episodes_info": extra.get("episodes_info"),
             "extra_data": extra
         }
+
+    def get_item(self, item_id: str) -> Optional[Dict[str, Any]]:
+        """Retrieves a single canonical media record by ID or external ID from local SQLite database."""
+        if not item_id:
+            return None
+        conn = self._get_connection()
+        clean_id = str(item_id).strip()
+        try:
+            row = conn.execute("SELECT * FROM media_items WHERE id = ? LIMIT 1;", (clean_id,)).fetchone()
+            if not row:
+                row = conn.execute("SELECT * FROM media_items WHERE tmdb_id = ? OR kinopoisk_id = ? LIMIT 1;", (clean_id, clean_id)).fetchone()
+            if row:
+                return self._row_to_dict(row)
+        except Exception as e:
+            logger.error(f"Error getting item {item_id}: {e}")
+        return None
+
+    def find_item(
+        self,
+        title: Optional[str] = None,
+        year: Optional[int] = None,
+        kp_id: Optional[str] = None,
+        tmdb_id: Optional[str] = None
+    ) -> Optional[Dict[str, Any]]:
+        """Finds a canonical item in local SQLite database by TMDb ID, Kinopoisk ID, or clean title and year."""
+        conn = self._get_connection()
+        try:
+            if tmdb_id:
+                row = conn.execute("SELECT * FROM media_items WHERE tmdb_id = ? LIMIT 1;", (str(tmdb_id),)).fetchone()
+                if row:
+                    return self._row_to_dict(row)
+            if kp_id and str(kp_id).isdigit():
+                row = conn.execute("SELECT * FROM media_items WHERE kinopoisk_id = ? LIMIT 1;", (str(kp_id),)).fetchone()
+                if row:
+                    return self._row_to_dict(row)
+            clean = normalize_title(title)
+            if clean:
+                if year:
+                    row = conn.execute("SELECT * FROM media_items WHERE clean_title = ? AND year = ? LIMIT 1;", (clean, int(year))).fetchone()
+                    if row:
+                        return self._row_to_dict(row)
+                row = conn.execute("SELECT * FROM media_items WHERE clean_title = ? ORDER BY lampa_popularity DESC, effective_rating DESC LIMIT 1;", (clean,)).fetchone()
+                if row:
+                    return self._row_to_dict(row)
+        except Exception as e:
+            logger.error(f"Error finding item in registry: {e}")
+        return None
 
 media_registry = MediaRegistry()

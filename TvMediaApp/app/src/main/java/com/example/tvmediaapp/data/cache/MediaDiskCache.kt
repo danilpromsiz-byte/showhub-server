@@ -28,8 +28,21 @@ object MediaDiskCache {
         if (catFile.exists()) {
             try {
                 val txt = catFile.readText()
-                if (txt.contains("test_unique_actor", ignoreCase = true) || txt.contains("Тестовый", ignoreCase = true)) {
+                if (txt.contains("/covers/") || txt.contains("/api/media/image") || txt.contains("test_unique_actor", ignoreCase = true) || txt.contains("Тестовый", ignoreCase = true)) {
                     catFile.delete()
+                }
+            } catch (_: Exception) {}
+        }
+        val dDir = File(base, "details")
+        if (dDir.exists()) {
+            try {
+                dDir.listFiles()?.forEach { f ->
+                    if (f.isFile && f.name.endsWith(".json")) {
+                        val txt = f.readText()
+                        if (txt.contains("/covers/") || txt.contains("/api/media/image")) {
+                            f.delete()
+                        }
+                    }
                 }
             } catch (_: Exception) {}
         }

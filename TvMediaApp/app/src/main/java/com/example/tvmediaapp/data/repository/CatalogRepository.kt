@@ -563,8 +563,7 @@ class CatalogRepository(context: Context? = null) {
             return !lower.contains("no_image") &&
                    !lower.contains("noposter") &&
                    !lower.contains("kinopoiskapiunofficial.tech") &&
-                   !lower.contains("st.kp.yandex.net") &&
-                   !lower.contains("10592371/4c676451")
+                   !lower.contains("st.kp.yandex.net")
         }
 
         fun hasReadableTitle(title: String): Boolean {
@@ -612,9 +611,16 @@ class CatalogRepository(context: Context? = null) {
                     }
                 }
             }
-            // Immediately enrich movies with cached details from disk
+            // Immediately enrich movies with cached details from disk, always keeping fresh CDN poster/backdrop
             effective = effective.map { m ->
-                com.example.tvmediaapp.data.cache.MediaDiskCache.getCachedDetails(m.id, m.title, m.releaseYear) ?: m
+                val cached = com.example.tvmediaapp.data.cache.MediaDiskCache.getCachedDetails(m.id, m.title, m.releaseYear)
+                if (cached != null) {
+                    val bestPoster = if (m.posterUrl.isNotBlank() && m.posterUrl.startsWith("http") && !m.posterUrl.contains("/covers/")) m.posterUrl else cached.posterUrl
+                    val bestBackdrop = if (m.backdropUrl.isNotBlank() && m.backdropUrl.startsWith("http") && !m.backdropUrl.contains("/covers/")) m.backdropUrl else cached.backdropUrl
+                    cached.copy(posterUrl = bestPoster, backdropUrl = bestBackdrop)
+                } else {
+                    m
+                }
             }
             if (onlyWithPoster) {
                 effective = effective.filter { m -> hasValidPoster(m.posterUrl) }

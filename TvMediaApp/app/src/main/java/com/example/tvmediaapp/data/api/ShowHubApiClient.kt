@@ -370,11 +370,20 @@ object ShowHubApiClient {
                 )
                 val rawPoster = obj.optString("poster", "")
                 val parsedPoster = if (rawPoster.startsWith("http")) rawPoster else if (rawPoster.isNotEmpty()) "$activeServerBase$rawPoster" else ""
-                val updatedPoster = if (parsedPoster.isNotEmpty() && !parsedPoster.contains("no_image") && !parsedPoster.contains("noposter") && !parsedPoster.contains("st.kp.yandex.net")) parsedPoster else movie.posterUrl
+                val isValidNewPoster = parsedPoster.isNotEmpty() &&
+                    !parsedPoster.contains("no_image") &&
+                    !parsedPoster.contains("noposter") &&
+                    !parsedPoster.contains("st.kp.yandex.net") &&
+                    !(parsedPoster.contains("/covers/") && movie.posterUrl.startsWith("http") && !movie.posterUrl.contains("/covers/"))
+                val updatedPoster = if (isValidNewPoster) parsedPoster else movie.posterUrl
 
                 val rawBackdrop = obj.optString("backdrop", "")
                 val parsedBackdrop = if (rawBackdrop.startsWith("http")) rawBackdrop else if (rawBackdrop.isNotEmpty()) "$activeServerBase$rawBackdrop" else ""
-                val updatedBackdrop = if (parsedBackdrop.isNotEmpty() && !parsedBackdrop.contains("no_image") && !parsedBackdrop.contains("noposter")) parsedBackdrop else (if (movie.backdropUrl.isNotEmpty()) movie.backdropUrl else updatedPoster)
+                val isValidNewBackdrop = parsedBackdrop.isNotEmpty() &&
+                    !parsedBackdrop.contains("no_image") &&
+                    !parsedBackdrop.contains("noposter") &&
+                    !(parsedBackdrop.contains("/covers/") && movie.backdropUrl.startsWith("http") && !movie.backdropUrl.contains("/covers/"))
+                val updatedBackdrop = if (isValidNewBackdrop) parsedBackdrop else (if (movie.backdropUrl.isNotEmpty()) movie.backdropUrl else updatedPoster)
 
                 val lampaRating = obj.optDouble("rating_lampa", obj.optDouble("effective_rating", movie.ratingLampa))
                 val kpRating = obj.optDouble("rating_kp", movie.ratingKp)

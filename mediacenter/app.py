@@ -490,8 +490,8 @@ def get_popular(
                     "title": t["title"],
                     "original_title": t.get("original_title"),
                     "year": t.get("year"),
-                    "poster": cover_cache.get_local_url(t.get("poster")),
-                    "backdrop": cover_cache.get_local_url(t.get("backdrop")),
+                    "poster": t.get("poster"),
+                    "backdrop": t.get("backdrop"),
                     "description": t.get("description"),
                     "rating": t.get("rating_lampa") or 7.5,
                     "rating_lampa": t.get("rating_lampa"),
@@ -1048,7 +1048,7 @@ def resolve_real_poster(title: str, year: Optional[Any] = None, kp_id: Optional[
 def get_media_poster(title: str = Query(...), year: Optional[str] = None, kp_id: Optional[str] = None) -> Dict[str, Any]:
     poster = resolve_real_poster(title, year, kp_id)
     if poster:
-        poster = cover_cache.get_local_url(poster)
+        cover_cache.enqueue_url(poster)
     return {"success": bool(poster), "poster": poster or "/noposter.png"}
 
 
@@ -1812,9 +1812,7 @@ def get_catalog(
 
     for it in all_items:
         if it.get("poster"):
-            it["poster"] = cover_cache.get_local_url(it["poster"])
-        if it.get("backdrop"):
-            it["backdrop"] = cover_cache.get_local_url(it["backdrop"])
+            cover_cache.enqueue_url(it["poster"])
 
     _catalog_cache[cache_key] = (now_ts, all_items)
     if all_items:
@@ -1977,9 +1975,11 @@ def _fetch_media_details(
         if reg_item.get("directors_list"):
             details["directors_list"] = reg_item["directors_list"]
         if reg_item.get("poster"):
-            details["poster"] = cover_cache.get_local_url(reg_item["poster"])
+            details["poster"] = reg_item["poster"]
+            cover_cache.enqueue_url(reg_item["poster"])
         if reg_item.get("backdrop"):
-            details["backdrop"] = cover_cache.get_local_url(reg_item["backdrop"])
+            details["backdrop"] = reg_item["backdrop"]
+            cover_cache.enqueue_url(reg_item["backdrop"])
         if reg_item.get("rating_kp"):
             details["rating_kp"] = reg_item["rating_kp"]
         if reg_item.get("rating_imdb"):
@@ -2693,11 +2693,11 @@ def _fetch_media_details(
             fallback_sched.reverse()
             details["episodes_schedule"] = fallback_sched
 
-    # Ensure local URLs for poster and backdrop
+    # Enqueue background cache on local disk while keeping direct CDN URLs for clients
     if details.get("poster"):
-        details["poster"] = cover_cache.get_local_url(details["poster"])
+        cover_cache.enqueue_url(details["poster"])
     if details.get("backdrop"):
-        details["backdrop"] = cover_cache.get_local_url(details["backdrop"])
+        cover_cache.enqueue_url(details["backdrop"])
 
     # Auto-enrich registry on local machine disk
     try:

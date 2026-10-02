@@ -12,6 +12,13 @@ import java.util.concurrent.TimeUnit
 object CoilSetup {
     fun init(context: Context) {
         try {
+            val resetFlag = File(context.cacheDir, "coil_v141_clean.flag")
+            if (!resetFlag.exists()) {
+                try {
+                    File(context.cacheDir, "image_cache").deleteRecursively()
+                    resetFlag.createNewFile()
+                } catch (_: Exception) {}
+            }
             val okHttpClient = OkHttpClient.Builder()
                 .connectTimeout(15, TimeUnit.SECONDS)
                 .readTimeout(20, TimeUnit.SECONDS)
@@ -27,8 +34,11 @@ object CoilSetup {
                     when {
                         host.contains("hdrezka") -> builder.header("Referer", "https://hdrezka-home.tv/")
                         host.contains("yandex") || host.contains("kinopoisk") -> builder.header("Referer", "https://www.kinopoisk.ru/")
+                        host.contains("filmix") || host.contains("werkecdn") || host.contains("cdnsqu") -> builder.header("Referer", "https://filmix.my/")
                         host.contains("kbd.so") || host.contains("bazon") -> builder.header("Referer", "https://bazon.cc/")
-                        else -> builder.header("Referer", "https://showhub-server.onrender.com/")
+                        host.contains("kodik") || host.contains("kodikres") -> builder.header("Referer", "https://kodik.info/")
+                        host.contains("tmdb") || host.contains("themoviedb") -> builder.header("Referer", "https://www.themoviedb.org/")
+                        host.contains("onrender.com") -> builder.header("Referer", "https://showhub-server.onrender.com/")
                     }
                     chain.proceed(builder.build())
                 }

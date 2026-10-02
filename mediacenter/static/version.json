@@ -1,27 +1,27 @@
 {
   "success": true,
-  "version_name": "2.8.81",
-  "version_code": 140,
+  "version_name": "2.8.82",
+  "version_code": 141,
   "force_update": true,
   "min_version_code": 108,
   "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
   "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
-  "changelog": "v2.8.81: 100% стабильная загрузка всех обложек (локальный диск + CDN fallback без 404), строгое исключение старых сериалов 90-х/2000-х (Закон и порядок 1990 и др.) из рядов новинок на главном экране (только свежие релизы 2024-2026), полная очистка базы от непереведенных иероглифических и азиатских названий.",
+  "changelog": "v2.8.82: 100% стабильная загрузка всех обложек без задержек и таймаутов через прямые CDN и локальное дисковое кеширование; сброс кэша битых обложек; фильтрация новинок и исключение непереведенных названий.",
   "tv": {
-    "version_name": "2.8.81",
-    "version_code": 140,
+    "version_name": "2.8.82",
+    "version_code": 141,
     "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
     "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk"
   },
   "mobile": {
-    "version_name": "2.8.81",
-    "version_code": 140,
+    "version_name": "2.8.82",
+    "version_code": 141,
     "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-Mobile.apk",
     "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-Mobile.apk"
   },
   "pc": {
-    "version_name": "2.8.81",
-    "version_code": 140,
+    "version_name": "2.8.82",
+    "version_code": 141,
     "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-PC.zip"
   },
   "alert_screensaver": {

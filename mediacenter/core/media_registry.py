@@ -883,17 +883,9 @@ class MediaRegistry:
                 r_imdb=row["rating_imdb"] if "rating_imdb" in keys else None
             )
 
-        # Convert remote poster and backdrop to local cached path if available
+        # Keep direct high-speed CDN URLs for clients
         poster = row["poster"]
         backdrop = row["backdrop"] if "backdrop" in keys else None
-        try:
-            from mediacenter.core.cover_cache import cover_cache
-            if poster:
-                poster = cover_cache.get_local_url(poster)
-            if backdrop:
-                backdrop = cover_cache.get_local_url(backdrop)
-        except Exception:
-            pass
 
         age_limit = row["age_limit"] if "age_limit" in keys and row["age_limit"] else None
 

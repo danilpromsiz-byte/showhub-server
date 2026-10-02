@@ -66,9 +66,10 @@ object UpdateManager {
                 }
             } catch (_: Exception) {}
 
+            val jsdUrl = "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/$defaultApkName"
             val candidateUrls = listOf(
+                jsdUrl,
                 info.downloadUrl,
-                "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/$defaultApkName",
                 "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/$defaultApkName",
                 "https://showhub-server.onrender.com/$defaultApkName"
             ).filter { it.isNotBlank() }.distinct()
@@ -86,12 +87,21 @@ object UpdateManager {
                     conn.connect()
                     if (conn.responseCode !in 200..299) continue
 
+                    val startTime = System.currentTimeMillis()
+                    var bytesTotal = 0L
+
                     conn.inputStream.use { input ->
                         FileOutputStream(partFile).use { output ->
-                            val buffer = ByteArray(32768)
+                            val buffer = ByteArray(65536)
                             var bytesRead: Int
                             while (input.read(buffer).also { bytesRead = it } > 0) {
                                 output.write(buffer, 0, bytesRead)
+                                bytesTotal += bytesRead
+
+                                val now = System.currentTimeMillis()
+                                if (now - startTime > 5000 && bytesTotal < 500 * 1024L && candidateUrls.indexOf(currentUrl) < candidateUrls.size - 1) {
+                                    throw java.io.IOException("Predownload mirror too slow, switching")
+                                }
                             }
                             output.flush()
                         }
@@ -237,9 +247,10 @@ object UpdateManager {
                     onProgress?.invoke("Файл обновления готов ($mb МБ)", 100)
                 }
             } else {
+            val jsdUrl = "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/$defaultApkName"
             val candidateUrls = listOf(
+                jsdUrl,
                 apkUrl,
-                "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/$defaultApkName",
                 "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/$defaultApkName",
                 "https://showhub-server.onrender.com/$defaultApkName"
             ).filter { it.isNotBlank() }.distinct()
@@ -271,16 +282,33 @@ object UpdateManager {
                     val contentLength = conn.contentLength.toLong()
                     var bytesReadTotal = 0L
                     var lastReportTime = 0L
+                    val downloadStartTime = System.currentTimeMillis()
+                    var lastSpeedCalcTime = downloadStartTime
+                    var lastSpeedBytes = 0L
+                    var currentSpeedKbps = 0.0
 
                     conn.inputStream.use { input ->
                         FileOutputStream(apkFile).use { output ->
-                            val buffer = ByteArray(32768)
+                            val buffer = ByteArray(65536)
                             var bytesRead: Int
                             while (input.read(buffer).also { bytesRead = it } > 0) {
                                 output.write(buffer, 0, bytesRead)
                                 bytesReadTotal += bytesRead
 
                                 val now = System.currentTimeMillis()
+                                if (now - lastSpeedCalcTime >= 400) {
+                                    val durationSec = (now - lastSpeedCalcTime) / 1000.0
+                                    val bytesDelta = bytesReadTotal - lastSpeedBytes
+                                    currentSpeedKbps = if (durationSec > 0) (bytesDelta / 1024.0) / durationSec else 0.0
+                                    lastSpeedCalcTime = now
+                                    lastSpeedBytes = bytesReadTotal
+
+                                    // If a mirror is throttled/stalled (< 120 KB/s) for 5+ seconds and we have other mirrors, fail fast
+                                    if (now - downloadStartTime > 5000 && bytesReadTotal < 600 * 1024L && candidateUrls.indexOf(currentUrl) < candidateUrls.size - 1) {
+                                        throw java.io.IOException("Mirror speed too low (${currentSpeedKbps.toInt()} KB/s), switching mirror")
+                                    }
+                                }
+
                                 if (now - lastReportTime > 200 || bytesReadTotal == contentLength) {
                                     lastReportTime = now
                                     val percent = if (contentLength > 0) {
@@ -294,10 +322,15 @@ object UpdateManager {
                                     } else {
                                         "?"
                                     }
-                                    val statusMsg = if (percent >= 0) {
-                                        "Загрузка: $percent% ($mbRead / $mbTotal МБ)"
+                                    val speedStr = if (currentSpeedKbps >= 1024.0) {
+                                        String.format(java.util.Locale.US, "%.1f МБ/с", currentSpeedKbps / 1024.0)
                                     } else {
-                                        "Загружено: $mbRead МБ"
+                                        String.format(java.util.Locale.US, "%.0f КБ/с", currentSpeedKbps)
+                                    }
+                                    val statusMsg = if (percent >= 0) {
+                                        "Загрузка: $percent% ($mbRead / $mbTotal МБ) • $speedStr"
+                                    } else {
+                                        "Загружено: $mbRead МБ • $speedStr"
                                     }
                                     withContext(Dispatchers.Main) {
                                         onProgress?.invoke(statusMsg, percent)

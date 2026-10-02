@@ -147,58 +147,60 @@ def serve_noposter():
 def serve_apk(version: Optional[str] = None):
     _get_or_increment_installs(is_install=True)
     # 1. Check static directory (packaged for cloud / Render deployment)
+    apk_headers = {"Cache-Control": "public, max-age=86400, s-maxage=86400"}
     if version:
         static_target = os.path.join(static_dir, f"ShowHub-v{version}.apk")
         if os.path.exists(static_target):
-            return FileResponse(static_target, media_type="application/vnd.android.package-archive", filename=f"ShowHub-v{version}.apk")
+            return FileResponse(static_target, media_type="application/vnd.android.package-archive", filename=f"ShowHub-v{version}.apk", headers=apk_headers)
     static_apk = os.path.join(static_dir, "ShowHub.apk")
     if os.path.exists(static_apk):
-        return FileResponse(static_apk, media_type="application/vnd.android.package-archive", filename="ShowHub.apk")
+        return FileResponse(static_apk, media_type="application/vnd.android.package-archive", filename="ShowHub.apk", headers=apk_headers)
 
     # 2. Check parent directory (local development)
     if version:
         target_name = f"ShowHub-v{version}.apk"
         apk_path = os.path.join(PARENT_DIR, target_name)
         if os.path.exists(apk_path):
-            return FileResponse(apk_path, media_type="application/vnd.android.package-archive", filename=target_name)
+            return FileResponse(apk_path, media_type="application/vnd.android.package-archive", filename=target_name, headers=apk_headers)
 
     # Automatically find latest versioned APK in parent directory
     candidates = [f for f in os.listdir(PARENT_DIR) if f.startswith("ShowHub-v") and f.endswith(".apk")]
     if candidates:
         latest = sorted(candidates)[-1]
-        return FileResponse(os.path.join(PARENT_DIR, latest), media_type="application/vnd.android.package-archive", filename=latest)
+        return FileResponse(os.path.join(PARENT_DIR, latest), media_type="application/vnd.android.package-archive", filename=latest, headers=apk_headers)
 
     fallback_path = os.path.join(PARENT_DIR, "ShowHub.apk")
     if os.path.exists(fallback_path):
-        return FileResponse(fallback_path, media_type="application/vnd.android.package-archive", filename="ShowHub.apk")
+        return FileResponse(fallback_path, media_type="application/vnd.android.package-archive", filename="ShowHub.apk", headers=apk_headers)
     raise HTTPException(status_code=404, detail="APK not found")
 @app.api_route("/ShowHub-Mobile.apk", methods=["GET", "HEAD"])
 @app.api_route("/ShowHub-Mobile-v{version}.apk", methods=["GET", "HEAD"])
 @app.api_route("/apk/mobile", methods=["GET", "HEAD"])
 def serve_mobile_apk(version: Optional[str] = None):
     _get_or_increment_installs(is_install=True)
+    apk_headers = {"Cache-Control": "public, max-age=86400, s-maxage=86400"}
     if version:
         static_target = os.path.join(static_dir, f"ShowHub-Mobile-v{version}.apk")
         if os.path.exists(static_target):
-            return FileResponse(static_target, media_type="application/vnd.android.package-archive", filename=f"ShowHub-Mobile-v{version}.apk")
+            return FileResponse(static_target, media_type="application/vnd.android.package-archive", filename=f"ShowHub-Mobile-v{version}.apk", headers=apk_headers)
     static_apk = os.path.join(static_dir, "ShowHub-Mobile.apk")
     if os.path.exists(static_apk):
-        return FileResponse(static_apk, media_type="application/vnd.android.package-archive", filename="ShowHub-Mobile.apk")
+        return FileResponse(static_apk, media_type="application/vnd.android.package-archive", filename="ShowHub-Mobile.apk", headers=apk_headers)
 
     if version:
         target_name = f"ShowHub-Mobile-v{version}.apk"
         apk_path = os.path.join(PARENT_DIR, target_name)
         if os.path.exists(apk_path):
-            return FileResponse(apk_path, media_type="application/vnd.android.package-archive", filename=target_name)
+            return FileResponse(apk_path, media_type="application/vnd.android.package-archive", filename=target_name, headers=apk_headers)
 
     candidates = [f for f in os.listdir(PARENT_DIR) if f.startswith("ShowHub-Mobile-v") and f.endswith(".apk")]
     if candidates:
         latest = sorted(candidates)[-1]
-        return FileResponse(os.path.join(PARENT_DIR, latest), media_type="application/vnd.android.package-archive", filename=latest)
+        return FileResponse(os.path.join(PARENT_DIR, latest), media_type="application/vnd.android.package-archive", filename=latest, headers=apk_headers)
 
     fallback_path = os.path.join(PARENT_DIR, "ShowHub-Mobile.apk")
     if os.path.exists(fallback_path):
-        return FileResponse(fallback_path, media_type="application/vnd.android.package-archive", filename="ShowHub-Mobile.apk")
+        return FileResponse(fallback_path, media_type="application/vnd.android.package-archive", filename="ShowHub-Mobile.apk", headers=apk_headers)
     raise HTTPException(status_code=404, detail="Mobile APK not found")
 
 @app.api_route("/ShowHub-PC.zip", methods=["GET", "HEAD"])
@@ -1052,13 +1054,13 @@ def check_updates() -> Dict[str, Any]:
 
     return {
         "success": True,
-        "version_name": "2.8.16",
-        "version_code": 75,
+        "version_name": "2.8.77",
+        "version_code": 136,
         "force_update": True,
-        "min_version_code": 75,
-        "apk_url": "https://showhub-server.onrender.com/ShowHub.apk",
-        "download_url": "https://showhub-server.onrender.com/ShowHub.apk",
-        "changelog": "ShowHub TV v2.8.16: Мгновенный захват фокуса карточкой каталога при старте, динамический фокус на активных кнопках фильтров, снятие изолирующих focusGroup-ловушек, и мгновенное автоопределение обновлений через jsDelivr CDN."
+        "min_version_code": 108,
+        "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
+        "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
+        "changelog": "ShowHub v2.8.77: Устранена ошибка ложного 4K, фильтрация Filmix PRO+ заглушек, ускоренная загрузка обновлений через CDN."
     }
 
 _actor_photo_cache: Dict[str, Optional[str]] = {}

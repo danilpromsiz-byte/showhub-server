@@ -25,18 +25,18 @@
     "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-PC.zip"
   },
   "alert_screensaver": {
-    "version_name": "1.0.86",
-    "version_code": 87,
+    "version_name": "1.0.87",
+    "version_code": 88,
     "download_url": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/AlertScreensaver.apk",
     "apk_url": "https://showhub-server.onrender.com/AlertScreensaver.apk",
-    "changelog": "v1.0.86: Підвищення чіткості карти у віджеті (32-бітний ARGB_8888 та нативна роздільна здатність до 360к пікселів без розмиття). Оновлено сповіщення у шторці на мобільному: замість 'ЖОВТИЙ' відображається точний час тривалості тривоги або час без тривоги (спокою) без зайвих слів."
+    "changelog": "v1.0.87: Віджет: відображення точної кількості БПЛА в обраній області замість загальної кількості по Україні з граматичним відмінюванням. Біжучий рядок: повна фільтрація недрукованих символів, PUA (кастомних емодзі Telegram) та символів заміни з перевіркою Paint.hasGlyph; заміна розділювача на універсальну крапку (•) без 'перекреслених прямокутників'."
   },
   "alert_mobile": {
-    "version_name": "1.0.86",
-    "version_code": 87,
+    "version_name": "1.0.87",
+    "version_code": 88,
     "download_url": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/Alert-Mobile.apk",
     "apk_url": "https://showhub-server.onrender.com/Alert-Mobile.apk",
-    "changelog": "v1.0.86: Підвищення чіткості карти у віджеті (32-бітний ARGB_8888 та нативна роздільна здатність до 360к пікселів без розмиття). Оновлено сповіщення у шторці на мобільному: замість 'ЖОВТИЙ' відображається точний час тривалості тривоги або час без тривоги (спокою) без зайвих слів."
+    "changelog": "v1.0.87: Віджет: відображення точної кількості БПЛА в обраній області замість загальної кількості по Україні з граматичним відмінюванням. Біжучий рядок: повна фільтрація недрукованих символів, PUA (кастомних емодзі Telegram) та символів заміни з перевіркою Paint.hasGlyph; заміна розділювача на універсальну крапку (•) без 'перекреслених прямокутників'."
   },
   "ads": {
     "enabled": false,

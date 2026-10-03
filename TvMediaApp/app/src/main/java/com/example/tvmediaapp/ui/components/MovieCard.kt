@@ -291,39 +291,50 @@ fun MovieCard(
                                     private fun performSafeSeek() {
                                         if (hasSeeked) return
                                         val dur = duration
-                                        if (dur > 0) {
+                                        if (dur > 60_000L) {
                                             hasSeeked = true
-                                            val targetSeek = if (dur <= baseSeekMs + 10_000L) {
-                                                (dur * 0.20).toLong().coerceAtLeast(0L)
-                                            } else {
+                                            val targetSeek = if (baseSeekMs in 1 until dur) {
                                                 baseSeekMs
+                                            } else {
+                                                (dur * 0.20).toLong().coerceAtLeast(0L)
                                             }
-                                            if (currentPosition < targetSeek - 5000L || currentPosition > targetSeek + 5000L) {
+                                            if (Math.abs(currentPosition - targetSeek) > 5000L) {
                                                 seekTo(targetSeek)
                                             }
                                         }
                                     }
 
                                     override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) {
-                                        try {
-                                            performSafeSeek()
-                                        } catch (_: Exception) {}
+                                        // Seek is executed reliably in onPlaybackStateChanged(STATE_READY)
                                     }
 
                                     override fun onPlaybackStateChanged(state: Int) {
                                         try {
                                             if (state == Player.STATE_READY) {
-                                                performSafeSeek()
+                                                val dur = duration
+                                                if (!hasSeeked) {
+                                                    hasSeeked = true
+                                                    val targetSeek = if (dur > 0 && baseSeekMs in 1 until dur) {
+                                                        baseSeekMs
+                                                    } else if (dur > 30_000L) {
+                                                        (dur * 0.20).toLong()
+                                                    } else {
+                                                        baseSeekMs
+                                                    }
+                                                    if (Math.abs(currentPosition - targetSeek) > 5000L) {
+                                                        seekTo(targetSeek)
+                                                    }
+                                                }
                                                 isPreviewBuffering = false
                                                 isPreviewPlaying = true
                                             } else if (state == Player.STATE_BUFFERING) {
                                                 isPreviewBuffering = true
                                             } else if (state == Player.STATE_ENDED) {
                                                 val dur = duration
-                                                val loopSeek = if (dur in 1..(baseSeekMs + 10_000L)) {
-                                                    (dur * 0.20).toLong().coerceAtLeast(0L)
-                                                } else {
+                                                val loopSeek = if (dur > 0 && baseSeekMs in 1 until dur) {
                                                     baseSeekMs
+                                                } else {
+                                                    0L
                                                 }
                                                 seekTo(loopSeek)
                                                 play()
@@ -515,7 +526,8 @@ fun MovieCard(
                         val imageRequest = remember(effectiveImage) {
                             ImageRequest.Builder(context)
                                 .data(effectiveImage)
-                                .size(300, 450)
+                                .size(240, 360)
+                                .precision(coil.size.Precision.INEXACT)
                                 .bitmapConfig(Bitmap.Config.RGB_565)
                                 .allowRgb565(true)
                                 .crossfade(150)

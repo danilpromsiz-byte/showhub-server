@@ -52,7 +52,7 @@ class MirrorManager:
         ],
         "bazon": ["https://bazon.cc", "https://bazon.to"],
         "videocdn": ["https://api.apbugall.org"],
-        "rutor": ["http://rutor.info", "http://rutor.is"],
+        "rutor": ["http://rutor.is", "http://rutor.info"],
         "jackett": ["http://jac.red", "http://jac-red.ru"],
     }
 

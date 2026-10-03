@@ -930,10 +930,10 @@ class HDRezkaSource(BaseSource):
                         self._populate_streams_from_string(url_str, sub_str, eff_base, result)
 
                 # Fallback if no streams resolved (e.g. VIP-only translator or voice track missing for this season)
-                if not result.streams and is_series and data_id:
+                if not result.streams and data_id:
                     details = self.get_media_details(media_id)
                     all_trans = details.get("translators", []) if details else []
-                    candidate_fallbacks = [default_trans, "35", "1", "474", "56"] + [t.get("id") for t in all_trans if t.get("id")]
+                    candidate_fallbacks = [default_trans, "59", "565", "681", "35", "1", "474", "56"] + [t.get("id") for t in all_trans if t.get("id")]
                     for fb_id in dict.fromkeys(candidate_fallbacks):
                         if not fb_id or str(fb_id) == str(trans_id):
                             continue

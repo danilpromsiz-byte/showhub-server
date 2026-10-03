@@ -146,7 +146,8 @@ fun isStubUrl(url: String): Boolean {
     val clean = url.lowercase().trim()
     return clean.contains("rhtie") || clean.contains("/1/4/4/4/3/4/3/") ||
            clean.contains("zrkms") || clean.contains("/1/5/3/6/4/2/4/") ||
-           clean.contains("trial") || clean.contains("promo") || clean.contains("teaser")
+           clean.contains("trial") || clean.contains("promo") || clean.contains("teaser") ||
+           clean.contains("vibio.tv")
 }
 
 fun isDirectVideoStream(url: String): Boolean {

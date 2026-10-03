@@ -107,16 +107,15 @@ fun HomeScreen(
         }
     }
 
-    val shouldLoadMore by remember(displayMovies.size) {
-        derivedStateOf {
+    LaunchedEffect(viewModel.gridState, displayMovies.size) {
+        androidx.compose.runtime.snapshotFlow {
             val totalItems = displayMovies.size
             val lastVisible = viewModel.gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
             totalItems > 0 && lastVisible >= totalItems - 12
-        }
-    }
-    LaunchedEffect(shouldLoadMore) {
-        if (shouldLoadMore && !viewModel.isLoadingMore && viewModel.canLoadMore) {
-            viewModel.loadNextPage()
+        }.collect { shouldLoad ->
+            if (shouldLoad && !viewModel.isLoadingMore && viewModel.canLoadMore) {
+                viewModel.loadNextPage()
+            }
         }
     }
 

@@ -1,27 +1,27 @@
 {
   "success": true,
-  "version_name": "2.8.87",
-  "version_code": 146,
+  "version_name": "2.8.88",
+  "version_code": 147,
   "force_update": true,
   "min_version_code": 108,
   "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
   "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
-  "changelog": "v2.8.87: Полностью убраны захардкоженные фильмы (Мастер и Маргарита, Слово пацана и др.) при старте; при запуске корректно отображается экран подготовки с неоновым спиннером и надписью «Фильмы подгружаются...» до готовности каталога.",
+  "changelog": "v2.8.88: 1. Исправлен предпросмотр — таймлайн точно переходит на выбранные 5/10/12 минут без сброса в начало фильма. 2. Оптимизированы обложки (аппаратный даунсэмплинг RGB_565) — устранено подтормаживание на ТВ. 3. Исправлен бесконечный скролл на главной — сетка больше не ограничена 8 рядами. 4. Аппаратный неоновый спиннер при старте приложения. 5. Блокировка аудио/видео-заглушек Zona («Установите последнюю версию Zona»). 6. Восстановлены потоки и русские озвучки для «Хитрый койот», «Бэтмен: Падение рыцаря», разделены фильмы в «Возможная любовь», исправлен поиск торрентов для «Одиссея».",
   "tv": {
-    "version_name": "2.8.87",
-    "version_code": 146,
+    "version_name": "2.8.88",
+    "version_code": 147,
     "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
     "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk"
   },
   "mobile": {
-    "version_name": "2.8.87",
-    "version_code": 146,
+    "version_name": "2.8.88",
+    "version_code": 147,
     "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-Mobile.apk",
     "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-Mobile.apk"
   },
   "pc": {
-    "version_name": "2.8.87",
-    "version_code": 146,
+    "version_name": "2.8.88",
+    "version_code": 147,
     "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-PC.zip"
   },
   "alert_screensaver": {

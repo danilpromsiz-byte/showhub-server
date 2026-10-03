@@ -464,8 +464,17 @@ def compute_title_similarity(s1: str, s2: str) -> float:
     """Computes robust word-level similarity between two titles, excluding common stop words."""
     if not s1 or not s2:
         return 0.0
-    n1 = normalize_search_title(s1)
-    n2 = normalize_search_title(s2)
+    if "/" in s1:
+        parts = [p.strip() for p in s1.split("/") if p.strip()]
+        if parts:
+            return max(compute_title_similarity(p, s2) for p in parts)
+    if "/" in s2:
+        parts = [p.strip() for p in s2.split("/") if p.strip()]
+        if parts:
+            return max(compute_title_similarity(s1, p) for p in parts)
+
+    n1 = normalize_search_title(s1).replace("бетмен", "бэтмен")
+    n2 = normalize_search_title(s2).replace("бетмен", "бэтмен")
     if not n1 or not n2:
         return 0.0
     if n1 == n2:
@@ -484,9 +493,14 @@ def compute_title_similarity(s1: str, s2: str) -> float:
         # None of the meaningful content words match!
         return 0.0
 
-    # Recall across both titles: if one title has 2+ words and only 1 matches, it's not a match!
+    # Recall across both titles
     recall1 = len(intersection) / len(w1)
     recall2 = len(intersection) / len(w2)
+
+    # Full phrase / subset match: e.g. "Хитрый койот" in "Хитрый койот против Акме"
+    if (recall1 == 1.0 or recall2 == 1.0) and min(len(w1), len(w2)) >= 2:
+        return 0.90
+
     if max(len(w1), len(w2)) >= 2 and min(recall1, recall2) < 0.60:
         return (len(intersection) / len(w1 | w2)) * 0.4
 
@@ -1744,9 +1758,14 @@ def _fetch_media_details(
             cached_kodik_items = kodik.search(clean_title, year=year_int, kp_id=resolved_kp)
             if not resolved_kp and cached_kodik_items:
                 for kit in cached_kodik_items:
-                    if getattr(kit, "kinopoisk_id", None):
-                        resolved_kp = str(kit.kinopoisk_id)
-                        break
+                    if is_ser_bool is not None and getattr(kit, "is_series", False) != is_ser_bool:
+                        continue
+                    k_kp = getattr(kit, "kinopoisk_id", None)
+                    if k_kp:
+                        sim = compute_title_similarity(getattr(kit, "title", ""), clean_title)
+                        if sim >= 0.70:
+                            resolved_kp = str(k_kp)
+                            break
         except Exception:
             cached_kodik_items = []
 
@@ -1755,7 +1774,9 @@ def _fetch_media_details(
             b_items = bazon.search(clean_title)
             b_match = find_best_match(b_items, year_int, is_ser_bool, target_title=clean_title)
             if b_match and b_match.kinopoisk_id:
-                resolved_kp = b_match.kinopoisk_id
+                sim = compute_title_similarity(getattr(b_match, "title", ""), clean_title)
+                if sim >= 0.70:
+                    resolved_kp = b_match.kinopoisk_id
         except Exception:
             pass
 
@@ -1884,6 +1905,11 @@ def _fetch_media_details(
     if resolved_kp and (not details.get("description") or not details.get("country")):
         try:
             b_info = bazon.get_details(resolved_kp)
+            if b_info:
+                b_t = b_info.get("title", "")
+                if clean_title and b_t and compute_title_similarity(b_t, clean_title) < 0.50:
+                    b_info = None
+                    resolved_kp = None
             if b_info:
                 for k, v in b_info.items():
                     if v is not None:
@@ -2595,12 +2621,34 @@ def _fetch_media_streams(
         no_year = re.sub(r'\b(19\d\d|20\d\d)\b', '', clean_title).strip()
         if no_year and no_year not in titles_to_try:
             titles_to_try.append(no_year)
+    if title and "." in title:
+        base_dot = re.sub(r'\(.*?\)|\[.*?\]', '', title.split(".")[0]).strip()
+        if base_dot and len(base_dot) > 2 and base_dot not in titles_to_try:
+            titles_to_try.append(base_dot)
     if title and ":" in title:
         base_t = re.sub(r'\(.*?\)|\[.*?\]', '', title.split(":")[0]).strip()
         if base_t and base_t not in titles_to_try:
             titles_to_try.append(base_t)
+    if title and " - " in title:
+        base_dash = re.sub(r'\(.*?\)|\[.*?\]', '', title.split(" - ")[0]).strip()
+        if base_dash and len(base_dash) > 2 and base_dash not in titles_to_try:
+            titles_to_try.append(base_dash)
     if title and title not in titles_to_try:
         titles_to_try.append(title)
+
+    # Expand бетмен <-> бэтмен spelling variations across candidate queries
+    alt_vowels = []
+    for t_cand in titles_to_try:
+        cand_low = t_cand.lower()
+        if "бетмен" in cand_low:
+            v_alt = re.sub(r'бетмен', 'бэтмен', t_cand, flags=re.I)
+            if v_alt not in titles_to_try and v_alt not in alt_vowels:
+                alt_vowels.append(v_alt)
+        elif "бэтмен" in cand_low:
+            v_alt = re.sub(r'бэтмен', 'бетмен', t_cand, flags=re.I)
+            if v_alt not in titles_to_try and v_alt not in alt_vowels:
+                alt_vowels.append(v_alt)
+    titles_to_try.extend(alt_vowels)
 
     if original_title:
         import html
@@ -2802,9 +2850,12 @@ def _fetch_media_streams(
         return None
 
     def _resolve_torrents():
-        if clean_title:
+        t_list = titles_to_try if titles_to_try else ([clean_title] if clean_title else [])
+        for q in t_list:
+            if not q or len(q) < 2:
+                continue
             try:
-                torr_items = torrents.search(clean_title, year=year_int, season=season, episode=episode)
+                torr_items = torrents.search(q, year=year_int, season=season, episode=episode)
                 if torr_items:
                     torr_streams = [
                         {
@@ -3245,6 +3296,7 @@ def get_media_preview_stream(
     clean_title = re.sub(r'\s+', ' ', clean_title).strip()
     clean_title_no_season = re.sub(r'\s+\d+$', '', clean_title).strip()
     base_title = re.sub(r'\(.*?\)|\[.*?\]', '', title.split(":")[0]).strip() if (title and ":" in title) else ""
+    dot_title = re.sub(r'\(.*?\)|\[.*?\]', '', title.split(".")[0]).strip() if (title and "." in title) else ""
 
     candidate_streams = []
 
@@ -3331,9 +3383,18 @@ def get_media_preview_stream(
     # Source 5: Search HDRezka by title & year (with subtitle and base title fallback)
     if not candidate_streams and clean_title:
         search_queries = []
-        for q in [clean_title, clean_title_no_season, base_title]:
+        for q in [clean_title, clean_title_no_season, dot_title, base_title]:
             if q and q not in search_queries:
                 search_queries.append(q)
+        vowel_queries = []
+        for sq in search_queries:
+            if "бетмен" in sq.lower():
+                vowel_queries.append(re.sub(r'бетмен', 'бэтмен', sq, flags=re.I))
+            elif "бэтмен" in sq.lower():
+                vowel_queries.append(re.sub(r'бэтмен', 'бетмен', sq, flags=re.I))
+        for vq in vowel_queries:
+            if vq not in search_queries:
+                search_queries.append(vq)
         for t_query in search_queries:
             try:
                 rz_items = hdrezka.search(t_query)

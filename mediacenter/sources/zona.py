@@ -89,7 +89,8 @@ class ZonaSource(BaseSource):
 
                 item_kp_id = str(it.get("id", ""))
                 title = it.get("name_rus") or it.get("name_original") or it.get("name_eng") or clean_q
-                orig_title = it.get("name_original") or it.get("name_eng") or None
+                orig_title_raw = it.get("name_original") or it.get("name_eng")
+                orig_title = str(orig_title_raw).strip() if orig_title_raw is not None else None
                 item_year = it.get("year")
                 if isinstance(item_year, int) and item_year <= 0:
                     item_year = None
@@ -184,6 +185,15 @@ class ZonaSource(BaseSource):
             for q_key, q_label in qualities:
                 stream_url = data.get(q_key)
                 if stream_url and isinstance(stream_url, str) and stream_url.startswith("http"):
+                    # Probe Content-Length to eliminate "Установите последнюю версию Zona" 539 KB stub
+                    try:
+                        head_res = self.session.head(stream_url, headers=headers, timeout=2.5, allow_redirects=True)
+                        cl = int(head_res.headers.get("Content-Length", 0))
+                        if cl == 539215 or (0 < cl < 1000000):
+                            continue
+                    except Exception:
+                        pass
+
                     streams.append(VideoStream(
                         quality=q_label,
                         url=stream_url,
@@ -191,6 +201,14 @@ class ZonaSource(BaseSource):
                         headers=headers,
                         is_premium=False
                     ))
+
+            if not streams:
+                return StreamResult(
+                    source_name=self.name,
+                    media_id=media_id,
+                    title="Zona",
+                    error="Zona streams currently unavailable (stub video detected)"
+                )
 
             audio_tracks = [AudioTrack(id="1", name="Основная дорожка (Zona)", is_default=True)]
 

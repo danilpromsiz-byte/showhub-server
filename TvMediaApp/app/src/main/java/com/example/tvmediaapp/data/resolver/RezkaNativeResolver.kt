@@ -60,7 +60,8 @@ object RezkaNativeResolver {
         val u = url.lowercase().trim()
         return u.contains("rhtie") || u.contains("/1/4/4/4/3/4/3/") ||
                u.contains("zrkms") || u.contains("/1/5/3/6/4/2/4/") ||
-               u.contains("trial") || u.contains("promo") || u.contains("teaser")
+               u.contains("trial") || u.contains("promo") || u.contains("teaser") ||
+               u.contains("vibio.tv")
     }
 
     data class RezkaDetails(
@@ -92,8 +93,8 @@ object RezkaNativeResolver {
     )
 
     fun computeSimilarity(s1: String, s2: String): Double {
-        val c1 = s1.lowercase().replace(Regex("[^a-zа-яё0-9]"), " ").replace(Regex("\\s+"), " ").trim()
-        val c2 = s2.lowercase().replace(Regex("[^a-zа-яё0-9]"), " ").replace(Regex("\\s+"), " ").trim()
+        val c1 = s1.lowercase().replace("бетмен", "бэтмен").replace(Regex("[^a-zа-яё0-9]"), " ").replace(Regex("\\s+"), " ").trim()
+        val c2 = s2.lowercase().replace("бетмен", "бэтмен").replace(Regex("[^a-zа-яё0-9]"), " ").replace(Regex("\\s+"), " ").trim()
         if (c1.isEmpty() || c2.isEmpty()) return 0.0
         if (c1 == c2) return 1.0
         if (c1.contains(c2) || c2.contains(c1)) {
@@ -253,10 +254,25 @@ object RezkaNativeResolver {
                 }
             }
 
-            // Fallback 2: base title before colon if original title contained subtitle
+            // Fallback 1b: бетмен <-> бэтмен
+            if (candidates.isEmpty() && (cleanTitle.contains("бетмен", ignoreCase = true) || cleanTitle.contains("бэтмен", ignoreCase = true))) {
+                val altTitle = if (cleanTitle.contains("бетмен", ignoreCase = true)) {
+                    cleanTitle.replace(Regex("бетмен", RegexOption.IGNORE_CASE), "бэтмен")
+                } else {
+                    cleanTitle.replace(Regex("бэтмен", RegexOption.IGNORE_CASE), "бетмен")
+                }
+                val altSearchUrl = "$baseUrl/search/?do=search&subaction=search&q=" + URLEncoder.encode(altTitle, "UTF-8")
+                val altHtml = httpGet(altSearchUrl, "$baseUrl/", baseUrl = baseUrl) ?: ""
+                if (altHtml.isNotEmpty()) {
+                    parseCandidates(altHtml, altTitle)
+                }
+            }
+
+            // Fallback 2: base title before dot or colon if original title contained subtitle
             val orig = rawTitle ?: ""
-            if (candidates.isEmpty() && orig.contains(":")) {
-                val baseTitle = cleanTitle(orig.split(":")[0])
+            if (candidates.isEmpty() && (orig.contains(".") || orig.contains(":"))) {
+                val basePart = if (orig.contains(".")) orig.split(".")[0] else orig.split(":")[0]
+                val baseTitle = cleanTitle(basePart)
                 if (baseTitle.isNotEmpty() && baseTitle != cleanTitle) {
                     val baseSearchUrl = "$baseUrl/search/?do=search&subaction=search&q=" + URLEncoder.encode(baseTitle, "UTF-8")
                     val baseHtml = httpGet(baseSearchUrl, "$baseUrl/", baseUrl = baseUrl) ?: ""
@@ -605,9 +621,9 @@ object RezkaNativeResolver {
 
             var streamStr = makeAjaxCall(transId, season, episode)
 
-            // Fallback for series when active translator has no season 1 (e.g. Chebol Coldfilm has only season 2)
-            if (streamStr.isEmpty() && translatorId == null) {
-                // 1. Try other translators discovered on this page for season 1
+            // Fallback when active translator returned empty or VIP/premium error
+            if (streamStr.isEmpty()) {
+                // 1. Try other translators discovered on this page
                 for (otherTid in allPageTranslators) {
                     if (otherTid == transId) continue
                     val s = makeAjaxCall(otherTid, season, episode)

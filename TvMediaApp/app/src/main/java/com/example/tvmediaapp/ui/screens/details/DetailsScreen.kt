@@ -196,7 +196,7 @@ fun DetailsScreen(
         val sq = st.quality.lowercase()
         val resP = sq.substringBefore("(").trim()
         if (su.contains("rhtie") || su.contains("zrkms") || su.contains("/1/4/4/4/3/4/3/") || su.contains("/1/5/3/6/4/2/4/") ||
-            su.contains("trial") || su.contains("promo") || su.contains("teaser")) return true
+            su.contains("trial") || su.contains("promo") || su.contains("teaser") || su.contains("vibio.tv")) return true
         if ((st.source.contains("rezka", ignoreCase = true) || su.contains("voidboost")) &&
             (resP.contains("ultra") || resP.contains("4k") || resP.contains("2160") || resP.contains("1440") || resP.contains("premium") || resP.contains("vip") || resP.contains("sub") || st.isPremium)) return true
         val isFx = st.source.contains("filmix", ignoreCase = true) || su.contains("cdnsqu.com") || su.contains("werkecdn.me")
@@ -876,35 +876,46 @@ fun DetailsScreen(
                                 private fun performSafeSeek() {
                                     if (hasSeeked) return
                                     val dur = duration
-                                    if (dur > 0) {
+                                    if (dur > 60_000L) {
                                         hasSeeked = true
-                                        val safeSeek = if (dur <= targetSeekMs + 10_000L) {
-                                            (dur * 0.20).toLong().coerceAtLeast(0L)
-                                        } else {
+                                        val safeSeek = if (targetSeekMs in 1 until dur) {
                                             targetSeekMs
+                                        } else {
+                                            (dur * 0.20).toLong().coerceAtLeast(0L)
                                         }
-                                        if (currentPosition < safeSeek - 5000L || currentPosition > safeSeek + 5000L) {
+                                        if (Math.abs(currentPosition - safeSeek) > 5000L) {
                                             seekTo(safeSeek)
                                         }
                                     }
                                 }
 
                                 override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) {
-                                    try {
-                                        performSafeSeek()
-                                    } catch (_: Exception) {}
+                                    // Seek is executed reliably in onPlaybackStateChanged(STATE_READY)
                                 }
 
                                 override fun onPlaybackStateChanged(state: Int) {
                                     if (state == Player.STATE_READY) {
-                                        performSafeSeek()
+                                        val dur = duration
+                                        if (!hasSeeked) {
+                                            hasSeeked = true
+                                            val safeSeek = if (dur > 0 && targetSeekMs in 1 until dur) {
+                                                targetSeekMs
+                                            } else if (dur > 30_000L) {
+                                                (dur * 0.20).toLong()
+                                            } else {
+                                                targetSeekMs
+                                            }
+                                            if (Math.abs(currentPosition - safeSeek) > 5000L) {
+                                                seekTo(safeSeek)
+                                            }
+                                        }
                                         isDetailsPreviewPlaying = true
                                     } else if (state == Player.STATE_ENDED) {
                                         val dur = duration
-                                        val loopSeek = if (dur in 1..(targetSeekMs + 10_000L)) {
-                                            (dur * 0.20).toLong().coerceAtLeast(0L)
-                                        } else {
+                                        val loopSeek = if (dur > 0 && targetSeekMs in 1 until dur) {
                                             targetSeekMs
+                                        } else {
+                                            0L
                                         }
                                         seekTo(loopSeek)
                                         play()

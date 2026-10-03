@@ -48,32 +48,61 @@ class TorrentsSource(BaseSource):
                 for tr in rows[1:15]:  # Top 15 torrents
                     cols = tr.find_all("td")
                     if len(cols) >= 4:
-                        # Extract title and link
-                        link_tag = cols[1].find_all("a")
-                        if len(link_tag) >= 2:
-                            magnet_tag = link_tag[0]
-                            title_tag = link_tag[1]
-                            magnet = magnet_tag.get("href", "")
-                            title = title_tag.text.strip()
-                            size = cols[2].text.strip() if len(cols) > 2 else "N/A"
-                            seeds = cols[3].text.strip() if len(cols) > 3 else "0"
+                        magnet = ""
+                        title = ""
+                        for a_tag in cols[1].find_all("a"):
+                            href = a_tag.get("href", "")
+                            if href.startswith("magnet:"):
+                                magnet = href
+                            elif href.startswith("/torrent/"):
+                                title = a_tag.text.strip()
+                        
+                        if not magnet:
+                            continue
+                        if not title:
+                            title = cols[1].text.strip()
 
-                            if magnet.startswith("magnet:"):
-                                items.append(MediaItem(
-                                    id=magnet,
-                                    source_name=self.name,
-                                    title=title,
-                                    year=year,
-                                    description=f"Размер: {size} | Сиды: {seeds}",
-                                    extra_data={
-                                        "magnet": magnet,
-                                        "size": size,
-                                        "seeds": seeds,
-                                        "stream_url": f"{self.TORRSERVE_HOST}/stream?link={urllib.parse.quote(magnet)}"
-                                    }
-                                ))
+                        if len(cols) >= 5:
+                            size = cols[3].text.strip()
+                            green_span = cols[4].select_one("span.green")
+                            seeds = green_span.text.strip() if green_span else (cols[4].text.strip().split()[0] if cols[4].text.strip() else "0")
+                        elif len(cols) >= 4:
+                            size = cols[2].text.strip()
+                            seeds = cols[3].text.strip()
+                        else:
+                            size = "N/A"
+                            seeds = "0"
+
+                        # Skip audiobooks / music albums
+                        t_low = title.lower()
+                        if any(bad in t_low for bad in ["mp3", "flac", "lossless", "аудиокнига", "soundtrack", "ost"]):
+                            continue
+
+                        items.append(MediaItem(
+                            id=magnet,
+                            source_name=self.name,
+                            title=title,
+                            year=year,
+                            description=f"Размер: {size} | Сиды: {seeds}",
+                            extra_data={
+                                "magnet": magnet,
+                                "size": size,
+                                "seeds": seeds,
+                                "stream_url": f"{self.TORRSERVE_HOST}/stream?link={urllib.parse.quote(magnet)}"
+                            }
+                        ))
         except Exception:
             pass
+
+        # If searching with year yielded no video results, retry without year and match year in title
+        if not items and year:
+            raw_items = self.search(query, year=None, kp_id=kp_id, season=season, episode=episode)
+            if raw_items:
+                y_str = str(year)
+                matched = [it for it in raw_items if y_str in it.title]
+                if matched:
+                    items = matched
+
         return items
 
     def get_streams(self, media_id: str, season: Optional[int] = None, episode: Optional[int] = None, audio_id: Optional[str] = None) -> StreamResult:

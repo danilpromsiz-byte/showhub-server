@@ -235,13 +235,19 @@ def serve_pc_distribution():
 
 @app.api_route("/AlertScreensaver.apk", methods=["GET", "HEAD"])
 def serve_alert_screensaver_apk():
+    static_apk = os.path.join(static_dir, "AlertScreensaver.apk")
+    if os.path.isfile(static_apk):
+        return FileResponse(static_apk, media_type="application/vnd.android.package-archive", filename="AlertScreensaver.apk")
     from fastapi.responses import RedirectResponse
-    return RedirectResponse("https://alert-server-nk21.onrender.com/AlertScreensaver.apk", status_code=307)
+    return RedirectResponse("https://alert-server-nk21.onrender.com/AlertScreensaver.apk", status_code=302)
 
 @app.api_route("/Alert-Mobile.apk", methods=["GET", "HEAD"])
 def serve_alert_mobile_apk():
+    static_apk = os.path.join(static_dir, "Alert-Mobile.apk")
+    if os.path.isfile(static_apk):
+        return FileResponse(static_apk, media_type="application/vnd.android.package-archive", filename="Alert-Mobile.apk")
     from fastapi.responses import RedirectResponse
-    return RedirectResponse("https://alert-server-nk21.onrender.com/Alert-Mobile.apk", status_code=307)
+    return RedirectResponse("https://alert-server-nk21.onrender.com/Alert-Mobile.apk", status_code=302)
 
 # Alert background poller and proxy migrated to dedicated microservice: alert-server-nk21.onrender.com.
 # Disabled here to keep showhub-server strictly under 512MB RAM without memory spikes.

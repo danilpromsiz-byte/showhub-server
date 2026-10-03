@@ -80,7 +80,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 enum class SettingsTab(val title: String) {
-    PLAYER("Плеер и темы"),
+    PLAYER("Интерфейс и каталог"),
     FILMIX("Filmix"),
     SERVER("Сервер и TorrServe"),
     HISTORY("История и кэш"),
@@ -859,13 +859,18 @@ fun SettingsScreen(
                                 ) {
                                     val mark = if (onlyWithPoster) "☑" else "☐"
                                     Text(
-                                        text = "$mark Показывать только фильмы с обложкой",
+                                        text = "$mark Не показывать на главной фильмы без обложек (доступны в поиске)",
                                         fontSize = 11.sp,
                                         fontWeight = if (onlyWithPoster) FontWeight.Bold else FontWeight.Normal,
                                         lineHeight = 13.sp
                                     )
                                 }
                             }
+                            Text(
+                                text = "Фильмы и сериалы без постеров не захламляют главную страницу, но их всегда можно найти и открыть через поиск.",
+                                fontSize = 11.sp,
+                                color = TextGray
+                            )
 
                             // Toggle: Show unreleased movies (Default: OFF / false)
                             Row(

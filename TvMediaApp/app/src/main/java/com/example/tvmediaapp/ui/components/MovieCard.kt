@@ -465,51 +465,89 @@ fun MovieCard(
                         }
                     }
 
-                    // Async Image with Coil with elegant fallback
+                    // Async Image with Coil with elegant fallback for movies with or without poster
                     val effectiveImage = movie.posterUrl.ifEmpty { movie.backdropUrl }
-                    SubcomposeAsyncImage(
-                        model = effectiveImage,
-                        contentDescription = movie.title,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize(),
-                        error = {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .background(
-                                        Brush.verticalGradient(
-                                            listOf(
-                                                Color(0xFF1E293B),
-                                                Color(0xFF0F172A)
-                                            )
+                    if (effectiveImage.isBlank()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(
+                                    Brush.verticalGradient(
+                                        listOf(
+                                            Color(0xFF1E293B),
+                                            Color(0xFF0F172A)
                                         )
                                     )
-                                    .padding(8.dp),
-                                contentAlignment = Alignment.Center
+                                )
+                                .padding(8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
                             ) {
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.Center
-                                ) {
-                                    AppIcon(
-                                        resId = com.example.tvmediaapp.R.drawable.ic_movie,
-                                        tint = Color.White.copy(alpha = 0.35f),
-                                        size = 32.dp
-                                    )
-                                    Spacer(modifier = Modifier.height(6.dp))
-                                    Text(
-                                        text = movie.title.unescapeHtml(),
-                                        color = Color.White.copy(alpha = 0.85f),
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        textAlign = TextAlign.Center,
-                                        maxLines = 3,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
+                                AppIcon(
+                                    resId = com.example.tvmediaapp.R.drawable.ic_movie,
+                                    tint = Color.White.copy(alpha = 0.35f),
+                                    size = 32.dp
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = movie.title.unescapeHtml(),
+                                    color = Color.White.copy(alpha = 0.85f),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    textAlign = TextAlign.Center,
+                                    maxLines = 3,
+                                    overflow = TextOverflow.Ellipsis
+                                )
                             }
                         }
-                    )
+                    } else {
+                        SubcomposeAsyncImage(
+                            model = effectiveImage,
+                            contentDescription = movie.title,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize(),
+                            error = {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(
+                                            Brush.verticalGradient(
+                                                listOf(
+                                                    Color(0xFF1E293B),
+                                                    Color(0xFF0F172A)
+                                                )
+                                            )
+                                        )
+                                        .padding(8.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.Center
+                                    ) {
+                                        AppIcon(
+                                            resId = com.example.tvmediaapp.R.drawable.ic_movie,
+                                            tint = Color.White.copy(alpha = 0.35f),
+                                            size = 32.dp
+                                        )
+                                        Spacer(modifier = Modifier.height(6.dp))
+                                        Text(
+                                            text = movie.title.unescapeHtml(),
+                                            color = Color.White.copy(alpha = 0.85f),
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            textAlign = TextAlign.Center,
+                                            maxLines = 3,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                }
+                            }
+                        )
+                    }
 
                     // Card Video Preview (ExoPlayer surface - smoothly appears once ready)
                     if (isPreviewPlaying && previewPlayer != null) {

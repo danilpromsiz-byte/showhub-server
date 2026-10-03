@@ -566,6 +566,10 @@ class CatalogRepository(context: Context? = null) {
                    !lower.contains("st.kp.yandex.net")
         }
 
+        fun hasValidCover(m: Movie): Boolean {
+            return hasValidPoster(m.posterUrl) || hasValidPoster(m.backdropUrl)
+        }
+
         fun hasReadableTitle(title: String): Boolean {
             if (title.isBlank()) return false
             val hasCyrillicOrLatin = title.any { c ->
@@ -591,7 +595,7 @@ class CatalogRepository(context: Context? = null) {
             }
             effective = effective.filter { hasReadableTitle(it.title) }
             if (onlyWithPoster) {
-                effective = effective.filter { m -> hasValidPoster(m.posterUrl) }
+                effective = effective.filter { m -> hasValidCover(m) }
             }
             if (excludedCountriesStr.isNotBlank()) {
                 val exList = excludedCountriesStr.split(",").map { it.trim().lowercase() }.filter { it.isNotEmpty() }
@@ -623,7 +627,7 @@ class CatalogRepository(context: Context? = null) {
                 }
             }
             if (onlyWithPoster) {
-                effective = effective.filter { m -> hasValidPoster(m.posterUrl) }
+                effective = effective.filter { m -> hasValidCover(m) }
             }
 
             val includeUnreleasedMovies = prefs?.getBoolean("pref_unreleased_movies", false) ?: false

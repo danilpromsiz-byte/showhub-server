@@ -1,27 +1,27 @@
 {
   "success": true,
-  "version_name": "2.8.82",
-  "version_code": 141,
+  "version_name": "2.8.83",
+  "version_code": 142,
   "force_update": true,
   "min_version_code": 108,
   "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
   "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
-  "changelog": "v2.8.82: 100% стабильная загрузка всех обложек без задержек и таймаутов через прямые CDN и локальное дисковое кеширование; сброс кэша битых обложек; фильтрация новинок и исключение непереведенных названий.",
+  "changelog": "v2.8.83: Опция в настройках скрывать на главной фильмы без обложек (включена по умолчанию), при этом они полноценно доступны через поиск с карточками-заглушками; улучшена проверка постеров и фонов.",
   "tv": {
-    "version_name": "2.8.82",
-    "version_code": 141,
+    "version_name": "2.8.83",
+    "version_code": 142,
     "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
     "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk"
   },
   "mobile": {
-    "version_name": "2.8.82",
-    "version_code": 141,
+    "version_name": "2.8.83",
+    "version_code": 142,
     "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-Mobile.apk",
     "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-Mobile.apk"
   },
   "pc": {
-    "version_name": "2.8.82",
-    "version_code": 141,
+    "version_name": "2.8.83",
+    "version_code": 142,
     "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-PC.zip"
   },
   "alert_screensaver": {

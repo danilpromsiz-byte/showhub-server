@@ -62,6 +62,7 @@ import com.example.tvmediaapp.ui.components.MovieCard
 import com.example.tvmediaapp.ui.components.MovieContextMenuDialog
 import com.example.tvmediaapp.ui.components.NeonSpinner
 import com.example.tvmediaapp.ui.components.TvTopBar
+import com.example.tvmediaapp.ui.theme.CyanNeon
 import com.example.tvmediaapp.ui.theme.LocalAccentColor
 import com.example.tvmediaapp.ui.theme.LocalBackgroundColor
 import com.example.tvmediaapp.ui.theme.LocalFocusColor
@@ -98,7 +99,7 @@ fun HomeScreen(
         categories.firstOrNull()?.movies ?: emptyList()
     }
 
-    var isInitialPrep by remember { mutableStateOf(displayMovies.isEmpty()) }
+    var isInitialPrep by remember { mutableStateOf(true) }
     LaunchedEffect(displayMovies.isNotEmpty()) {
         if (displayMovies.isNotEmpty()) {
             delay(350)
@@ -177,14 +178,21 @@ fun HomeScreen(
                 Spacer(modifier = Modifier.height(20.dp))
                 Text(
                     text = "Подготовка приложения...",
-                    fontSize = 19.sp,
+                    fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
                     color = TextWhite
                 )
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(
+                    text = "Фильмы подгружаются...",
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = CyanNeon
+                )
+                Spacer(modifier = Modifier.height(6.dp))
                 Text(
                     text = "Загрузка медиатеки и проверка источников",
-                    fontSize = 13.sp,
+                    fontSize = 12.sp,
                     color = TextGray
                 )
             }

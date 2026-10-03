@@ -1,27 +1,27 @@
 {
   "success": true,
-  "version_name": "2.8.86",
-  "version_code": 145,
+  "version_name": "2.8.87",
+  "version_code": 146,
   "force_update": true,
   "min_version_code": 108,
   "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
   "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
-  "changelog": "v2.8.86: Снято ограничение в 8 рядов: динамическая подгрузка каталога и бесконечный скролл; 20-кратная оптимизация памяти обложек (аппаратный даунсемплинг 300x450, RGB_565, легкий AsyncImage и переход на легковесный формат постеров TMDB w342) — полностью устранены лаги на ТВ.",
+  "changelog": "v2.8.87: Полностью убраны захардкоженные фильмы (Мастер и Маргарита, Слово пацана и др.) при старте; при запуске корректно отображается экран подготовки с неоновым спиннером и надписью «Фильмы подгружаются...» до готовности каталога.",
   "tv": {
-    "version_name": "2.8.86",
-    "version_code": 145,
+    "version_name": "2.8.87",
+    "version_code": 146,
     "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
     "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk"
   },
   "mobile": {
-    "version_name": "2.8.86",
-    "version_code": 145,
+    "version_name": "2.8.87",
+    "version_code": 146,
     "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-Mobile.apk",
     "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-Mobile.apk"
   },
   "pc": {
-    "version_name": "2.8.86",
-    "version_code": 145,
+    "version_name": "2.8.87",
+    "version_code": 146,
     "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-PC.zip"
   },
   "alert_screensaver": {

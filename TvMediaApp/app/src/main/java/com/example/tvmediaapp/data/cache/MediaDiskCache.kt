@@ -25,36 +25,24 @@ object MediaDiskCache {
         cacheDir = base
 
         val catFile = File(base, "catalog.json")
-        if (!catFile.exists() || catFile.length() < 200) {
-            try {
-                context.assets.open("initial_catalog.json").use { input ->
-                    catFile.outputStream().use { output ->
-                        input.copyTo(output)
-                    }
+        try {
+            if (catFile.exists()) {
+                val txt = catFile.readText()
+                if (txt.contains("Мастер и Маргарита") || txt.contains("1115471") || txt.contains("5244522") || txt.contains("Пожиратель звёзд") || txt.contains("/covers/") || txt.contains("/api/media/image") || txt.contains("test_unique_actor", ignoreCase = true) || txt.contains("Тестовый", ignoreCase = true)) {
+                    catFile.delete()
                 }
-            } catch (_: Exception) {}
-        }
+            }
+        } catch (_: Exception) {}
 
         // Run heavy cleanup in background thread to avoid blocking main UI thread in onCreate
         Thread {
             try {
-                if (catFile.exists()) {
-                    val txt = catFile.readText()
-                    if (txt.contains("/covers/") || txt.contains("/api/media/image") || txt.contains("test_unique_actor", ignoreCase = true) || txt.contains("Тестовый", ignoreCase = true)) {
-                        catFile.delete()
-                        context.assets.open("initial_catalog.json").use { input ->
-                            catFile.outputStream().use { output ->
-                                input.copyTo(output)
-                            }
-                        }
-                    }
-                }
                 val dDir = File(base, "details")
                 if (dDir.exists()) {
                     dDir.listFiles()?.forEach { f ->
                         if (f.isFile && f.name.endsWith(".json")) {
                             val txt = f.readText()
-                            if (txt.contains("/covers/") || txt.contains("/api/media/image")) {
+                            if (txt.contains("/covers/") || txt.contains("/api/media/image") || txt.contains("1115471") || txt.contains("5244522") || txt.contains("Мастер и Маргарита")) {
                                 f.delete()
                             }
                         }
@@ -177,7 +165,7 @@ object MediaDiskCache {
                 val obj = arr.getJSONObject(i)
                 val m = deserializeMovie(obj)
                 if (m != null) {
-                    if (m.id.contains("test", ignoreCase = true) || m.title.contains("Тестов", ignoreCase = true)) {
+                    if (m.id.contains("test", ignoreCase = true) || m.title.contains("Тестов", ignoreCase = true) || m.id in setOf("1115471", "5244522", "4519776") || m.title.contains("Мастер и Маргарита")) {
                         continue
                     }
                     list.add(m)

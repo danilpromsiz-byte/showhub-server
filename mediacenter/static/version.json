@@ -25,18 +25,18 @@
     "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-PC.zip"
   },
   "alert_screensaver": {
-    "version_name": "1.0.91",
-    "version_code": 92,
+    "version_name": "1.0.92",
+    "version_code": 93,
     "download_url": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/AlertScreensaver.apk",
     "apk_url": "https://showhub-server.onrender.com/AlertScreensaver.apk",
-    "changelog": "v1.0.91: 1) Автономна версія без реклами з прямим оновленням із сервера. 2) Підтримка жовтої тривоги. 3) Напівпрозора плашка поверх програм на 3.5с із точними назвами кількох локацій."
+    "changelog": "v1.0.92: 1) Виправлено обрізання карти по висоті у віджеті. 2) Резервний канал даних для дронів та захист від збоїв радара."
   },
   "alert_mobile": {
-    "version_name": "1.0.91",
-    "version_code": 92,
+    "version_name": "1.0.92",
+    "version_code": 93,
     "download_url": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/Alert-Mobile.apk",
     "apk_url": "https://showhub-server.onrender.com/Alert-Mobile.apk",
-    "changelog": "v1.0.91: 1) Автономна версія без реклами з прямим оновленням із сервера. 2) Підтримка жовтої тривоги. 3) Напівпрозора плашка поверх програм на 3.5с із точними назвами кількох локацій."
+    "changelog": "v1.0.92: 1) Виправлено обрізання карти по висоті у віджеті. 2) Резервний канал даних для дронів та захист від збоїв радара."
   },
   "ads": {
     "enabled": false,

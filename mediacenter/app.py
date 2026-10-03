@@ -235,223 +235,31 @@ def serve_pc_distribution():
 
 @app.api_route("/AlertScreensaver.apk", methods=["GET", "HEAD"])
 def serve_alert_screensaver_apk():
-    static_apk = os.path.join(static_dir, "AlertScreensaver.apk")
-    if os.path.exists(static_apk):
-        return FileResponse(static_apk, media_type="application/vnd.android.package-archive", filename="AlertScreensaver.apk")
-    alert_apk = os.path.join(r"c:\WORK\Alert", "AlertScreensaver.apk")
-    if os.path.exists(alert_apk):
-        return FileResponse(alert_apk, media_type="application/vnd.android.package-archive", filename="AlertScreensaver.apk")
-    vid_apk = os.path.join(PARENT_DIR, "AlertScreensaver.apk")
-    if os.path.exists(vid_apk):
-        return FileResponse(vid_apk, media_type="application/vnd.android.package-archive", filename="AlertScreensaver.apk")
-    raise HTTPException(status_code=404, detail="AlertScreensaver APK not found")
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse("https://alert-server-nk21.onrender.com/AlertScreensaver.apk", status_code=307)
 
 @app.api_route("/Alert-Mobile.apk", methods=["GET", "HEAD"])
 def serve_alert_mobile_apk():
-    static_apk = os.path.join(static_dir, "Alert-Mobile.apk")
-    if os.path.exists(static_apk):
-        return FileResponse(static_apk, media_type="application/vnd.android.package-archive", filename="Alert-Mobile.apk")
-    alert_apk = os.path.join(r"c:\WORK\Alert", "Alert-Mobile.apk")
-    if os.path.exists(alert_apk):
-        return FileResponse(alert_apk, media_type="application/vnd.android.package-archive", filename="Alert-Mobile.apk")
-    vid_apk = os.path.join(PARENT_DIR, "Alert-Mobile.apk")
-    if os.path.exists(vid_apk):
-        return FileResponse(vid_apk, media_type="application/vnd.android.package-archive", filename="Alert-Mobile.apk")
-    raise HTTPException(status_code=404, detail="Alert-Mobile APK not found")
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse("https://alert-server-nk21.onrender.com/Alert-Mobile.apk", status_code=307)
 
-_alerts_cache = {"timestamp": 0.0, "data": None}
-_ALERTS_CACHE_TTL = 4.0
-
-def _refresh_alerts_cache() -> Optional[Dict[str, Any]]:
-    now = time.time()
-    # 1. Primary: Official differentiated statuses feed (red + yellow + districts)
-    try:
-        req = urllib.request.Request(
-            "https://vadimklimenko.com/map/statuses.json",
-            headers={"User-Agent": "AlertAPI/1.0"}
-        )
-        with urllib.request.urlopen(req, timeout=5) as resp:
-            if resp.status == 200:
-                raw = json.loads(resp.read().decode("utf-8"))
-                states = raw.get("states", {})
-                if states:
-                    regions = []
-                    red_count = 0
-                    yellow_count = 0
-                    rank = {"red": 3, "orange": 2, "yellow": 1, "none": 0}
-                    for name, s_obj in states.items():
-                        s_enabled = bool(s_obj.get("enabled", False))
-                        s_raw_lvl = s_obj.get("alert_level")
-                        eff_lvl = ("yellow" if s_raw_lvl == "yellow" else "red") if s_enabled else "none"
-                        changed = s_obj.get("enabled_at") or ""
-                        for _, d_obj in (s_obj.get("districts") or {}).items():
-                            if d_obj.get("enabled"):
-                                d_lvl = "yellow" if d_obj.get("alert_level") == "yellow" else "red"
-                                if rank[d_lvl] > rank[eff_lvl]:
-                                    eff_lvl = d_lvl
-                                d_ts = d_obj.get("enabled_at") or ""
-                                if d_ts and (not changed or d_ts > changed):
-                                    changed = d_ts
-                        if eff_lvl == "red":
-                            red_count += 1
-                        elif eff_lvl == "yellow":
-                            yellow_count += 1
-                        regions.append({
-                            "name": name,
-                            "alert_now": eff_lvl in ("red", "yellow"),
-                            "alert_level": eff_lvl,
-                            "changed": changed
-                        })
-                    total = len(regions)
-                    active_count = red_count + yellow_count
-                    safe_count = max(0, total - active_count)
-                    percent = round(((red_count + yellow_count * 0.5) / total * 100), 1) if total > 0 else 0.0
-                    res = {
-                        "success": True,
-                        "cached_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                        "total_regions": total,
-                        "active_alerts_count": active_count,
-                        "red_alerts_count": red_count,
-                        "yellow_alerts_count": yellow_count,
-                        "safe_regions_count": safe_count,
-                        "percentage": percent,
-                        "states": states,
-                        "regions": regions
-                    }
-                    _alerts_cache["timestamp"] = now
-                    _alerts_cache["data"] = res
-                    try:
-                        static_statuses = os.path.join(CURRENT_DIR, "static", "statuses.json")
-                        with open(static_statuses, "w", encoding="utf-8") as sf:
-                            json.dump(res, sf, ensure_ascii=False)
-                    except Exception:
-                        pass
-                    return res
-    except Exception as e:
-        logger.debug(f"Failed to fetch statuses.json: {e}")
-
-    # If we already have recent rich statuses (< 120s old), keep them to prevent flickering
-    if _alerts_cache.get("data") and (now - _alerts_cache.get("timestamp", 0) < 120):
-        return _alerts_cache["data"]
-
-    # 2. Fallbacks (only if primary cache is cold or stale > 2 minutes)
-    urls = [
-        "https://ubilling.net.ua/aerialalerts/",
-        "https://alerts.in.ua/api/states"
-    ]
-    for url in urls:
-        try:
-            req = urllib.request.Request(url, headers={"User-Agent": "AlertAPI/1.0"})
-            with urllib.request.urlopen(req, timeout=5) as resp:
-                if resp.status == 200:
-                    raw = json.loads(resp.read().decode("utf-8", errors="ignore"))
-                    states = raw.get("states", {})
-                    if states:
-                        regions = []
-                        active_count = 0
-                        for name, info in states.items():
-                            is_alert = bool(info.get("alertnow", False))
-                            if is_alert:
-                                active_count += 1
-                            regions.append({
-                                "name": name,
-                                "alert_now": is_alert,
-                                "alert_level": "red" if is_alert else "none",
-                                "changed": info.get("changed", "")
-                            })
-                        regions.sort(key=lambda x: (not x["alert_now"], x["name"]))
-                        total = len(regions)
-                        safe_count = total - active_count
-                        percent = round((active_count / total * 100), 1) if total > 0 else 0.0
-                        res = {
-                            "success": True,
-                            "cached_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                            "total_regions": total,
-                            "active_alerts_count": active_count,
-                            "red_alerts_count": active_count,
-                            "yellow_alerts_count": 0,
-                            "safe_regions_count": safe_count,
-                            "percentage": percent,
-                            "states": states,
-                            "regions": regions
-                        }
-                        _alerts_cache["timestamp"] = now
-                        _alerts_cache["data"] = res
-                        return res
-        except Exception as e:
-            logger.debug(f"Failed to fetch alerts from {url}: {e}")
-
-    return _alerts_cache["data"]
-
-def _start_alerts_background_poller():
-    def _loop():
-        time.sleep(1.0)
-        while True:
-            try:
-                _refresh_alerts_cache()
-            except Exception as e:
-                logger.debug(f"Background alert poller error: {e}")
-            time.sleep(4.0)
-    t = threading.Thread(target=_loop, name="AlertPoller", daemon=True)
-    t.start()
-
-# Start background alert mirror poller
-_start_alerts_background_poller()
+# Alert background poller and proxy migrated to dedicated microservice: alert-server-nk21.onrender.com.
+# Disabled here to keep showhub-server strictly under 512MB RAM without memory spikes.
 
 @app.get("/api/alerts")
-def get_alerts() -> Dict[str, Any]:
-    """Provides live Ukraine air alarm status by oblasts with high-speed in-memory caching from background poller."""
-    if _alerts_cache["data"]:
-        return _alerts_cache["data"]
-    res = _refresh_alerts_cache()
-    if res:
-        return res
-    return {
-        "success": False,
-        "error": "Initializing alert mirror...",
-        "total_regions": 0,
-        "active_alerts_count": 0,
-        "regions": []
-    }
+def get_alerts():
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse("https://alert-server-nk21.onrender.com/api/alerts", status_code=307)
 
 @app.api_route("/api/radar", methods=["GET", "POST"])
 async def proxy_radar(request: Request):
-    """Secure mirror and proxy for radar drone/missile queries without exposing third-party host."""
-    body = await request.body()
-    try:
-        req = urllib.request.Request(
-            "https://radar.quick.ua/api-2026-09-01/information.php",
-            data=body if body else None,
-            headers={
-                "Content-Type": "application/x-www-form-urlencoded",
-                "User-Agent": "okhttp/4.12.0"
-            }
-        )
-        with urllib.request.urlopen(req, timeout=6) as resp:
-            resp_bytes = resp.read()
-            if len(resp_bytes) >= 2 and resp_bytes[:2] == b'\x1f\x8b':
-                import gzip
-                resp_bytes = gzip.decompress(resp_bytes)
-            return Response(content=resp_bytes, media_type="application/json")
-    except Exception as e:
-        logger.warning(f"Radar proxy failed: {e}")
-        return JSONResponse(status_code=200, content={"radar": {}, "warning": str(e)})
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse("https://alert-server-nk21.onrender.com/api/radar", status_code=307)
 
 @app.get("/api/alerts/history")
 def get_alert_history(regionId: str = ""):
-    """Mirrors region alarm history securely without client knowing the third-party origin."""
-    if not regionId:
-        return []
-    try:
-        req = urllib.request.Request(
-            f"https://siren.pp.ua/api/v3/alerts/regionHistory?regionId={urllib.parse.quote(regionId)}",
-            headers={"User-Agent": "okhttp/4.12.0"}
-        )
-        with urllib.request.urlopen(req, timeout=6) as resp:
-            return Response(content=resp.read(), media_type="application/json")
-    except Exception as e:
-        logger.warning(f"Alert history proxy failed: {e}")
-        return []
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(f"https://alert-server-nk21.onrender.com/api/alerts/history?regionId={urllib.parse.quote(regionId)}", status_code=307)
 
 
 @app.get("/api/popular")

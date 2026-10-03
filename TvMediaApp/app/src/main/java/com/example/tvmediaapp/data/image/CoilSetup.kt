@@ -48,7 +48,7 @@ object CoilSetup {
                 .okHttpClient(okHttpClient)
                 .memoryCache {
                     MemoryCache.Builder(context)
-                        .maxSizePercent(0.25)
+                        .maxSizePercent(0.20)
                         .build()
                 }
                 .diskCache {
@@ -57,6 +57,7 @@ object CoilSetup {
                         .maxSizeBytes(256L * 1024L * 1024L)
                         .build()
                 }
+                .allowRgb565(true)
                 .crossfade(true)
                 .respectCacheHeaders(false)
                 .build()

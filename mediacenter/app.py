@@ -1207,6 +1207,7 @@ def get_catalog(
     min_rating: Optional[float] = None,
     sort_by: Optional[str] = "newest",
     page: int = 1,
+    limit: int = 120,
     excluded_countries: Optional[str] = None,
     excluded_genres: Optional[str] = None,
     include_unreleased_movies: bool = False,
@@ -1216,7 +1217,8 @@ def get_catalog(
     Returns dynamic fresh releases (новинки) and catalog items aggregated across live sources.
     Supports filtering by genre, country, content type, release year, minimum rating, excluded countries, excluded genres, unreleased status, and sorting.
     """
-    cache_key = f"{category}_{genre}_{year}_{country}_{content_type}_{min_rating}_{sort_by}_{page}_{excluded_countries}_{excluded_genres}_{include_unreleased_movies}_{include_unreleased_series}"
+    effective_limit = min(max(limit, 20), 300)
+    cache_key = f"{category}_{genre}_{year}_{country}_{content_type}_{min_rating}_{sort_by}_{page}_{effective_limit}_{excluded_countries}_{excluded_genres}_{include_unreleased_movies}_{include_unreleased_series}"
     now_ts = time.time()
     if cache_key in _catalog_cache:
         cached_time, cached_items = _catalog_cache[cache_key]
@@ -1235,7 +1237,7 @@ def get_catalog(
             min_rating=min_rating,
             sort_by=sort_by,
             page=page,
-            limit=50,
+            limit=effective_limit,
             excluded_countries=excluded_countries,
             excluded_genres=excluded_genres,
             include_unreleased_movies=include_unreleased_movies,

@@ -281,9 +281,9 @@ class TMDbClient:
             genres = [g["name"] for g in det_data.get("genres", []) if g.get("name")]
             overview = det_data.get("overview") or item.get("overview") or ""
             poster_path = det_data.get("poster_path") or item.get("poster_path")
-            poster = f"{IMG_BASE}/w780{poster_path}" if poster_path else None
+            poster = f"{IMG_BASE}/w342{poster_path}" if poster_path else None
             backdrop_path = det_data.get("backdrop_path") or item.get("backdrop_path")
-            backdrop = f"{IMG_BASE}/w1280{backdrop_path}" if backdrop_path else None
+            backdrop = f"{IMG_BASE}/w780{backdrop_path}" if backdrop_path else None
 
             # Parse official age certification from release_dates or content_ratings
             age_limit = None
@@ -461,7 +461,7 @@ class TMDbClient:
                     if r_date and len(r_date) >= 4 and r_date[:4].isdigit():
                         year_val = int(r_date[:4])
                     p_path = it.get("poster_path")
-                    poster = f"{IMG_BASE}/w780{p_path}" if p_path else None
+                    poster = f"{IMG_BASE}/w342{p_path}" if p_path else None
                     rating = it.get("vote_average")
                     votes = it.get("vote_count", 0)
                     is_ser = (media_type == "tv")
@@ -497,7 +497,7 @@ class TMDbClient:
                     r_date = it.get("release_date") or ""
                     year_val = int(r_date[:4]) if (r_date and len(r_date) >= 4 and r_date[:4].isdigit()) else None
                     p_path = it.get("poster_path")
-                    poster = f"{IMG_BASE}/w780{p_path}" if p_path else None
+                    poster = f"{IMG_BASE}/w342{p_path}" if p_path else None
                     out.append({
                         "tmdb_id": m_id,
                         "title": title,
@@ -529,7 +529,7 @@ class TMDbClient:
                     r_date = it.get("first_air_date") or ""
                     year_val = int(r_date[:4]) if (r_date and len(r_date) >= 4 and r_date[:4].isdigit()) else None
                     p_path = it.get("poster_path")
-                    poster = f"{IMG_BASE}/w780{p_path}" if p_path else None
+                    poster = f"{IMG_BASE}/w342{p_path}" if p_path else None
                     out.append({
                         "tmdb_id": m_id,
                         "title": title,
@@ -592,7 +592,7 @@ class TMDbClient:
                 r_date = item.get("release_date") or item.get("first_air_date") or ""
                 year_val = int(r_date[:4]) if (r_date and len(r_date) >= 4 and r_date[:4].isdigit()) else None
                 p_path = item.get("poster_path")
-                poster = f"{IMG_BASE}/w780{p_path}" if p_path else None
+                poster = f"{IMG_BASE}/w342{p_path}" if p_path else None
                 is_ser = item.get("media_type") == "tv"
 
                 char = item.get("character", "")
@@ -721,7 +721,7 @@ class TMDbClient:
                         r_date = item.get("release_date") or item.get("first_air_date") or ""
                         year_val = int(r_date[:4]) if (r_date and len(r_date) >= 4 and r_date[:4].isdigit()) else None
                         p_path = item.get("poster_path")
-                        poster = f"{IMG_BASE}/w780{p_path}" if p_path else None
+                        poster = f"{IMG_BASE}/w342{p_path}" if p_path else None
                         rating_val = round(float(item.get("vote_average") or 0.0), 1)
 
                         country_name = ISO_COUNTRY_MAP.get(iso_code, country) if iso_code else None
@@ -734,7 +734,7 @@ class TMDbClient:
                             "original_title": orig_title,
                             "year": year_val,
                             "poster": poster,
-                            "backdrop": f"{IMG_BASE}/w1280{item.get('backdrop_path')}" if item.get("backdrop_path") else poster,
+                            "backdrop": f"{IMG_BASE}/w780{item.get('backdrop_path')}" if item.get("backdrop_path") else poster,
                             "description": item.get("overview") or "",
                             "rating_imdb": rating_val,
                             "rating_kp": rating_val,

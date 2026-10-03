@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -23,6 +24,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -46,6 +48,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.tv.foundation.lazy.grid.TvGridCells
+import androidx.tv.foundation.lazy.grid.TvGridItemSpan
 import androidx.tv.foundation.lazy.grid.TvLazyVerticalGrid
 import androidx.tv.foundation.lazy.grid.itemsIndexed
 import com.example.tvmediaapp.ui.components.AppButton as Button
@@ -100,6 +103,19 @@ fun HomeScreen(
         if (displayMovies.isNotEmpty()) {
             delay(350)
             isInitialPrep = false
+        }
+    }
+
+    val shouldLoadMore by remember(displayMovies.size) {
+        derivedStateOf {
+            val totalItems = displayMovies.size
+            val lastVisible = viewModel.gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+            totalItems > 0 && lastVisible >= totalItems - 12
+        }
+    }
+    LaunchedEffect(shouldLoadMore) {
+        if (shouldLoadMore && !viewModel.isLoadingMore && viewModel.canLoadMore) {
+            viewModel.loadNextPage()
         }
     }
 
@@ -326,6 +342,18 @@ fun HomeScreen(
                                     contextMenuMovie = movie
                                 }
                             )
+                        }
+                        if (viewModel.isLoadingMore) {
+                            item(span = { TvGridItemSpan(6) }) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 20.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    NeonSpinner(size = 32.dp, strokeWidth = 3.dp)
+                                }
+                            }
                         }
                     }
                 }

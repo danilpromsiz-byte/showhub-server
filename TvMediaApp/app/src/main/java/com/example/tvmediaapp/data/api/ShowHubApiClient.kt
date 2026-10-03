@@ -86,6 +86,7 @@ object ShowHubApiClient {
         year: String? = null,
         country: String? = null,
         page: Int = 1,
+        limit: Int = 120,
         excludedCountries: String? = null,
         excludedGenres: String? = null,
         includeUnreleasedMovies: Boolean = false,
@@ -93,7 +94,7 @@ object ShowHubApiClient {
     ): List<Movie> = withContext(Dispatchers.IO) {
         val movies = mutableListOf<Movie>()
         try {
-            val sb = StringBuilder("$activeServerBase/api/catalog?category=$category&page=$page")
+            val sb = StringBuilder("$activeServerBase/api/catalog?category=$category&page=$page&limit=$limit")
             if (!genre.isNullOrEmpty() && genre != "all" && genre != "\u0412\u0441\u0435 \u0436\u0430\u043d\u0440\u044b") {
                 sb.append("&genre=").append(URLEncoder.encode(genre, "UTF-8"))
             }

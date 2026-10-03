@@ -163,9 +163,9 @@ class LampaSource:
         votes = int(it.get("vote_count") or 0)
 
         poster_path = it.get("poster_path")
-        poster = f"{IMG_BASE}/w780{poster_path}" if poster_path else None
+        poster = f"{IMG_BASE}/w342{poster_path}" if poster_path else None
         backdrop_path = it.get("backdrop_path")
-        backdrop = f"{IMG_BASE}/w1280{backdrop_path}" if backdrop_path else None
+        backdrop = f"{IMG_BASE}/w780{backdrop_path}" if backdrop_path else None
 
         overview = it.get("overview") or ""
         origin_country = it.get("origin_country") or []
@@ -312,9 +312,9 @@ class LampaSource:
         votes = int(data.get("vote_count") or 0)
 
         poster_path = data.get("poster_path")
-        poster = f"{IMG_BASE}/w780{poster_path}" if poster_path else None
+        poster = f"{IMG_BASE}/w342{poster_path}" if poster_path else None
         backdrop_path = data.get("backdrop_path")
-        backdrop = f"{IMG_BASE}/w1280{backdrop_path}" if backdrop_path else None
+        backdrop = f"{IMG_BASE}/w780{backdrop_path}" if backdrop_path else None
 
         return {
             "tmdb_id": str(tmdb_id),

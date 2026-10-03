@@ -3,6 +3,7 @@ package com.example.tvmediaapp.ui.screens.home
 import android.app.Application
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -56,6 +57,57 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     @OptIn(androidx.tv.foundation.ExperimentalTvFoundationApi::class)
     val gridState = androidx.tv.foundation.lazy.grid.TvLazyGridState()
     var lastFocusedIndex: Int = 0
+
+    var currentPage by mutableIntStateOf(1)
+        private set
+    var isLoadingMore by mutableStateOf(false)
+        private set
+    var canLoadMore by mutableStateOf(true)
+        private set
+
+    fun loadNextPage() {
+        if (isLoadingMore || !canLoadMore || _isLoading.value) return
+        val nextPage = currentPage + 1
+        isLoadingMore = true
+        viewModelScope.launch {
+            try {
+                val nextMovies = repository.fetchCatalogPage(
+                    category = _selectedType.value,
+                    genre = _selectedGenre.value,
+                    sortBy = _selectedSort.value,
+                    year = _selectedYear.value,
+                    country = _selectedCountry.value,
+                    page = nextPage
+                )
+                if (nextMovies.isEmpty()) {
+                    canLoadMore = false
+                } else {
+                    currentPage = nextPage
+                    _categories.update { currentCats ->
+                        if (currentCats.isEmpty()) {
+                            listOf(MovieCategory(id = _selectedType.value, title = "Каталог", movies = nextMovies))
+                        } else {
+                            val firstCat = currentCats.first()
+                            val existingIds = firstCat.movies.map { it.id }.toSet()
+                            val newUnique = nextMovies.filter { it.id !in existingIds }
+                            if (newUnique.isEmpty()) {
+                                canLoadMore = false
+                                currentCats
+                            } else {
+                                val updatedMovies = firstCat.movies + newUnique
+                                val updatedFirst = firstCat.copy(movies = updatedMovies)
+                                listOf(updatedFirst) + currentCats.drop(1)
+                            }
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            } finally {
+                isLoadingMore = false
+            }
+        }
+    }
 
     private val _newEpisodeAlerts = MutableStateFlow<List<NewEpisodeAlert>>(emptyList())
     val newEpisodeAlerts: StateFlow<List<NewEpisodeAlert>> = _newEpisodeAlerts.asStateFlow()
@@ -169,6 +221,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         loadCatalogJob?.cancel()
         loadCatalogJob = viewModelScope.launch {
             _isLoading.value = true
+            currentPage = 1
+            canLoadMore = true
+            isLoadingMore = false
             val hasCustomFilters = _selectedType.value != "all" ||
                 (_selectedGenre.value.isNotEmpty() && _selectedGenre.value != "Все жанры" && _selectedGenre.value != "all") ||
                 _selectedSort.value != "newest" ||

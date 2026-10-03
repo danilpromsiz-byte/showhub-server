@@ -538,6 +538,94 @@ class CatalogRepository(context: Context? = null) {
         }
     }
 
+    private fun hasValidPoster(url: String): Boolean {
+        if (url.isBlank()) return false
+        val lower = url.lowercase()
+        return !lower.contains("no_image") &&
+               !lower.contains("noposter") &&
+               !lower.contains("kinopoiskapiunofficial.tech") &&
+               !lower.contains("st.kp.yandex.net")
+    }
+
+    private fun hasValidCover(m: Movie): Boolean {
+        return hasValidPoster(m.posterUrl) || hasValidPoster(m.backdropUrl)
+    }
+
+    private fun hasReadableTitle(title: String): Boolean {
+        if (title.isBlank()) return false
+        val hasCyrillicOrLatin = title.any { c ->
+            (c in 'a'..'z') || (c in 'A'..'Z') || (c in '\u0400'..'\u04FF')
+        }
+        val hasUntranslatedScript = title.any { c ->
+            val code = c.code
+            (code in 0x4e00..0x9fff) || (code in 0x3400..0x4dbf) ||
+            (code in 0xac00..0xd7af) || (code in 0x1100..0x11ff) ||
+            (code in 0x3040..0x309f) || (code in 0x30a0..0x30ff) ||
+            (code in 0x0900..0x097f) || (code in 0x0d00..0x0d7f) ||
+            (code in 0x0b80..0x0bff) || (code in 0x0c00..0x0c7f) ||
+            (code in 0x0e00..0x0e7f) || (code in 0x0600..0x06ff)
+        }
+        return hasCyrillicOrLatin && !hasUntranslatedScript
+    }
+
+    suspend fun fetchCatalogPage(
+        category: String = "all",
+        genre: String? = null,
+        sortBy: String = "newest",
+        year: String? = null,
+        country: String? = null,
+        page: Int
+    ): List<Movie> = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        val excludedCountriesStr = prefs?.getString("pref_excluded_countries", "") ?: ""
+        val excludedGenresStr = prefs?.getString("pref_excluded_genres", "") ?: ""
+        val onlyWithPoster = prefs?.getBoolean("pref_only_with_poster", true) ?: true
+        val includeUnreleasedMovies = prefs?.getBoolean("pref_unreleased_movies", false) ?: false
+        val includeUnreleasedSeries = prefs?.getBoolean("pref_unreleased_series", true) ?: true
+
+        val raw = ShowHubApiClient.fetchCatalog(
+            category = category,
+            genre = genre,
+            sortBy = sortBy,
+            year = year,
+            country = country,
+            page = page,
+            limit = 60,
+            excludedCountries = if (excludedCountriesStr.isNotBlank()) excludedCountriesStr else null,
+            excludedGenres = if (excludedGenresStr.isNotBlank()) excludedGenresStr else null,
+            includeUnreleasedMovies = includeUnreleasedMovies,
+            includeUnreleasedSeries = includeUnreleasedSeries
+        )
+        if (raw.isEmpty()) return@withContext emptyList()
+
+        val hiddenIds = hiddenMoviesManager?.getHiddenIds() ?: emptySet()
+        var effective = raw.filter { hasReadableTitle(it.title) }
+        if (hiddenIds.isNotEmpty()) {
+            effective = effective.filter { it.id !in hiddenIds }
+        }
+        if (onlyWithPoster) {
+            effective = effective.filter { hasValidCover(it) }
+        }
+        if (excludedCountriesStr.isNotBlank()) {
+            val exList = excludedCountriesStr.split(",").map { it.trim().lowercase() }.filter { it.isNotEmpty() }
+            if (exList.isNotEmpty()) {
+                effective = effective.filter { m ->
+                    val cLow = m.country.lowercase()
+                    exList.none { ex -> cLow.contains(ex) }
+                }
+            }
+        }
+        if (excludedGenresStr.isNotBlank()) {
+            val exGenList = excludedGenresStr.split(",").map { it.trim().lowercase() }.filter { it.isNotEmpty() }
+            if (exGenList.isNotEmpty()) {
+                effective = effective.filter { m ->
+                    val gLow = m.genres.joinToString(" ").lowercase()
+                    exGenList.none { ex -> gLow.contains(ex) }
+                }
+            }
+        }
+        effective
+    }
+
     fun getCatalog(
         category: String = "all",
         genre: String? = null,
@@ -556,36 +644,6 @@ class CatalogRepository(context: Context? = null) {
         val excludedCountriesStr = prefs?.getString("pref_excluded_countries", "") ?: ""
         val excludedGenresStr = prefs?.getString("pref_excluded_genres", "") ?: ""
         val onlyWithPoster = prefs?.getBoolean("pref_only_with_poster", true) ?: true
-
-        fun hasValidPoster(url: String): Boolean {
-            if (url.isBlank()) return false
-            val lower = url.lowercase()
-            return !lower.contains("no_image") &&
-                   !lower.contains("noposter") &&
-                   !lower.contains("kinopoiskapiunofficial.tech") &&
-                   !lower.contains("st.kp.yandex.net")
-        }
-
-        fun hasValidCover(m: Movie): Boolean {
-            return hasValidPoster(m.posterUrl) || hasValidPoster(m.backdropUrl)
-        }
-
-        fun hasReadableTitle(title: String): Boolean {
-            if (title.isBlank()) return false
-            val hasCyrillicOrLatin = title.any { c ->
-                (c in 'a'..'z') || (c in 'A'..'Z') || (c in '\u0400'..'\u04FF')
-            }
-            val hasUntranslatedScript = title.any { c ->
-                val code = c.code
-                (code in 0x4e00..0x9fff) || (code in 0x3400..0x4dbf) ||
-                (code in 0xac00..0xd7af) || (code in 0x1100..0x11ff) ||
-                (code in 0x3040..0x309f) || (code in 0x30a0..0x30ff) ||
-                (code in 0x0900..0x097f) || (code in 0x0d00..0x0d7f) ||
-                (code in 0x0b80..0x0bff) || (code in 0x0c00..0x0c7f) ||
-                (code in 0x0e00..0x0e7f) || (code in 0x0600..0x06ff)
-            }
-            return hasCyrillicOrLatin && !hasUntranslatedScript
-        }
 
         fun buildCategories(movies: List<Movie>): List<MovieCategory> {
             var effective = com.example.tvmediaapp.data.models.deduplicateAndMergeMovies(movies)
@@ -732,9 +790,7 @@ class CatalogRepository(context: Context? = null) {
                     (genre.isNullOrEmpty() || genre == "Все жанры" || genre == "all") &&
                     (country.isNullOrEmpty() || country == "all") &&
                     (year.isNullOrEmpty() || year == "all") &&
-                    sortBy == "newest" &&
-                    excludedCountriesStr.isBlank() &&
-                    excludedGenresStr.isBlank()
+                    sortBy == "newest"
                 if (isDefaultMainCatalog) {
                     com.example.tvmediaapp.data.cache.MediaDiskCache.putCachedCatalog(liveMovies, isFirstPage = true)
                 }
@@ -752,10 +808,9 @@ class CatalogRepository(context: Context? = null) {
 
                 // STEP 3: Progressive non-blocking background pagination to load and cache full catalog into TV memory
                 if (isDefaultMainCatalog) {
-                    var hasNewMovies = false
-                    for (p in 2..15) {
+                    for (p in 2..8) {
                         try {
-                            kotlinx.coroutines.delay(1500L)
+                            kotlinx.coroutines.delay(500L)
                             val nextBatch = ShowHubApiClient.fetchCatalog(
                                 category = category,
                                 genre = genre,
@@ -763,6 +818,7 @@ class CatalogRepository(context: Context? = null) {
                                 year = year,
                                 country = country,
                                 page = p,
+                                limit = 60,
                                 excludedCountries = if (excludedCountriesStr.isNotBlank()) excludedCountriesStr else null,
                                 excludedGenres = if (excludedGenresStr.isNotBlank()) excludedGenresStr else null
                             )
@@ -771,17 +827,14 @@ class CatalogRepository(context: Context? = null) {
                             com.example.tvmediaapp.data.cache.MediaDiskCache.putCachedCatalog(nextBatch, isFirstPage = false)
                             val newCount = (com.example.tvmediaapp.data.cache.MediaDiskCache.getCachedCatalog() ?: emptyList()).size
                             if (newCount > prevCount) {
-                                hasNewMovies = true
+                                val updatedMaster = com.example.tvmediaapp.data.cache.MediaDiskCache.getCachedCatalog() ?: emptyList()
+                                val updatedCategories = buildCategories(updatedMaster)
+                                if (updatedCategories.isNotEmpty()) {
+                                    emit(updatedCategories)
+                                }
                             }
                         } catch (_: Exception) {
                             break
-                        }
-                    }
-                    if (hasNewMovies) {
-                        val updatedMaster = com.example.tvmediaapp.data.cache.MediaDiskCache.getCachedCatalog() ?: emptyList()
-                        val updatedCategories = buildCategories(updatedMaster)
-                        if (updatedCategories.isNotEmpty()) {
-                            emit(updatedCategories)
                         }
                     }
                 }

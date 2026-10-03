@@ -8,11 +8,7 @@
 package com.example.tvmediaapp.ui.screens.home
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onKeyEvent
-import androidx.compose.ui.input.key.type
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -22,6 +18,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -32,10 +30,17 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -47,6 +52,7 @@ import com.example.tvmediaapp.ui.components.AppButton as Button
 import androidx.tv.material3.ButtonDefaults
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Text
+import com.example.tvmediaapp.R
 import com.example.tvmediaapp.data.models.Movie
 import com.example.tvmediaapp.ui.components.FilterBar
 import com.example.tvmediaapp.ui.components.MovieCard
@@ -73,9 +79,9 @@ fun HomeScreen(
     onSettingsClick: (() -> Unit)? = null,
     onCheckUpdateClick: (() -> Unit)? = null,
     hasUpdateAvailable: Boolean = false,
-    appVersion: String = "",
-    viewModel: HomeViewModel = viewModel(),
-    modifier: Modifier = Modifier
+    appVersion: String = "1.0.0",
+    modifier: Modifier = Modifier,
+    viewModel: HomeViewModel = viewModel()
 ) {
     val categories by viewModel.categories.collectAsState()
     val selectedType by viewModel.selectedType.collectAsState()
@@ -88,6 +94,16 @@ fun HomeScreen(
     val displayMovies = remember(categories) {
         categories.firstOrNull()?.movies ?: emptyList()
     }
+
+    var isInitialPrep by remember { mutableStateOf(displayMovies.isEmpty()) }
+    LaunchedEffect(displayMovies.isNotEmpty()) {
+        if (displayMovies.isNotEmpty()) {
+            delay(350)
+            isInitialPrep = false
+        }
+    }
+
+    val showPrepScreen = (isInitialPrep && displayMovies.isEmpty()) || (isLoading && displayMovies.isEmpty())
 
     val coroutineScope = rememberCoroutineScope()
     val topBarSearchFocusRequester = remember { FocusRequester() }
@@ -112,8 +128,8 @@ fun HomeScreen(
     var initialFocusDone by remember { mutableStateOf(false) }
 
     // Automatically focus the active card ONCE on initial screen enter when displayMovies is ready
-    LaunchedEffect(displayMovies.isNotEmpty()) {
-        if (displayMovies.isNotEmpty() && !initialFocusDone) {
+    LaunchedEffect(displayMovies.isNotEmpty(), isInitialPrep) {
+        if (displayMovies.isNotEmpty() && !isInitialPrep && !initialFocusDone) {
             initialFocusDone = true
             delay(150)
             try {
@@ -122,184 +138,213 @@ fun HomeScreen(
         }
     }
 
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(LocalBackgroundColor.current)
-    ) {
-        Column(
-            modifier = Modifier.fillMaxSize()
+    if (showPrepScreen) {
+        Box(
+            modifier = modifier
+                .fillMaxSize()
+                .background(LocalBackgroundColor.current),
+            contentAlignment = Alignment.Center
         ) {
-        // TOP NAVIGATION BAR: Logo + Search + Favorites + History + Settings + Update
-        TvTopBar(
-            onSearchClick = onSearchClick,
-            onFavoritesClick = onFavoritesClick,
-            onHistoryClick = onHistoryClick,
-            onScheduleClick = onScheduleClick,
-            onSettingsClick = onSettingsClick,
-            onCheckUpdateClick = onCheckUpdateClick,
-            hasUpdateAvailable = hasUpdateAvailable,
-            appVersion = appVersion,
-            currentScreenName = "home",
-            topBarFocusRequester = topBarSearchFocusRequester,
-            focusDownRequester = filterRow1FocusRequester
-        )
-
-        val currentDownRequester = when {
-            isLoading && displayMovies.isEmpty() -> FocusRequester.Cancel
-            displayMovies.isEmpty() -> emptyResetFocusRequester
-            else -> targetCardFocusRequester
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Image(
+                    painter = painterResource(id = R.drawable.ic_showhub_logo),
+                    contentDescription = "ShowHub TV",
+                    modifier = Modifier
+                        .size(80.dp)
+                        .clip(RoundedCornerShape(18.dp))
+                )
+                Spacer(modifier = Modifier.height(28.dp))
+                NeonSpinner(size = 50.dp, strokeWidth = 4.dp)
+                Spacer(modifier = Modifier.height(20.dp))
+                Text(
+                    text = "Подготовка приложения...",
+                    fontSize = 19.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = TextWhite
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Загрузка медиатеки и проверка источников",
+                    fontSize = 13.sp,
+                    color = TextGray
+                )
+            }
         }
-
-        // FILTER & SORT RIBBON
-        FilterBar(
-            selectedType = selectedType,
-            onTypeSelected = { viewModel.selectType(it) },
-            selectedSort = selectedSort,
-            onSortSelected = { viewModel.selectSort(it) },
-            selectedGenre = selectedGenre,
-            onGenreSelected = { viewModel.selectGenre(it) },
-            selectedYear = selectedYear,
-            onYearSelected = { viewModel.selectYear(it) },
-            selectedCountry = selectedCountry,
-            onCountrySelected = { viewModel.selectCountry(it) },
-            onResetFilters = { viewModel.resetFilters() },
-            row1FocusRequester = filterRow1FocusRequester,
-            row2FocusRequester = filterRow2FocusRequester,
-            focusUpRequester = topBarSearchFocusRequester,
-            focusDownRequester = currentDownRequester
-        )
-
-        // 6-COLUMN VERTICAL GRID (2 rows of 6 cards on screen at a time, scrolling down)
-        if (isLoading && displayMovies.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(top = 80.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                NeonSpinner(size = 56.dp, strokeWidth = 4.dp, message = "Загрузка каталога ShowHub...")
-            }
-        } else if (displayMovies.isEmpty()) {
-            LaunchedEffect(Unit) {
-                delay(120)
-                try { emptyResetFocusRequester.requestFocus() } catch (_: Exception) {}
-            }
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(top = 60.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        text = "По выбранным фильтрам ничего не найдено",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = TextWhite
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "Попробуйте изменить категорию, жанр или сбросить фильтры",
-                        fontSize = 13.sp,
-                        color = TextGray
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Button(
-                        onClick = { viewModel.resetFilters() },
-                        colors = ButtonDefaults.colors(
-                            containerColor = LocalAccentColor.current,
-                            focusedContainerColor = LocalFocusColor.current,
-                            contentColor = Color.Black,
-                            focusedContentColor = Color.Black
-                        ),
-                        modifier = Modifier
-                            .focusRequester(emptyResetFocusRequester)
-                            .focusProperties {
-                                up = filterRow2FocusRequester
-                            }
-                    ) {
-                        Text("Сбросить фильтры", fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-        } else {
-            TvLazyVerticalGrid(
-                state = viewModel.gridState,
-                columns = TvGridCells.Fixed(6),
-                contentPadding = PaddingValues(start = 32.dp, top = 8.dp, end = 32.dp, bottom = 120.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
+    } else {
+        Box(
+            modifier = modifier
+                .fillMaxSize()
+                .background(LocalBackgroundColor.current)
+        ) {
+            Column(
                 modifier = Modifier.fillMaxSize()
             ) {
-                itemsIndexed(displayMovies, key = { index, movie -> if (movie.id.isNotBlank()) "${movie.id}_$index" else "idx_$index" }) { index, movie ->
-                    val isTarget = index == viewModel.lastFocusedIndex.coerceIn(0, (displayMovies.size - 1).coerceAtLeast(0))
-                    val isLeftmost = index % 6 == 0
-                    val isRightmost = index % 6 == 5 || index == displayMovies.size - 1
+                // TOP NAVIGATION BAR: Logo + Search + Favorites + History + Settings + Update
+                TvTopBar(
+                    onSearchClick = onSearchClick,
+                    onFavoritesClick = onFavoritesClick,
+                    onHistoryClick = onHistoryClick,
+                    onScheduleClick = onScheduleClick,
+                    onSettingsClick = onSettingsClick,
+                    onCheckUpdateClick = onCheckUpdateClick,
+                    hasUpdateAvailable = hasUpdateAvailable,
+                    appVersion = appVersion,
+                    currentScreenName = "home",
+                    topBarFocusRequester = topBarSearchFocusRequester,
+                    focusDownRequester = filterRow1FocusRequester
+                )
 
-                    val targetMod = if (isTarget) Modifier.focusRequester(targetCardFocusRequester) else Modifier
+                val currentDownRequester = if (displayMovies.isEmpty()) emptyResetFocusRequester else targetCardFocusRequester
 
-                    val edgePropertiesMod = Modifier.focusProperties {
-                        if (index < 6) {
-                            up = filterRow2FocusRequester
-                        }
-                        if (isLeftmost) {
-                            left = topBarSearchFocusRequester
-                        }
-                        if (isRightmost) {
-                            right = topBarSearchFocusRequester
-                        }
+                // FILTER & SORT RIBBON
+                FilterBar(
+                    selectedType = selectedType,
+                    onTypeSelected = { viewModel.selectType(it) },
+                    selectedSort = selectedSort,
+                    onSortSelected = { viewModel.selectSort(it) },
+                    selectedGenre = selectedGenre,
+                    onGenreSelected = { viewModel.selectGenre(it) },
+                    selectedYear = selectedYear,
+                    onYearSelected = { viewModel.selectYear(it) },
+                    selectedCountry = selectedCountry,
+                    onCountrySelected = { viewModel.selectCountry(it) },
+                    onResetFilters = { viewModel.resetFilters() },
+                    row1FocusRequester = filterRow1FocusRequester,
+                    row2FocusRequester = filterRow2FocusRequester,
+                    focusUpRequester = topBarSearchFocusRequester,
+                    focusDownRequester = currentDownRequester
+                )
+
+                // 6-COLUMN VERTICAL GRID (2 rows of 6 cards on screen at a time, scrolling down)
+                if (displayMovies.isEmpty()) {
+                    LaunchedEffect(Unit) {
+                        delay(120)
+                        try { emptyResetFocusRequester.requestFocus() } catch (_: Exception) {}
                     }
-                    val edgeKeyMod = Modifier.onKeyEvent { keyEvent ->
-                        if (keyEvent.type == KeyEventType.KeyDown) {
-                            if (isLeftmost && (keyEvent.key == Key.DirectionLeft || keyEvent.key.keyCode == 21L)) {
-                                try {
-                                    topBarSearchFocusRequester.requestFocus()
-                                    return@onKeyEvent true
-                                } catch (_: Exception) {}
-                            } else if (isRightmost && (keyEvent.key == Key.DirectionRight || keyEvent.key.keyCode == 22L)) {
-                                try {
-                                    topBarSearchFocusRequester.requestFocus()
-                                    return@onKeyEvent true
-                                } catch (_: Exception) {}
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(top = 60.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                text = "По выбранным фильтрам ничего не найдено",
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = TextWhite
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "Попробуйте изменить категорию, жанр или сбросить фильтры",
+                                fontSize = 13.sp,
+                                color = TextGray
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Button(
+                                onClick = { viewModel.resetFilters() },
+                                colors = ButtonDefaults.colors(
+                                    containerColor = LocalAccentColor.current,
+                                    focusedContainerColor = LocalFocusColor.current,
+                                    contentColor = Color.Black,
+                                    focusedContentColor = Color.Black
+                                ),
+                                modifier = Modifier
+                                    .focusRequester(emptyResetFocusRequester)
+                                    .focusProperties {
+                                        up = filterRow2FocusRequester
+                                    }
+                            ) {
+                                Text(
+                                    text = "Сбросить все фильтры",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                                )
                             }
                         }
-                        false
                     }
+                } else {
+                    TvLazyVerticalGrid(
+                        columns = TvGridCells.Fixed(6),
+                        state = viewModel.gridState,
+                        contentPadding = PaddingValues(start = 32.dp, top = 8.dp, end = 32.dp, bottom = 120.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                        modifier = Modifier.fillMaxSize()
+                    ) {
+                        itemsIndexed(displayMovies, key = { _, movie -> movie.id }) { index, movie ->
+                            val isTarget = index == viewModel.lastFocusedIndex.coerceIn(0, (displayMovies.size - 1).coerceAtLeast(0))
+                            val isLeftmost = index % 6 == 0
+                            val isRightmost = index % 6 == 5 || index == displayMovies.size - 1
 
-                    MovieCard(
-                        movie = movie,
-                        onClick = {
-                            viewModel.lastFocusedIndex = index
-                            onMovieSelect(movie)
-                        },
-                        onFocus = {
-                            viewModel.lastFocusedIndex = index
-                        },
-                        cardModifier = targetMod.then(edgePropertiesMod).then(edgeKeyMod),
-                        onLongClick = {
-                            viewModel.lastFocusedIndex = index
-                            contextMenuMovie = movie
+                            val targetMod = if (isTarget) Modifier.focusRequester(targetCardFocusRequester) else Modifier
+
+                            val edgePropertiesMod = Modifier.focusProperties {
+                                if (index < 6) {
+                                    up = filterRow2FocusRequester
+                                }
+                                if (isLeftmost) {
+                                    left = topBarSearchFocusRequester
+                                }
+                                if (isRightmost) {
+                                    right = topBarSearchFocusRequester
+                                }
+                            }
+                            val edgeKeyMod = Modifier.onKeyEvent { keyEvent ->
+                                if (keyEvent.type == KeyEventType.KeyDown) {
+                                    if (isLeftmost && (keyEvent.key == Key.DirectionLeft || keyEvent.key.keyCode == 21L)) {
+                                        try {
+                                            topBarSearchFocusRequester.requestFocus()
+                                            return@onKeyEvent true
+                                        } catch (_: Exception) {}
+                                    } else if (isRightmost && (keyEvent.key == Key.DirectionRight || keyEvent.key.keyCode == 22L)) {
+                                        try {
+                                            topBarSearchFocusRequester.requestFocus()
+                                            return@onKeyEvent true
+                                        } catch (_: Exception) {}
+                                    }
+                                }
+                                false
+                            }
+
+                            MovieCard(
+                                movie = movie,
+                                onClick = {
+                                    viewModel.lastFocusedIndex = index
+                                    onMovieSelect(movie)
+                                },
+                                onFocus = {
+                                    viewModel.lastFocusedIndex = index
+                                },
+                                cardModifier = targetMod.then(edgePropertiesMod).then(edgeKeyMod),
+                                onLongClick = {
+                                    viewModel.lastFocusedIndex = index
+                                    contextMenuMovie = movie
+                                }
+                            )
                         }
-                    )
+                    }
                 }
             }
-        }
-    }
 
-    if (contextMenuMovie != null) {
-        MovieContextMenuDialog(
-            movie = contextMenuMovie!!,
-            onDismiss = { contextMenuMovie = null },
-            onSelectMovie = { m ->
-                contextMenuMovie = null
-                onMovieSelect(m)
-            },
-            onMovieHidden = { m ->
-                contextMenuMovie = null
-                viewModel.hideMovie(m.id)
+            if (contextMenuMovie != null) {
+                MovieContextMenuDialog(
+                    movie = contextMenuMovie!!,
+                    onDismiss = { contextMenuMovie = null },
+                    onSelectMovie = { m ->
+                        contextMenuMovie = null
+                        onMovieSelect(m)
+                    },
+                    onMovieHidden = { m ->
+                        contextMenuMovie = null
+                        viewModel.hideMovie(m.id)
+                    }
+                )
             }
-        )
-    }
+        }
     }
 }

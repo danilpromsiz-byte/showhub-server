@@ -6,6 +6,7 @@
 
 package com.example.tvmediaapp.ui.components
 
+import android.content.Context
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
@@ -96,6 +97,7 @@ fun MovieCard(
     val context = LocalContext.current
     val accent = LocalAccentColor.current
     val focusColor = LocalFocusColor.current
+    val prefs = remember { context.getSharedPreferences("showhub_prefs", Context.MODE_PRIVATE) }
     val historyManager = remember { com.example.tvmediaapp.data.history.WatchHistoryManager(context) }
     val newEpisodesCount = remember(movie.id) {
         if (movie.isSeries) historyManager.getNewEpisodesCount(movie.id) else 0
@@ -146,6 +148,8 @@ fun MovieCard(
             delay(700)
             if (isFocused) {
                 isPreviewBuffering = true
+                val previewStartMin = prefs.getInt("pref_preview_start_min", 12)
+                val baseSeekMs = previewStartMin * 60 * 1000L
                 var streamUrl: String? = null
 
                 if (!movie.videoUrl.isNullOrBlank() && isDirectVideoStream(movie.videoUrl)) {
@@ -157,7 +161,7 @@ fun MovieCard(
                     try {
                         val candidate = withContext(kotlinx.coroutines.Dispatchers.IO) {
                             kotlinx.coroutines.withTimeoutOrNull(2500) {
-                                ShowHubApiClient.fetchPreviewStream(movie, 1)
+                                ShowHubApiClient.fetchPreviewStream(movie, previewStartMin)
                             }
                         }
                         if (candidate != null && isDirectVideoStream(candidate)) {
@@ -230,8 +234,6 @@ fun MovieCard(
 
                 val validStreamUrl = streamUrl
                 if (isFocused && !validStreamUrl.isNullOrEmpty() && isDirectVideoStream(validStreamUrl)) {
-                    val baseSeekMs = 60_000L
-
                     try {
                         // Create ExoPlayer strictly on Main thread (ExoPlayer requires a Looper)
                         val httpDataSourceFactory = DefaultHttpDataSource.Factory()
@@ -279,21 +281,24 @@ fun MovieCard(
                             .setLoadControl(loadControl)
                             .build()
                             .apply {
-                                setMediaItem(MediaItem.fromUri(validStreamUrl))
+                                setMediaItem(MediaItem.fromUri(validStreamUrl), baseSeekMs)
+                                seekTo(baseSeekMs)
                                 volume = 0f // strictly silent
                                 repeatMode = Player.REPEAT_MODE_ALL
                                 addListener(object : Player.Listener {
                                     private fun performSafeSeek() {
                                         if (hasSeeked) return
-                                        if (duration > 0) {
+                                        val dur = duration
+                                        if (dur > 0) {
                                             hasSeeked = true
-                                            val targetSeek = when {
-                                                duration <= 60_000L -> (duration * 0.15).toLong()
-                                                duration <= 15 * 60 * 1000L -> (duration * 0.20).toLong()
-                                                duration > baseSeekMs + 20_000L -> baseSeekMs
-                                                else -> (duration * 0.25).toLong()
+                                            val targetSeek = if (dur <= baseSeekMs + 10_000L) {
+                                                (dur * 0.20).toLong().coerceAtLeast(0L)
+                                            } else {
+                                                baseSeekMs
                                             }
-                                            seekTo(targetSeek)
+                                            if (currentPosition < targetSeek - 5000L || currentPosition > targetSeek + 5000L) {
+                                                seekTo(targetSeek)
+                                            }
                                         }
                                     }
 
@@ -312,11 +317,12 @@ fun MovieCard(
                                             } else if (state == Player.STATE_BUFFERING) {
                                                 isPreviewBuffering = true
                                             } else if (state == Player.STATE_ENDED) {
-                                                val loopSeek = if (duration in 1..(15 * 60 * 1000L)) {
-                                                    (duration * 0.15).toLong()
-                                                } else if (duration > 0) {
-                                                    minOf(baseSeekMs, (duration * 0.25).toLong())
-                                                } else 0L
+                                                val dur = duration
+                                                val loopSeek = if (dur in 1..(baseSeekMs + 10_000L)) {
+                                                    (dur * 0.20).toLong().coerceAtLeast(0L)
+                                                } else {
+                                                    baseSeekMs
+                                                }
                                                 seekTo(loopSeek)
                                                 play()
                                             }

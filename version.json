@@ -1,27 +1,27 @@
 {
   "success": true,
-  "version_name": "2.8.84",
-  "version_code": 143,
+  "version_name": "2.8.85",
+  "version_code": 144,
   "force_update": true,
   "min_version_code": 108,
   "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
   "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
-  "changelog": "v2.8.84: Мгновенный запуск без черного экрана (0 мс), неблокирующая инициализация кэша и десериализация новинок из коробки; модульная декомпозиция Настроек (устранен сбой VerifyError при открытии меню настроек).",
+  "changelog": "v2.8.85: Точное соблюдение выбранного времени начала предпросмотра (5, 10, 12, 15, 20 мин); экран подготовки с неоновым спиннером и логотипом ShowHub при старте приложения.",
   "tv": {
-    "version_name": "2.8.84",
-    "version_code": 143,
+    "version_name": "2.8.85",
+    "version_code": 144,
     "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
     "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk"
   },
   "mobile": {
-    "version_name": "2.8.84",
-    "version_code": 143,
+    "version_name": "2.8.85",
+    "version_code": 144,
     "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-Mobile.apk",
     "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-Mobile.apk"
   },
   "pc": {
-    "version_name": "2.8.84",
-    "version_code": 143,
+    "version_name": "2.8.85",
+    "version_code": 144,
     "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-PC.zip"
   },
   "alert_screensaver": {

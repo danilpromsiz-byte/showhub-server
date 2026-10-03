@@ -753,12 +753,15 @@ fun DetailsScreen(
     LaunchedEffect(currentMovie.id, streamOptions.size) {
         delay(1200)
         if (detailsPreviewPlayer == null && !isResolving) {
+            val previewStartMin = prefs.getInt("pref_preview_start_min", 12)
+            val targetSeekMs = previewStartMin * 60 * 1000L
+
             val streamUrl = withContext(Dispatchers.IO) {
                 // Step 1: Server API preview stream FIRST (Delivembd/Collaps direct HLS, unblocked, 200-300ms)
                 var sUrl: String? = null
                 try {
                     val candidate = kotlinx.coroutines.withTimeoutOrNull(2500) {
-                        ShowHubApiClient.fetchPreviewStream(currentMovie, 1)
+                        ShowHubApiClient.fetchPreviewStream(currentMovie, previewStartMin)
                     }
                     if (candidate != null && isDirectVideoStream(candidate)) {
                         sUrl = candidate
@@ -865,22 +868,24 @@ fun DetailsScreen(
                         .setMediaSourceFactory(mediaSourceFactory)
                         .setLoadControl(loadControl)
                         .build().apply {
-                            val targetSeekMs = 60_000L
-                            setMediaItem(MediaItem.fromUri(validStreamUrl))
+                            setMediaItem(MediaItem.fromUri(validStreamUrl), targetSeekMs)
+                            seekTo(targetSeekMs)
                             volume = 0f
                             repeatMode = Player.REPEAT_MODE_ALL
                             addListener(object : Player.Listener {
                                 private fun performSafeSeek() {
                                     if (hasSeeked) return
-                                    if (duration > 0) {
+                                    val dur = duration
+                                    if (dur > 0) {
                                         hasSeeked = true
-                                        val safeSeek = when {
-                                            duration <= 60_000L -> (duration * 0.15).toLong()
-                                            duration <= 15 * 60 * 1000L -> (duration * 0.20).toLong()
-                                            duration > targetSeekMs + 20_000L -> targetSeekMs
-                                            else -> (duration * 0.25).toLong()
+                                        val safeSeek = if (dur <= targetSeekMs + 10_000L) {
+                                            (dur * 0.20).toLong().coerceAtLeast(0L)
+                                        } else {
+                                            targetSeekMs
                                         }
-                                        seekTo(safeSeek)
+                                        if (currentPosition < safeSeek - 5000L || currentPosition > safeSeek + 5000L) {
+                                            seekTo(safeSeek)
+                                        }
                                     }
                                 }
 
@@ -895,11 +900,12 @@ fun DetailsScreen(
                                         performSafeSeek()
                                         isDetailsPreviewPlaying = true
                                     } else if (state == Player.STATE_ENDED) {
-                                        val loopSeek = if (duration in 1..(15 * 60 * 1000L)) {
-                                            (duration * 0.15).toLong()
-                                        } else if (duration > 0) {
-                                            minOf(targetSeekMs, (duration * 0.25).toLong())
-                                        } else 0L
+                                        val dur = duration
+                                        val loopSeek = if (dur in 1..(targetSeekMs + 10_000L)) {
+                                            (dur * 0.20).toLong().coerceAtLeast(0L)
+                                        } else {
+                                            targetSeekMs
+                                        }
                                         seekTo(loopSeek)
                                         play()
                                     }

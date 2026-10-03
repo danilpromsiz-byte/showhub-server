@@ -25,27 +25,6 @@ object MediaDiskCache {
         cacheDir = base
 
         val catFile = File(base, "catalog.json")
-        if (catFile.exists()) {
-            try {
-                val txt = catFile.readText()
-                if (txt.contains("/covers/") || txt.contains("/api/media/image") || txt.contains("test_unique_actor", ignoreCase = true) || txt.contains("Тестовый", ignoreCase = true)) {
-                    catFile.delete()
-                }
-            } catch (_: Exception) {}
-        }
-        val dDir = File(base, "details")
-        if (dDir.exists()) {
-            try {
-                dDir.listFiles()?.forEach { f ->
-                    if (f.isFile && f.name.endsWith(".json")) {
-                        val txt = f.readText()
-                        if (txt.contains("/covers/") || txt.contains("/api/media/image")) {
-                            f.delete()
-                        }
-                    }
-                }
-            } catch (_: Exception) {}
-        }
         if (!catFile.exists() || catFile.length() < 200) {
             try {
                 context.assets.open("initial_catalog.json").use { input ->
@@ -55,6 +34,34 @@ object MediaDiskCache {
                 }
             } catch (_: Exception) {}
         }
+
+        // Run heavy cleanup in background thread to avoid blocking main UI thread in onCreate
+        Thread {
+            try {
+                if (catFile.exists()) {
+                    val txt = catFile.readText()
+                    if (txt.contains("/covers/") || txt.contains("/api/media/image") || txt.contains("test_unique_actor", ignoreCase = true) || txt.contains("Тестовый", ignoreCase = true)) {
+                        catFile.delete()
+                        context.assets.open("initial_catalog.json").use { input ->
+                            catFile.outputStream().use { output ->
+                                input.copyTo(output)
+                            }
+                        }
+                    }
+                }
+                val dDir = File(base, "details")
+                if (dDir.exists()) {
+                    dDir.listFiles()?.forEach { f ->
+                        if (f.isFile && f.name.endsWith(".json")) {
+                            val txt = f.readText()
+                            if (txt.contains("/covers/") || txt.contains("/api/media/image")) {
+                                f.delete()
+                            }
+                        }
+                    }
+                }
+            } catch (_: Exception) {}
+        }.start()
     }
 
     private fun getDetailsDir(): File {
@@ -531,27 +538,34 @@ object MediaDiskCache {
             }
         }
 
+        val p = obj.optString("posterUrl", "").ifEmpty { obj.optString("poster", "") }
+        val b = obj.optString("backdropUrl", "").ifEmpty { obj.optString("backdrop", "") }
+        val rYear = obj.optString("releaseYear", "").ifEmpty { obj.optString("year", "2024") }
+        val isSer = if (obj.has("isSeries")) obj.optBoolean("isSeries", false) else obj.optBoolean("is_series", false)
+        val rKp = if (obj.has("ratingKp")) obj.optDouble("ratingKp", 7.0) else obj.optDouble("rating_kp", 7.0)
+        val rImdb = if (obj.has("ratingImdb")) obj.optDouble("ratingImdb", 7.0) else obj.optDouble("rating_imdb", 7.0)
+
         return Movie(
             id = obj.optString("id", ""),
             title = obj.optString("title", ""),
             originalTitle = obj.optString("originalTitle", ""),
             description = obj.optString("description", ""),
-            posterUrl = obj.optString("posterUrl", ""),
-            backdropUrl = obj.optString("backdropUrl", ""),
+            posterUrl = p,
+            backdropUrl = b,
             rating = obj.optDouble("rating", 7.0),
-            ratingKp = obj.optDouble("ratingKp", 7.0),
-            ratingImdb = obj.optDouble("ratingImdb", 7.0),
+            ratingKp = rKp,
+            ratingImdb = rImdb,
             ratingLampa = obj.optDouble("ratingLampa", 0.0),
             lampaPopularity = obj.optDouble("lampaPopularity", 0.0),
             rankIndex = obj.optInt("rankIndex", 0),
-            releaseYear = obj.optString("releaseYear", "2024"),
+            releaseYear = rYear,
             duration = obj.optString("duration", "Фильм"),
             country = obj.optString("country", ""),
             director = obj.optString("director", ""),
             actors = obj.optString("actors", ""),
             episodesInfo = obj.optString("episodesInfo", ""),
             genres = genres,
-            isSeries = obj.optBoolean("isSeries", false),
+            isSeries = isSer,
             seasons = seasons,
             audioTracks = audioTracks,
             sources = sources,

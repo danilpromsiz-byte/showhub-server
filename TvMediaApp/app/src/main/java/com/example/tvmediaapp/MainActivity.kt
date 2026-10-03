@@ -233,9 +233,7 @@ fun TvAppNavHost(activity: MainActivity) {
     }
 
     var currentScreen by remember {
-        mutableStateOf(
-            if (restoredSession != null) Screen.DETAILS else Screen.HOME
-        )
+        mutableStateOf(Screen.HOME)
     }
     LaunchedEffect(currentScreen) {
         CrashReporter.lastScreen = currentScreen.name

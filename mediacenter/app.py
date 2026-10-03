@@ -435,7 +435,7 @@ async def proxy_radar(request: Request):
             return Response(content=resp_bytes, media_type="application/json")
     except Exception as e:
         logger.warning(f"Radar proxy failed: {e}")
-        return JSONResponse(status_code=502, content={"error": str(e), "radar": {}})
+        return JSONResponse(status_code=200, content={"radar": {}, "warning": str(e)})
 
 @app.get("/api/alerts/history")
 def get_alert_history(regionId: str = ""):

@@ -577,6 +577,7 @@ fun DetailsScreen(
     val externalPlayerFocusRequester = remember { FocusRequester() }
     val favoriteButtonFocusRequester = remember { FocusRequester() }
     val backButtonFocusRequester = remember { FocusRequester() }
+    val bugReportFocusRequester = remember { FocusRequester() }
     val leftPaneFocusRequester = remember { FocusRequester() }
     val tabsFocusRequester = remember { FocusRequester() }
     val episodesFocusRequester = remember { FocusRequester() }
@@ -2137,9 +2138,78 @@ fun DetailsScreen(
                             .focusProperties {
                                 left = favoriteButtonFocusRequester
                                 up = externalPlayerFocusRequester
+                                right = bugReportFocusRequester
                                 down = tabsFocusRequester
                             }
                     )
+
+                    // BUG REPORT — icon with tooltip
+                    var showBugReportMenu by remember { mutableStateOf(false) }
+                    var bugReportSent by remember { mutableStateOf(false) }
+                    IconActionButton(
+                        iconResId = R.drawable.ic_flag,
+                        tooltip = if (bugReportSent) "Отправлено ✓" else "Сообщить о проблеме",
+                        focusColor = focusColor,
+                        onClick = { showBugReportMenu = !showBugReportMenu },
+                        modifier = Modifier
+                            .focusRequester(bugReportFocusRequester)
+                            .focusProperties {
+                                left = backButtonFocusRequester
+                                up = externalPlayerFocusRequester
+                                down = tabsFocusRequester
+                            }
+                    )
+
+                    // Bug report inline submenu
+                    if (showBugReportMenu) {
+                        val bugTypes = listOf(
+                            "streams_unavailable" to "Потоки недоступны",
+                            "wrong_metadata" to "Неверные данные",
+                            "other" to "Другая проблема"
+                        )
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            bugTypes.forEach { (type, label) ->
+                                Button(
+                                    onClick = {
+                                        coroutineScope.launch {
+                                            ShowHubApiClient.sendBugReport(
+                                                movie = currentMovie,
+                                                type = type,
+                                                description = label,
+                                                autoReport = false
+                                            )
+                                        }
+                                        bugReportSent = true
+                                        showBugReportMenu = false
+                                    },
+                                    colors = ButtonDefaults.colors(
+                                        containerColor = Color.White.copy(alpha = 0.08f),
+                                        focusedContainerColor = focusColor,
+                                        contentColor = TextWhite,
+                                        focusedContentColor = Color.Black
+                                    ),
+                                    border = ButtonDefaults.border(
+                                        border = Border.None,
+                                        focusedBorder = Border.None
+                                    ),
+                                    shape = ButtonDefaults.shape(RoundedCornerShape(6.dp)),
+                                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.03f),
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                                    modifier = Modifier.height(24.dp)
+                                ) {
+                                    Text(
+                                        text = label,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        maxLines = 1
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
 
                 // Informative Card Data & Stream Status message with NeonSpinner

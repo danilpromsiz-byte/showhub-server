@@ -904,6 +904,33 @@ def get_proxied_image(url: str = Query(...)):
 @app.api_route("/api/updates/check", methods=["GET", "HEAD"])
 @app.api_route("/version.json", methods=["GET", "HEAD"])
 def check_updates() -> Dict[str, Any]:
+    showhub_fallback = {
+        "success": True,
+        "version_name": "2.8.88",
+        "version_code": 147,
+        "force_update": True,
+        "min_version_code": 108,
+        "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
+        "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
+        "changelog": "v2.8.88: 1. Исправлен предпросмотр — таймлайн точно переходит на выбранные 5/10/12 минут без сброса в начало фильма. 2. Оптимизированы обложки (аппаратный даунсэмплинг RGB_565) — устранено подтормаживание на ТВ. 3. Исправлен бесконечный скролл на главной — сетка больше не ограничена 8 рядами. 4. Аппаратный неоновый спиннер при старте приложения. 5. Блокировка аудио/видео-заглушек Zona («Установите последнюю версию Zona»). 6. Восстановлены потоки и русские озвучки для «Хитрый койот», «Бэтмен: Падение рыцаря», разделены фильмы в «Возможная любовь», исправлен поиск торрентов для «Одиссея».",
+        "tv": {
+            "version_name": "2.8.88",
+            "version_code": 147,
+            "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
+            "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk"
+        },
+        "mobile": {
+            "version_name": "2.8.88",
+            "version_code": 147,
+            "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-Mobile.apk",
+            "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-Mobile.apk"
+        },
+        "pc": {
+            "version_name": "2.8.88",
+            "version_code": 147,
+            "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-PC.zip"
+        }
+    }
     try:
         base_dir = os.path.dirname(os.path.abspath(__file__))
         candidates = [
@@ -916,21 +943,18 @@ def check_updates() -> Dict[str, Any]:
             if os.path.exists(c):
                 with open(c, "r", encoding="utf-8") as f:
                     data = json.load(f)
-                    if isinstance(data, dict) and data.get("version_code"):
-                        return data
+                    if isinstance(data, dict):
+                        merged = dict(data)
+                        if "tv" not in merged or not isinstance(merged.get("tv"), dict) or merged["tv"].get("version_code", 0) < 147:
+                            merged.update(showhub_fallback)
+                            for k in ["alert_screensaver", "alert_mobile", "alert_screensaver_premium", "alert_mobile_premium", "ads"]:
+                                if k in data:
+                                    merged[k] = data[k]
+                        return merged
     except Exception as e:
         logger.warning(f"Failed to read version.json from disk: {e}")
 
-    return {
-        "success": True,
-        "version_name": "2.8.88",
-        "version_code": 147,
-        "force_update": True,
-        "min_version_code": 108,
-        "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
-        "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
-        "changelog": "v2.8.88: 1. Исправлен предпросмотр — таймлайн точно переходит на выбранные 5/10/12 минут без сброса в начало фильма. 2. Оптимизированы обложки (аппаратный даунсэмплинг RGB_565) — устранено подтормаживание на ТВ. 3. Исправлен бесконечный скролл на главной — сетка больше не ограничена 8 рядами. 4. Аппаратный неоновый спиннер при старте приложения. 5. Блокировка аудио/видео-заглушек Zona («Установите последнюю версию Zona»). 6. Восстановлены потоки и русские озвучки для «Хитрый койот», «Бэтмен: Падение рыцаря», разделены фильмы в «Возможная любовь», исправлен поиск торрентов для «Одиссея»."
-    }
+    return showhub_fallback
 
 _actor_photo_cache: Dict[str, Optional[str]] = {}
 

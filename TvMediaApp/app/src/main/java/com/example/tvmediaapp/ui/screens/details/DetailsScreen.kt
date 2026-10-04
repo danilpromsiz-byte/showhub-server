@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -1970,8 +1971,11 @@ fun DetailsScreen(
                         }
                     }
 
-                    // TRAILER — icon-only compact button
-                    Button(
+                    // TRAILER — icon with tooltip
+                    IconActionButton(
+                        iconResId = R.drawable.ic_movie,
+                        tooltip = "Трейлер",
+                        focusColor = focusColor,
                         onClick = {
                             coroutineScope.launch {
                                 streamStatus = "Поиск трейлера..."
@@ -1991,37 +1995,20 @@ fun DetailsScreen(
                                 }
                             }
                         },
-                        colors = ButtonDefaults.colors(
-                            containerColor = Color.White.copy(alpha = 0.08f),
-                            focusedContainerColor = focusColor,
-                            contentColor = TextWhite,
-                            focusedContentColor = Color.Black
-                        ),
-                        border = ButtonDefaults.border(
-                            border = Border.None,
-                            focusedBorder = Border.None
-                        ),
-                        shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                        scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.05f),
-                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                         modifier = Modifier
-                            .height(28.dp)
                             .focusRequester(trailerButtonFocusRequester)
                             .focusProperties {
                                 left = if (hasResume) fromStartButtonFocusRequester else playButtonFocusRequester
                                 right = externalPlayerFocusRequester
                                 down = favoriteButtonFocusRequester
                             }
-                    ) {
-                        AppIcon(
-                            resId = R.drawable.ic_movie,
-                            tint = androidx.tv.material3.LocalContentColor.current,
-                            size = 16.dp
-                        )
-                    }
+                    )
 
-                    // EXTERNAL PLAYER — icon-only compact button
-                    Button(
+                    // EXTERNAL PLAYER — icon with tooltip
+                    IconActionButton(
+                        iconResId = R.drawable.ic_open_in_new,
+                        tooltip = "Внешний плеер",
+                        focusColor = focusColor,
                         onClick = {
                             coroutineScope.launch {
                                 streamStatus = "Получение ссылки для стороннего плеера..."
@@ -2110,104 +2097,49 @@ fun DetailsScreen(
                                 }
                             }
                         },
-                        colors = ButtonDefaults.colors(
-                            containerColor = Color.White.copy(alpha = 0.08f),
-                            focusedContainerColor = focusColor,
-                            contentColor = TextWhite,
-                            focusedContentColor = Color.Black
-                        ),
-                        border = ButtonDefaults.border(
-                            border = Border.None,
-                            focusedBorder = Border.None
-                        ),
-                        shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                        scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.05f),
-                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                         modifier = Modifier
-                            .height(28.dp)
                             .focusRequester(externalPlayerFocusRequester)
                             .focusProperties {
                                 left = trailerButtonFocusRequester
                                 right = favoriteButtonFocusRequester
                                 down = backButtonFocusRequester
                             }
-                    ) {
-                        AppIcon(
-                            resId = R.drawable.ic_open_in_new,
-                            tint = androidx.tv.material3.LocalContentColor.current,
-                            size = 16.dp
-                        )
-                    }
+                    )
 
-                    // FAVORITE — icon-only compact button
-                    var isFavoriteFocused by remember { mutableStateOf(false) }
-                    Button(
+                    // FAVORITE — icon with tooltip
+                    IconActionButton(
+                        iconResId = if (isFav) R.drawable.ic_star else R.drawable.ic_star_border,
+                        tooltip = if (isFav) "В избранном" else "В избранное",
+                        focusColor = focusColor,
+                        iconTintOverride = if (isFav) FavoriteGold else null,
                         onClick = {
                             isFav = !isFav
                             onToggleFavorite(currentMovie)
                         },
-                        colors = ButtonDefaults.colors(
-                            containerColor = Color.White.copy(alpha = 0.08f),
-                            focusedContainerColor = focusColor,
-                            contentColor = TextWhite,
-                            focusedContentColor = Color.Black
-                        ),
-                        border = ButtonDefaults.border(
-                            border = Border.None,
-                            focusedBorder = Border.None
-                        ),
-                        shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                        scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.05f),
-                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                         modifier = Modifier
-                            .height(28.dp)
                             .focusRequester(favoriteButtonFocusRequester)
-                            .onFocusChanged { isFavoriteFocused = it.isFocused }
                             .focusProperties {
                                 left = externalPlayerFocusRequester
                                 up = playButtonFocusRequester
                                 right = backButtonFocusRequester
                                 down = tabsFocusRequester
                             }
-                    ) {
-                        AppIcon(
-                            resId = if (isFav) R.drawable.ic_star else R.drawable.ic_star_border,
-                            tint = if (isFavoriteFocused) Color.Black else if (isFav) FavoriteGold else androidx.tv.material3.LocalContentColor.current,
-                            size = 16.dp
-                        )
-                    }
+                    )
 
-                    // BACK — icon-only compact button
-                    Button(
+                    // BACK — icon with tooltip
+                    IconActionButton(
+                        iconResId = R.drawable.ic_arrow_back,
+                        tooltip = "Назад",
+                        focusColor = focusColor,
                         onClick = onBackClick,
-                        colors = ButtonDefaults.colors(
-                            containerColor = Color.White.copy(alpha = 0.08f),
-                            focusedContainerColor = focusColor,
-                            contentColor = TextWhite,
-                            focusedContentColor = Color.Black
-                        ),
-                        border = ButtonDefaults.border(
-                            border = Border.None,
-                            focusedBorder = Border.None
-                        ),
-                        shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                        scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.05f),
-                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                         modifier = Modifier
-                            .height(28.dp)
                             .focusRequester(backButtonFocusRequester)
                             .focusProperties {
                                 left = favoriteButtonFocusRequester
                                 up = externalPlayerFocusRequester
                                 down = tabsFocusRequester
                             }
-                    ) {
-                        AppIcon(
-                            resId = R.drawable.ic_arrow_back,
-                            tint = androidx.tv.material3.LocalContentColor.current,
-                            size = 16.dp
-                        )
-                    }
+                    )
                 }
 
                 // Informative Card Data & Stream Status message with NeonSpinner
@@ -3303,6 +3235,77 @@ fun DetailsScreen(
                 // Smooth bottom clearance for TV bezels and overscan
                 Spacer(modifier = Modifier.height(360.dp))
             }
+        }
+    }
+}
+
+/**
+ * Icon-only action button with floating tooltip on focus.
+ * Shows a small label above the button when focused via D-pad.
+ */
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+private fun IconActionButton(
+    iconResId: Int,
+    tooltip: String,
+    onClick: () -> Unit,
+    focusColor: Color,
+    modifier: Modifier = Modifier,
+    iconTintOverride: Color? = null,
+    focusedIconTintOverride: Color? = null
+) {
+    var isFocused by remember { mutableStateOf(false) }
+    Box(contentAlignment = Alignment.TopCenter) {
+        // Floating tooltip above button
+        androidx.compose.animation.AnimatedVisibility(
+            visible = isFocused,
+            enter = androidx.compose.animation.fadeIn(animationSpec = androidx.compose.animation.core.tween(150)),
+            exit = androidx.compose.animation.fadeOut(animationSpec = androidx.compose.animation.core.tween(100))
+        ) {
+            Box(
+                modifier = Modifier
+                    .offset(y = (-22).dp)
+                    .background(
+                        color = Color(0xE6202020),
+                        shape = RoundedCornerShape(4.dp)
+                    )
+                    .border(1.dp, focusColor.copy(alpha = 0.5f), RoundedCornerShape(4.dp))
+                    .padding(horizontal = 8.dp, vertical = 3.dp)
+            ) {
+                Text(
+                    text = tooltip,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = Color.White,
+                    maxLines = 1
+                )
+            }
+        }
+        Button(
+            onClick = onClick,
+            colors = ButtonDefaults.colors(
+                containerColor = Color.White.copy(alpha = 0.08f),
+                focusedContainerColor = focusColor,
+                contentColor = TextWhite,
+                focusedContentColor = Color.Black
+            ),
+            border = ButtonDefaults.border(
+                border = Border.None,
+                focusedBorder = Border.None
+            ),
+            shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+            scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.05f),
+            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+            modifier = modifier
+                .height(28.dp)
+                .onFocusChanged { isFocused = it.isFocused }
+        ) {
+            AppIcon(
+                resId = iconResId,
+                tint = if (isFocused) (focusedIconTintOverride ?: Color.Black)
+                       else (iconTintOverride ?: androidx.tv.material3.LocalContentColor.current),
+                size = 16.dp
+            )
         }
     }
 }

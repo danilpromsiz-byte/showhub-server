@@ -352,7 +352,9 @@ private fun EmbedWebViewPlayerScreen(
                         )
                         isFocusable = true
                         isFocusableInTouchMode = true
-                        descendantFocusability = ViewGroup.FOCUS_AFTER_DESCENDANTS
+                        // FOCUS_BEFORE_DESCENDANTS so the WebView itself gets focus first,
+                        // then we programmatically push focus into the iframe via JS
+                        descendantFocusability = ViewGroup.FOCUS_BEFORE_DESCENDANTS
                         try {
                             val cm = android.webkit.CookieManager.getInstance()
                             cm.setAcceptCookie(true)
@@ -389,22 +391,14 @@ private fun EmbedWebViewPlayerScreen(
                                 request: android.webkit.WebResourceRequest?,
                                 error: android.webkit.WebResourceError?
                             ) {
-                                // NEVER call super — prevents default Android error page
-                                // (upside-down robot) for ALL frames including iframes
                                 val errCode = error?.errorCode ?: 0
                                 val errUrl = request?.url?.toString() ?: "?"
                                 android.util.Log.e("EmbedPlayer", "Error: code=$errCode main=${request?.isForMainFrame} url=$errUrl desc=${error?.description}")
-                                // Only set hasError for truly fatal main-frame errors
-                                // Many embed players load sub-resources that fail (ads, trackers) — ignore those
                                 if (request?.isForMainFrame == true) {
-                                    // ERROR_HOST_LOOKUP (-2) = DNS failure, ERROR_UNSUPPORTED_SCHEME (-10) = bad URL
-                                    // These are genuinely unrecoverable
                                     if (errCode == ERROR_HOST_LOOKUP || errCode == ERROR_UNSUPPORTED_SCHEME) {
                                         hasError = true
                                         errorMessage = "Не удалось загрузить плеер источника (DNS)"
                                     }
-                                    // All other errors (-1 UNKNOWN, -2...-16 various) — let the page try to recover
-                                    // Embed players often handle these internally via JS
                                 }
                             }
 
@@ -413,10 +407,8 @@ private fun EmbedWebViewPlayerScreen(
                                 request: android.webkit.WebResourceRequest?,
                                 errorResponse: android.webkit.WebResourceResponse?
                             ) {
-                                // Don't call super to avoid error page rendering
                                 val statusCode = errorResponse?.statusCode ?: 0
                                 android.util.Log.e("EmbedPlayer", "HTTP $statusCode: main=${request?.isForMainFrame} url=${request?.url}")
-                                // Only flag truly fatal server errors on main frame
                                 if (request?.isForMainFrame == true && statusCode >= 500) {
                                     hasError = true
                                     errorMessage = "Ошибка сервера источника (HTTP $statusCode)"
@@ -433,7 +425,7 @@ private fun EmbedWebViewPlayerScreen(
                             override fun onPageFinished(view: WebView?, url: String?) {
                                 super.onPageFinished(view, url)
                                 android.util.Log.d("EmbedPlayer", "Page finished: $url")
-                                // Focus the iframe first, then try to play video inside it
+                                // Focus the iframe and inject D-pad key forwarding
                                 view?.evaluateJavascript(
                                     """
                                     (function() {
@@ -449,6 +441,29 @@ private fun EmbedWebViewPlayerScreen(
                                         }
                                         var v = document.querySelector('video');
                                         if (v) { v.focus(); v.play(); }
+                                        
+                                        // Forward all keyboard/D-pad events into iframe
+                                        document.addEventListener('keydown', function(e) {
+                                            var iframe = document.querySelector('iframe');
+                                            if (iframe && iframe.contentWindow) {
+                                                try {
+                                                    iframe.contentWindow.postMessage({type:'keydown', keyCode:e.keyCode, key:e.key, code:e.code}, '*');
+                                                    iframe.contentWindow.document.dispatchEvent(
+                                                        new KeyboardEvent('keydown', {key:e.key, keyCode:e.keyCode, code:e.code, bubbles:true})
+                                                    );
+                                                } catch(err) {}
+                                            }
+                                        }, true);
+                                        document.addEventListener('keyup', function(e) {
+                                            var iframe = document.querySelector('iframe');
+                                            if (iframe && iframe.contentWindow) {
+                                                try {
+                                                    iframe.contentWindow.document.dispatchEvent(
+                                                        new KeyboardEvent('keyup', {key:e.key, keyCode:e.keyCode, code:e.code, bubbles:true})
+                                                    );
+                                                } catch(err) {}
+                                            }
+                                        }, true);
                                     })();
                                     """.trimIndent(), null
                                 )
@@ -480,8 +495,25 @@ private fun EmbedWebViewPlayerScreen(
                                 <script>
                                 document.addEventListener('DOMContentLoaded', function() {
                                     var f = document.getElementById('embed-frame');
-                                    if (f) { f.focus(); }
+                                    if (f) { 
+                                        f.focus();
+                                        // Re-focus iframe periodically to ensure D-pad works
+                                        setInterval(function() {
+                                            if (document.activeElement !== f) { f.focus(); }
+                                        }, 2000);
+                                    }
                                 });
+                                // Forward key events from parent into iframe
+                                document.addEventListener('keydown', function(e) {
+                                    var f = document.getElementById('embed-frame');
+                                    if (f && f.contentWindow) {
+                                        try {
+                                            f.contentWindow.document.dispatchEvent(
+                                                new KeyboardEvent('keydown', {key:e.key, keyCode:e.keyCode, code:e.code, bubbles:true, cancelable:true})
+                                            );
+                                        } catch(err) {}
+                                    }
+                                }, true);
                                 </script>
                                 </body></html>
                             """.trimIndent()
@@ -507,6 +539,52 @@ private fun EmbedWebViewPlayerScreen(
                         webViewRef = this
                         // Use post{} to delay requestFocus() until View is attached to window
                         post { requestFocus() }
+
+                        // Forward Android TV D-pad key events into WebView as JS keyboard events
+                        setOnKeyListener { _, keyCode, event ->
+                            if (event.action == android.view.KeyEvent.ACTION_DOWN) {
+                                val jsKeyCode = when (keyCode) {
+                                    android.view.KeyEvent.KEYCODE_DPAD_UP -> 38
+                                    android.view.KeyEvent.KEYCODE_DPAD_DOWN -> 40
+                                    android.view.KeyEvent.KEYCODE_DPAD_LEFT -> 37
+                                    android.view.KeyEvent.KEYCODE_DPAD_RIGHT -> 39
+                                    android.view.KeyEvent.KEYCODE_DPAD_CENTER, android.view.KeyEvent.KEYCODE_ENTER -> 13
+                                    android.view.KeyEvent.KEYCODE_SPACE -> 32
+                                    android.view.KeyEvent.KEYCODE_ESCAPE, android.view.KeyEvent.KEYCODE_BACK -> 27
+                                    else -> -1
+                                }
+                                if (jsKeyCode > 0) {
+                                    evaluateJavascript(
+                                        """
+                                        (function(){
+                                            var tgt = document.querySelector('iframe') || document.activeElement || document.body;
+                                            tgt.dispatchEvent(new KeyboardEvent('keydown',{keyCode:$jsKeyCode,bubbles:true}));
+                                            tgt.dispatchEvent(new KeyboardEvent('keyup',{keyCode:$jsKeyCode,bubbles:true}));
+                                            // Also try clicking center button target
+                                            if ($jsKeyCode === 13 || $jsKeyCode === 32) {
+                                                var focused = document.activeElement;
+                                                if (focused && focused !== document.body) { focused.click(); }
+                                                var iframe = document.querySelector('iframe');
+                                                if (iframe) {
+                                                    try {
+                                                        var iDoc = iframe.contentDocument || iframe.contentWindow.document;
+                                                        var iFocused = iDoc.activeElement;
+                                                        if (iFocused && iFocused !== iDoc.body) { iFocused.click(); }
+                                                    } catch(e){}
+                                                }
+                                            }
+                                        })();
+                                        """.trimIndent(), null
+                                    )
+                                    // Don't consume BACK key - let Android handle it
+                                    keyCode != android.view.KeyEvent.KEYCODE_BACK && keyCode != android.view.KeyEvent.KEYCODE_ESCAPE
+                                } else {
+                                    false
+                                }
+                            } else {
+                                false
+                            }
+                        }
                     }
                 },
                 modifier = Modifier

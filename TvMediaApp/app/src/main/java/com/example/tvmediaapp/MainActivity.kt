@@ -1184,23 +1184,21 @@ fun TvAppNavHost(activity: MainActivity) {
 
             LaunchedEffect(activeAlert.movie.id) {
                 dontRemindAgain = false
-                for (i in 0 until 5) {
-                    delay(60)
+                // Wait longer for the modal to fully compose before requesting focus
+                delay(400)
+                for (i in 0 until 10) {
                     try {
                         playFocusRequester.requestFocus()
                         break
                     } catch (_: Exception) {}
+                    delay(150)
                 }
             }
 
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.88f))
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null
-                    ) {},
+                    .background(Color.Black.copy(alpha = 0.88f)),
                 contentAlignment = Alignment.Center
             ) {
                 // Outer Deck Container with Stacked Card Visuals

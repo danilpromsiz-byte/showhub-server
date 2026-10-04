@@ -906,28 +906,28 @@ def get_proxied_image(url: str = Query(...)):
 def check_updates() -> Dict[str, Any]:
     showhub_fallback = {
         "success": True,
-        "version_name": "2.8.90",
-        "version_code": 149,
+        "version_name": "2.8.91",
+        "version_code": 150,
         "force_update": True,
         "min_version_code": 108,
         "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
         "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
-        "changelog": "v2.8.90: 1. Исправлен тройной диалог обновления. 2. Исправлен фокус в IFRAME-плеере. 3. Исправлена путаница метаданных. 4. Убраны фантомные источники HDRezka. 5. Система багрепортов. 6. Редизайн карточки.",
+        "changelog": "v2.8.91: Тултипы для кнопок, фикс фокуса в модале новых серий, проброс D-pad в IFRAME плеер.",
         "tv": {
-            "version_name": "2.8.90",
-            "version_code": 149,
+            "version_name": "2.8.91",
+            "version_code": 150,
             "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
             "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk"
         },
         "mobile": {
-            "version_name": "2.8.90",
-            "version_code": 149,
+            "version_name": "2.8.91",
+            "version_code": 150,
             "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-Mobile.apk",
             "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-Mobile.apk"
         },
         "pc": {
-            "version_name": "2.8.90",
-            "version_code": 149,
+            "version_name": "2.8.91",
+            "version_code": 150,
             "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-PC.zip"
         }
     }
@@ -945,7 +945,7 @@ def check_updates() -> Dict[str, Any]:
                     data = json.load(f)
                     if isinstance(data, dict):
                         merged = dict(data)
-                        if "tv" not in merged or not isinstance(merged.get("tv"), dict) or merged["tv"].get("version_code", 0) < 149:
+                        if "tv" not in merged or not isinstance(merged.get("tv"), dict) or merged["tv"].get("version_code", 0) < 150:
                             merged.update(showhub_fallback)
                             for k in ["alert_screensaver", "alert_mobile", "alert_screensaver_premium", "alert_mobile_premium", "ads"]:
                                 if k in data:

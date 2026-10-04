@@ -397,36 +397,45 @@ fun TvAppNavHost(activity: MainActivity) {
 
     var updateInfo by remember { mutableStateOf<UpdateInfo?>(null) }
     var isDownloadingUpdate by remember { mutableStateOf(false) }
+    var isCheckingUpdate by remember { mutableStateOf(false) }
     var dismissedVersionCode by remember { mutableIntStateOf(0) }
     var lastInstallerLaunchTime by remember { mutableLongStateOf(0L) }
 
     fun triggerUpdateCheck(isUserClick: Boolean = false) {
+        // Prevent concurrent update checks — only one at a time
+        if (isCheckingUpdate && !isUserClick) return
         coroutineScope.launch {
-            if (isUserClick) {
-                Toast.makeText(activity, "Проверка обновлений ShowHub TV...", Toast.LENGTH_SHORT).show()
-            }
-            val myCode = activity.getInstalledVersionCode()
-            val info = UpdateManager.checkUpdate(myCode)
-            if (info.hasUpdate && info.versionCode > myCode) {
-                // Silently pre-download APK in background so install is instant with 0s wait
-                coroutineScope.launch(Dispatchers.IO) {
-                    UpdateManager.predownloadUpdate(activity.applicationContext, info)
-                }
-                if (info.isForceUpdate || isUserClick || info.versionCode != dismissedVersionCode) {
-                    updateInfo = info
-                }
+            if (isCheckingUpdate && !isUserClick) return@launch
+            isCheckingUpdate = true
+            try {
                 if (isUserClick) {
-                    Toast.makeText(activity, "Доступно обновление ShowHub TV v${info.versionName}!", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(activity, "Проверка обновлений ShowHub TV...", Toast.LENGTH_SHORT).show()
                 }
-            } else {
-                updateInfo = null
-                if (isUserClick) {
-                    if (info.versionCode > 0) {
-                        Toast.makeText(activity, "У вас установлена актуальная версия ShowHub TV (v${activity.getInstalledVersionName()})", Toast.LENGTH_LONG).show()
-                    } else {
-                        Toast.makeText(activity, "Не удалось проверить обновления. Проверьте интернет-соединение.", Toast.LENGTH_LONG).show()
+                val myCode = activity.getInstalledVersionCode()
+                val info = UpdateManager.checkUpdate(myCode)
+                if (info.hasUpdate && info.versionCode > myCode) {
+                    // Silently pre-download APK in background so install is instant with 0s wait
+                    coroutineScope.launch(Dispatchers.IO) {
+                        UpdateManager.predownloadUpdate(activity.applicationContext, info)
+                    }
+                    if (info.isForceUpdate || isUserClick || info.versionCode != dismissedVersionCode) {
+                        updateInfo = info
+                    }
+                    if (isUserClick) {
+                        Toast.makeText(activity, "Доступно обновление ShowHub TV v${info.versionName}!", Toast.LENGTH_SHORT).show()
+                    }
+                } else {
+                    updateInfo = null
+                    if (isUserClick) {
+                        if (info.versionCode > 0) {
+                            Toast.makeText(activity, "У вас установлена актуальная версия ShowHub TV (v${activity.getInstalledVersionName()})", Toast.LENGTH_LONG).show()
+                        } else {
+                            Toast.makeText(activity, "Не удалось проверить обновления. Проверьте интернет-соединение.", Toast.LENGTH_LONG).show()
+                        }
                     }
                 }
+            } finally {
+                isCheckingUpdate = false
             }
         }
     }
@@ -444,10 +453,8 @@ fun TvAppNavHost(activity: MainActivity) {
         if (isNewInstallOrUpdate) {
             actPrefs.edit().putInt("pref_last_ping_version_code", currentCode).apply()
         }
-        delay(3000)
-        if (updateInfo == null) {
-            triggerUpdateCheck()
-        }
+        // Removed duplicate 3-second delayed check — the 600ms check is sufficient.
+        // The periodic loop below will catch missed updates.
         while (isActive) {
             delay(120_000L) // every 2 minutes auto-check in background
             if (updateInfo == null && !isDownloadingUpdate) {
@@ -456,12 +463,12 @@ fun TvAppNavHost(activity: MainActivity) {
         }
     }
 
-    // Auto-check on ON_RESUME (whenever app returns to foreground)
+    // Auto-check on ON_RESUME (whenever app returns to foreground, e.g. after granting install permissions)
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 val timeSinceInstaller = System.currentTimeMillis() - lastInstallerLaunchTime
-                if (!isDownloadingUpdate && updateInfo == null && timeSinceInstaller > 45_000L) {
+                if (!isDownloadingUpdate && !isCheckingUpdate && updateInfo == null && timeSinceInstaller > 45_000L) {
                     triggerUpdateCheck()
                 }
             }

@@ -906,28 +906,28 @@ def get_proxied_image(url: str = Query(...)):
 def check_updates() -> Dict[str, Any]:
     showhub_fallback = {
         "success": True,
-        "version_name": "2.8.89",
-        "version_code": 148,
+        "version_name": "2.8.90",
+        "version_code": 149,
         "force_update": True,
         "min_version_code": 108,
         "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
         "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
-        "changelog": "v2.8.89: 1. Исправлено разделение фильмов и сериалов: устранено ложное слияние корейского фильма и турецкого сериала «Возможная любовь». 2. Исправлено воспроизведение аниме «FX Воин Куруми» (исправлена ложная привязка фильма из Zona и ложные совпадения в Rezka). 3. Строгая валидация типов контента: мультфильмы, аниме и фильмы больше не путаются и отображают корректные плашки в интерфейсе. 4. Автоматическая самоочистка повреждённого кэша карточек.",
+        "changelog": "v2.8.90: 1. Исправлен тройной диалог обновления. 2. Исправлен фокус в IFRAME-плеере. 3. Исправлена путаница метаданных. 4. Убраны фантомные источники HDRezka. 5. Система багрепортов. 6. Редизайн карточки.",
         "tv": {
-            "version_name": "2.8.89",
-            "version_code": 148,
+            "version_name": "2.8.90",
+            "version_code": 149,
             "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
             "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk"
         },
         "mobile": {
-            "version_name": "2.8.89",
-            "version_code": 148,
+            "version_name": "2.8.90",
+            "version_code": 149,
             "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-Mobile.apk",
             "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-Mobile.apk"
         },
         "pc": {
-            "version_name": "2.8.89",
-            "version_code": 148,
+            "version_name": "2.8.90",
+            "version_code": 149,
             "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-PC.zip"
         }
     }
@@ -945,7 +945,7 @@ def check_updates() -> Dict[str, Any]:
                     data = json.load(f)
                     if isinstance(data, dict):
                         merged = dict(data)
-                        if "tv" not in merged or not isinstance(merged.get("tv"), dict) or merged["tv"].get("version_code", 0) < 148:
+                        if "tv" not in merged or not isinstance(merged.get("tv"), dict) or merged["tv"].get("version_code", 0) < 149:
                             merged.update(showhub_fallback)
                             for k in ["alert_screensaver", "alert_mobile", "alert_screensaver_premium", "alert_mobile_premium", "ads"]:
                                 if k in data:
@@ -1910,17 +1910,20 @@ def _fetch_media_details(
         try:
             tmdb_info = tmdb.search_and_enrich(title=title, year=year_int, is_series=is_ser_bool, original_title=original_title)
             if tmdb_info:
-                if tmdb_info.get("actors"):
+                # IMPORTANT: TMDb should only FILL missing fields, never overwrite data
+                # already populated from the local registry (reg_item). This prevents
+                # cases like "Возможная любовь" where a Korean movie overwrites a Turkish series.
+                if not details.get("actors") and tmdb_info.get("actors"):
                     details["actors"] = tmdb_info["actors"]
-                if tmdb_info.get("cast"):
+                if not details.get("cast") and tmdb_info.get("cast"):
                     details["cast"] = tmdb_info["cast"]
-                if tmdb_info.get("director"):
+                if not details.get("director") and tmdb_info.get("director"):
                     details["director"] = tmdb_info["director"]
-                if tmdb_info.get("directors_list"):
+                if not details.get("directors_list") and tmdb_info.get("directors_list"):
                     details["directors_list"] = tmdb_info["directors_list"]
-                if tmdb_info.get("country"):
+                if not details.get("country") and tmdb_info.get("country"):
                     details["country"] = tmdb_info["country"]
-                if tmdb_info.get("countries"):
+                if not details.get("countries") and tmdb_info.get("countries"):
                     details["countries"] = tmdb_info["countries"]
                 if not details.get("description") and tmdb_info.get("description"):
                     details["description"] = tmdb_info["description"]
@@ -1928,7 +1931,7 @@ def _fetch_media_details(
                     details["poster"] = tmdb_info["poster"]
                 if not details.get("rating_imdb") and tmdb_info.get("rating"):
                     details["rating_imdb"] = tmdb_info["rating"]
-                if tmdb_info.get("age_limit"):
+                if not details.get("age_limit") and tmdb_info.get("age_limit"):
                     details["age_limit"] = tmdb_info["age_limit"]
         except Exception:
             pass
@@ -1990,6 +1993,7 @@ def _fetch_media_details(
             pass
 
     # 2. Fetch HDRezka details (translators, seasons & episodes, high-res poster)
+    rz_found = False  # Track whether HDRezka actually returned valid data
     try:
         rz_id = media_id if (source == "hdrezka" and media_id.startswith("http")) else None
         if not rz_id and clean_title:
@@ -2004,6 +2008,7 @@ def _fetch_media_details(
                 if is_ser_bool is not None and rz_is_ser != is_ser_bool:
                     rz_det = None
             if rz_det:
+                rz_found = True
                 if rz_det.get("poster") and (not details.get("poster") or not str(details["poster"]).startswith("http")):
                     details["poster"] = rz_det["poster"]
                 if rz_det.get("translators"):
@@ -2315,7 +2320,7 @@ def _fetch_media_details(
             "episodes_count": kd_max_eps if kd_max_eps > 0 else total_series_eps,
             "seasons_episodes": kd_seasons_eps
         })
-    if rz_max_eps > 0 or details.get("seasons") or any(t.get("source") == "hdrezka" for t in details.get("translators", [])):
+    if rz_found and (rz_max_eps > 0 or details.get("translators") or any(t.get("source") == "hdrezka" for t in details.get("translators", []))):
         sources_info.append({
             "source": "hdrezka",
             "name": "HDRezka",

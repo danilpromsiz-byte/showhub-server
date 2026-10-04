@@ -1140,36 +1140,69 @@ fun DetailsScreen(
                     onPlayClick(movieToPlay, matched.url, startPos, targetSeason, targetEpisode, targetAudioId)
                 } else {
                     streamStatus = notFoundMsg
+                    // Auto-report: streams expected but nothing playable found
+                    ShowHubApiClient.sendBugReport(
+                        movie = currentMovie,
+                        type = "streams_unavailable",
+                        description = "Playback failed: matched stream URL blank/invalid. Sources found: $sourceSummary. Filter: $selectedSourceFilter",
+                        autoReport = true
+                    )
                 }
             } else {
                 streamStatus = notFoundMsg
+                // Auto-report: no streams at all for this media
+                if (currentMovie.sources.isNotEmpty() || availableSourcesInfo.isNotEmpty()) {
+                    ShowHubApiClient.sendBugReport(
+                        movie = currentMovie,
+                        type = "streams_unavailable",
+                        description = "Zero streams returned despite sources listed in card. Filter: $selectedSourceFilter",
+                        autoReport = true
+                    )
+                }
             }
         }
     }
 
     val screenBg = LocalBackgroundColor.current
     Box(modifier = modifier.fillMaxSize().background(screenBg)) {
-        // High-res backdrop
+        // High-res backdrop — vivid but not overwhelming
         AsyncImage(
             model = currentMovie.backdropUrl.ifEmpty { currentMovie.posterUrl },
             contentDescription = currentMovie.title,
             contentScale = ContentScale.Crop,
             modifier = Modifier
                 .fillMaxSize()
-                .alpha(0.30f)
+                .alpha(0.40f)
         )
 
-        // Dark gradient overlay
+        // Multi-layer gradient overlay for depth and readability
+        // Horizontal: left side darker (content area), right lighter (backdrop visible)
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(
                     Brush.horizontalGradient(
                         colors = listOf(
-                            screenBg.copy(alpha = 0.96f),
-                            screenBg.copy(alpha = 0.88f),
-                            screenBg.copy(alpha = 0.75f)
+                            screenBg.copy(alpha = 0.94f),
+                            screenBg.copy(alpha = 0.82f),
+                            screenBg.copy(alpha = 0.60f)
                         )
+                    )
+                )
+        )
+        // Vertical: bottom darker for controls readability
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            Color.Transparent,
+                            screenBg.copy(alpha = 0.30f),
+                            screenBg.copy(alpha = 0.85f)
+                        ),
+                        startY = 0f,
+                        endY = Float.POSITIVE_INFINITY
                     )
                 )
         )
@@ -1937,7 +1970,7 @@ fun DetailsScreen(
                         }
                     }
 
-                    // TRAILER BUTTON
+                    // TRAILER — icon-only compact button
                     Button(
                         onClick = {
                             coroutineScope.launch {
@@ -1969,10 +2002,10 @@ fun DetailsScreen(
                             focusedBorder = Border.None
                         ),
                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                        scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
-                        contentPadding = PaddingValues(horizontal = 9.dp, vertical = 0.dp),
+                        scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.05f),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                         modifier = Modifier
-                            .height(25.dp)
+                            .height(28.dp)
                             .focusRequester(trailerButtonFocusRequester)
                             .focusProperties {
                                 left = if (hasResume) fromStartButtonFocusRequester else playButtonFocusRequester
@@ -1980,25 +2013,14 @@ fun DetailsScreen(
                                 down = favoriteButtonFocusRequester
                             }
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(5.dp)
-                        ) {
-                            AppIcon(
-                                resId = R.drawable.ic_movie,
-                                tint = androidx.tv.material3.LocalContentColor.current,
-                                size = 14.dp
-                            )
-                            Text(
-                                text = "Трейлер",
-                                fontWeight = FontWeight.SemiBold,
-                                fontSize = 11.sp,
-                                lineHeight = 13.sp
-                            )
-                        }
+                        AppIcon(
+                            resId = R.drawable.ic_movie,
+                            tint = androidx.tv.material3.LocalContentColor.current,
+                            size = 16.dp
+                        )
                     }
 
-                    // EXTERNAL PLAYER BUTTON
+                    // EXTERNAL PLAYER — icon-only compact button
                     Button(
                         onClick = {
                             coroutineScope.launch {
@@ -2099,42 +2121,25 @@ fun DetailsScreen(
                             focusedBorder = Border.None
                         ),
                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                        scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
-                        contentPadding = PaddingValues(horizontal = 9.dp, vertical = 0.dp),
+                        scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.05f),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                         modifier = Modifier
-                            .height(25.dp)
+                            .height(28.dp)
                             .focusRequester(externalPlayerFocusRequester)
                             .focusProperties {
                                 left = trailerButtonFocusRequester
+                                right = favoriteButtonFocusRequester
                                 down = backButtonFocusRequester
                             }
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(5.dp)
-                        ) {
-                            AppIcon(
-                                resId = R.drawable.ic_open_in_new,
-                                tint = androidx.tv.material3.LocalContentColor.current,
-                                size = 13.dp
-                            )
-                            Text(
-                                text = "Внешний плеер",
-                                fontWeight = FontWeight.SemiBold,
-                                fontSize = 11.sp,
-                                lineHeight = 13.sp
-                            )
-                        }
+                        AppIcon(
+                            resId = R.drawable.ic_open_in_new,
+                            tint = androidx.tv.material3.LocalContentColor.current,
+                            size = 16.dp
+                        )
                     }
-                }
 
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Action Buttons - Row 2 (Library & Navigation Actions)
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+                    // FAVORITE — icon-only compact button
                     var isFavoriteFocused by remember { mutableStateOf(false) }
                     Button(
                         onClick = {
@@ -2152,37 +2157,27 @@ fun DetailsScreen(
                             focusedBorder = Border.None
                         ),
                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                        scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
-                        contentPadding = PaddingValues(horizontal = 9.dp, vertical = 0.dp),
+                        scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.05f),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                         modifier = Modifier
-                            .height(25.dp)
+                            .height(28.dp)
                             .focusRequester(favoriteButtonFocusRequester)
                             .onFocusChanged { isFavoriteFocused = it.isFocused }
                             .focusProperties {
-                                left = leftPaneFocusRequester
+                                left = externalPlayerFocusRequester
                                 up = playButtonFocusRequester
                                 right = backButtonFocusRequester
                                 down = tabsFocusRequester
                             }
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(5.dp)
-                        ) {
-                            AppIcon(
-                                resId = if (isFav) R.drawable.ic_star else R.drawable.ic_star_border,
-                                tint = if (isFavoriteFocused) Color.Black else if (isFav) FavoriteGold else androidx.tv.material3.LocalContentColor.current,
-                                size = 13.dp
-                            )
-                            Text(
-                                text = if (isFav) "В избранном" else "В избранное",
-                                fontWeight = FontWeight.SemiBold,
-                                fontSize = 11.sp,
-                                lineHeight = 13.sp
-                            )
-                        }
+                        AppIcon(
+                            resId = if (isFav) R.drawable.ic_star else R.drawable.ic_star_border,
+                            tint = if (isFavoriteFocused) Color.Black else if (isFav) FavoriteGold else androidx.tv.material3.LocalContentColor.current,
+                            size = 16.dp
+                        )
                     }
 
+                    // BACK — icon-only compact button
                     Button(
                         onClick = onBackClick,
                         colors = ButtonDefaults.colors(
@@ -2196,10 +2191,10 @@ fun DetailsScreen(
                             focusedBorder = Border.None
                         ),
                         shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                        scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
-                        contentPadding = PaddingValues(horizontal = 9.dp, vertical = 0.dp),
+                        scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.05f),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                         modifier = Modifier
-                            .height(25.dp)
+                            .height(28.dp)
                             .focusRequester(backButtonFocusRequester)
                             .focusProperties {
                                 left = favoriteButtonFocusRequester
@@ -2207,22 +2202,11 @@ fun DetailsScreen(
                                 down = tabsFocusRequester
                             }
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(5.dp)
-                        ) {
-                            AppIcon(
-                                resId = R.drawable.ic_arrow_back,
-                                tint = androidx.tv.material3.LocalContentColor.current,
-                                size = 13.dp
-                            )
-                            Text(
-                                text = "Назад",
-                                fontWeight = FontWeight.SemiBold,
-                                fontSize = 11.sp,
-                                lineHeight = 13.sp
-                            )
-                        }
+                        AppIcon(
+                            resId = R.drawable.ic_arrow_back,
+                            tint = androidx.tv.material3.LocalContentColor.current,
+                            size = 16.dp
+                        )
                     }
                 }
 

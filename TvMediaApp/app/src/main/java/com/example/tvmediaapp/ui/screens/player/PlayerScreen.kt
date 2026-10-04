@@ -338,6 +338,11 @@ private fun EmbedWebViewPlayerScreen(
                 }
             }
         } else {
+            val wvFocusRequester = remember { FocusRequester() }
+            LaunchedEffect(Unit) {
+                delay(300)
+                try { wvFocusRequester.requestFocus() } catch (_: Exception) {}
+            }
             AndroidView(
                 factory = { ctx ->
                     WebView(ctx).apply {
@@ -347,6 +352,7 @@ private fun EmbedWebViewPlayerScreen(
                         )
                         isFocusable = true
                         isFocusableInTouchMode = true
+                        descendantFocusability = ViewGroup.FOCUS_AFTER_DESCENDANTS
                         try {
                             val cm = android.webkit.CookieManager.getInstance()
                             cm.setAcceptCookie(true)
@@ -427,15 +433,27 @@ private fun EmbedWebViewPlayerScreen(
                             override fun onPageFinished(view: WebView?, url: String?) {
                                 super.onPageFinished(view, url)
                                 android.util.Log.d("EmbedPlayer", "Page finished: $url")
+                                // Focus the iframe first, then try to play video inside it
                                 view?.evaluateJavascript(
                                     """
                                     (function() {
                                         document.body.style.backgroundColor = '#000';
+                                        var f = document.querySelector('iframe');
+                                        if (f) {
+                                            f.focus();
+                                            try { f.contentWindow && f.contentWindow.focus(); } catch(e) {}
+                                            try {
+                                                var v = f.contentDocument && f.contentDocument.querySelector('video');
+                                                if (v) { v.focus(); v.play(); }
+                                            } catch(e) {}
+                                        }
                                         var v = document.querySelector('video');
                                         if (v) { v.focus(); v.play(); }
                                     })();
                                     """.trimIndent(), null
                                 )
+                                // Ensure WebView retains focus after page load
+                                view?.post { view.requestFocus() }
                             }
                         }
 
@@ -458,7 +476,13 @@ private fun EmbedWebViewPlayerScreen(
                                 <style>*{margin:0;padding:0;overflow:hidden}html,body{height:100%;background:#000}
                                 iframe{width:100%;height:100%;border:none}</style>
                                 </head><body>
-                                <iframe src="$targetUrl" allowfullscreen allow="autoplay; encrypted-media; fullscreen"></iframe>
+                                <iframe id="embed-frame" tabindex="0" src="$targetUrl" allowfullscreen allow="autoplay; encrypted-media; fullscreen"></iframe>
+                                <script>
+                                document.addEventListener('DOMContentLoaded', function() {
+                                    var f = document.getElementById('embed-frame');
+                                    if (f) { f.focus(); }
+                                });
+                                </script>
                                 </body></html>
                             """.trimIndent()
                             val baseUrl = resolveEmbedBaseUrl(targetUrl)
@@ -481,10 +505,14 @@ private fun EmbedWebViewPlayerScreen(
                             }
                         }
                         webViewRef = this
-                        requestFocus()
+                        // Use post{} to delay requestFocus() until View is attached to window
+                        post { requestFocus() }
                     }
                 },
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier
+                    .fillMaxSize()
+                    .focusRequester(wvFocusRequester)
+                    .focusable()
             )
         }
     }

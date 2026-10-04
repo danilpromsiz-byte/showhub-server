@@ -1194,6 +1194,58 @@ object ShowHubApiClient {
             false
         }
     }
+
+    /**
+     * Send a bug report to the server.
+     * @param movie The movie/series with the issue
+     * @param type Bug type: "streams_unavailable", "wrong_metadata", "source_mismatch", "other"
+     * @param description Optional user description
+     * @param autoReport True if auto-generated (stream failure), false if manual user report
+     */
+    fun sendBugReport(
+        movie: Movie,
+        type: String,
+        description: String = "",
+        autoReport: Boolean = false
+    ) {
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val url = URL("$activeServerBase/api/feedback/bug-report")
+                val conn = url.openConnection() as HttpURLConnection
+                conn.requestMethod = "POST"
+                conn.connectTimeout = 8000
+                conn.readTimeout = 8000
+                conn.setRequestProperty("Content-Type", "application/json")
+                prepareConnection(conn)
+                conn.doOutput = true
+
+                val body = JSONObject().apply {
+                    put("media_id", movie.id)
+                    put("title", movie.title)
+                    put("year", movie.releaseYear)
+                    put("is_series", movie.isSeries)
+                    put("source", movie.source)
+                    put("type", type)
+                    put("description", description)
+                    put("auto_report", autoReport)
+                    put("app_version", cachedAppVersion)
+                    put("device_id", cachedDeviceId ?: "unknown")
+                    put("platform", com.example.tvmediaapp.BuildConfig.PLATFORM_TYPE)
+                }
+
+                val writer = OutputStreamWriter(conn.outputStream)
+                writer.write(body.toString())
+                writer.flush()
+                writer.close()
+
+                val code = conn.responseCode
+                android.util.Log.d("BugReport", "Sent bug report: type=$type movie=${movie.title} response=$code auto=$autoReport")
+                conn.disconnect()
+            } catch (e: Exception) {
+                android.util.Log.e("BugReport", "Failed to send bug report: ${e.message}")
+            }
+        }
+    }
 }
 
 data class FilmixAccountStatus(

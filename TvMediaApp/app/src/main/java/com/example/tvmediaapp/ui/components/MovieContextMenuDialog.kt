@@ -328,7 +328,69 @@ fun MovieContextMenuDialog(
                     }
                 )
 
-                // 6. Отмена
+                // 6. Сообщить о проблеме (Багрепорт)
+                var showReportSubmenu by remember { mutableStateOf(false) }
+                if (!showReportSubmenu) {
+                    ContextMenuItem(
+                        icon = "⚠",
+                        title = "Сообщить о проблеме",
+                        subtitle = "Фильм недоступен, неверные данные и т.д.",
+                        isActive = false,
+                        focusColor = Color(0xFFF59E0B),
+                        onClick = { showReportSubmenu = true }
+                    )
+                } else {
+                    ContextMenuItem(
+                        icon = "📡",
+                        title = "Видео недоступно",
+                        subtitle = "Не воспроизводится или нет потоков",
+                        isActive = false,
+                        focusColor = Color(0xFFF59E0B),
+                        onClick = {
+                            com.example.tvmediaapp.data.api.ShowHubApiClient.sendBugReport(
+                                movie = movie,
+                                type = "streams_unavailable",
+                                description = "Пользователь вручную сообщил: видео недоступно"
+                            )
+                            Toast.makeText(context, "Отчёт отправлен. Спасибо!", Toast.LENGTH_SHORT).show()
+                            onDismiss()
+                        }
+                    )
+                    ContextMenuItem(
+                        icon = "🎭",
+                        title = "Неверные данные",
+                        subtitle = "Обложка, актёры или описание не от этого фильма",
+                        isActive = false,
+                        focusColor = Color(0xFFF59E0B),
+                        onClick = {
+                            com.example.tvmediaapp.data.api.ShowHubApiClient.sendBugReport(
+                                movie = movie,
+                                type = "wrong_metadata",
+                                description = "Пользователь вручную сообщил: неверные метаданные (обложка/актёры/описание)"
+                            )
+                            Toast.makeText(context, "Отчёт отправлен. Спасибо!", Toast.LENGTH_SHORT).show()
+                            onDismiss()
+                        }
+                    )
+                    ContextMenuItem(
+                        icon = "❓",
+                        title = "Другая проблема",
+                        subtitle = "Иная ошибка или замечание",
+                        isActive = false,
+                        focusColor = Color(0xFFF59E0B),
+                        onClick = {
+                            com.example.tvmediaapp.data.api.ShowHubApiClient.sendBugReport(
+                                movie = movie,
+                                type = "other",
+                                description = "Пользователь вручную сообщил о проблеме"
+                            )
+                            Toast.makeText(context, "Отчёт отправлен. Спасибо!", Toast.LENGTH_SHORT).show()
+                            onDismiss()
+                        }
+                    )
+                }
+
+                // 7. Отмена
                 ContextMenuItem(
                     icon = "✕",
                     title = "Отмена",

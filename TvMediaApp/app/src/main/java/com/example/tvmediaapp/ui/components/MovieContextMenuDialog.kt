@@ -176,7 +176,19 @@ fun MovieContextMenuDialog(
                             )
                         }
                         Text(
-                            text = if (movie.isSeries) "Сериал" else "Фильм",
+                            text = if (movie.isSeries) {
+                                when {
+                                    movie.genres.any { it.contains("аниме", ignoreCase = true) } -> "Аниме-сериал"
+                                    movie.genres.any { it.contains("мульт", ignoreCase = true) } -> "Мультсериал"
+                                    else -> "Сериал"
+                                }
+                            } else {
+                                when {
+                                    movie.genres.any { it.contains("аниме", ignoreCase = true) } -> "Аниме"
+                                    movie.genres.any { it.contains("мульт", ignoreCase = true) } -> "Мультфильм"
+                                    else -> "Фильм"
+                                }
+                            },
                             color = TextGray,
                             fontSize = 12.sp
                         )

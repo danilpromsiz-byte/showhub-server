@@ -109,21 +109,49 @@ object MediaDiskCache {
         }
     }
 
+    fun clearCachedDetails(movieId: String, title: String? = null, year: String? = null) {
+        try {
+            val safeId = movieId.replace(Regex("[^a-zA-Z0-9_-]"), "_")
+            synchronized(memoryDetailsCache) {
+                memoryDetailsCache.remove(safeId)
+                if (!title.isNullOrBlank()) {
+                    memoryDetailsCache.remove(getTitleKey(title, year))
+                }
+            }
+            val file1 = File(getDetailsDir(), "$safeId.json")
+            if (file1.exists()) file1.delete()
+            if (!title.isNullOrBlank()) {
+                val file2 = File(getDetailsDir(), "${getTitleKey(title, year)}.json")
+                if (file2.exists()) file2.delete()
+            }
+        } catch (_: Exception) {}
+    }
+
     fun putCachedDetails(movie: Movie) {
         try {
             val existing = getCachedDetails(movie.id, movie.title, movie.releaseYear)
             // Guard: Never overwrite rich cached details with an empty movie or drop seasons/translators!
+            // But strictly ensure a movie never inherits seasons or series flag!
             val movieToSave = if (existing != null) {
                 movie.copy(
-                    seasons = if (movie.seasons.isNotEmpty()) movie.seasons else existing.seasons,
+                    isSeries = movie.isSeries,
+                    seasons = if (movie.isSeries) {
+                        if (movie.seasons.isNotEmpty()) movie.seasons else (if (existing.isSeries) existing.seasons else emptyList())
+                    } else emptyList(),
+                    episodesSchedule = if (movie.isSeries) {
+                        if (movie.episodesSchedule.isNotEmpty()) movie.episodesSchedule else (if (existing.isSeries) existing.episodesSchedule else emptyList())
+                    } else emptyList(),
                     audioTracks = if (movie.audioTracks.isNotEmpty()) movie.audioTracks else existing.audioTracks,
                     sources = if (movie.sources.isNotEmpty()) movie.sources else existing.sources,
                     cast = if (movie.cast.isNotEmpty()) movie.cast else existing.cast,
-                    directorsList = if (movie.directorsList.isNotEmpty()) movie.directorsList else existing.directorsList,
-                    episodesSchedule = if (movie.episodesSchedule.isNotEmpty()) movie.episodesSchedule else existing.episodesSchedule
+                    directorsList = if (movie.directorsList.isNotEmpty()) movie.directorsList else existing.directorsList
                 )
             } else {
-                movie
+                movie.copy(
+                    isSeries = movie.isSeries,
+                    seasons = if (movie.isSeries) movie.seasons else emptyList(),
+                    episodesSchedule = if (movie.isSeries) movie.episodesSchedule else emptyList()
+                )
             }
 
             val safeId = movieToSave.id.replace(Regex("[^a-zA-Z0-9_-]"), "_")
@@ -529,9 +557,16 @@ object MediaDiskCache {
         val p = obj.optString("posterUrl", "").ifEmpty { obj.optString("poster", "") }
         val b = obj.optString("backdropUrl", "").ifEmpty { obj.optString("backdrop", "") }
         val rYear = obj.optString("releaseYear", "").ifEmpty { obj.optString("year", "2024") }
-        val isSer = if (obj.has("isSeries")) obj.optBoolean("isSeries", false) else obj.optBoolean("is_series", false)
+        val isSer = if (obj.has("isSeries")) {
+            obj.optBoolean("isSeries", false) || obj.optInt("isSeries", 0) == 1
+        } else {
+            obj.optBoolean("is_series", false) || obj.optInt("is_series", 0) == 1 || obj.optString("is_series") == "1" || obj.optString("is_series").equals("true", ignoreCase = true)
+        }
         val rKp = if (obj.has("ratingKp")) obj.optDouble("ratingKp", 7.0) else obj.optDouble("rating_kp", 7.0)
         val rImdb = if (obj.has("ratingImdb")) obj.optDouble("ratingImdb", 7.0) else obj.optDouble("rating_imdb", 7.0)
+
+        val cleanSeasons = if (isSer) seasons else emptyList()
+        val cleanSchedule = if (isSer) schedule else emptyList()
 
         return Movie(
             id = obj.optString("id", ""),
@@ -547,19 +582,19 @@ object MediaDiskCache {
             lampaPopularity = obj.optDouble("lampaPopularity", 0.0),
             rankIndex = obj.optInt("rankIndex", 0),
             releaseYear = rYear,
-            duration = obj.optString("duration", "Фильм"),
+            duration = obj.optString("duration", if (isSer) "Сериал" else "Фильм"),
             country = obj.optString("country", ""),
             director = obj.optString("director", ""),
             actors = obj.optString("actors", ""),
             episodesInfo = obj.optString("episodesInfo", ""),
             genres = genres,
             isSeries = isSer,
-            seasons = seasons,
+            seasons = cleanSeasons,
             audioTracks = audioTracks,
             sources = sources,
             cast = cast,
             directorsList = directors,
-            episodesSchedule = schedule,
+            episodesSchedule = cleanSchedule,
             ageRating = obj.optString("ageRating", "12+")
         )
     }

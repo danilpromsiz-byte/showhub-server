@@ -57,9 +57,16 @@ object ZonaNativeResolver {
         (1000 * j2) + h
     }
 
-    suspend fun searchMobiId(title: String, kpId: String? = null): String? = withContext(Dispatchers.IO) {
+    suspend fun searchMobiId(
+        title: String,
+        kpId: String? = null,
+        year: String? = null,
+        isSeries: Boolean = false
+    ): String? = withContext(Dispatchers.IO) {
         try {
             val cleanTitle = title.replace(Regex("\\(.*?\\)|\\[.*?\\]"), "").trim()
+            if (cleanTitle.isEmpty()) return@withContext null
+            val targetYearInt = year?.toIntOrNull()
             val enc = URLEncoder.encode(cleanTitle, "UTF-8")
             val url = URL("$API_BASE/search/$enc")
             val conn = url.openConnection() as HttpURLConnection
@@ -76,16 +83,47 @@ object ZonaNativeResolver {
                     for (i in 0 until items.length()) {
                         val it = items.getJSONObject(i)
                         val idVal = it.optString("id", "")
-                        if (idVal == kpId) {
+                        val itSerial = it.optBoolean("serial", false)
+                        if (idVal == kpId && itSerial == isSeries) {
                             return@withContext it.optString("mobi_link_id", idVal)
                         }
                     }
                 }
 
-                if (items.length() > 0) {
-                    val first = items.getJSONObject(0)
-                    return@withContext first.optString("mobi_link_id", first.optString("id", ""))
+                var bestMobiId: String? = null
+                var maxScore = -1.0
+
+                for (i in 0 until items.length()) {
+                    val it = items.getJSONObject(i)
+                    val itSerial = it.optBoolean("serial", false)
+                    // Strict: movie can never match series, and series can never match movie!
+                    if (itSerial != isSeries) continue
+
+                    val nameRus = it.optString("name_rus", "")
+                    val nameEng = it.optString("name_eng", "")
+                    val nameOrig = it.optString("name_original", "")
+                    val itYear = it.optInt("year", 0).takeIf { it > 0 }
+
+                    if (targetYearInt != null && itYear != null) {
+                        val diff = Math.abs(targetYearInt - itYear)
+                        if (diff > 2) continue
+                    }
+
+                    var sim = 0.0
+                    for (name in listOf(nameRus, nameEng, nameOrig)) {
+                        if (name.isNotEmpty()) {
+                            val s = RezkaNativeResolver.computeSimilarity(name, cleanTitle)
+                            if (s > sim) sim = s
+                        }
+                    }
+
+                    if (sim >= 0.60 && sim > maxScore) {
+                        maxScore = sim
+                        bestMobiId = it.optString("mobi_link_id", it.optString("id", ""))
+                    }
                 }
+
+                return@withContext bestMobiId
             }
         } catch (_: Exception) {}
         null

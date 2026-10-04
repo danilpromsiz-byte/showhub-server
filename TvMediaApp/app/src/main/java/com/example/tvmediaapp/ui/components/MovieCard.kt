@@ -931,11 +931,25 @@ fun MovieCard(
                         "${hist.season} сезон ${hist.episode} сер."
                     } else if (movie.episodesInfo.isNotBlank()) {
                         movie.episodesInfo
+                    } else if (movie.genres.any { it.contains("аниме", ignoreCase = true) }) {
+                        "Аниме-сериал"
+                    } else if (movie.genres.any { it.contains("мульт", ignoreCase = true) }) {
+                        "Мультсериал"
                     } else {
                         "Сериал"
                     }
                 } else {
-                    if (movie.genres.isNotEmpty()) "Фильм • ${movie.genres.first()}" else "Фильм"
+                    val isAnime = movie.genres.any { it.contains("аниме", ignoreCase = true) }
+                    val isCartoon = movie.genres.any { it.contains("мульт", ignoreCase = true) }
+                    val otherGenre = movie.genres.firstOrNull { 
+                        !it.contains("аниме", ignoreCase = true) && !it.contains("мульт", ignoreCase = true) 
+                    }
+                    when {
+                        isAnime -> if (otherGenre != null) "Аниме • $otherGenre" else "Аниме"
+                        isCartoon -> if (otherGenre != null) "Мультфильм • $otherGenre" else "Мультфильм"
+                        movie.genres.isNotEmpty() -> "Фильм • ${movie.genres.first()}"
+                        else -> "Фильм"
+                    }
                 }
 
                 val subText = if (cleanYear.isNotEmpty()) "$cleanYear • $seriesOrMovieInfo" else seriesOrMovieInfo

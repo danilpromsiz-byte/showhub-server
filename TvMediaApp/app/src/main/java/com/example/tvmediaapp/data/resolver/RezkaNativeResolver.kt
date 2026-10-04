@@ -99,16 +99,19 @@ object RezkaNativeResolver {
         if (c1 == c2) return 1.0
         if (c1.contains(c2) || c2.contains(c1)) {
             val ratio = Math.min(c1.length, c2.length).toDouble() / Math.max(c1.length, c2.length)
-            return Math.max(0.70, ratio)
+            if (ratio >= 0.85) return ratio
         }
         val w1 = c1.split(" ").filter { it.length > 1 }.toSet()
         val w2 = c2.split(" ").filter { it.length > 1 }.toSet()
         if (w1.isEmpty() || w2.isEmpty()) return 0.0
         val intersect = w1.intersect(w2)
         if (intersect.isEmpty()) return 0.0
+        if (intersect.size == 1 && Math.max(w1.size, w2.size) >= 3) {
+            return 0.20
+        }
         val jaccard = intersect.size.toDouble() / w1.union(w2).size
         val overlap = intersect.size.toDouble() / Math.min(w1.size, w2.size)
-        return Math.max(jaccard, overlap * 0.8)
+        return Math.max(jaccard, overlap * 0.75)
     }
 
     suspend fun resolveMediaDetails(
@@ -203,32 +206,35 @@ object RezkaNativeResolver {
                         }
                     }
 
-                    // Strict filter: Candidate MUST match the title with similarity >= 0.50!
-                    if (maxSim < 0.50) {
+                    // Strict filter: Candidate MUST match the title with similarity >= 0.60!
+                    if (maxSim < 0.60) {
                         continue
                     }
 
                     var score = (maxSim * 200).toInt()
 
-                    // Year matching
+                    // Year matching: Disqualify candidates released > 2 years apart
                     val textForYear = if (Pattern.compile("\\b(19\\d\\d|20\\d\\d)\\b").matcher(snippet).find()) snippet else fullUrl
                     val yearMatcher = Pattern.compile("\\b(19\\d\\d|20\\d\\d)\\b").matcher(textForYear)
                     if (yearMatcher.find()) {
                         val candYear = yearMatcher.group(1).toIntOrNull()
                         if (targetYearInt != null && candYear != null) {
                             val diff = Math.abs(candYear - targetYearInt)
+                            if (diff > 2) {
+                                continue
+                            }
                             if (diff == 0) score += 100
                             else if (diff == 1) score += 50
-                            else score -= diff * 20
+                            else score -= diff * 30
                         }
                     }
 
-                    // Series vs Movie matching
+                    // Series vs Movie matching: STRICT DISQUALIFICATION
                     val isCandSeries = fullUrl.contains("/series/") || fullUrl.contains("/animation/") || (isSeries && fullUrl.contains("/cartoons/")) || snippet.contains("сезон") || snippet.contains("сери")
-                    if (isSeries == isCandSeries) {
-                        score += 60
+                    if (isSeries != isCandSeries) {
+                        continue
                     } else {
-                        score -= 50
+                        score += 60
                     }
 
                     candidates.add(RezkaCandidate(id, fullUrl, score))

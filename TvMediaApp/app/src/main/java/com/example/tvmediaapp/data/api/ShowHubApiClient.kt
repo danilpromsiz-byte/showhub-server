@@ -160,10 +160,18 @@ object ShowHubApiClient {
 
     suspend fun fetchMediaDetails(movie: Movie): Movie = withContext(Dispatchers.IO) {
         val cached = MediaDiskCache.getCachedDetails(movie.id, movie.title, movie.releaseYear)
-        val isSeriesLike = movie.isSeries || cached?.isSeries == true || (cached?.seasons?.isNotEmpty() == true)
-        val hasTranslatorSeasons = cached?.audioTracks?.any { it.seasonsEpisodes.isNotEmpty() } == true
+        // If movie is NOT a series, but cached has series or seasons, disk cache was corrupted: ignore and purge cached!
+        val validCached = if (!movie.isSeries && (cached?.isSeries == true || cached?.seasons?.isNotEmpty() == true)) {
+            MediaDiskCache.clearCachedDetails(movie.id, movie.title, movie.releaseYear)
+            null
+        } else {
+            cached
+        }
 
-        if (cached != null && (cached.seasons.isNotEmpty() || cached.audioTracks.isNotEmpty())) {
+        val isSeriesLike = movie.isSeries || validCached?.isSeries == true || (validCached?.seasons?.isNotEmpty() == true)
+        val hasTranslatorSeasons = validCached?.audioTracks?.any { it.seasonsEpisodes.isNotEmpty() } == true
+
+        if (validCached != null && (validCached.seasons.isNotEmpty() || validCached.audioTracks.isNotEmpty())) {
             if (!isSeriesLike || hasTranslatorSeasons) {
                 // Instant 0 ms load from TV disk cache!
                 CoroutineScope(Dispatchers.IO).launch {
@@ -174,7 +182,7 @@ object ShowHubApiClient {
                         }
                     } catch (_: Exception) {}
                 }
-                return@withContext cached
+                return@withContext validCached
             }
         }
         var result = fetchMediaDetailsFromNetwork(movie)
@@ -187,29 +195,38 @@ object ShowHubApiClient {
                 val nativeRes = com.example.tvmediaapp.data.resolver.RezkaNativeResolver.resolveMediaDetails(
                     title = movie.title,
                     year = movie.releaseYear,
-                    isSeries = movie.isSeries || result.isSeries,
+                    isSeries = movie.isSeries,
                     mediaUrl = rezkaMediaUrl,
                     originalTitle = movie.originalTitle
                 )
                 if (nativeRes != null) {
                     val mergedTracks = if (nativeRes.audioTracks.isNotEmpty()) nativeRes.audioTracks else result.audioTracks
-                    val mergedSeasons = if (nativeRes.seasons.isNotEmpty()) nativeRes.seasons else result.seasons
+                    val mergedSeasons = if (movie.isSeries && nativeRes.seasons.isNotEmpty()) nativeRes.seasons else result.seasons
                     result = result.copy(
                         audioTracks = mergedTracks,
-                        seasons = mergedSeasons,
-                        isSeries = result.isSeries || mergedSeasons.isNotEmpty()
+                        seasons = if (movie.isSeries) mergedSeasons else emptyList(),
+                        isSeries = movie.isSeries
                     )
                 }
             } catch (_: Exception) {}
         }
 
         // If still empty but cached had them, preserve cached data
-        if (cached != null) {
+        if (validCached != null) {
             result = result.copy(
-                seasons = if (result.seasons.isNotEmpty()) result.seasons else cached.seasons,
-                audioTracks = if (result.audioTracks.isNotEmpty()) result.audioTracks else cached.audioTracks,
-                sources = if (result.sources.isNotEmpty()) result.sources else cached.sources,
-                cast = if (result.cast.isNotEmpty()) result.cast else cached.cast
+                seasons = if (movie.isSeries && result.seasons.isNotEmpty()) result.seasons else if (movie.isSeries) validCached.seasons else emptyList(),
+                audioTracks = if (result.audioTracks.isNotEmpty()) result.audioTracks else validCached.audioTracks,
+                sources = if (result.sources.isNotEmpty()) result.sources else validCached.sources,
+                cast = if (result.cast.isNotEmpty()) result.cast else validCached.cast
+            )
+        }
+
+        // Strict enforce movie vs series integrity: movies NEVER have seasons or episodes
+        if (!movie.isSeries) {
+            result = result.copy(
+                isSeries = false,
+                seasons = emptyList(),
+                episodesSchedule = emptyList()
             )
         }
 
@@ -402,7 +419,18 @@ object ShowHubApiClient {
                 val rawDesc = obj.optString("description", movie.description).ifEmpty { movie.description }
                 val desc = (if (rawDesc.isBlank() || rawDesc.equals("null", ignoreCase = true)) movie.description else rawDesc).unescapeHtml()
 
-                val isSeriesDetected = movie.isSeries || obj.optBoolean("is_series", false) || seasonsList.isNotEmpty() || scheduleList.isNotEmpty()
+                val isSeriesDetected = if (!movie.isSeries && !obj.optString("category").equals("series", ignoreCase = true) && !obj.optString("category").equals("anime", ignoreCase = true)) {
+                    obj.optBoolean("is_series", false) || obj.optInt("is_series", 0) == 1 || obj.optString("is_series") == "1"
+                } else {
+                    movie.isSeries ||
+                    obj.optBoolean("is_series", false) ||
+                    obj.optInt("is_series", 0) == 1 ||
+                    obj.optString("is_series") == "1" ||
+                    obj.optString("is_series").equals("true", ignoreCase = true) ||
+                    obj.optString("category").equals("series", ignoreCase = true) ||
+                    obj.optString("category").equals("anime", ignoreCase = true) ||
+                    seasonsList.isNotEmpty()
+                }
 
                 return@withContext movie.copy(
                     title = if (title.isNotBlank()) title else movie.title,
@@ -417,12 +445,12 @@ object ShowHubApiClient {
                     actors = actors,
                     description = desc,
                     isSeries = isSeriesDetected,
-                    seasons = if (seasonsList.isNotEmpty()) seasonsList else movie.seasons,
+                    seasons = if (isSeriesDetected && seasonsList.isNotEmpty()) seasonsList else if (isSeriesDetected) movie.seasons else emptyList(),
                     audioTracks = if (audioList.isNotEmpty()) audioList else movie.audioTracks,
                     sources = if (sourcesList.isNotEmpty()) sourcesList else movie.sources,
                     cast = if (castList.isNotEmpty()) castList else movie.cast,
                     directorsList = if (dirList.isNotEmpty()) dirList else movie.directorsList,
-                    episodesSchedule = if (scheduleList.isNotEmpty()) scheduleList else movie.episodesSchedule,
+                    episodesSchedule = if (isSeriesDetected && scheduleList.isNotEmpty()) scheduleList else if (isSeriesDetected) movie.episodesSchedule else emptyList(),
                     ageRating = ageRating,
                     kinopoiskId = obj.optString("kinopoisk_id", movie.kinopoiskId).let { if (it.isBlank() || it.equals("null", ignoreCase = true)) movie.kinopoiskId.takeIf { k -> !k.equals("null", ignoreCase = true) } ?: "" else it },
                     source = if (movie.source.isNotBlank()) movie.source else obj.optString("source_name", obj.optString("source", ""))
@@ -626,9 +654,14 @@ object ShowHubApiClient {
         }
 
         // Client-side Zona resolution fallback (bypasses any potential IP-locks)
-        if (directStreams.none { it.source == "Zona" } && !movie.isSeries) {
+        if (directStreams.none { it.source == "Zona" }) {
             try {
-                val mobiId = com.example.tvmediaapp.data.resolver.ZonaNativeResolver.searchMobiId(movie.title, movie.kinopoiskId)
+                val mobiId = com.example.tvmediaapp.data.resolver.ZonaNativeResolver.searchMobiId(
+                    title = movie.title,
+                    kpId = movie.kinopoiskId,
+                    year = movie.releaseYear,
+                    isSeries = movie.isSeries
+                )
                 if (mobiId != null) {
                     val zonaStreams = com.example.tvmediaapp.data.resolver.ZonaNativeResolver.resolveStreams(mobiId)
                     directStreams.addAll(zonaStreams)
@@ -851,7 +884,12 @@ object ShowHubApiClient {
             val lampaPopularity = it.optDouble("lampa_popularity", it.optDouble("popularity", 0.0))
             val rawYear = it.optString("year", "2024").replace("null", "").trim()
             val year = if (rawYear.isNotEmpty()) rawYear else "2024"
-            val isSeries = it.optBoolean("is_series", false)
+            val isSeries = it.optBoolean("is_series", false) ||
+                    it.optInt("is_series", 0) == 1 ||
+                    it.optString("is_series") == "1" ||
+                    it.optString("is_series").equals("true", ignoreCase = true) ||
+                    it.optString("category").equals("series", ignoreCase = true) ||
+                    it.optString("category").equals("anime", ignoreCase = true)
             val extraObj = it.optJSONObject("extra_data") ?: it.optJSONObject("extra") ?: it.optJSONObject("material_data")
 
             val rawCountry = it.optString("country", "").ifEmpty {

@@ -1468,7 +1468,19 @@ fun DetailsScreen(
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             Text(text = "Тип:", fontSize = 12.sp, color = TextGray)
                             Text(
-                                text = if (currentMovie.isSeries) "Сериал" else "Фильм",
+                                text = if (currentMovie.isSeries) {
+                                    when {
+                                        currentMovie.genres.any { it.contains("аниме", ignoreCase = true) } -> "Аниме-сериал"
+                                        currentMovie.genres.any { it.contains("мульт", ignoreCase = true) } -> "Мультсериал"
+                                        else -> "Сериал"
+                                    }
+                                } else {
+                                    when {
+                                        currentMovie.genres.any { it.contains("аниме", ignoreCase = true) } -> "Аниме"
+                                        currentMovie.genres.any { it.contains("мульт", ignoreCase = true) } -> "Мультфильм"
+                                        else -> "Фильм"
+                                    }
+                                },
                                 fontSize = 12.sp,
                                 color = accent,
                                 fontWeight = FontWeight.Bold

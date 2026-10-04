@@ -558,12 +558,12 @@ def rank_matches(items: list, target_year: Optional[Any] = None, target_is_serie
                 score -= diff * 50
                 if diff > 3:
                     return -9999  # Disqualify titles released more than 3 years apart
-        # is_series matching
+        # is_series matching: strictly separate movies and series
         if t_series is not None:
             if bool(it_ser) == bool(t_series):
                 score += 60
             else:
-                score -= 100
+                return -9999  # Strictly disqualify: a movie can never match a series and vice versa!
         return score
 
     filtered = [it for it in items if score_item(it) > -5000]
@@ -1819,7 +1819,9 @@ def _fetch_media_details(
         if media_id and not str(media_id).startswith("http"):
             reg_item = media_registry.get_item(media_id)
         if not reg_item and (clean_title or title or resolved_kp):
-            reg_item = media_registry.find_item(title=clean_title or title, year=year_int, kp_id=resolved_kp)
+            reg_item = media_registry.find_item(title=clean_title or title, year=year_int, kp_id=resolved_kp, is_series=is_ser_bool)
+        if reg_item and is_ser_bool is not None and bool(reg_item.get("is_series")) != is_ser_bool:
+            reg_item = None
     except Exception as e:
         logger.debug(f"Local registry lookup error: {e}")
 
@@ -1998,11 +2000,15 @@ def _fetch_media_details(
         if rz_id:
             rz_det = hdrezka.get_media_details(rz_id)
             if rz_det:
+                rz_is_ser = bool(rz_det.get("is_series")) or len(rz_det.get("seasons") or []) > 0
+                if is_ser_bool is not None and rz_is_ser != is_ser_bool:
+                    rz_det = None
+            if rz_det:
                 if rz_det.get("poster") and (not details.get("poster") or not str(details["poster"]).startswith("http")):
                     details["poster"] = rz_det["poster"]
                 if rz_det.get("translators"):
                     details["translators"] = rz_det["translators"]
-                if rz_det.get("seasons"):
+                if rz_det.get("seasons") and is_ser_bool is not False:
                     details["seasons"] = rz_det["seasons"]
                     details["is_series"] = True
                 if not details["description"] and rz_det.get("description"):
@@ -2193,11 +2199,15 @@ def _fetch_media_details(
     try:
         if cached_kodik_items or resolved_kp or clean_title:
             k_raw_items = cached_kodik_items if cached_kodik_items else kodik.search(clean_title, year=year_int, kp_id=resolved_kp)
-            # Filter strictly matching items only
-            k_items = [
-                it for it in k_raw_items
-                if _is_matching_title(it.title, clean_title) or (resolved_kp and str(getattr(it, "kinopoisk_id", "") or "") == str(resolved_kp))
-            ]
+            # Filter strictly matching items only and verify media type
+            k_items = []
+            for it in k_raw_items:
+                if not (_is_matching_title(it.title, clean_title) or (resolved_kp and str(getattr(it, "kinopoisk_id", "") or "") == str(resolved_kp))):
+                    continue
+                it_is_ser = bool(getattr(it, "is_series", False)) or bool(it.extra_data.get("seasons")) or ("serial" in str(it.extra_data.get("type", "")).lower())
+                if is_ser_bool is not None and it_is_ser != is_ser_bool:
+                    continue
+                k_items.append(it)
             for k_it in k_items:
                 trans_name = k_it.extra_data.get("translation")
                 if not trans_name:
@@ -2236,7 +2246,7 @@ def _fetch_media_details(
                     details["translators"].append(k_trans_obj)
 
                 # If Kodik has more episodes than currently in details["seasons"], expand details["seasons"]
-                if k_eps_count > 0 and isinstance(k_seasons, dict):
+                if is_ser_bool is not False and k_eps_count > 0 and isinstance(k_seasons, dict):
                     details["is_series"] = True
                     existing_seasons = {s.get("season_number", s.get("season_id")): s for s in details.get("seasons", [])}
                     for s_k, s_v in k_seasons.items():
@@ -2584,6 +2594,33 @@ def _fetch_media_details(
             details["backdrop"] = None
         else:
             cover_cache.enqueue_url(details["backdrop"])
+
+    if is_ser_bool is False:
+        details["seasons"] = []
+        details["is_series"] = False
+        details["episodes_schedule"] = []
+        if details.get("translators"):
+            details["translators"] = [
+                t for t in details["translators"]
+                if not (t.get("episodes_count", 0) > 1 or t.get("seasons_episodes") or "serial" in str(t.get("id", "")).lower() or "serial" in str(t.get("kodik_id", "")).lower())
+            ]
+            for t in details["translators"]:
+                t["episodes_count"] = 0
+                t.pop("seasons_episodes", None)
+        if details.get("sources_info"):
+            for s in details["sources_info"]:
+                s["episodes_count"] = 0
+                s["seasons_episodes"] = {}
+
+    cur_country_str = (str(details.get("country") or "") + " " + str(details.get("countries") or "")).lower()
+    asian_markers = ["корея", "япони", "китай", "тайван", "гонконг", "тайланд", "таиланд"]
+    if any(a in cur_country_str for a in asian_markers):
+        turkish_studios = ["alisadirilis", "dezidenizi", "сесдизи", "sesdizi", "дизи"]
+        if details.get("translators"):
+            details["translators"] = [
+                t for t in details["translators"]
+                if not any(tu in str(t.get("name", "")).lower() for tu in turkish_studios)
+            ]
 
     # Auto-enrich registry on local machine disk
     try:

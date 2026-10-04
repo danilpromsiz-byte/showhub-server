@@ -232,6 +232,11 @@ class TMDbClient:
                 c_type = cand.get("media_type") or media_type
                 if c_type not in ["movie", "tv"]:
                     continue
+                # STRICT TYPE ENFORCEMENT: Never match a movie when seeking a TV series, and vice versa!
+                if is_series is True and c_type != "tv":
+                    continue
+                if is_series is False and c_type != "movie":
+                    continue
                 date_str = cand.get("release_date") or cand.get("first_air_date") or ""
                 cand_year = int(date_str[:4]) if len(date_str) >= 4 and date_str[:4].isdigit() else None
 

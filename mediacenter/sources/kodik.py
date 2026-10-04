@@ -78,12 +78,14 @@ class KodikSource(BaseSource):
                                 imdb_id_val = res.get("imdb_id") or md.get("imdb_id")
                                 kp_rating = md.get("kinopoisk_rating")
                                 imdb_rating = md.get("imdb_rating")
+                                is_ser = ("serial" in str(res.get("type", "")).lower()) or bool(res.get("seasons"))
 
                                 items.append(MediaItem(
                                     id=str(res.get("id", link)),
                                     source_name=self.name,
                                     title=title,
                                     year=r_year,
+                                    is_series=is_ser,
                                     poster=poster,
                                     description=md.get("description") or f"Перевод: {trans}",
                                     rating_kp=float(kp_rating) if kp_rating else None,

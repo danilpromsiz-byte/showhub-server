@@ -392,23 +392,28 @@ class MediaRegistry:
                         tmdb_id = raw_id.replace("tmdb_", "")
 
                 # Priority 1: Lampa (tmdb) ID
+                # Priority 1: Lampa (tmdb) ID
                 # Priority 2: Kinopoisk ID
-                # Priority 3: clean_title + year
+                # Priority 3: clean_title + year + is_series (Strictly NEVER merge movies with series!)
                 existing_canonical = None
                 if tmdb_id:
-                    existing_canonical = conn.execute("SELECT id FROM media_items WHERE tmdb_id = ? LIMIT 1;", (tmdb_id,)).fetchone()
+                    existing_canonical = conn.execute("SELECT id FROM media_items WHERE tmdb_id = ? AND is_series = ? LIMIT 1;", (tmdb_id, is_ser)).fetchone()
+                    if not existing_canonical:
+                        existing_canonical = conn.execute("SELECT id FROM media_items WHERE tmdb_id = ? LIMIT 1;", (tmdb_id,)).fetchone()
                 if not existing_canonical and kp_id:
-                    existing_canonical = conn.execute("SELECT id FROM media_items WHERE kinopoisk_id = ? LIMIT 1;", (kp_id,)).fetchone()
+                    existing_canonical = conn.execute("SELECT id FROM media_items WHERE kinopoisk_id = ? AND is_series = ? LIMIT 1;", (kp_id, is_ser)).fetchone()
+                    if not existing_canonical:
+                        existing_canonical = conn.execute("SELECT id FROM media_items WHERE kinopoisk_id = ? LIMIT 1;", (kp_id,)).fetchone()
                 if not existing_canonical and clean:
                     if year:
-                        existing_canonical = conn.execute("SELECT id FROM media_items WHERE clean_title = ? AND year = ? LIMIT 1;", (clean, year)).fetchone()
+                        existing_canonical = conn.execute("SELECT id FROM media_items WHERE clean_title = ? AND year = ? AND is_series = ? LIMIT 1;", (clean, year, is_ser)).fetchone()
                     else:
-                        existing_canonical = conn.execute("SELECT id FROM media_items WHERE clean_title = ? LIMIT 1;", (clean,)).fetchone()
+                        existing_canonical = conn.execute("SELECT id FROM media_items WHERE clean_title = ? AND is_series = ? LIMIT 1;", (clean, is_ser)).fetchone()
 
                 if existing_canonical:
                     unique_id = existing_canonical["id"]
                 else:
-                    unique_id = f"{source_name}_{raw_id}" if raw_id and not raw_id.startswith(source_name) else (raw_id or f"{source_name}_{hash(clean + str(year))}")
+                    unique_id = f"{source_name}_{raw_id}" if raw_id and not raw_id.startswith(source_name) else (raw_id or f"{source_name}_{hash(clean + str(year) + str(is_ser))}")
 
                 poster = data.get("poster")
                 backdrop = data.get("backdrop")
@@ -953,23 +958,41 @@ class MediaRegistry:
         title: Optional[str] = None,
         year: Optional[int] = None,
         kp_id: Optional[str] = None,
-        tmdb_id: Optional[str] = None
+        tmdb_id: Optional[str] = None,
+        is_series: Optional[bool] = None
     ) -> Optional[Dict[str, Any]]:
         """Finds a canonical item in local SQLite database by TMDb ID, Kinopoisk ID, or clean title and year."""
         conn = self._get_connection()
         try:
+            is_ser_int = 1 if is_series else (0 if is_series is False else None)
             if tmdb_id:
+                if is_ser_int is not None:
+                    row = conn.execute("SELECT * FROM media_items WHERE tmdb_id = ? AND is_series = ? LIMIT 1;", (str(tmdb_id), is_ser_int)).fetchone()
+                    if row:
+                        return self._row_to_dict(row)
                 row = conn.execute("SELECT * FROM media_items WHERE tmdb_id = ? LIMIT 1;", (str(tmdb_id),)).fetchone()
                 if row:
                     return self._row_to_dict(row)
             if kp_id and str(kp_id).isdigit():
+                if is_ser_int is not None:
+                    row = conn.execute("SELECT * FROM media_items WHERE kinopoisk_id = ? AND is_series = ? LIMIT 1;", (str(kp_id), is_ser_int)).fetchone()
+                    if row:
+                        return self._row_to_dict(row)
                 row = conn.execute("SELECT * FROM media_items WHERE kinopoisk_id = ? LIMIT 1;", (str(kp_id),)).fetchone()
                 if row:
                     return self._row_to_dict(row)
             clean = normalize_title(title)
             if clean:
+                if year and is_ser_int is not None:
+                    row = conn.execute("SELECT * FROM media_items WHERE clean_title = ? AND year = ? AND is_series = ? LIMIT 1;", (clean, int(year), is_ser_int)).fetchone()
+                    if row:
+                        return self._row_to_dict(row)
                 if year:
                     row = conn.execute("SELECT * FROM media_items WHERE clean_title = ? AND year = ? LIMIT 1;", (clean, int(year))).fetchone()
+                    if row:
+                        return self._row_to_dict(row)
+                if is_ser_int is not None:
+                    row = conn.execute("SELECT * FROM media_items WHERE clean_title = ? AND is_series = ? ORDER BY lampa_popularity DESC, effective_rating DESC LIMIT 1;", (clean, is_ser_int)).fetchone()
                     if row:
                         return self._row_to_dict(row)
                 row = conn.execute("SELECT * FROM media_items WHERE clean_title = ? ORDER BY lampa_popularity DESC, effective_rating DESC LIMIT 1;", (clean,)).fetchone()

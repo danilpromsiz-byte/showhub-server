@@ -923,13 +923,13 @@ def check_updates() -> Dict[str, Any]:
 
     return {
         "success": True,
-        "version_name": "2.8.77",
-        "version_code": 136,
+        "version_name": "2.8.88",
+        "version_code": 147,
         "force_update": True,
         "min_version_code": 108,
         "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
         "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
-        "changelog": "ShowHub v2.8.77: Устранена ошибка ложного 4K, фильтрация Filmix PRO+ заглушек, ускоренная загрузка обновлений через CDN."
+        "changelog": "v2.8.88: 1. Исправлен предпросмотр — таймлайн точно переходит на выбранные 5/10/12 минут без сброса в начало фильма. 2. Оптимизированы обложки (аппаратный даунсэмплинг RGB_565) — устранено подтормаживание на ТВ. 3. Исправлен бесконечный скролл на главной — сетка больше не ограничена 8 рядами. 4. Аппаратный неоновый спиннер при старте приложения. 5. Блокировка аудио/видео-заглушек Zona («Установите последнюю версию Zona»). 6. Восстановлены потоки и русские озвучки для «Хитрый койот», «Бэтмен: Падение рыцаря», разделены фильмы в «Возможная любовь», исправлен поиск торрентов для «Одиссея»."
     }
 
 _actor_photo_cache: Dict[str, Optional[str]] = {}

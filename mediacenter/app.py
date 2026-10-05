@@ -605,6 +605,12 @@ def _bg_harvest_query(query_str: str):
                 pass
         if live_items:
             media_registry.upsert_batch(live_items)
+            try:
+                from mediacenter.core.turso_manager import turso_manager
+                if turso_manager.is_configured():
+                    turso_manager.push_items_batch(live_items)
+            except Exception:
+                pass
     except Exception:
         pass
 

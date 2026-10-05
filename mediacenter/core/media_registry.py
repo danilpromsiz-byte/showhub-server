@@ -195,11 +195,12 @@ class MediaRegistry:
         self.db_path = db_path
         os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
         self._local = threading.local()
+        self._write_lock = threading.Lock()
         self._init_db()
 
     def _get_connection(self) -> sqlite3.Connection:
         if not hasattr(self._local, "conn") or self._local.conn is None:
-            conn = sqlite3.connect(self.db_path, timeout=10.0, check_same_thread=False)
+            conn = sqlite3.connect(self.db_path, timeout=30.0, check_same_thread=False)
             conn.execute("PRAGMA journal_mode=WAL;")
             conn.execute("PRAGMA synchronous=NORMAL;")
             conn.execute("PRAGMA cache_size=-8000;")  # 8MB cache
@@ -385,7 +386,7 @@ class MediaRegistry:
         """Upserts a single MediaItem or dict into the registry."""
         return self.upsert_batch([item]) > 0
 
-    def upsert_batch(self, items: List[Any]) -> int:
+    def upsert_batch(self, items: List[Any], enqueue_covers: bool = True) -> int:
         """Batch upserts items into the registry with deduplication, hierarchy conflict resolution, and indexing."""
         if not items:
             return 0
@@ -509,14 +510,15 @@ class MediaRegistry:
                     if field in data and data[field] and field not in extra:
                         extra[field] = data[field]
 
-                try:
-                    from mediacenter.core.cover_cache import cover_cache
-                    if poster and str(poster).startswith("http"):
-                        cover_cache.enqueue_url(poster)
-                    if backdrop and str(backdrop).startswith("http"):
-                        cover_cache.enqueue_url(backdrop)
-                except Exception:
-                    pass
+                if enqueue_covers:
+                    try:
+                        from mediacenter.core.cover_cache import cover_cache
+                        if poster and str(poster).startswith("http"):
+                            cover_cache.enqueue_url(poster)
+                        if backdrop and str(backdrop).startswith("http"):
+                            cover_cache.enqueue_url(backdrop)
+                    except Exception:
+                        pass
 
                 # Age limit parsing with priority
                 age_lampa = normalize_age_limit(data.get("age_limit") if source_name == "lampa" else None)
@@ -586,72 +588,73 @@ class MediaRegistry:
 
         inserted_count = 0
         try:
-            with conn:
-                conn.executemany("""
-                    INSERT INTO media_items (
-                        id, source_name, title, original_title, clean_title,
-                        year, is_series, category, country, countries,
-                        poster, backdrop, description, rating_lampa, rating_kp,
-                        rating_rezka, rating_imdb, effective_rating, lampa_popularity,
-                        popularity, age_limit, kinopoisk_id, tmdb_id,
-                        genres, actors, cast, director, directors_list,
-                        recommendations, tags, comments, extra_data, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    ON CONFLICT(id) DO UPDATE SET
-                        title = CASE WHEN excluded.source_name = 'lampa' THEN excluded.title ELSE media_items.title END,
-                        original_title = COALESCE(excluded.original_title, media_items.original_title),
-                        clean_title = excluded.clean_title,
-                        year = COALESCE(excluded.year, media_items.year),
-                        is_series = excluded.is_series,
-                        category = excluded.category,
-                        country = CASE WHEN excluded.country != '' THEN excluded.country ELSE media_items.country END,
-                        countries = CASE WHEN excluded.countries != '[]' THEN excluded.countries ELSE media_items.countries END,
-                        poster = CASE
-                            WHEN excluded.source_name = 'lampa' AND excluded.poster IS NOT NULL THEN excluded.poster
-                            WHEN media_items.source_name = 'lampa' AND media_items.poster IS NOT NULL THEN media_items.poster
-                            ELSE COALESCE(excluded.poster, media_items.poster)
-                        END,
-                        backdrop = COALESCE(excluded.backdrop, media_items.backdrop),
-                        description = CASE
-                            WHEN excluded.source_name = 'lampa' AND excluded.description IS NOT NULL AND LENGTH(excluded.description) > 10 THEN excluded.description
-                            ELSE COALESCE(media_items.description, excluded.description)
-                        END,
-                        rating_lampa = COALESCE(excluded.rating_lampa, media_items.rating_lampa),
-                        rating_kp = COALESCE(excluded.rating_kp, media_items.rating_kp),
-                        rating_rezka = COALESCE(excluded.rating_rezka, media_items.rating_rezka),
-                        rating_imdb = COALESCE(excluded.rating_imdb, media_items.rating_imdb),
-                        effective_rating = COALESCE(
-                            excluded.rating_lampa, media_items.rating_lampa,
-                            excluded.rating_kp, media_items.rating_kp,
-                            excluded.rating_rezka, media_items.rating_rezka,
-                            excluded.rating_imdb, media_items.rating_imdb
-                        ),
-                        lampa_popularity = MAX(COALESCE(excluded.lampa_popularity, 0.0), COALESCE(media_items.lampa_popularity, 0.0)),
-                        popularity = MAX(COALESCE(excluded.popularity, 0.0), COALESCE(media_items.popularity, 0.0)),
-                        age_limit = COALESCE(excluded.age_limit, media_items.age_limit),
-                        kinopoisk_id = COALESCE(excluded.kinopoisk_id, media_items.kinopoisk_id),
-                        tmdb_id = COALESCE(excluded.tmdb_id, media_items.tmdb_id),
-                        genres = CASE WHEN excluded.genres != '[]' THEN excluded.genres ELSE media_items.genres END,
-                        actors = COALESCE(excluded.actors, media_items.actors),
-                        cast = COALESCE(excluded.cast, media_items.cast),
-                        director = COALESCE(excluded.director, media_items.director),
-                        directors_list = COALESCE(excluded.directors_list, media_items.directors_list),
-                        recommendations = COALESCE(excluded.recommendations, media_items.recommendations),
-                        tags = COALESCE(excluded.tags, media_items.tags),
-                        comments = COALESCE(excluded.comments, media_items.comments),
-                        extra_data = excluded.extra_data,
-                        updated_at = excluded.updated_at;
-                """, prepared_rows)
+            with self._write_lock:
+                with conn:
+                    conn.executemany("""
+                        INSERT INTO media_items (
+                            id, source_name, title, original_title, clean_title,
+                            year, is_series, category, country, countries,
+                            poster, backdrop, description, rating_lampa, rating_kp,
+                            rating_rezka, rating_imdb, effective_rating, lampa_popularity,
+                            popularity, age_limit, kinopoisk_id, tmdb_id,
+                            genres, actors, cast, director, directors_list,
+                            recommendations, tags, comments, extra_data, updated_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ON CONFLICT(id) DO UPDATE SET
+                            title = CASE WHEN excluded.source_name = 'lampa' THEN excluded.title ELSE media_items.title END,
+                            original_title = COALESCE(excluded.original_title, media_items.original_title),
+                            clean_title = excluded.clean_title,
+                            year = COALESCE(excluded.year, media_items.year),
+                            is_series = excluded.is_series,
+                            category = excluded.category,
+                            country = CASE WHEN excluded.country != '' THEN excluded.country ELSE media_items.country END,
+                            countries = CASE WHEN excluded.countries != '[]' THEN excluded.countries ELSE media_items.countries END,
+                            poster = CASE
+                                WHEN excluded.source_name = 'lampa' AND excluded.poster IS NOT NULL THEN excluded.poster
+                                WHEN media_items.source_name = 'lampa' AND media_items.poster IS NOT NULL THEN media_items.poster
+                                ELSE COALESCE(excluded.poster, media_items.poster)
+                            END,
+                            backdrop = COALESCE(excluded.backdrop, media_items.backdrop),
+                            description = CASE
+                                WHEN excluded.source_name = 'lampa' AND excluded.description IS NOT NULL AND LENGTH(excluded.description) > 10 THEN excluded.description
+                                ELSE COALESCE(media_items.description, excluded.description)
+                            END,
+                            rating_lampa = COALESCE(excluded.rating_lampa, media_items.rating_lampa),
+                            rating_kp = COALESCE(excluded.rating_kp, media_items.rating_kp),
+                            rating_rezka = COALESCE(excluded.rating_rezka, media_items.rating_rezka),
+                            rating_imdb = COALESCE(excluded.rating_imdb, media_items.rating_imdb),
+                            effective_rating = COALESCE(
+                                excluded.rating_lampa, media_items.rating_lampa,
+                                excluded.rating_kp, media_items.rating_kp,
+                                excluded.rating_rezka, media_items.rating_rezka,
+                                excluded.rating_imdb, media_items.rating_imdb
+                            ),
+                            lampa_popularity = MAX(COALESCE(excluded.lampa_popularity, 0.0), COALESCE(media_items.lampa_popularity, 0.0)),
+                            popularity = MAX(COALESCE(excluded.popularity, 0.0), COALESCE(media_items.popularity, 0.0)),
+                            age_limit = COALESCE(excluded.age_limit, media_items.age_limit),
+                            kinopoisk_id = COALESCE(excluded.kinopoisk_id, media_items.kinopoisk_id),
+                            tmdb_id = COALESCE(excluded.tmdb_id, media_items.tmdb_id),
+                            genres = CASE WHEN excluded.genres != '[]' THEN excluded.genres ELSE media_items.genres END,
+                            actors = COALESCE(excluded.actors, media_items.actors),
+                            cast = COALESCE(excluded.cast, media_items.cast),
+                            director = COALESCE(excluded.director, media_items.director),
+                            directors_list = COALESCE(excluded.directors_list, media_items.directors_list),
+                            recommendations = COALESCE(excluded.recommendations, media_items.recommendations),
+                            tags = COALESCE(excluded.tags, media_items.tags),
+                            comments = COALESCE(excluded.comments, media_items.comments),
+                            extra_data = excluded.extra_data,
+                            updated_at = excluded.updated_at;
+                    """, prepared_rows)
 
-                # Upsert FTS5 entries
-                for fts in fts_rows:
-                    conn.execute("DELETE FROM media_fts WHERE item_id = ?;", (fts[0],))
-                    conn.execute("""
-                        INSERT INTO media_fts (item_id, title, original_title, description, actors, director, tags)
-                        VALUES (?, ?, ?, ?, ?, ?, ?);
-                    """, fts)
+                    # Upsert FTS5 entries
+                    for fts in fts_rows:
+                        conn.execute("DELETE FROM media_fts WHERE item_id = ?;", (fts[0],))
+                        conn.execute("""
+                            INSERT INTO media_fts (item_id, title, original_title, description, actors, director, tags)
+                            VALUES (?, ?, ?, ?, ?, ?, ?);
+                        """, fts)
 
-                inserted_count = len(prepared_rows)
+                    inserted_count = len(prepared_rows)
         except Exception as e:
             logger.error(f"Failed to upsert batch into MediaRegistry: {e}")
 

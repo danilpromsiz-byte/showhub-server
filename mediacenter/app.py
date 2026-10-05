@@ -1053,11 +1053,17 @@ def get_catalog_stats() -> Dict[str, Any]:
 def get_harvester_status() -> Dict[str, Any]:
     """Returns detailed autonomous catalog harvester crawler status and metrics."""
     stats = media_registry.get_stats()
+    from mediacenter.core.turso_manager import turso_manager
     return {
         "is_running": getattr(media_harvester, "_started", False),
         "total_indexed": stats.get("total_items", 0),
         "by_category": stats.get("by_category", {}),
-        "crawler_states": stats.get("harvester_states", {})
+        "crawler_states": stats.get("harvester_states", {}),
+        "turso_cloud": {
+            "configured": turso_manager.is_configured(),
+            "remote_url": turso_manager._url if turso_manager.is_configured() else None,
+            "remote_count": turso_manager.get_remote_count() if turso_manager.is_configured() else 0
+        }
     }
 
 _catalog_cache: Dict[str, Tuple[float, List[Dict[str, Any]]]] = {}

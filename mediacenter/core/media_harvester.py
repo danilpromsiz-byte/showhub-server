@@ -18,6 +18,7 @@ import requests
 
 from .media_registry import media_registry
 from .lampa_source import lampa_source
+from .turso_manager import turso_manager
 
 logger = logging.getLogger("media_harvester")
 
@@ -77,10 +78,32 @@ class MediaHarvester:
         thread.start()
         logger.info("[Harvester] Autonomous continuous background harvester started.")
 
+    def _upsert_and_cloud_sync(self, items: List[Dict[str, Any]]) -> int:
+        """Upserts items into local SQLite and mirrors batch to Turso Cloud if configured."""
+        c = media_registry.upsert_batch(items)
+        if turso_manager.is_configured() and items:
+            try:
+                turso_manager.push_items_batch(items)
+            except Exception as e:
+                logger.debug(f"[Harvester] Turso push error: {e}")
+        return c
+
     def _run_crawler_loop(self):
         """Continuous stateful crawler that populates ALL available titles from Kodik and TMDb."""
         logger.info("[Harvester] Seeding and starting continuous catalog expansion...")
-        
+
+        # Initial Turso Cloud synchronization if configured
+        if turso_manager.is_configured():
+            try:
+                turso_manager.init_schema()
+                last_updated = media_registry._get_connection().execute("SELECT MAX(updated_at) FROM media_items;").fetchone()[0] or 0.0
+                delta = turso_manager.pull_items_delta(since_updated_at=last_updated, limit=5000)
+                if delta:
+                    media_registry.upsert_batch(delta)
+                    logger.info(f"[Harvester] Synced {len(delta)} delta items from Turso Cloud on startup.")
+            except Exception as e:
+                logger.debug(f"[Harvester] Turso boot sync error: {e}")
+
         # Initial Lampa feeds sync
         try:
             self._harvest_lampa_feeds()
@@ -214,7 +237,7 @@ class MediaHarvester:
                 "extra_data": extra
             })
 
-        c = media_registry.upsert_batch(items)
+        c = self._upsert_and_cloud_sync(items)
         next_page = data.get("next_page")
         new_total = state.get("total_harvested", 0) + c
         new_page = state.get("last_page", 0) + 1
@@ -307,7 +330,7 @@ class MediaHarvester:
                 "tmdb_id": t_id
             })
 
-        c = media_registry.upsert_batch(items)
+        c = self._upsert_and_cloud_sync(items)
         new_total = state.get("total_harvested", 0) + c
         media_registry.set_harvester_state(state_key, last_page=page, total_harvested=new_total)
         logger.info(f"[Harvester] {state_key} page {page}: +{c} new items (Total indexed: {new_total})")
@@ -344,7 +367,7 @@ class MediaHarvester:
                         "tmdb_id": t_id
                     })
                 if items:
-                    media_registry.upsert_batch(items)
+                    self._upsert_and_cloud_sync(items)
         except Exception as e:
             logger.debug(f"[Harvester] Fresh TMDb updates error: {e}")
 
@@ -354,7 +377,7 @@ class MediaHarvester:
             anilibria = AnilibriaSource()
             al_items = anilibria.get_schedule()
             if al_items:
-                media_registry.upsert_batch(al_items)
+                self._upsert_and_cloud_sync(al_items)
         except Exception as e:
             logger.debug(f"[Harvester] Fresh AniLibria error: {e}")
 
@@ -364,7 +387,7 @@ class MediaHarvester:
         try:
             cards = lampa_source.get_main_screen_feeds(max_pages_per_feed=2)
             if cards:
-                c = media_registry.upsert_batch(cards)
+                c = self._upsert_and_cloud_sync(cards)
                 total_lampa += c
                 logger.info(f"[Harvester] Upserted {c} items from Lampa main feeds.")
         except Exception as e:

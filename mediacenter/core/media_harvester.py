@@ -181,6 +181,42 @@ class MediaHarvester:
         except Exception as e:
             logger.debug(f"[Harvester] AniLibria harvest error: {e}")
 
+        # 6. Harvest from TMDb Discover (trending & new releases)
+        try:
+            from .tmdb import API_KEY as TMDB_API_KEY
+            import urllib.request, urllib.parse
+            for endpoint in ["/trending/all/day", "/movie/now_playing", "/tv/on_the_air"]:
+                try:
+                    url = f"https://api.themoviedb.org/3{endpoint}?api_key={TMDB_API_KEY}&language=ru-RU"
+                    req = urllib.request.Request(url, headers={"User-Agent": "ShowHub/1.0"})
+                    with urllib.request.urlopen(req, timeout=8) as resp:
+                        if resp.status == 200:
+                            data = json.loads(resp.read().decode("utf-8"))
+                            results = data.get("results", [])
+                            tmdb_items = []
+                            for r in results:
+                                is_ser = r.get("media_type") == "tv" or "first_air_date" in r
+                                t_id = str(r["id"])
+                                tmdb_items.append({
+                                    "id": f"tmdb_tv_{t_id}" if is_ser else f"tmdb_{t_id}",
+                                    "title": r.get("title") or r.get("name") or "",
+                                    "original_title": r.get("original_title") or r.get("original_name") or "",
+                                    "year": int((r.get("release_date") or r.get("first_air_date") or "0000")[:4]) or None,
+                                    "is_series": is_ser,
+                                    "poster": f"https://image.tmdb.org/t/p/w500{r['poster_path']}" if r.get("poster_path") else "",
+                                    "description": r.get("overview") or "",
+                                    "rating_imdb": float(r.get("vote_average") or 0.0),
+                                    "category": "series" if is_ser else "movie",
+                                    "source_name": "tmdb",
+                                    "tmdb_id": t_id
+                                })
+                            if tmdb_items:
+                                total_indexed += media_registry.upsert_batch(tmdb_items)
+                except Exception:
+                    pass
+        except Exception as e:
+            logger.debug(f"[Harvester] TMDb harvest error: {e}")
+
         logger.info(f"[Harvester] Harvesting cycle complete. Indexed batch of {total_indexed} items. Total in registry: {media_registry.count()}")
 
 media_harvester = MediaHarvester()

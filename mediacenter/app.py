@@ -130,10 +130,6 @@ def startup_event():
         media_harvester.start_background_harvest()
     except Exception as e:
         logger.warning(f"Failed to start media harvester: {e}")
-    try:
-        cover_cache.preload_registry_covers(DB_PATH)
-    except Exception as e:
-        logger.warning(f"Failed to start cover preloader: {e}")
 
 @app.api_route("/", methods=["GET", "HEAD"], response_class=HTMLResponse)
 async def serve_index():

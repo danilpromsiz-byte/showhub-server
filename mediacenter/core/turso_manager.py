@@ -27,8 +27,20 @@ class TursoManager:
     def _load_config(self):
         self._url = os.environ.get("TURSO_DATABASE_URL") or os.environ.get("TURSO_URL")
         self._token = os.environ.get("TURSO_AUTH_TOKEN") or os.environ.get("TURSO_TOKEN")
+        if not self._url:
+            cfg_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "turso.json")
+            if os.path.exists(cfg_path):
+                try:
+                    with open(cfg_path, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                        self._url = data.get("database_url")
+                        self._token = data.get("auth_token")
+                except Exception:
+                    pass
         if self._url:
             self._url = self._url.strip()
+            if self._url.startswith("libsql://"):
+                self._url = "https://" + self._url[len("libsql://"):]
         if self._token:
             self._token = self._token.strip()
 
@@ -139,7 +151,7 @@ class TursoManager:
                 pass
 
     def push_items_batch(self, rows: List[Dict[str, Any]]) -> int:
-        """Pushes a batch of media item dictionaries to Turso."""
+        """Pushes a batch of media item dictionaries to Turso in a single atomic batch roundtrip."""
         if not self.is_configured() or not rows:
             return 0
 
@@ -147,113 +159,126 @@ class TursoManager:
         if not client:
             return 0
 
-        inserted = 0
+        import libsql_client
+        stmts = []
+        valid_count = 0
+
         try:
             for item in rows:
-                try:
-                    item_id = str(item.get("id"))
-                    title = item.get("title") or ""
-                    if not item_id or not title:
-                        continue
+                item_id = str(item.get("id"))
+                title = item.get("title") or ""
+                if not item_id or not title:
+                    continue
 
-                    # Upsert media_items
-                    client.execute("""
-                        INSERT INTO media_items (
-                            id, source_name, title, clean_title, original_title, year,
-                            is_series, category, country, countries, poster, backdrop,
-                            description, rating_lampa, rating_kp, rating_rezka, rating_imdb,
-                            effective_rating, lampa_popularity, popularity, age_limit,
-                            kinopoisk_id, tmdb_id, genres, actors, cast, director,
-                            directors_list, recommendations, tags, comments, extra_data, updated_at
-                        ) VALUES (
-                            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
-                        )
-                        ON CONFLICT(id) DO UPDATE SET
-                            title = excluded.title,
-                            clean_title = excluded.clean_title,
-                            original_title = excluded.original_title,
-                            year = excluded.year,
-                            is_series = excluded.is_series,
-                            category = excluded.category,
-                            country = excluded.country,
-                            countries = excluded.countries,
-                            poster = COALESCE(excluded.poster, media_items.poster),
-                            backdrop = COALESCE(excluded.backdrop, media_items.backdrop),
-                            description = COALESCE(excluded.description, media_items.description),
-                            rating_lampa = excluded.rating_lampa,
-                            rating_kp = excluded.rating_kp,
-                            rating_rezka = excluded.rating_rezka,
-                            rating_imdb = excluded.rating_imdb,
-                            effective_rating = excluded.effective_rating,
-                            lampa_popularity = excluded.lampa_popularity,
-                            popularity = excluded.popularity,
-                            age_limit = excluded.age_limit,
-                            kinopoisk_id = excluded.kinopoisk_id,
-                            tmdb_id = excluded.tmdb_id,
-                            genres = excluded.genres,
-                            actors = excluded.actors,
-                            cast = excluded.cast,
-                            director = excluded.director,
-                            directors_list = excluded.directors_list,
-                            recommendations = excluded.recommendations,
-                            tags = excluded.tags,
-                            comments = excluded.comments,
-                            extra_data = excluded.extra_data,
-                            updated_at = excluded.updated_at;
-                    """, [
-                        item_id,
-                        item.get("source_name") or "",
-                        title,
-                        item.get("clean_title") or "",
-                        item.get("original_title") or "",
-                        item.get("year"),
-                        1 if item.get("is_series") else 0,
-                        item.get("category") or "movie",
-                        item.get("country") or "",
-                        item.get("countries") if isinstance(item.get("countries"), str) else json.dumps(item.get("countries") or []),
-                        item.get("poster") or "",
-                        item.get("backdrop") or "",
-                        item.get("description") or "",
-                        item.get("rating_lampa"),
-                        item.get("rating_kp"),
-                        item.get("rating_rezka"),
-                        item.get("rating_imdb"),
-                        item.get("effective_rating"),
-                        item.get("lampa_popularity") or 0.0,
-                        item.get("popularity") or 0.0,
-                        item.get("age_limit") or "",
-                        item.get("kinopoisk_id") or "",
-                        item.get("tmdb_id") or "",
-                        item.get("genres") if isinstance(item.get("genres"), str) else json.dumps(item.get("genres") or []),
-                        item.get("actors") or "",
-                        item.get("cast") if isinstance(item.get("cast"), str) else json.dumps(item.get("cast") or []),
-                        item.get("director") or "",
-                        item.get("directors_list") if isinstance(item.get("directors_list"), str) else json.dumps(item.get("directors_list") or []),
-                        item.get("recommendations") if isinstance(item.get("recommendations"), str) else json.dumps(item.get("recommendations") or []),
-                        item.get("tags") if isinstance(item.get("tags"), str) else json.dumps(item.get("tags") or []),
-                        item.get("comments") if isinstance(item.get("comments"), str) else json.dumps(item.get("comments") or []),
-                        item.get("extra_data") if isinstance(item.get("extra_data"), str) else json.dumps(item.get("extra_data") or {}),
-                        item.get("updated_at") or time.time()
-                    ])
+                stmts.append(libsql_client.Statement("""
+                    INSERT INTO media_items (
+                        id, source_name, title, clean_title, original_title, year,
+                        is_series, category, country, countries, poster, backdrop,
+                        description, rating_lampa, rating_kp, rating_rezka, rating_imdb,
+                        effective_rating, lampa_popularity, popularity, age_limit,
+                        kinopoisk_id, tmdb_id, genres, actors, cast, director,
+                        directors_list, recommendations, tags, comments, extra_data, updated_at
+                    ) VALUES (
+                        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                    )
+                    ON CONFLICT(id) DO UPDATE SET
+                        title = excluded.title,
+                        clean_title = excluded.clean_title,
+                        original_title = excluded.original_title,
+                        year = excluded.year,
+                        is_series = excluded.is_series,
+                        category = excluded.category,
+                        country = excluded.country,
+                        countries = excluded.countries,
+                        poster = COALESCE(excluded.poster, media_items.poster),
+                        backdrop = COALESCE(excluded.backdrop, media_items.backdrop),
+                        description = COALESCE(excluded.description, media_items.description),
+                        rating_lampa = excluded.rating_lampa,
+                        rating_kp = excluded.rating_kp,
+                        rating_rezka = excluded.rating_rezka,
+                        rating_imdb = excluded.rating_imdb,
+                        effective_rating = excluded.effective_rating,
+                        lampa_popularity = excluded.lampa_popularity,
+                        popularity = excluded.popularity,
+                        age_limit = excluded.age_limit,
+                        kinopoisk_id = excluded.kinopoisk_id,
+                        tmdb_id = excluded.tmdb_id,
+                        genres = excluded.genres,
+                        actors = excluded.actors,
+                        cast = excluded.cast,
+                        director = excluded.director,
+                        directors_list = excluded.directors_list,
+                        recommendations = excluded.recommendations,
+                        tags = excluded.tags,
+                        comments = excluded.comments,
+                        extra_data = excluded.extra_data,
+                        updated_at = excluded.updated_at;
+                """, [
+                    item_id,
+                    item.get("source_name") or "",
+                    title,
+                    item.get("clean_title") or "",
+                    item.get("original_title") or "",
+                    item.get("year"),
+                    1 if item.get("is_series") else 0,
+                    item.get("category") or "movie",
+                    item.get("country") or "",
+                    item.get("countries") if isinstance(item.get("countries"), str) else json.dumps(item.get("countries") or []),
+                    item.get("poster") or "",
+                    item.get("backdrop") or "",
+                    item.get("description") or "",
+                    item.get("rating_lampa"),
+                    item.get("rating_kp"),
+                    item.get("rating_rezka"),
+                    item.get("rating_imdb"),
+                    item.get("effective_rating"),
+                    item.get("lampa_popularity") or 0.0,
+                    item.get("popularity") or 0.0,
+                    item.get("age_limit") or "",
+                    item.get("kinopoisk_id") or "",
+                    item.get("tmdb_id") or "",
+                    item.get("genres") if isinstance(item.get("genres"), str) else json.dumps(item.get("genres") or []),
+                    item.get("actors") or "",
+                    item.get("cast") if isinstance(item.get("cast"), str) else json.dumps(item.get("cast") or []),
+                    item.get("director") or "",
+                    item.get("directors_list") if isinstance(item.get("directors_list"), str) else json.dumps(item.get("directors_list") or []),
+                    item.get("recommendations") if isinstance(item.get("recommendations"), str) else json.dumps(item.get("recommendations") or []),
+                    item.get("tags") if isinstance(item.get("tags"), str) else json.dumps(item.get("tags") or []),
+                    item.get("comments") if isinstance(item.get("comments"), str) else json.dumps(item.get("comments") or []),
+                    item.get("extra_data") if isinstance(item.get("extra_data"), str) else json.dumps(item.get("extra_data") or {}),
+                    item.get("updated_at") or time.time()
+                ]))
 
-                    # Maintain FTS5
-                    client.execute("DELETE FROM media_fts WHERE item_id = ?;", [item_id])
-                    client.execute("""
-                        INSERT INTO media_fts (item_id, title, original_title, description, actors, director, tags)
-                        VALUES (?, ?, ?, ?, ?, ?, ?);
-                    """, [
-                        item_id,
-                        title,
-                        item.get("original_title") or "",
-                        item.get("description") or "",
-                        item.get("actors") or "",
-                        item.get("director") or "",
-                        item.get("tags") if isinstance(item.get("tags"), str) else json.dumps(item.get("tags") or [])
-                    ])
-                    inserted += 1
-                except Exception as ex:
-                    logger.debug(f"[Turso] Item push error: {ex}")
-            return inserted
+                stmts.append(libsql_client.Statement("DELETE FROM media_fts WHERE item_id = ?;", [item_id]))
+                stmts.append(libsql_client.Statement("""
+                    INSERT INTO media_fts (item_id, title, original_title, description, actors, director, tags)
+                    VALUES (?, ?, ?, ?, ?, ?, ?);
+                """, [
+                    item_id,
+                    title,
+                    item.get("original_title") or "",
+                    item.get("description") or "",
+                    item.get("actors") or "",
+                    item.get("director") or "",
+                    item.get("tags") if isinstance(item.get("tags"), str) else json.dumps(item.get("tags") or [])
+                ]))
+                valid_count += 1
+
+            if stmts:
+                for attempt in range(3):
+                    try:
+                        client.batch(stmts)
+                        break
+                    except Exception as ex:
+                        if attempt < 2:
+                            time.sleep(1.0 * (attempt + 1))
+                            continue
+                        logger.error(f"[Turso] Batch execution failed after 3 attempts: {ex}")
+                        return 0
+            return valid_count
+        except Exception as e:
+            logger.error(f"[Turso] Batch preparation failed: {e}")
+            return 0
         finally:
             try:
                 client.close()

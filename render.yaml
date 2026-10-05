@@ -11,3 +11,7 @@ services:
         value: 3.10.12
       - key: UPSTASH_REDIS_REST_URL
         value: https://pleased-goose-289810.upstash.io
+      - key: TURSO_DATABASE_URL
+        value: https://showhub-media-lonelycat.aws-eu-north-1.turso.io
+      - key: TURSO_AUTH_TOKEN
+        sync: false

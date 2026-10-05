@@ -1066,8 +1066,7 @@ def get_harvester_status() -> Dict[str, Any]:
             "configured": turso_manager.is_configured(),
             "url_detected": bool(turso_manager._url),
             "token_detected": bool(turso_manager._token),
-            "has_native_libsql": HAS_LIBSQL,
-            "matching_env_keys": [k for k in os.environ.keys() if any(x in k.upper() for x in ("TURSO", "DATABASE", "TOKEN"))],
+            "env_keys": [k for k in sorted(os.environ.keys()) if not any(k.startswith(p) for p in ("npm_", "PATH", "PWD", "SHLVL", "_", "HOME", "USER", "TERM", "LANG", "LC_", "LESS", "HOSTNAME", "SHELL", "PIP_", "NODE_", "PYTHON"))],
             "remote_url": masked_url,
             "remote_count": turso_manager.get_remote_count() if turso_manager.is_configured() else 0
         }

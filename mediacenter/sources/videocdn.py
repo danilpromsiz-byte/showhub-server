@@ -202,14 +202,26 @@ class VideoCDNSource(BaseSource):
                     raw = d[0]
                 elif isinstance(d, dict) and (d.get("token_movie") or d.get("iframe") or d.get("seasons")):
                     raw = d
+            # Verify year if raw matched by ID
+            if raw and year:
+                raw_yr = raw.get("year")
+                try:
+                    if raw_yr and abs(int(raw_yr) - int(year)) > 2:
+                        raw = None
+                except ValueError:
+                    pass
         except Exception:
             pass
 
-        # 2. Fallback by title if KP ID didn't match Alloha's KP ID (e.g. 5664825 -> 10372988)
+        # 2. Fallback by title with strict year matching (never blindly pick mismatched year)
         if not raw and title:
             candidates = self._fetch_alloha_items(query=title)
             if candidates:
-                raw = candidates[0]
+                if year:
+                    matched = [c for c in candidates if c.get("year") and abs(int(c.get("year")) - int(year)) <= 1]
+                    raw = matched[0] if matched else None
+                else:
+                    raw = candidates[0]
 
         real_kp = str(raw.get("id_kp") or "") if raw else (media_str if media_str.isdigit() else None)
 

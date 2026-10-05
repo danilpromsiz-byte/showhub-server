@@ -906,28 +906,28 @@ def get_proxied_image(url: str = Query(...)):
 def check_updates() -> Dict[str, Any]:
     showhub_fallback = {
         "success": True,
-        "version_name": "2.8.91",
-        "version_code": 150,
+        "version_name": "2.8.92",
+        "version_code": 151,
         "force_update": True,
         "min_version_code": 108,
         "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
         "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
-        "changelog": "v2.8.91: Тултипы для кнопок, фикс фокуса в модале новых серий, проброс D-pad в IFRAME плеер.",
+        "changelog": "v2.8.92: Кнопка багрепорта в карточке, отключено автодобавление в избранное, отзывы Кинопоиск/TMDb, пополнение каталога (1550+ фильмов и сериалов включая Одни из нас), защита от подмены похожих фильмов.",
         "tv": {
-            "version_name": "2.8.91",
-            "version_code": 150,
+            "version_name": "2.8.92",
+            "version_code": 151,
             "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
             "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk"
         },
         "mobile": {
-            "version_name": "2.8.91",
-            "version_code": 150,
+            "version_name": "2.8.92",
+            "version_code": 151,
             "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-Mobile.apk",
             "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-Mobile.apk"
         },
         "pc": {
-            "version_name": "2.8.91",
-            "version_code": 150,
+            "version_name": "2.8.92",
+            "version_code": 151,
             "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-PC.zip"
         }
     }
@@ -945,7 +945,7 @@ def check_updates() -> Dict[str, Any]:
                     data = json.load(f)
                     if isinstance(data, dict):
                         merged = dict(data)
-                        if "tv" not in merged or not isinstance(merged.get("tv"), dict) or merged["tv"].get("version_code", 0) < 150:
+                        if "tv" not in merged or not isinstance(merged.get("tv"), dict) or merged["tv"].get("version_code", 0) < 151:
                             merged.update(showhub_fallback)
                             for k in ["alert_screensaver", "alert_mobile", "alert_screensaver_premium", "alert_mobile_premium", "ads"]:
                                 if k in data:
@@ -2313,7 +2313,8 @@ def _fetch_media_details(
 
     # Source availability metadata for UI Source selector
     sources_info = []
-    if kd_max_eps > 0 or any(t.get("source") == "kodik" for t in details.get("translators", [])):
+    kodik_available = bool(kd_max_eps > 0 or (k_items if 'k_items' in locals() else False) or any(t.get("source") == "kodik" or t.get("kodik_id") for t in details.get("translators", [])) or source == "kodik")
+    if kodik_available:
         sources_info.append({
             "source": "kodik",
             "name": "Kodik",
@@ -2639,13 +2640,87 @@ def _fetch_media_details(
     return details
 
 
-def _fetch_media_comments(source: str, media_id: str, title: Optional[str] = None) -> List[Dict[str, Any]]:
-    """Returns viewer comments and reviews (scraped from Filmix)."""
+def _fetch_media_comments(
+    source: str,
+    media_id: str,
+    title: Optional[str] = None,
+    kp_id: Optional[str] = None,
+    tmdb_id: Optional[str] = None,
+    is_series: Optional[bool] = None
+) -> List[Dict[str, Any]]:
+    """Returns viewer comments and reviews (Kinopoisk, TMDb, or Filmix)."""
+    # 1. Kinopoisk Unofficial API reviews
+    resolved_kp = kp_id if (kp_id and str(kp_id).isdigit()) else None
+    if not resolved_kp and media_id and str(media_id).isdigit():
+        resolved_kp = media_id
+    if resolved_kp:
+        try:
+            url = f"https://kinopoiskapiunofficial.tech/api/v2.2/films/{resolved_kp}/reviews?page=1"
+            req = urllib.request.Request(url, headers={"X-API-KEY": "2bf3d1c4-c449-475f-864e-9590928d1a6e", "User-Agent": "ShowHubTV"})
+            with urllib.request.urlopen(req, timeout=4) as resp:
+                if resp.status == 200:
+                    data = json.loads(resp.read().decode("utf-8"))
+                    items = data.get("items", [])
+                    if items:
+                        res = []
+                        for it in items[:15]:
+                            author = it.get("author") or "Зритель Кинопоиска"
+                            date = (it.get("date") or "")[:10]
+                            text = (it.get("description") or it.get("title") or "").strip()
+                            rev_type = it.get("type", "NEUTRAL")
+                            rating = "10" if rev_type == "POSITIVE" else ("2" if rev_type == "NEGATIVE" else "6")
+                            if text:
+                                res.append({
+                                    "author": author,
+                                    "date": date,
+                                    "text": text,
+                                    "rating": rating
+                                })
+                        if res:
+                            return res
+        except Exception:
+            pass
+
+    # 2. TMDb reviews
+    resolved_tmdb = tmdb_id
+    if not resolved_tmdb and media_id and media_id.startswith("tmdb_"):
+        resolved_tmdb = media_id.replace("tmdb_tv_", "").replace("tmdb_", "")
+    if resolved_tmdb:
+        try:
+            m_type = "tv" if is_series else "movie"
+            t_url = f"https://api.themoviedb.org/3/{m_type}/{resolved_tmdb}/reviews?api_key=8265bd1679663a7ea12ac168da84d2e8"
+            req = urllib.request.Request(t_url, headers={"User-Agent": "ShowHubTV"})
+            with urllib.request.urlopen(req, timeout=4) as resp:
+                if resp.status == 200:
+                    data = json.loads(resp.read().decode("utf-8"))
+                    results = data.get("results", [])
+                    if results:
+                        res = []
+                        for it in results[:10]:
+                            author = it.get("author") or "TMDb Reviewer"
+                            date = (it.get("created_at") or "")[:10]
+                            text = (it.get("content") or "").strip()
+                            rating = str(it.get("author_details", {}).get("rating") or "")
+                            if text:
+                                res.append({
+                                    "author": author,
+                                    "date": date,
+                                    "text": text,
+                                    "rating": rating
+                                })
+                        if res:
+                            return res
+        except Exception:
+            pass
+
+    # 3. Fallback to Filmix
     try:
         comments = filmix.get_comments(media_id, title=title)
-        return [c.model_dump() for c in comments]
+        if comments:
+            return [c.model_dump() for c in comments]
     except Exception:
-        return []
+        pass
+    return []
 
 
 def _fetch_media_streams(
@@ -3214,13 +3289,23 @@ def get_media_details_path(source: str, media_id: str, title: Optional[str] = No
 def get_media_comments_query(
     source: str = Query("filmix"),
     media_id: Optional[str] = Query(""),
-    title: Optional[str] = None
+    title: Optional[str] = None,
+    kp_id: Optional[str] = None,
+    tmdb_id: Optional[str] = None,
+    is_series: Optional[str] = None
 ) -> List[Dict[str, Any]]:
-    return _fetch_media_comments(source, media_id or "", title)
+    return _fetch_media_comments(source, media_id or "", title, kp_id=kp_id, tmdb_id=tmdb_id, is_series=(is_series in ("1", "true", "True")))
 
 @app.get("/api/media/{source}/{media_id}/comments")
-def get_media_comments_path(source: str, media_id: str, title: Optional[str] = None) -> List[Dict[str, Any]]:
-    return _fetch_media_comments(source, media_id, title)
+def get_media_comments_path(
+    source: str,
+    media_id: str,
+    title: Optional[str] = None,
+    kp_id: Optional[str] = None,
+    tmdb_id: Optional[str] = None,
+    is_series: Optional[str] = None
+) -> List[Dict[str, Any]]:
+    return _fetch_media_comments(source, media_id, title, kp_id=kp_id, tmdb_id=tmdb_id, is_series=(is_series in ("1", "true", "True")))
 
 
 def _resolve_trailer(title: str, year: Optional[str] = None, kp_id: Optional[str] = None) -> Optional[str]:

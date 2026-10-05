@@ -103,15 +103,6 @@ class WatchHistoryManager(context: Context) {
             if (percentage >= 85) {
                 markEpisodeWatched(movie.id, season, episode, movie.title)
             }
-            // Auto-add started series to favorites so user tracks new episodes
-            try {
-                val mainPrefs = appContext.getSharedPreferences("showhub_prefs", Context.MODE_PRIVATE)
-                val currentFavs = mainPrefs.getStringSet("favorite_ids", emptySet())?.toMutableSet() ?: mutableSetOf()
-                if (!currentFavs.contains(movie.id)) {
-                    currentFavs.add(movie.id)
-                    mainPrefs.edit().putStringSet("favorite_ids", currentFavs).apply()
-                }
-            } catch (_: Exception) {}
         }
         notifyHistoryChanged()
     }

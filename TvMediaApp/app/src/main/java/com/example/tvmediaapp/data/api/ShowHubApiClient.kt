@@ -743,7 +743,11 @@ object ShowHubApiClient {
         try {
             val q = URLEncoder.encode(movie.title, "UTF-8")
             val encId = URLEncoder.encode(movie.id, "UTF-8")
-            val url = URL("$activeServerBase/api/media/comments?source=filmix&media_id=$encId&title=$q")
+            val kpParam = if (movie.kinopoiskId.isNotBlank()) "&kp_id=${movie.kinopoiskId}" else ""
+            val tmdbId = if (movie.id.startsWith("tmdb_")) movie.id.replace("tmdb_tv_", "").replace("tmdb_", "") else ""
+            val tmdbParam = if (tmdbId.isNotBlank()) "&tmdb_id=$tmdbId" else ""
+            val isSer = if (movie.isSeries) "1" else "0"
+            val url = URL("$activeServerBase/api/media/comments?source=all&media_id=$encId&title=$q&is_series=$isSer$kpParam$tmdbParam")
             val conn = url.openConnection() as HttpURLConnection
             conn.connectTimeout = 8000
             conn.readTimeout = 12000

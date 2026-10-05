@@ -311,12 +311,63 @@ class MediaRegistry:
                 );
             """)
 
+            # Harvester persistent state table
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS harvester_state (
+                    source_key TEXT PRIMARY KEY,
+                    next_url TEXT,
+                    last_page INTEGER DEFAULT 0,
+                    total_harvested INTEGER DEFAULT 0,
+                    last_run_at REAL DEFAULT 0,
+                    is_completed INTEGER DEFAULT 0
+                );
+            """)
+
             # Auto-purge residual mock test items on startup
             try:
                 conn.execute("DELETE FROM media_items WHERE lower(id) LIKE '%test%' OR lower(title) LIKE '%тестов%' OR lower(clean_title) LIKE '%тестов%';")
                 conn.execute("DELETE FROM media_fts WHERE lower(item_id) LIKE '%test%' OR lower(title) LIKE '%тестов%';")
             except Exception:
                 pass
+
+    def get_harvester_state(self, source_key: str) -> Dict[str, Any]:
+        try:
+            conn = self._get_connection()
+            row = conn.execute("SELECT next_url, last_page, total_harvested, last_run_at, is_completed FROM harvester_state WHERE source_key = ?;", (source_key,)).fetchone()
+            if row:
+                return {
+                    "next_url": row[0],
+                    "last_page": row[1] or 0,
+                    "total_harvested": row[2] or 0,
+                    "last_run_at": row[3] or 0.0,
+                    "is_completed": bool(row[4])
+                }
+        except Exception:
+            pass
+        return {
+            "next_url": None,
+            "last_page": 0,
+            "total_harvested": 0,
+            "last_run_at": 0.0,
+            "is_completed": False
+        }
+
+    def set_harvester_state(self, source_key: str, next_url: Optional[str] = None, last_page: int = 0, total_harvested: int = 0, is_completed: bool = False):
+        try:
+            conn = self._get_connection()
+            with conn:
+                conn.execute("""
+                    INSERT INTO harvester_state (source_key, next_url, last_page, total_harvested, last_run_at, is_completed)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(source_key) DO UPDATE SET
+                        next_url = excluded.next_url,
+                        last_page = excluded.last_page,
+                        total_harvested = excluded.total_harvested,
+                        last_run_at = excluded.last_run_at,
+                        is_completed = excluded.is_completed;
+                """, (source_key, next_url, last_page, total_harvested, time.time(), 1 if is_completed else 0))
+        except Exception as e:
+            logger.debug(f"Failed to set harvester state for {source_key}: {e}")
 
     def delete_item(self, item_id: str) -> bool:
         """Deletes an item and its FTS5 index entry by ID."""
@@ -818,6 +869,33 @@ class MediaRegistry:
             return cur.fetchone()[0]
         except Exception:
             return 0
+
+    def get_stats(self) -> Dict[str, Any]:
+        """Returns statistics of indexed items by category and all harvester states."""
+        try:
+            conn = self._get_connection()
+            total = conn.execute("SELECT COUNT(*) FROM media_items;").fetchone()[0]
+            cat_rows = conn.execute("SELECT category, COUNT(*) FROM media_items GROUP BY category;").fetchall()
+            by_category = {row[0]: row[1] for row in cat_rows}
+
+            harv_rows = conn.execute("SELECT source_key, next_url, last_page, total_harvested, last_run_at, is_completed FROM harvester_state;").fetchall()
+            harv_states = {}
+            for r in harv_rows:
+                harv_states[r[0]] = {
+                    "has_next": bool(r[1]),
+                    "last_page": r[2],
+                    "total_harvested": r[3],
+                    "last_run_at": r[4],
+                    "is_completed": bool(r[5])
+                }
+
+            return {
+                "total_items": total,
+                "by_category": by_category,
+                "harvester_states": harv_states
+            }
+        except Exception as e:
+            return {"error": str(e), "total_items": 0, "by_category": {}, "harvester_states": {}}
 
     def _row_to_dict(self, row: sqlite3.Row) -> Dict[str, Any]:
         genres = []

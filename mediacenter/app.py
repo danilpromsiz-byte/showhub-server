@@ -1037,13 +1037,27 @@ def resolve_actor_photo(actor_name: str) -> Optional[str]:
 
 @app.get("/api/catalog/stats")
 def get_catalog_stats() -> Dict[str, Any]:
-    """Returns total estimated library size for UI counter."""
+    """Returns library size for UI counter and catalog overview."""
+    stats = media_registry.get_stats()
+    by_cat = stats.get("by_category", {})
+    total = stats.get("total_items", 0)
     return {
-        "total_movies": 18450,
-        "total_series": 6210,
-        "total_cartoons": 3120,
-        "total_anime": 2480,
-        "total_all": 30260
+        "total_movies": by_cat.get("movie", 0),
+        "total_series": by_cat.get("series", 0),
+        "total_cartoons": by_cat.get("cartoons", 0),
+        "total_anime": by_cat.get("anime", 0),
+        "total_all": total
+    }
+
+@app.get("/api/harvester/status")
+def get_harvester_status() -> Dict[str, Any]:
+    """Returns detailed autonomous catalog harvester crawler status and metrics."""
+    stats = media_registry.get_stats()
+    return {
+        "is_running": getattr(media_harvester, "_started", False),
+        "total_indexed": stats.get("total_items", 0),
+        "by_category": stats.get("by_category", {}),
+        "crawler_states": stats.get("harvester_states", {})
     }
 
 _catalog_cache: Dict[str, Tuple[float, List[Dict[str, Any]]]] = {}

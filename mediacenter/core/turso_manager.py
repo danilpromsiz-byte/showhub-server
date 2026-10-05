@@ -50,16 +50,38 @@ class TursoManager:
                 self._token = env_upper[k]
                 break
 
-        if not self._url:
-            cfg_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "turso.json")
-            if os.path.exists(cfg_path):
-                try:
-                    with open(cfg_path, "r", encoding="utf-8") as f:
-                        data = json.load(f)
-                        self._url = data.get("database_url")
-                        self._token = data.get("auth_token")
-                except Exception:
-                    pass
+        if not self._url or not self._token:
+            secret_files = [
+                "/etc/secrets/turso.json",
+                "/etc/secrets/.env",
+                "/etc/secrets/turso.env",
+                "/etc/secrets/secrets.env",
+                os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "turso.json"),
+                os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env"),
+            ]
+            for p in secret_files:
+                if os.path.exists(p):
+                    try:
+                        if p.endswith(".json"):
+                            with open(p, "r", encoding="utf-8") as f:
+                                data = json.load(f)
+                                self._url = self._url or data.get("database_url") or data.get("TURSO_DATABASE_URL") or data.get("TURSO_URL")
+                                self._token = self._token or data.get("auth_token") or data.get("TURSO_AUTH_TOKEN") or data.get("TURSO_TOKEN")
+                        else:
+                            with open(p, "r", encoding="utf-8") as f:
+                                for line in f:
+                                    line = line.strip()
+                                    if line and not line.startswith("#") and "=" in line:
+                                        k, v = line.split("=", 1)
+                                        k = k.strip().upper()
+                                        v = v.strip().strip("'\"")
+                                        if "URL" in k: self._url = self._url or v
+                                        if "TOKEN" in k: self._token = self._token or v
+                    except Exception:
+                        pass
+                if self._url and self._token:
+                    break
+
         if self._url:
             self._url = self._url.strip()
             if self._url.startswith("libsql://"):

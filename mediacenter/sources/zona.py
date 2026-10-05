@@ -43,24 +43,10 @@ class ZonaSource(BaseSource):
 
     def _get_client_time(self) -> int:
         """
-        Calculates time synchronization token for Zona API:
-        Takes HTTP Date header from Zona video endpoint, parses timestamp,
-        and applies Java hashCode signature with User-Agent.
+        Calculates time synchronization token for Zona API using local timestamp
+        and Java hashCode signature with User-Agent (<1ms).
         """
-        try:
-            r = self.session.head(f"{self.API_BASE}/video/", timeout=4)
-            date_hdr = r.headers.get("Date")
-        except Exception:
-            date_hdr = None
-
-        if date_hdr:
-            try:
-                t = email.utils.parsedate_to_datetime(date_hdr).timestamp()
-            except Exception:
-                t = time.time()
-        else:
-            t = time.time()
-
+        t = time.time()
         j = int(t * 1000)
         j2 = (j - (j % 1000)) // 1000
         h = abs(self._zona_hash_code(f"{j2}{self.USER_AGENT}")) % 1000

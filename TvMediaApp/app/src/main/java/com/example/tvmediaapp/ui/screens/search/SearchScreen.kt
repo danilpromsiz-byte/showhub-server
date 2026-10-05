@@ -221,7 +221,7 @@ fun SearchScreen(
         } catch (_: Exception) {}
     }
 
-    fun performSearch(q: String, byActor: Boolean = isActorSearch, debounceMs: Long = 400L) {
+    fun performSearch(q: String, byActor: Boolean = isActorSearch, debounceMs: Long = 200L) {
         query = q
         searchJob?.cancel()
         val reqId = ++activeSearchId

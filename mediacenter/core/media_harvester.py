@@ -291,9 +291,11 @@ class MediaHarvester:
 
             is_ser = is_ser_feed or ("first_air_date" in item)
             db_id = f"tmdb_tv_{t_id}" if is_ser else f"tmdb_{t_id}"
-            orig_title = item.get("original_title") or item.get("original_name")
             date_str = item.get("release_date") or item.get("first_air_date") or ""
             year = int(date_str[:4]) if len(date_str) >= 4 and date_str[:4].isdigit() else None
+            import datetime
+            if year and year > datetime.date.today().year:
+                continue
 
             poster = f"https://image.tmdb.org/t/p/w500{item['poster_path']}" if item.get("poster_path") else ""
             backdrop = f"https://image.tmdb.org/t/p/w1280{item['backdrop_path']}" if item.get("backdrop_path") else ""

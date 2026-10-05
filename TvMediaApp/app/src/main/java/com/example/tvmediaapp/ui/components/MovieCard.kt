@@ -312,11 +312,17 @@ fun MovieCard(
                                         try {
                                             if (state == Player.STATE_READY) {
                                                 val dur = duration
+                                                if (dur in 1..60_000L) {
+                                                    stop()
+                                                    isPreviewBuffering = false
+                                                    isPreviewPlaying = false
+                                                    return
+                                                }
                                                 if (!hasSeeked) {
                                                     hasSeeked = true
                                                     val targetSeek = if (dur > 0 && baseSeekMs in 1 until dur) {
                                                         baseSeekMs
-                                                    } else if (dur > 30_000L) {
+                                                    } else if (dur > 60_000L) {
                                                         (dur * 0.20).toLong()
                                                     } else {
                                                         baseSeekMs

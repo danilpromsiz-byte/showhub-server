@@ -898,11 +898,16 @@ fun DetailsScreen(
                                 override fun onPlaybackStateChanged(state: Int) {
                                     if (state == Player.STATE_READY) {
                                         val dur = duration
+                                        if (dur in 1..60_000L) {
+                                            stop()
+                                            isDetailsPreviewPlaying = false
+                                            return
+                                        }
                                         if (!hasSeeked) {
                                             hasSeeked = true
                                             val safeSeek = if (dur > 0 && targetSeekMs in 1 until dur) {
                                                 targetSeekMs
-                                            } else if (dur > 30_000L) {
+                                            } else if (dur > 60_000L) {
                                                 (dur * 0.20).toLong()
                                             } else {
                                                 targetSeekMs

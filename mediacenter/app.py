@@ -652,14 +652,14 @@ def search_media(q: str = Query(..., min_length=1), type: Optional[str] = Query(
 
     # 2. Query instant local SQLite FTS5 MediaRegistry (<5ms)
     indexed_matches = media_registry.search(q_clean, limit=60)
-    if len(indexed_matches) >= 6:
-        # Sufficient high-quality local matches: return immediately without network latency!
-        # Fire background harvesting so registry is constantly enriched
+    if len(indexed_matches) >= 1:
+        # Found instant matches in library: return immediately without network latency (<10ms)!
+        # Fire background harvesting asynchronously so registry is continuously enriched
         threading.Thread(target=_bg_harvest_query, args=(q_clean,), daemon=True).start()
         _fast_search_cache[q_key] = (now_ts, indexed_matches)
         return indexed_matches
 
-    # 3. If local registry has few matches, query fast online sources concurrently (2.2s hard cap, no shutdown block)
+    # 3. Only if local registry has 0 matches, query fast online sources concurrently (1.2s max cap)
     all_items = []
     # Start with whatever local registry already found
     for im in indexed_matches:
@@ -688,7 +688,7 @@ def search_media(q: str = Query(..., min_length=1), type: Optional[str] = Query(
         _search_pool.submit(bazon.search, q_clean),
         _search_pool.submit(hdrezka.search, q_clean),
     ]
-    done_futures, _ = concurrent.futures.wait(search_futures, timeout=2.2)
+    done_futures, _ = concurrent.futures.wait(search_futures, timeout=1.2)
     for f in done_futures:
         try:
             items = f.result(timeout=0.05)
@@ -1894,6 +1894,34 @@ def _fetch_media_details(
                     s_sources = set(t.get("source") for t in res_item["translators"] if t.get("source"))
                     for s_s in s_sources:
                         res_item["sources_info"].append({"source": s_s, "name": s_s.capitalize(), "episodes_count": 0, "seasons_episodes": {}})
+
+            # Enrich fast-path with Zona source and translator if not yet present
+            if not any(s.get("source") == "zona" for s in res_item.get("sources_info", [])):
+                try:
+                    z_target_kp = resolved_kp or res_item.get("kinopoisk_id")
+                    if z_target_kp or clean_title:
+                        z_items = zona.search(clean_title or title, year=year_int, kp_id=z_target_kp)
+                        if z_items:
+                            z_match = find_best_match(z_items, year_int, is_ser_bool, target_title=clean_title or title)
+                            if z_match:
+                                if "translators" not in res_item or not isinstance(res_item["translators"], list):
+                                    res_item["translators"] = []
+                                res_item["translators"].append({
+                                    "id": f"zona_{z_match.id}",
+                                    "name": "Zona (Прямой MP4)",
+                                    "source": "zona",
+                                    "zona_id": z_match.id,
+                                    "quality": "1080p HQ"
+                                })
+                                res_item["sources_info"].append({
+                                    "source": "zona",
+                                    "name": "Zona",
+                                    "episodes_count": 0,
+                                    "seasons_episodes": {}
+                                })
+                except Exception:
+                    pass
+
             _details_cache[cache_key] = (now_ts, res_item)
             return res_item
 
@@ -2097,7 +2125,7 @@ def _fetch_media_details(
 
     # 2. Fetch HDRezka details (translators, seasons & episodes, high-res poster)
     rz_found = False  # Track whether HDRezka actually returned valid data
-    # 2 & 3. Multi-Source Aggregation across HDRezka, Filmix, Collaps, VideoCDN, AniLibria in PARALLEL
+    # 2 & 3. Multi-Source Aggregation across HDRezka, Filmix, Collaps, VideoCDN, AniLibria, Zona in PARALLEL
     rz_found = False
     rz_id = None
     rz_det = None
@@ -2105,6 +2133,8 @@ def _fetch_media_details(
     collaps_available = False
     videocdn_available = False
     anilibria_available = False
+    zona_available = False
+    zona_cand_id = None
 
     def _probe_hdrezka_details():
         nonlocal rz_id
@@ -2181,6 +2211,26 @@ def _fetch_media_details(
         except Exception:
             pass
 
+    def _probe_zona_details():
+        nonlocal zona_available, zona_cand_id
+        try:
+            cand_id = media_id.replace("zona_", "") if (source == "zona" and media_id) else None
+            if not cand_id and clean_title:
+                z_items = zona.search(clean_title, year=year_int, kp_id=resolved_kp)
+                if z_items:
+                    z_match = find_best_match(z_items, year_int, is_ser_bool, target_title=clean_title)
+                    if z_match:
+                        cand_id = z_match.id
+            if cand_id:
+                z_res = zona.get_streams(cand_id, season=1, episode=1)
+                if z_res.streams:
+                    zona_available = True
+                    zona_cand_id = cand_id
+                    return cand_id
+        except Exception:
+            pass
+        return None
+
     def _is_matching_title(item_title: str, query: str) -> bool:
         def norm(s: str) -> str:
             return re.sub(r'[^a-zA-Zа-яА-Я0-9]', '', (s or "").lower())
@@ -2212,8 +2262,9 @@ def _fetch_media_details(
         col_future = probe_pool.submit(_probe_collaps_details)
         vc_future = probe_pool.submit(_probe_videocdn_details)
         al_future = probe_pool.submit(_probe_anilibria_details)
+        zn_future = probe_pool.submit(_probe_zona_details)
 
-        concurrent.futures.wait([rz_future, fx_future, col_future, vc_future, al_future], timeout=2.5)
+        concurrent.futures.wait([rz_future, fx_future, col_future, vc_future, al_future, zn_future], timeout=2.5)
 
         if rz_future.done():
             try:
@@ -2281,6 +2332,22 @@ def _fetch_media_details(
                         t_dict["source"] = "filmix"
                         trans_map[k] = t_dict
                         details["translators"].append(t_dict)
+            except Exception:
+                pass
+
+        if zn_future.done():
+            try:
+                z_id = zn_future.result(timeout=0.05)
+                if z_id:
+                    zona_available = True
+                    zona_cand_id = z_id
+                    details["translators"].append({
+                        "id": f"zona_{z_id}",
+                        "name": "Zona (Прямой MP4)",
+                        "source": "zona",
+                        "zona_id": z_id,
+                        "quality": "1080p HQ"
+                    })
             except Exception:
                 pass
     except Exception:
@@ -2443,6 +2510,13 @@ def _fetch_media_details(
         sources_info.append({
             "source": "anilibria",
             "name": "AniLibria",
+            "episodes_count": total_series_eps,
+            "seasons_episodes": rz_seasons_eps
+        })
+    if zona_available:
+        sources_info.append({
+            "source": "zona",
+            "name": "Zona",
             "episodes_count": total_series_eps,
             "seasons_episodes": rz_seasons_eps
         })
@@ -3122,8 +3196,10 @@ def _fetch_media_streams(
     def _resolve_zona():
         try:
             candidate_zona_ids = []
+            if effective_audio_id and str(effective_audio_id).startswith("zona_"):
+                candidate_zona_ids.append(str(effective_audio_id).replace("zona_", ""))
             if source == "zona" and media_id_str:
-                candidate_zona_ids.append(media_id_str)
+                candidate_zona_ids.append(media_id_str.replace("zona_", ""))
             if resolved_kp:
                 z_kp_items = zona.search(clean_title or title, year=year_int, kp_id=resolved_kp)
                 for it in z_kp_items:
@@ -3482,15 +3558,73 @@ def get_media_streams_path(
 
 
 @app.get("/api/media/trailer")
-def get_media_trailer(title: str = Query(...), year: Optional[str] = None, kp_id: Optional[str] = None) -> Dict[str, Any]:
-    """Resolves trailer for video, extracting YouTube video ID and returning clean embed URL."""
+def get_media_trailer(title: str = Query(...), year: Optional[str] = None, kp_id: Optional[str] = None, is_series: Optional[str] = None) -> Dict[str, Any]:
+    """Resolves genuine official trailer for video via TMDb videos API with fallback to title-verified YouTube search."""
     import urllib.parse
     import urllib.request
     import re
+    import requests
 
-    clean_title = title.replace(":", " ").replace(" - ", " ")
+    clean_title = re.sub(r'\(.*?\)|\[.*?\]', '', title).strip() if title else ""
+    clean_title = clean_title.replace(":", " ").replace(" - ", " ")
     clean_title = re.sub(r'\s+', ' ', clean_title).strip()
+    is_ser = str(is_series) in ("1", "true", "True")
 
+    # 1. Primary: Official verified TMDb trailer (<200ms)
+    try:
+        t_id = None
+        # Check if local registry has tmdb_id
+        reg_it = media_registry.find_item(clean_title, safe_parse_year(year), kp_id=kp_id, is_series=is_ser)
+        if reg_it and reg_it.get("tmdb_id"):
+            t_id = str(reg_it["tmdb_id"])
+        
+        if not t_id:
+            m_type = "tv" if is_ser else "movie"
+            search_url = f"https://api.themoviedb.org/3/search/{m_type}?api_key=8265bd1679663a7ea12ac168da84d2e8&query={urllib.parse.quote(clean_title)}&language=ru-RU"
+            if year and str(year).isdigit():
+                search_url += f"&year={year}"
+            sr = requests.get(search_url, timeout=3).json()
+            if sr.get("results"):
+                t_id = str(sr["results"][0]["id"])
+
+        if t_id:
+            m_type = "tv" if is_ser else "movie"
+            for lang in ["ru-RU", "en-US"]:
+                v_url = f"https://api.themoviedb.org/3/{m_type}/{t_id}/videos?api_key=8265bd1679663a7ea12ac168da84d2e8&language={lang}"
+                vr = requests.get(v_url, timeout=3).json()
+                results = vr.get("results", [])
+                # Look for Trailer first
+                for v in results:
+                    if v.get("site") == "YouTube" and v.get("type") == "Trailer" and v.get("key"):
+                        v_id = v["key"]
+                        yt_watch_url = f"https://www.youtube.com/watch?v={v_id}"
+                        return {
+                            "success": True,
+                            "title": f"Трейлер: {title}",
+                            "video_id": v_id,
+                            "embed_url": f"https://www.youtube.com/embed/{v_id}?autoplay=1&enablejsapi=1&playsinline=1&rel=0",
+                            "web_url": yt_watch_url,
+                            "app_url": yt_watch_url,
+                            "intent_url": f"intent://www.youtube.com/watch?v={v_id}#Intent;scheme=https;end"
+                        }
+                # Look for any YouTube clip
+                for v in results:
+                    if v.get("site") == "YouTube" and v.get("key"):
+                        v_id = v["key"]
+                        yt_watch_url = f"https://www.youtube.com/watch?v={v_id}"
+                        return {
+                            "success": True,
+                            "title": f"Трейлер: {title}",
+                            "video_id": v_id,
+                            "embed_url": f"https://www.youtube.com/embed/{v_id}?autoplay=1&enablejsapi=1&playsinline=1&rel=0",
+                            "web_url": yt_watch_url,
+                            "app_url": yt_watch_url,
+                            "intent_url": f"intent://www.youtube.com/watch?v={v_id}#Intent;scheme=https;end"
+                        }
+    except Exception:
+        pass
+
+    # 2. Secondary fallback: title-verified YouTube search
     search_query = f"{clean_title} {year or ''} русский трейлер".strip()
     encoded = urllib.parse.quote(search_query)
     yt_url = f"https://www.youtube.com/results?search_query={encoded}"
@@ -3514,7 +3648,7 @@ def get_media_trailer(title: str = Query(...), year: Optional[str] = None, kp_id
                     "app_url": yt_watch_url,
                     "intent_url": f"intent://www.youtube.com/watch?v={v_id}#Intent;scheme=https;end"
                 }
-    except Exception as e:
+    except Exception:
         pass
 
     return {
@@ -3534,19 +3668,18 @@ def get_media_preview_stream(
     is_series: Optional[str] = None,
     start_min: Optional[int] = None
 ) -> Dict[str, Any]:
-    """Returns a fast silent preview direct video stream (HLS/MP4) for TV card hover. Strictly no trailers or iframes."""
+    """Returns a fast silent preview direct video stream (HLS/MP4) for TV card hover. Strictly verified authentic streams only."""
     cache_key = f"{source}_{media_id}_{kp_id}_{title}_{year}_{is_series}_{start_min}"
     if cache_key in _preview_cache:
         return _preview_cache[cache_key]
 
-    # Try to find direct stream (HDRezka, Filmix, Bazon)
-    # Prefer lightweight SD 480p/360p/720p or standard 1080p, strictly excluding Ultra/4K/2160p/1440p
     clean_title = re.sub(r'\(.*?\)|\[.*?\]', '', title).strip() if title else ""
     clean_title = clean_title.replace(":", " ").replace(" - ", " ")
     clean_title = re.sub(r'\s+', ' ', clean_title).strip()
     clean_title_no_season = re.sub(r'\s+\d+$', '', clean_title).strip()
     base_title = re.sub(r'\(.*?\)|\[.*?\]', '', title.split(":")[0]).strip() if (title and ":" in title) else ""
     dot_title = re.sub(r'\(.*?\)|\[.*?\]', '', title.split(".")[0]).strip() if (title and "." in title) else ""
+    year_int = safe_parse_year(year)
 
     candidate_streams = []
 
@@ -3556,7 +3689,7 @@ def get_media_preview_stream(
         if getattr(st, "stream_type", "hls") not in ["hls", "mp4"]:
             return False
         u = str(st.url).lower()
-        if any(bad in u for bad in ["rhtie.mp4", "rhtie", "zrkms.mp4", "zrkms", "trial", "preview", "teaser", "promo", "ultra", "vip", "premium", "/1/4/4/4/3/4/3/", "/1/5/3/6/4/2/4/"]):
+        if any(bad in u for bad in ["rhtie.mp4", "rhtie", "zrkms.mp4", "zrkms", "trial", "preview", "teaser", "promo", "ultra", "vip", "premium", "/1/4/4/4/3/4/3/", "/1/5/3/6/4/2/4/", "stub"]):
             return False
         # Server-resolved voidboost streams are IP-bound to server IP and return 404 for client devices!
         if any(bad in u for bad in ["stream.voidboost", "voidboost.one", "voidboost"]):
@@ -3578,7 +3711,7 @@ def get_media_preview_stream(
     # Source 1: Collaps / Delivembd direct HLS (interkh.com - fastest, universal, no IP restrictions)
     if (target_kp or clean_title):
         try:
-            d_res = delivembd.get_streams(target_kp or "", season=1, episode=1, title=clean_title, year=safe_parse_year(year))
+            d_res = delivembd.get_streams(target_kp or "", season=1, episode=1, title=clean_title, year=year_int)
             if d_res.streams:
                 valid_d = [s for s in d_res.streams if is_usable_preview_stream(s)]
                 if valid_d:
@@ -3598,14 +3731,14 @@ def get_media_preview_stream(
         except Exception:
             pass
 
-    # Source 3: Filmix by numeric media_id or title search
+    # Source 3: Filmix by numeric media_id or title search (STRICT similarity >= 0.85)
     if not candidate_streams:
         try:
             fx_id = media_id if (source == "filmix" and media_id and media_id.isdigit()) else None
             if not fx_id and clean_title:
                 fx_items = filmix.search(clean_title)
                 fx_match = find_best_match(fx_items, year, is_series, target_title=clean_title)
-                if fx_match:
+                if fx_match and compute_title_similarity(fx_match.title, clean_title) >= 0.85:
                     fx_id = fx_match.id
             if fx_id:
                 fx_res = filmix.get_streams(fx_id, season=1, episode=1)
@@ -3630,28 +3763,18 @@ def get_media_preview_stream(
         except Exception:
             pass
 
-    # Source 5: Search HDRezka by title & year (with subtitle and base title fallback)
+    # Source 5: Search HDRezka by title & year (STRICT similarity >= 0.85)
     if not candidate_streams and clean_title:
         search_queries = []
         for q in [clean_title, clean_title_no_season, dot_title, base_title]:
             if q and q not in search_queries:
                 search_queries.append(q)
-        vowel_queries = []
-        for sq in search_queries:
-            if "бетмен" in sq.lower():
-                vowel_queries.append(re.sub(r'бетмен', 'бэтмен', sq, flags=re.I))
-            elif "бэтмен" in sq.lower():
-                vowel_queries.append(re.sub(r'бэтмен', 'бетмен', sq, flags=re.I))
-        for vq in vowel_queries:
-            if vq not in search_queries:
-                search_queries.append(vq)
         for t_query in search_queries:
             try:
                 rz_items = hdrezka.search(t_query)
                 rz_match = find_best_match(rz_items, year, is_series, target_title=t_query)
-                if not rz_match and rz_items and compute_title_similarity(rz_items[0].title, t_query) >= 0.60:
-                    rz_match = rz_items[0]
-                if rz_match:
+                # STRICT filter: Must have similarity >= 0.85 to avoid wrong movie pieces!
+                if rz_match and compute_title_similarity(rz_match.title, t_query) >= 0.85:
                     rz_res = hdrezka.get_streams(rz_match.id, season=1, episode=1)
                     if not rz_res.streams and (is_series or str(is_series) == "1" or getattr(rz_match, "is_series", False)):
                         rz_res = hdrezka.get_streams(rz_match.id, season=2, episode=1)

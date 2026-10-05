@@ -688,13 +688,13 @@ class MediaRegistry:
 
         # 0. Unreleased content filtering (future announcements)
         import datetime
-        current_year = max(datetime.date.today().year + 1, 2026)
+        current_year = datetime.date.today().year
         if not include_unreleased_movies:
-            conditions.append("(is_series = 1 OR year IS NULL OR year <= ?)")
+            conditions.append("(is_series = 1 OR year IS NULL OR (year <= ? AND year > 0))")
             params.append(current_year)
 
         if not include_unreleased_series:
-            conditions.append("(is_series = 0 OR year IS NULL OR year <= ?)")
+            conditions.append("(is_series = 0 OR year IS NULL OR (year <= ? AND year > 0))")
             params.append(current_year)
 
         # 1. Effective category / content_type
@@ -743,8 +743,9 @@ class MediaRegistry:
                 conditions.append("year < 2000")
         elif sort_by in ("newest", "popular"):
             # When requesting default fresh releases / новинки without an explicit historical year filter:
-            # strictly limit to fresh releases (2024-2026) so ancient series (e.g. 1990) never pollute novelty rows!
-            conditions.append("(year IS NULL OR year >= 2024)")
+            # strictly limit to fresh releases (2024 to current calendar year) so ancient series or future unreleased movies never pollute novelty rows!
+            conditions.append("(year IS NULL OR (year >= 2024 AND year <= ?))")
+            params.append(current_year)
 
         # 5. Rating filtering using effective priority rating
         if min_rating and min_rating > 0:
@@ -770,12 +771,12 @@ class MediaRegistry:
             order_by = "COALESCE(year, 0) DESC, COALESCE(effective_rating, rating_kp, 0) DESC, COALESCE(lampa_popularity, 0) DESC"
         elif sort_by == "popular":
             order_by = "CASE WHEN COALESCE(year, 0) >= 2024 THEN 1 ELSE 0 END DESC, COALESCE(lampa_popularity, popularity, 0) DESC, COALESCE(effective_rating, rating_kp, 0) DESC, COALESCE(year, 0) DESC"
-        else:  # "newest" / default home page catalog: Fresh releases (Новинки 2024-2026) ranked by Rating & Lampa Popularity
+        else:  # "newest" / default home page catalog: Fresh releases (Новинки 2024-2026) ranked by Lampa Popularity & Rating
             order_by = (
                 "CASE WHEN COALESCE(year, 0) >= 2024 THEN 1 ELSE 0 END DESC, "
+                "COALESCE(lampa_popularity, popularity, 0) DESC, "
                 "COALESCE(year, 0) DESC, "
                 "COALESCE(effective_rating, rating_kp, rating_imdb, 0) DESC, "
-                "COALESCE(lampa_popularity, popularity, 0) DESC, "
                 "updated_at DESC"
             )
 
@@ -802,7 +803,7 @@ class MediaRegistry:
     def search(self, query: str, limit: int = 30) -> List[Dict[str, Any]]:
         """
         Ultra-fast (<5ms) indexed search across the media registry.
-        Uses exact prefix, substring, actor, director, and FTS5 ranking.
+        Uses FTS5 virtual table with BM25, exact prefix, and popularity boosting.
         """
         clean_q = normalize_title(query)
         if not clean_q or len(clean_q) < 1:
@@ -813,52 +814,58 @@ class MediaRegistry:
         seen_keys = set()
 
         try:
+            words = [w.strip() for w in clean_q.split() if w.strip()]
             prefix_pattern = f"{clean_q}%"
-            substr_pattern = f"%{clean_q}%"
 
-            rows = conn.execute("""
-                SELECT *,
-                    CASE
-                        WHEN clean_title = ? THEN 1000
-                        WHEN clean_title LIKE ? THEN 800
-                        WHEN clean_title LIKE ? THEN 500
-                        WHEN actors LIKE ? THEN 400
-                        WHEN director LIKE ? THEN 350
-                        ELSE 100
-                    END as match_score
-                FROM media_items
-                WHERE clean_title LIKE ? OR clean_title LIKE ? OR actors LIKE ? OR director LIKE ?
-                ORDER BY match_score DESC, COALESCE(lampa_popularity, 0) DESC, COALESCE(effective_rating, rating_kp, 0) DESC
-                LIMIT ?;
-            """, (clean_q, prefix_pattern, substr_pattern, substr_pattern, substr_pattern, prefix_pattern, substr_pattern, substr_pattern, substr_pattern, limit)).fetchall()
+            # 1. Primary: Ultra-fast FTS5 query (<2ms)
+            if words:
+                fts_query = " ".join([f'"{w}"*' for w in words])
+                try:
+                    fts_rows = conn.execute("""
+                        SELECT m.*,
+                            CASE
+                                WHEN m.clean_title = ? THEN 2000
+                                WHEN m.clean_title LIKE ? THEN 1500
+                                WHEN m.title LIKE ? THEN 1200
+                                WHEN m.original_title LIKE ? THEN 1000
+                                ELSE 500
+                            END as boost_score
+                        FROM media_fts f
+                        JOIN media_items m ON f.item_id = m.id
+                        WHERE media_fts MATCH ?
+                        ORDER BY boost_score DESC,
+                                 COALESCE(m.lampa_popularity, m.popularity, 0) DESC,
+                                 COALESCE(m.effective_rating, m.rating_kp, 0) DESC,
+                                 m.year DESC
+                        LIMIT ?;
+                    """, (clean_q, prefix_pattern, prefix_pattern, prefix_pattern, fts_query, limit)).fetchall()
 
-            for r in rows:
-                key = (r["clean_title"], r["year"] or 0)
-                if key not in seen_keys:
-                    seen_keys.add(key)
-                    results.append(self._row_to_dict(r))
+                    for r in fts_rows:
+                        key = (r["clean_title"], r["year"] or 0)
+                        if key not in seen_keys:
+                            seen_keys.add(key)
+                            results.append(self._row_to_dict(r))
+                except Exception as e:
+                    logger.debug(f"FTS search error: {e}")
 
+            # 2. Fast indexed prefix fallback if FTS returned nothing (e.g. single character or punctuation)
             if len(results) < limit:
-                words = [w.strip() for w in clean_q.split() if len(w.strip()) >= 2]
-                if words:
-                    fts_query = " ".join([f'"{w}"*' for w in words])
-                    try:
-                        fts_rows = conn.execute("""
-                            SELECT m.*, rank
-                            FROM media_fts f
-                            JOIN media_items m ON f.item_id = m.id
-                            WHERE media_fts MATCH ?
-                            ORDER BY rank, COALESCE(m.lampa_popularity, 0) DESC, COALESCE(m.effective_rating, m.rating_kp, 0) DESC
-                            LIMIT ?;
-                        """, (fts_query, limit - len(results))).fetchall()
+                prefix_rows = conn.execute("""
+                    SELECT *, 1000 as boost_score
+                    FROM media_items
+                    WHERE clean_title LIKE ?
+                    ORDER BY COALESCE(lampa_popularity, popularity, 0) DESC,
+                             COALESCE(effective_rating, rating_kp, 0) DESC,
+                             year DESC
+                    LIMIT ?;
+                """, (prefix_pattern, limit - len(results))).fetchall()
 
-                        for r in fts_rows:
-                            key = (r["clean_title"], r["year"] or 0)
-                            if key not in seen_keys:
-                                seen_keys.add(key)
-                                results.append(self._row_to_dict(r))
-                    except Exception:
-                        pass
+                for r in prefix_rows:
+                    key = (r["clean_title"], r["year"] or 0)
+                    if key not in seen_keys:
+                        seen_keys.add(key)
+                        results.append(self._row_to_dict(r))
+
         except Exception as e:
             logger.error(f"Search error in MediaRegistry: {e}")
 

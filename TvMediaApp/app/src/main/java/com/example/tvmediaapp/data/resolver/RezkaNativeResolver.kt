@@ -206,21 +206,21 @@ object RezkaNativeResolver {
                         }
                     }
 
-                    // Strict filter: Candidate MUST match the title with similarity >= 0.60!
-                    if (maxSim < 0.60) {
+                    // Strict filter: Candidate MUST match the title with similarity >= 0.85 to prevent wrong movie matches!
+                    if (maxSim < 0.85) {
                         continue
                     }
 
                     var score = (maxSim * 200).toInt()
 
-                    // Year matching: Disqualify candidates released > 2 years apart
+                    // Year matching: Disqualify candidates released > 1 year apart
                     val textForYear = if (Pattern.compile("\\b(19\\d\\d|20\\d\\d)\\b").matcher(snippet).find()) snippet else fullUrl
                     val yearMatcher = Pattern.compile("\\b(19\\d\\d|20\\d\\d)\\b").matcher(textForYear)
                     if (yearMatcher.find()) {
                         val candYear = yearMatcher.group(1).toIntOrNull()
                         if (targetYearInt != null && candYear != null) {
                             val diff = Math.abs(candYear - targetYearInt)
-                            if (diff > 2) {
+                            if (diff > 1) {
                                 continue
                             }
                             if (diff == 0) score += 100

@@ -40,17 +40,16 @@ class TursoManager:
         self._load_config()
 
     def _load_config(self):
-        self._url = (
-            os.environ.get("TURSO_DATABASE_URL") or
-            os.environ.get("TURSO_URL") or
-            os.environ.get("TURSO_DB_URL")
-        )
-        self._token = (
-            os.environ.get("TURSO_AUTH_TOKEN") or
-            os.environ.get("TURSO_TOKEN") or
-            os.environ.get("TURSO_DB_TOKEN") or
-            os.environ.get("TURSO_API_TOKEN")
-        )
+        env_upper = {k.strip().upper(): v.strip() for k, v in os.environ.items()}
+        for k in ("TURSO_DATABASE_URL", "TURSO_URL", "TURSO_DB_URL", "DATABASE_URL"):
+            if k in env_upper and env_upper[k]:
+                self._url = env_upper[k]
+                break
+        for k in ("TURSO_AUTH_TOKEN", "TURSO_TOKEN", "TURSO_DB_TOKEN", "TURSO_API_TOKEN", "AUTH_TOKEN"):
+            if k in env_upper and env_upper[k]:
+                self._token = env_upper[k]
+                break
+
         if not self._url:
             cfg_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "turso.json")
             if os.path.exists(cfg_path):

@@ -1,14 +1,14 @@
 {
     "tv": {
-        "versionName": "2.8.92",
-        "versionCode": 151,
+        "versionName": "2.8.93",
+        "versionCode": 152,
         "apkUrl": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
-        "releaseNotes": "v2.8.92: Масштабное расширение каталога до 10,150+ фильмов и сериалов, отключено автодобавление в избранное, отзывы Кинопоиск/TMDb, защита от подмены похожих фильмов"
+        "releaseNotes": "v2.8.93: Мгновенное открытие карточек за 1 мс, синхронизация с Turso Cloud, устранение таймаутов поиска и загрузки «Одни из нас», повторные попытки при пробуждении сервера"
     },
     "mobile": {
-        "versionName": "2.8.92",
-        "versionCode": 151,
+        "versionName": "2.8.93",
+        "versionCode": 152,
         "apkUrl": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-Mobile.apk",
-        "releaseNotes": "v2.8.92: Масштабное расширение каталога до 10,150+ фильмов и сериалов, отключено автодобавление в избранное, отзывы Кинопоиск/TMDb, защита от подмены похожих фильмов"
+        "releaseNotes": "v2.8.93: Мгновенное открытие карточек за 1 мс, синхронизация с Turso Cloud, устранение таймаутов поиска и загрузки «Одни из нас», повторные попытки при пробуждении сервера"
     }
 }

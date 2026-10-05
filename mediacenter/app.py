@@ -908,28 +908,28 @@ def get_proxied_image(url: str = Query(...)):
 def check_updates() -> Dict[str, Any]:
     showhub_fallback = {
         "success": True,
-        "version_name": "2.8.92",
-        "version_code": 151,
+        "version_name": "2.8.93",
+        "version_code": 152,
         "force_update": True,
         "min_version_code": 108,
         "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
         "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
-        "changelog": "v2.8.92: Кнопка багрепорта в карточке, отключено автодобавление в избранное, отзывы Кинопоиск/TMDb, пополнение каталога (1550+ фильмов и сериалов включая Одни из нас), защита от подмены похожих фильмов.",
+        "changelog": "v2.8.93: Мгновенное открытие карточек за 1 мс, синхронизация с Turso Cloud, устранение таймаутов поиска и загрузки «Одни из нас», повторные попытки при пробуждении сервера.",
         "tv": {
-            "version_name": "2.8.92",
-            "version_code": 151,
+            "version_name": "2.8.93",
+            "version_code": 152,
             "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
             "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk"
         },
         "mobile": {
-            "version_name": "2.8.92",
-            "version_code": 151,
+            "version_name": "2.8.93",
+            "version_code": 152,
             "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-Mobile.apk",
             "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-Mobile.apk"
         },
         "pc": {
-            "version_name": "2.8.92",
-            "version_code": 151,
+            "version_name": "2.8.93",
+            "version_code": 152,
             "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-PC.zip"
         }
     }
@@ -947,7 +947,7 @@ def check_updates() -> Dict[str, Any]:
                     data = json.load(f)
                     if isinstance(data, dict):
                         merged = dict(data)
-                        if "tv" not in merged or not isinstance(merged.get("tv"), dict) or merged["tv"].get("version_code", 0) < 151:
+                        if "tv" not in merged or not isinstance(merged.get("tv"), dict) or merged["tv"].get("version_code", 0) < 152:
                             merged.update(showhub_fallback)
                             for k in ["alert_screensaver", "alert_mobile", "alert_screensaver_premium", "alert_mobile_premium", "ads"]:
                                 if k in data:

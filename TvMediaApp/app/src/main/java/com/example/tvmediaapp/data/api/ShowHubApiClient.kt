@@ -136,22 +136,35 @@ object ShowHubApiClient {
     suspend fun searchMovies(query: String, type: String? = null): List<Movie> = withContext(Dispatchers.IO) {
         val movies = mutableListOf<Movie>()
         if (query.trim().isEmpty()) return@withContext movies
-        try {
-            val q = URLEncoder.encode(query.trim(), "UTF-8")
-            val typeParam = if (!type.isNullOrBlank()) "&type=" + URLEncoder.encode(type, "UTF-8") else ""
-            val url = URL("$activeServerBase/api/search?q=$q$typeParam")
-            val conn = url.openConnection() as HttpURLConnection
-            conn.connectTimeout = 12000
-            conn.readTimeout = 18000
-            prepareConnection(conn)
-            conn.connect()
-            if (conn.responseCode == 200) {
-                val body = BufferedReader(InputStreamReader(conn.inputStream, "UTF-8")).use { it.readText() }
-                val arr = JSONArray(body)
-                parseMoviesJson(arr, movies, isRanked = false)
+        val q = URLEncoder.encode(query.trim(), "UTF-8")
+        val typeParam = if (!type.isNullOrBlank()) "&type=" + URLEncoder.encode(type, "UTF-8") else ""
+        val url = URL("$activeServerBase/api/search?q=$q$typeParam")
+
+        for (attempt in 0..2) {
+            try {
+                val conn = url.openConnection() as HttpURLConnection
+                conn.connectTimeout = 15000
+                conn.readTimeout = 20000
+                prepareConnection(conn)
+                conn.connect()
+                val code = conn.responseCode
+                if (code == 200) {
+                    val body = BufferedReader(InputStreamReader(conn.inputStream, "UTF-8")).use { it.readText() }
+                    val arr = JSONArray(body)
+                    parseMoviesJson(arr, movies, isRanked = false)
+                    break
+                } else if ((code == 503 || code == 502 || code == 504) && attempt < 2) {
+                    // Server is waking up from cloud hibernation, backoff and retry
+                    kotlinx.coroutines.delay(2000L * (attempt + 1))
+                    continue
+                }
+            } catch (e: Exception) {
+                if (attempt < 2) {
+                    kotlinx.coroutines.delay(2000L * (attempt + 1))
+                    continue
+                }
+                e.printStackTrace()
             }
-        } catch (e: Exception) {
-            e.printStackTrace()
         }
         movies
     }
@@ -245,14 +258,17 @@ object ShowHubApiClient {
             val kpParam = if (movie.kinopoiskId.isNotBlank()) movie.kinopoiskId else if (movie.source == "bazon" && movie.id.all { it.isDigit() }) movie.id else ""
             val kpQuery = if (kpParam.isNotBlank()) "&kp_id=$kpParam" else ""
             val urlStr = "$activeServerBase/api/media/details?source=$srcParam&media_id=$encId&title=$q&original_title=$origQ&year=${movie.releaseYear}&is_series=${if (movie.isSeries) "1" else "0"}$kpQuery"
-            val conn = URL(urlStr).openConnection() as HttpURLConnection
-            conn.connectTimeout = 10000
-            conn.readTimeout = 15000
-            prepareConnection(conn)
-            conn.connect()
-            if (conn.responseCode == 200) {
-                val body = BufferedReader(InputStreamReader(conn.inputStream, "UTF-8")).use { it.readText() }
-                val obj = JSONObject(body)
+            for (attempt in 0..1) {
+                try {
+                    val conn = URL(urlStr).openConnection() as HttpURLConnection
+                    conn.connectTimeout = 12000
+                    conn.readTimeout = 15000
+                    prepareConnection(conn)
+                    conn.connect()
+                    val code = conn.responseCode
+                    if (code == 200) {
+                        val body = BufferedReader(InputStreamReader(conn.inputStream, "UTF-8")).use { it.readText() }
+                        val obj = JSONObject(body)
 
                 val seasonsList = mutableListOf<SeasonInfo>()
                 val sArr = obj.optJSONArray("seasons")
@@ -455,6 +471,18 @@ object ShowHubApiClient {
                     kinopoiskId = obj.optString("kinopoisk_id", movie.kinopoiskId).let { if (it.isBlank() || it.equals("null", ignoreCase = true)) movie.kinopoiskId.takeIf { k -> !k.equals("null", ignoreCase = true) } ?: "" else it },
                     source = if (movie.source.isNotBlank()) movie.source else obj.optString("source_name", obj.optString("source", ""))
                 )
+                    } else if ((code == 503 || code == 502 || code == 504) && attempt == 0) {
+                        kotlinx.coroutines.delay(2000)
+                        continue
+                    }
+                } catch (e: Exception) {
+                    if (attempt == 0) {
+                        kotlinx.coroutines.delay(2000)
+                        continue
+                    }
+                    e.printStackTrace()
+                }
+                break
             }
         } catch (e: Exception) {
             e.printStackTrace()

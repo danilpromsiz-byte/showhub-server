@@ -1810,6 +1810,93 @@ def _fetch_media_details(
     if not resolved_kp and source in ["bazon", "videocdn", "delivembd", "collaps", "kinopoisk", "kp"] and media_id.isdigit():
         resolved_kp = media_id
 
+    # 0. Primary: check local media registry on local machine disk
+    reg_item = None
+    try:
+        if media_id and not str(media_id).startswith("http"):
+            reg_item = media_registry.get_item(media_id)
+        if not reg_item and (clean_title or title or resolved_kp):
+            reg_item = media_registry.find_item(title=clean_title or title, year=year_int, kp_id=resolved_kp, is_series=is_ser_bool)
+        if reg_item and is_ser_bool is not None and bool(reg_item.get("is_series")) != is_ser_bool:
+            reg_item = None
+    except Exception as e:
+        logger.debug(f"Local registry lookup error: {e}")
+
+    # 0b. If reg_item missing translators/seasons, check Turso Cloud
+    if not reg_item or (is_ser_bool and not reg_item.get("seasons")) or (not reg_item.get("translators") and not reg_item.get("description")):
+        try:
+            from mediacenter.core.turso_manager import turso_manager
+            if turso_manager.is_configured():
+                cloud_ids = [str(media_id)]
+                if str(media_id).startswith("tmdb_"):
+                    cloud_ids.append(str(media_id).replace("tmdb_tv_", "").replace("tmdb_", ""))
+                if resolved_kp:
+                    cloud_ids.append(str(resolved_kp))
+                q_marks = ",".join(["?"] * len(cloud_ids))
+                cloud_res = turso_manager._post_pipeline([{
+                    "sql": f"SELECT * FROM media_items WHERE id IN ({q_marks}) OR tmdb_id IN ({q_marks}) OR kinopoisk_id IN ({q_marks}) LIMIT 1;",
+                    "args": cloud_ids * 3
+                }])
+                if cloud_res and "results" in cloud_res and cloud_res["results"]:
+                    first_res = cloud_res["results"][0]
+                    if first_res.get("type") == "ok" and "response" in first_res:
+                        r_data = first_res["response"].get("result", {})
+                        cols = [c["name"] for c in r_data.get("cols", [])]
+                        rows = r_data.get("rows", [])
+                        if rows:
+                            row_vals = rows[0]
+                            c_dict = {}
+                            for col_name, val_dict in zip(cols, row_vals):
+                                v = val_dict.get("value")
+                                if val_dict.get("type") == "null": v = None
+                                elif val_dict.get("type") == "integer" and v is not None: v = int(v)
+                                c_dict[col_name] = v
+                            t_reg = media_registry._row_to_dict(c_dict) if hasattr(media_registry, "_row_to_dict") else c_dict
+                            if t_reg.get("translators") or t_reg.get("seasons"):
+                                reg_item = t_reg
+                                try:
+                                    media_registry.upsert_item(reg_item)
+                                except Exception:
+                                    pass
+        except Exception as e:
+            logger.debug(f"Turso details lookup error: {e}")
+
+    # FAST-PATH: If registry (local or cloud) has complete data (translators, description, seasons if series):
+    # return immediately in <2ms!
+    if reg_item:
+        has_trans = bool(reg_item.get("translators"))
+        has_seasons = bool(reg_item.get("seasons")) if is_ser_bool else True
+        has_desc = bool(reg_item.get("description"))
+        if (has_trans or not is_ser_bool) and has_seasons and has_desc:
+            res_item = dict(reg_item)
+            res_item["media_id"] = media_id
+            res_item["source_name"] = source
+            if not res_item.get("actors_list") and res_item.get("cast"):
+                res_item["actors_list"] = [
+                    {"id": f"act_{idx+1}", "name": c.get("name", ""), "role": c.get("character", "В главных ролях") or "В главных ролях", "photo": c.get("photo", "")}
+                    for idx, c in enumerate(res_item["cast"][:12])
+                ]
+            elif not res_item.get("actors_list") and res_item.get("actors"):
+                raw_a = str(res_item.get("actors") or "")
+                res_item["actors_list"] = [
+                    {"id": f"act_{idx+1}", "name": n.strip(), "role": "В главных ролях", "photo": ""}
+                    for idx, n in enumerate(re.split(r'[,;•\n/]', raw_a)) if n.strip()
+                ][:10]
+            if not res_item.get("directors_list") and res_item.get("director"):
+                raw_d = str(res_item.get("director") or "")
+                res_item["directors_list"] = [
+                    {"id": f"dir_{idx+1}", "name": n.strip(), "role": "Режиссёр", "photo": ""}
+                    for idx, n in enumerate(re.split(r'[,;•\n/]', raw_d)) if n.strip()
+                ][:5]
+            if not res_item.get("sources_info"):
+                res_item["sources_info"] = []
+                if res_item.get("translators"):
+                    s_sources = set(t.get("source") for t in res_item["translators"] if t.get("source"))
+                    for s_s in s_sources:
+                        res_item["sources_info"].append({"source": s_s, "name": s_s.capitalize(), "episodes_count": 0, "seasons_episodes": {}})
+            _details_cache[cache_key] = (now_ts, res_item)
+            return res_item
+
     cached_kodik_items = []
     if clean_title or resolved_kp:
         try:
@@ -1840,18 +1927,6 @@ def _fetch_media_details(
 
     if resolved_kp:
         details["kinopoisk_id"] = str(resolved_kp)
-
-    # 0. Primary: check local media registry on local machine disk
-    reg_item = None
-    try:
-        if media_id and not str(media_id).startswith("http"):
-            reg_item = media_registry.get_item(media_id)
-        if not reg_item and (clean_title or title or resolved_kp):
-            reg_item = media_registry.find_item(title=clean_title or title, year=year_int, kp_id=resolved_kp, is_series=is_ser_bool)
-        if reg_item and is_ser_bool is not None and bool(reg_item.get("is_series")) != is_ser_bool:
-            reg_item = None
-    except Exception as e:
-        logger.debug(f"Local registry lookup error: {e}")
 
     if reg_item:
         if not resolved_kp and reg_item.get("kinopoisk_id"):
@@ -2022,97 +2097,35 @@ def _fetch_media_details(
 
     # 2. Fetch HDRezka details (translators, seasons & episodes, high-res poster)
     rz_found = False  # Track whether HDRezka actually returned valid data
-    try:
-        rz_id = media_id if (source == "hdrezka" and media_id.startswith("http")) else None
-        if not rz_id and clean_title:
-            rz_items = hdrezka.search(clean_title)
-            rz_match = find_best_match(rz_items, year_int, is_ser_bool, target_title=clean_title)
-            if rz_match:
-                rz_id = rz_match.id
-        if rz_id:
-            rz_det = hdrezka.get_media_details(rz_id)
-            if rz_det:
-                rz_is_ser = bool(rz_det.get("is_series")) or len(rz_det.get("seasons") or []) > 0
-                if is_ser_bool is not None and rz_is_ser != is_ser_bool:
-                    rz_det = None
-            if rz_det:
-                rz_found = True
-                if rz_det.get("poster") and (not details.get("poster") or not str(details["poster"]).startswith("http")):
-                    details["poster"] = rz_det["poster"]
-                if rz_det.get("translators"):
-                    details["translators"] = rz_det["translators"]
-                if rz_det.get("seasons") and is_ser_bool is not False:
-                    details["seasons"] = rz_det["seasons"]
-                    details["is_series"] = True
-                if not details["description"] and rz_det.get("description"):
-                    details["description"] = rz_det["description"]
-                if not details["rating_kp"] and rz_det.get("rating_kp"):
-                    details["rating_kp"] = rz_det["rating_kp"]
-                    details["vote_num_kp"] = rz_det.get("vote_num_kp")
-                if not details["rating_imdb"] and rz_det.get("rating_imdb"):
-                    details["rating_imdb"] = rz_det["rating_imdb"]
-                    details["vote_num_imdb"] = rz_det.get("vote_num_imdb")
-                rz_country = rz_det.get("country") or ""
-                cur_country = str(details.get("country") or "")
-                cur_actors = str(details.get("actors") or "")
-                asian_markers = ["китай", "япони", "коре", "тайван", "гонконг", "тайланд"]
-                is_cur_asian = any(a in cur_country.lower() for a in asian_markers) or any(s in cur_actors.lower() for s in ["чэнь", "тун яо", "линь", "юань", "пань", "ван ян", "сюй", "дун", "чжан", "ким", "пак", "минхо", "хайси"])
-                is_rz_asian = any(a in rz_country.lower() for a in asian_markers) if rz_country else False
-
-                if is_cur_asian and not is_rz_asian:
-                    # Keep authentic Asian metadata, do not overwrite with non-Asian HDRezka metadata (e.g. Ukraine, USA)
-                    pass
-                else:
-                    if not details["director"]:
-                        if rz_det.get("director"):
-                            details["director"] = rz_det["director"]
-                    if not details["actors"]:
-                        if rz_det.get("actors"):
-                            details["actors"] = rz_det["actors"]
-                    if not details["genres"] and rz_det.get("genres"):
-                        details["genres"] = rz_det["genres"]
-                    if not details["country"] and rz_country:
-                        details["country"] = rz_country
-                if rz_det.get("episodes_schedule"):
-                    details["episodes_schedule"] = rz_det["episodes_schedule"]
-
-                # If TMDb was not resolved, retry using HDRezka's original title
-                if (not details.get("actors") or not details.get("cast")) and rz_det.get("original_title") and not is_cur_asian:
-                    tmdb_retry = tmdb.search_and_enrich(title=clean_title, year=year_int, is_series=is_ser_bool, original_title=rz_det["original_title"])
-                    if tmdb_retry and tmdb_retry.get("actors"):
-                        details["actors"] = tmdb_retry["actors"]
-                        details["cast"] = tmdb_retry.get("cast", [])
-                        details["director"] = tmdb_retry.get("director")
-                        details["directors_list"] = tmdb_retry.get("directors_list", [])
-                        details["country"] = tmdb_retry.get("country")
-    except Exception:
-        pass
-
-    # 3. Multi-Source Translator & Season Aggregation across HDRezka, Filmix, and Kodik
-    def _norm_t_name(n: str) -> str:
-        s = n.lower().strip()
-        for p in ["то ", "студия ", "озвучка ", "дубляж ", "профессиональный ", "многоголосый ", "авторский ", "русский ", "закадровый "]:
-            s = s.replace(p, "")
-        return re.sub(r'[^a-zA-Zа-яА-Я0-9]', '', s)
-
-    rz_max_eps = max((len(s.get("episodes", [])) for s in details.get("seasons", [])), default=0)
-    # Tag existing HDRezka translators
-    for t in details.get("translators", []):
-        if not t.get("source"):
-            t["source"] = "hdrezka"
-        if not t.get("episodes_count") or t["episodes_count"] == 0:
-            t["episodes_count"] = rz_max_eps
-
-    trans_map: Dict[str, Dict[str, Any]] = {}
-    for t in details.get("translators", []):
-        k = _norm_t_name(t.get("name", ""))
-        trans_map[k] = t
-
-    # Merge Filmix, Collaps (delivembd), VideoCDN, and AniLibria availability & audio tracks in parallel
+    # 2 & 3. Multi-Source Aggregation across HDRezka, Filmix, Collaps, VideoCDN, AniLibria in PARALLEL
+    rz_found = False
+    rz_id = None
+    rz_det = None
     fx_available = False
     collaps_available = False
     videocdn_available = False
     anilibria_available = False
+
+    def _probe_hdrezka_details():
+        nonlocal rz_id
+        try:
+            cand_id = media_id if (source == "hdrezka" and media_id.startswith("http")) else None
+            if not cand_id and clean_title:
+                rz_items = hdrezka.search(clean_title)
+                rz_match = find_best_match(rz_items, year_int, is_ser_bool, target_title=clean_title)
+                if rz_match:
+                    cand_id = rz_match.id
+            if cand_id:
+                rz_id = cand_id
+                det = hdrezka.get_media_details(cand_id)
+                if det:
+                    rz_is_ser = bool(det.get("is_series")) or len(det.get("seasons") or []) > 0
+                    if is_ser_bool is not None and rz_is_ser != is_ser_bool:
+                        return None
+                    return det
+        except Exception:
+            pass
+        return None
 
     def _probe_filmix_details():
         nonlocal fx_available
@@ -2175,40 +2188,89 @@ def _fetch_media_details(
         it = norm(item_title)
         if not qt or not it:
             return False
-        if qt == it:
-            return True
-        if qt in it:
+        if qt == it or qt in it:
             return True
         if it in qt and len(it) >= 0.75 * len(qt):
             return True
         return False
 
-    probe_pool = ThreadPoolExecutor(max_workers=10)
+    def _norm_t_name(n: str) -> str:
+        s = n.lower().strip()
+        for p in ["то ", "студия ", "озвучка ", "дубляж ", "профессиональный ", "многоголосый ", "авторский ", "русский ", "закадровый "]:
+            s = s.replace(p, "")
+        return re.sub(r'[^a-zA-Zа-яА-Я0-9]', '', s)
+
+    trans_map: Dict[str, Dict[str, Any]] = {}
+    for t in details.get("translators", []):
+        k = _norm_t_name(t.get("name", ""))
+        trans_map[k] = t
+
+    probe_pool = ThreadPoolExecutor(max_workers=8)
     try:
+        rz_future = probe_pool.submit(_probe_hdrezka_details)
         fx_future = probe_pool.submit(_probe_filmix_details)
         col_future = probe_pool.submit(_probe_collaps_details)
         vc_future = probe_pool.submit(_probe_videocdn_details)
         al_future = probe_pool.submit(_probe_anilibria_details)
-        rz_tr_futures = []
-        if details.get("is_series") and details.get("translators") and rz_id:
-            def _enrich_rz_tr(tr_item):
-                t_id = tr_item.get("id")
-                if t_id and str(t_id).isdigit() and not str(t_id).startswith("kodik_"):
-                    try:
-                        eps = hdrezka.get_episodes(rz_id, str(t_id))
-                        if eps:
-                            s_eps = {}
-                            for s in eps:
-                                s_num = s.get("season_id") or s.get("season_number") or 1
-                                s_eps[int(s_num)] = len(s.get("episodes", []))
-                            tr_item["seasons_episodes"] = s_eps
-                            tr_item["episodes_count"] = max(s_eps.values(), default=0)
-                    except Exception:
-                        pass
-            for tr_it in details["translators"][:6]:
-                rz_tr_futures.append(probe_pool.submit(_enrich_rz_tr, tr_it))
 
-        concurrent.futures.wait([fx_future, col_future, vc_future, al_future] + rz_tr_futures, timeout=3.5)
+        concurrent.futures.wait([rz_future, fx_future, col_future, vc_future, al_future], timeout=2.5)
+
+        if rz_future.done():
+            try:
+                rz_det = rz_future.result(timeout=0.05)
+                if rz_det:
+                    rz_found = True
+                    if rz_det.get("poster") and (not details.get("poster") or not str(details["poster"]).startswith("http")):
+                        details["poster"] = rz_det["poster"]
+                    if rz_det.get("translators"):
+                        for t in rz_det["translators"]:
+                            if not t.get("source"):
+                                t["source"] = "hdrezka"
+                            k = _norm_t_name(t.get("name", ""))
+                            if k not in trans_map:
+                                trans_map[k] = t
+                                details["translators"].append(t)
+                    if rz_det.get("seasons") and is_ser_bool is not False:
+                        details["seasons"] = rz_det["seasons"]
+                        details["is_series"] = True
+                    if not details["description"] and rz_det.get("description"):
+                        details["description"] = rz_det["description"]
+                    if not details["rating_kp"] and rz_det.get("rating_kp"):
+                        details["rating_kp"] = rz_det["rating_kp"]
+                        details["vote_num_kp"] = rz_det.get("vote_num_kp")
+                    if not details["rating_imdb"] and rz_det.get("rating_imdb"):
+                        details["rating_imdb"] = rz_det["rating_imdb"]
+                        details["vote_num_imdb"] = rz_det.get("vote_num_imdb")
+                    rz_country = rz_det.get("country") or ""
+                    cur_country = str(details.get("country") or "")
+                    cur_actors = str(details.get("actors") or "")
+                    asian_markers = ["китай", "япони", "коре", "тайван", "гонконг", "тайланд"]
+                    is_cur_asian = any(a in cur_country.lower() for a in asian_markers) or any(s in cur_actors.lower() for s in ["чэнь", "тун яо", "линь", "юань", "пань", "ван ян", "сюй", "дун", "чжан", "ким", "пак", "минхо", "хайси"])
+                    is_rz_asian = any(a in rz_country.lower() for a in asian_markers) if rz_country else False
+
+                    if not (is_cur_asian and not is_rz_asian):
+                        if not details["director"] and rz_det.get("director"):
+                            details["director"] = rz_det["director"]
+                        if not details["actors"] and rz_det.get("actors"):
+                            details["actors"] = rz_det["actors"]
+                        if not details["genres"] and rz_det.get("genres"):
+                            details["genres"] = rz_det["genres"]
+                        if not details["country"] and rz_country:
+                            details["country"] = rz_country
+                    if rz_det.get("episodes_schedule"):
+                        details["episodes_schedule"] = rz_det["episodes_schedule"]
+
+                    if (not details.get("actors") or not details.get("cast")) and rz_det.get("original_title") and not is_cur_asian:
+                        tmdb_retry = tmdb.search_and_enrich(title=clean_title, year=year_int, is_series=is_ser_bool, original_title=rz_det["original_title"])
+                        if tmdb_retry and tmdb_retry.get("actors"):
+                            details["actors"] = tmdb_retry["actors"]
+                            details["cast"] = tmdb_retry.get("cast", [])
+                            details["director"] = tmdb_retry.get("director")
+                            details["directors_list"] = tmdb_retry.get("directors_list", [])
+                            details["country"] = tmdb_retry.get("country")
+            except Exception:
+                pass
+
         if fx_future.done():
             try:
                 fx_tracks = fx_future.result(timeout=0.05)
@@ -2656,9 +2718,12 @@ def _fetch_media_details(
                 if not any(tu in str(t.get("name", "")).lower() for tu in turkish_studios)
             ]
 
-    # Auto-enrich registry on local machine disk
+    # Auto-enrich registry on local machine disk & Turso cloud in background
     try:
         media_registry.upsert_item(details)
+        from mediacenter.core.turso_manager import turso_manager
+        if turso_manager.is_configured():
+            threading.Thread(target=turso_manager.push_items_batch, args=([details],), daemon=True).start()
     except Exception:
         pass
 

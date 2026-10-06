@@ -42,6 +42,29 @@ object TorrServerManager {
         }
     }
 
+    suspend fun ensureServerAvailable(context: Context, host: String = DEFAULT_TORRSERVE_HOST): Boolean {
+        if (checkIsAlive(host)) return true
+
+        // 1. Try launching embedded TorrServer inside this app
+        if (host.contains("127.0.0.1") || host.contains("localhost")) {
+            if (EmbeddedTorrServer.isBinaryAvailable(context)) {
+                val ok = EmbeddedTorrServer.ensureRunning(context)
+                if (ok) return true
+            }
+        }
+
+        // 2. If external TorrServer app is installed, try waking it up
+        if (isTorrServerInstalled(context)) {
+            startTorrServerApp(context)
+            for (i in 1..10) {
+                kotlinx.coroutines.delay(200)
+                if (checkIsAlive(host)) return true
+            }
+        }
+
+        return false
+    }
+
     fun isTorrServerInstalled(context: Context): Boolean {
         val pm = context.packageManager
         for (pkg in TORRSERVE_PACKAGES) {

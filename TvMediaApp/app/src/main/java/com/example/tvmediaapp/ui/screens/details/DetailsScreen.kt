@@ -743,6 +743,11 @@ fun DetailsScreen(
                         val mergedAll = (sorted + streamOptions).distinctBy { it.url }
                             .sortedWith(compareByDescending<StreamOption> { isDirectVideoStream(it.url) }.thenByDescending { getStreamQualityRank(it.quality) })
                         streamOptions = mergedAll
+                        if (mergedAll.any { it.source.contains("torrent", ignoreCase = true) || it.url.contains(":8090") }) {
+                            coroutineScope.launch(Dispatchers.IO) {
+                                TorrServerManager.ensureServerAvailable(context, TorrServerManager.getTorrHost(context))
+                            }
+                        }
                     }
                 }
             } catch (e: Exception) {
@@ -1155,7 +1160,7 @@ fun DetailsScreen(
                     } else matched.url
 
                     if (isTorrent) {
-                        val isAlive = TorrServerManager.checkIsAlive(torrHost)
+                        val isAlive = TorrServerManager.ensureServerAvailable(context, torrHost)
                         if (!isAlive) {
                             pendingTorrStream = matched.copy(url = adjustedUrl)
                             showTorrServerDialog = true

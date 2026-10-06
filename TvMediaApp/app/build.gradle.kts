@@ -1,3 +1,8 @@
+import java.io.File
+import java.io.FileOutputStream
+import java.io.InputStream
+import java.net.URL
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -11,8 +16,8 @@ android {
         applicationId = "com.showhub.tv"
         minSdk = 21
         targetSdk = 34
-        versionCode = 155
-        versionName = "2.8.96"
+        versionCode = 156
+        versionName = "2.8.97"
 
         vectorDrawables {
             useSupportLibrary = true
@@ -83,6 +88,10 @@ android {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
+        jniLibs {
+            useLegacyPackaging = true
+            keepDebugSymbols.add("**/libtorrserver.so")
+        }
     }
 }
 
@@ -120,3 +129,35 @@ dependencies {
     // Coroutines
     implementation(libs.kotlinx.coroutines.android)
 }
+
+tasks.register("ensureTorrServerLibs") {
+    doLast {
+        val baseDir = file("src/main/jniLibs")
+        val libs = mapOf(
+            "arm64-v8a" to "https://github.com/YouROK/TorrServer/releases/download/MatriX.145.2/TorrServer-android-arm64",
+            "armeabi-v7a" to "https://github.com/YouROK/TorrServer/releases/download/MatriX.145.2/TorrServer-android-arm7"
+        )
+        libs.forEach { (abi, urlStr) ->
+            val targetDir = File(baseDir, abi)
+            targetDir.mkdirs()
+            val targetFile = File(targetDir, "libtorrserver.so")
+            if (!targetFile.exists() || targetFile.length() < 10_000_000L) {
+                println("Downloading $abi TorrServer binary...")
+                val url = URL(urlStr)
+                val inStream: InputStream = url.openStream()
+                inStream.use { input ->
+                    val outStream = FileOutputStream(targetFile)
+                    outStream.use { output ->
+                        input.copyTo(output)
+                    }
+                }
+                println("Downloaded $abi successfully!")
+            }
+        }
+    }
+}
+
+tasks.matching { it.name.startsWith("pre") && it.name.endsWith("Build") }.configureEach {
+    dependsOn("ensureTorrServerLibs")
+}
+

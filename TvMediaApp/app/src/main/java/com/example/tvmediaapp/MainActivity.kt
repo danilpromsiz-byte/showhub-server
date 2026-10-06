@@ -207,6 +207,11 @@ class MainActivity : ComponentActivity() {
             true
         }
     }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        com.example.tvmediaapp.data.torrserver.EmbeddedTorrServer.stop()
+    }
 }
 
 @OptIn(ExperimentalTvMaterial3Api::class, androidx.compose.ui.ExperimentalComposeUiApi::class)

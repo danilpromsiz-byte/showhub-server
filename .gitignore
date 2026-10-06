@@ -21,6 +21,7 @@ TvMediaApp/**/build/
 TvMediaApp/local.properties
 TvMediaApp/.idea/
 TvMediaApp/**/*.iml
+TvMediaApp/app/src/main/jniLibs/
 pc-client/bin/
 pc-client/obj/
 pc-client/publish/

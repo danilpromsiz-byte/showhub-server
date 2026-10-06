@@ -908,10 +908,10 @@ def get_proxied_image(url: str = Query(...)):
 def check_updates() -> Dict[str, Any]:
     showhub_fallback = {
         "success": True,
-        "version_name": "2.8.96",
-        "version_code": 155,
-        "versionName": "2.8.96",
-        "versionCode": 155,
+        "version_name": "2.8.97",
+        "version_code": 156,
+        "versionName": "2.8.97",
+        "versionCode": 156,
         "force_update": False,
         "forceUpdate": False,
         "min_version_code": 70,
@@ -919,40 +919,40 @@ def check_updates() -> Dict[str, Any]:
         "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
         "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
         "apkUrl": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
-        "changelog": "v2.8.96: Воспроизведение 2K и 4K P2P торрентов через TorrServer (как в Zona): умный поиск раздач, авто-распознавание качества и HDR/DV, встроенный помощник запуска и 1-клик установки TorrServer MatriX (APK).",
-        "releaseNotes": "v2.8.96: Воспроизведение 2K и 4K P2P торрентов через TorrServer (как в Zona): умный поиск раздач, авто-распознавание качества и HDR/DV, встроенный помощник запуска и 1-клик установки TorrServer MatriX (APK).",
+        "changelog": "v2.8.97: Встроенный P2P-движок (полностью как в Zona) — никаких сторонних программ и серверов ставить не нужно! 2K и 4K торренты работают прямо из коробки в одном приложении ShowHub.",
+        "releaseNotes": "v2.8.97: Встроенный P2P-движок (полностью как в Zona) — никаких сторонних программ и серверов ставить не нужно! 2K и 4K торренты работают прямо из коробки в одном приложении ShowHub.",
         "tv": {
-            "version_name": "2.8.96",
-            "version_code": 155,
-            "versionName": "2.8.96",
-            "versionCode": 155,
+            "version_name": "2.8.97",
+            "version_code": 156,
+            "versionName": "2.8.97",
+            "versionCode": 156,
             "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
             "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
             "apkUrl": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
-            "changelog": "v2.8.96: Воспроизведение 2K и 4K P2P торрентов через TorrServer (как в Zona): умный поиск раздач, авто-распознавание качества и HDR/DV, встроенный помощник запуска и 1-клик установки TorrServer MatriX (APK).",
-            "releaseNotes": "v2.8.96: Воспроизведение 2K и 4K P2P торрентов через TorrServer (как в Zona): умный поиск раздач, авто-распознавание качества и HDR/DV, встроенный помощник запуска и 1-клик установки TorrServer MatriX (APK)."
+            "changelog": "v2.8.97: Встроенный P2P-движок (полностью как в Zona) — никаких сторонних программ и серверов ставить не нужно! 2K и 4K торренты работают прямо из коробки в одном приложении ShowHub.",
+            "releaseNotes": "v2.8.97: Встроенный P2P-движок (полностью как в Zona) — никаких сторонних программ и серверов ставить не нужно! 2K и 4K торренты работают прямо из коробки в одном приложении ShowHub."
         },
         "mobile": {
-            "version_name": "2.8.96",
-            "version_code": 155,
-            "versionName": "2.8.96",
-            "versionCode": 155,
+            "version_name": "2.8.97",
+            "version_code": 156,
+            "versionName": "2.8.97",
+            "versionCode": 156,
             "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-Mobile.apk",
             "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-Mobile.apk",
             "apkUrl": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-Mobile.apk",
-            "changelog": "v2.8.96: Воспроизведение 2K и 4K P2P торрентов через TorrServer (как в Zona): умный поиск раздач, авто-распознавание качества и HDR/DV, встроенный помощник запуска и 1-клик установки TorrServer MatriX (APK).",
-            "releaseNotes": "v2.8.96: Воспроизведение 2K и 4K P2P торрентов через TorrServer (как в Zona): умный поиск раздач, авто-распознавание качества и HDR/DV, встроенный помощник запуска и 1-клик установки TorrServer MatriX (APK)."
+            "changelog": "v2.8.97: Встроенный P2P-движок (полностью как в Zona) — никаких сторонних программ и серверов ставить не нужно! 2K и 4K торренты работают прямо из коробки в одном приложении ShowHub.",
+            "releaseNotes": "v2.8.97: Встроенный P2P-движок (полностью как в Zona) — никаких сторонних программ и серверов ставить не нужно! 2K и 4K торренты работают прямо из коробки в одном приложении ShowHub."
         },
         "pc": {
-            "version_name": "2.8.96",
-            "version_code": 155,
-            "versionName": "2.8.96",
-            "versionCode": 155,
+            "version_name": "2.8.97",
+            "version_code": 156,
+            "versionName": "2.8.97",
+            "versionCode": 156,
             "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-PC.zip",
             "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-PC.zip",
             "apkUrl": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-PC.zip",
-            "changelog": "v2.8.96: Воспроизведение 2K и 4K P2P торрентов через TorrServer (как в Zona): умный поиск раздач, авто-распознавание качества и HDR/DV, встроенный помощник запуска и 1-клик установки TorrServer MatriX (APK).",
-            "releaseNotes": "v2.8.96: Воспроизведение 2K и 4K P2P торрентов через TorrServer (как в Zona): умный поиск раздач, авто-распознавание качества и HDR/DV, встроенный помощник запуска и 1-клик установки TorrServer MatriX (APK)."
+            "changelog": "v2.8.97: Встроенный P2P-движок (полностью как в Zona) — никаких сторонних программ и серверов ставить не нужно! 2K и 4K торренты работают прямо из коробки в одном приложении ShowHub.",
+            "releaseNotes": "v2.8.97: Встроенный P2P-движок (полностью как в Zona) — никаких сторонних программ и серверов ставить не нужно! 2K и 4K торренты работают прямо из коробки в одном приложении ShowHub."
         }
     }
     try:

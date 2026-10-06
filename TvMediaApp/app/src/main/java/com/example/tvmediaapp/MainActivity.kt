@@ -425,10 +425,6 @@ fun TvAppNavHost(activity: MainActivity) {
                 val myCode = activity.getInstalledVersionCode()
                 val info = UpdateManager.checkUpdate(myCode)
                 if (info.hasUpdate && info.versionCode > myCode) {
-                    // Silently pre-download APK in background so install is instant with 0s wait
-                    coroutineScope.launch(Dispatchers.IO) {
-                        UpdateManager.predownloadUpdate(activity.applicationContext, info)
-                    }
                     if (info.isForceUpdate || isUserClick || info.versionCode != dismissedVersionCode) {
                         updateInfo = info
                     }
@@ -451,7 +447,7 @@ fun TvAppNavHost(activity: MainActivity) {
         }
     }
 
-    // Auto-check on launch with safety delay and periodic background check every 2 minutes
+    // Auto-check once on launch with safety delay
     LaunchedEffect(Unit) {
         delay(600)
         triggerUpdateCheck()
@@ -463,14 +459,6 @@ fun TvAppNavHost(activity: MainActivity) {
         ShowHubApiClient.ping(activity, activity.getInstalledVersionName(), isInstall = isNewInstallOrUpdate)
         if (isNewInstallOrUpdate) {
             actPrefs.edit().putInt("pref_last_ping_version_code", currentCode).apply()
-        }
-        // Removed duplicate 3-second delayed check — the 600ms check is sufficient.
-        // The periodic loop below will catch missed updates.
-        while (isActive) {
-            delay(120_000L) // every 2 minutes auto-check in background
-            if (updateInfo == null && !isDownloadingUpdate) {
-                triggerUpdateCheck()
-            }
         }
     }
 

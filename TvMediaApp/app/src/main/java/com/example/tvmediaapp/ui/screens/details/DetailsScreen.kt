@@ -274,8 +274,8 @@ fun DetailsScreen(
                     sKey.contains("collaps") || sKey.contains("delivembd") -> stSrc.contains("collaps") || stSrc.contains("delivembd") || st.url.contains("interkh") || st.url.contains("namy.ws")
                     sKey.contains("anilibria") -> stSrc.contains("anilibria") || st.url.contains("libria")
                     sKey.contains("bazon") -> stSrc.contains("bazon")
-                    sKey.contains("zona") -> stSrc.contains("zona") || stSrc.contains("torrent") || stSrc.contains("p2p")
-                    sKey.contains("торрент") || sKey.contains("torrent") -> stSrc.contains("torrent") || stSrc.contains("zona")
+                    sKey.contains("zona") -> stSrc.contains("zona") || stSrc.contains("torrent") || stSrc.contains("торрент") || stSrc.contains("p2p")
+                    sKey.contains("торрент") || sKey.contains("torrent") -> stSrc.contains("torrent") || stSrc.contains("торрент") || stSrc.contains("zona")
                     else -> stSrc.contains(sKey)
                 }
             }
@@ -300,7 +300,7 @@ fun DetailsScreen(
             val hasHls = if (srcStreams.isNotEmpty()) {
                 cleanStreams.any { isDirectVideoStream(it.url) }
             } else {
-                sKey.contains("rezka") || sKey.contains("filmix") || sKey.contains("collaps") || sKey.contains("anilibria")
+                sKey.contains("rezka") || sKey.contains("filmix") || sKey.contains("collaps") || sKey.contains("anilibria") || sKey.contains("zona") || sKey.contains("торрент") || sKey.contains("torrent")
             }
             val bestQ = run {
                 for (q in qualityOrder) {
@@ -515,8 +515,8 @@ fun DetailsScreen(
                     sKey.contains("videocdn") -> stSrc.contains("videocdn") || st.url.contains("allarknow") || st.url.contains("bayas") || st.url.contains("videoframe")
                     sKey.contains("anilibria") -> stSrc.contains("anilibria") || st.url.contains("libria")
                     sKey.contains("bazon") -> stSrc.contains("bazon")
-                    sKey.contains("zona") -> stSrc.contains("zona") || stSrc.contains("torrent") || stSrc.contains("p2p")
-                    sKey.contains("торрент") || sKey.contains("torrent") -> stSrc.contains("torrent") || stSrc.contains("zona")
+                    sKey.contains("zona") -> stSrc.contains("zona") || stSrc.contains("torrent") || stSrc.contains("торрент") || stSrc.contains("p2p")
+                    sKey.contains("торрент") || sKey.contains("torrent") -> stSrc.contains("torrent") || stSrc.contains("торрент") || stSrc.contains("zona")
                     else -> stSrc.contains(sKey)
                 }
             }
@@ -1209,11 +1209,6 @@ fun DetailsScreen(
         modifier = modifier
             .fillMaxSize()
             .background(screenBg)
-            .focusProperties {
-                if (isModalActive) {
-                    canFocus = false
-                }
-            }
     ) {
         // High-res backdrop — vivid but not overwhelming
         AsyncImage(

@@ -24,28 +24,24 @@ object MediaDiskCache {
         }
         cacheDir = base
 
-        val v158PurgeFlag = File(base, "v158_streams_purged.flag")
-        if (!v158PurgeFlag.exists()) {
-            try {
-                File(base, "streams").deleteRecursively()
-                File(base, "details").deleteRecursively()
-                v158PurgeFlag.createNewFile()
-            } catch (_: Exception) {}
-        }
-
-        val catFile = File(base, "catalog.json")
-        try {
-            if (catFile.exists()) {
-                val txt = catFile.readText()
-                if (txt.contains("Мастер и Маргарита") || txt.contains("1115471") || txt.contains("5244522") || txt.contains("Пожиратель звёзд") || txt.contains("/covers/") || txt.contains("/api/media/image") || txt.contains("test_unique_actor", ignoreCase = true) || txt.contains("Тестовый", ignoreCase = true)) {
-                    catFile.delete()
-                }
-            }
-        } catch (_: Exception) {}
-
         // Run heavy cleanup in background thread to avoid blocking main UI thread in onCreate
         Thread {
             try {
+                val v158PurgeFlag = File(base, "v158_streams_purged.flag")
+                if (!v158PurgeFlag.exists()) {
+                    File(base, "streams").deleteRecursively()
+                    File(base, "details").deleteRecursively()
+                    v158PurgeFlag.createNewFile()
+                }
+
+                val catFile = File(base, "catalog.json")
+                if (catFile.exists()) {
+                    val txt = catFile.readText()
+                    if (txt.contains("Мастер и Маргарита") || txt.contains("1115471") || txt.contains("5244522") || txt.contains("Пожиратель звёзд") || txt.contains("/covers/") || txt.contains("/api/media/image") || txt.contains("test_unique_actor", ignoreCase = true) || txt.contains("Тестовый", ignoreCase = true)) {
+                        catFile.delete()
+                    }
+                }
+
                 val dDir = File(base, "details")
                 if (dDir.exists()) {
                     dDir.listFiles()?.forEach { f ->

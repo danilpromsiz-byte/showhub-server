@@ -613,13 +613,13 @@ object ShowHubApiClient {
                                         uStr.contains(".m3u8") || uStr.contains(".mp4") || uStr.contains("voidboost") ||
                                         uStr.contains("/stream") || uStr.contains(":8090") || src.equals("torrents", ignoreCase = true)
                                 val sourceName = when {
+                                    src.equals("zona", ignoreCase = true) -> "Zona"
                                     sType == "torrent" || src.equals("torrents", ignoreCase = true) -> "Торренты (TorrServe)"
                                     src.equals("delivembd", ignoreCase = true) || src.equals("collaps", ignoreCase = true) -> "Collaps"
                                     src.equals("videocdn", ignoreCase = true) -> "VideoCDN"
                                     src.equals("hdrezka", ignoreCase = true) -> "HDRezka"
                                     src.equals("filmix", ignoreCase = true) -> "Filmix"
                                     src.equals("anilibria", ignoreCase = true) -> "AniLibria"
-                                    src.equals("zona", ignoreCase = true) -> "Zona"
                                     else -> src.replaceFirstChar { it.uppercase() }
                                 }
                                 if (isDirect) {

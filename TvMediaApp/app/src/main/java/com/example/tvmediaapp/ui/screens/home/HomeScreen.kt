@@ -204,11 +204,7 @@ fun HomeScreen(
                 .background(LocalBackgroundColor.current)
         ) {
             Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .focusProperties {
-                        if (isModalActive) canFocus = false
-                    }
+                modifier = Modifier.fillMaxSize()
             ) {
                 // TOP NAVIGATION BAR: Logo + Search + Favorites + History + Settings + Update
                 TvTopBar(

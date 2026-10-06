@@ -12,13 +12,15 @@ import java.util.concurrent.TimeUnit
 object CoilSetup {
     fun init(context: Context) {
         try {
-            val resetFlag = File(context.cacheDir, "coil_v158_clean.flag")
-            if (!resetFlag.exists()) {
+            Thread {
                 try {
-                    File(context.cacheDir, "image_cache").deleteRecursively()
-                    resetFlag.createNewFile()
+                    val resetFlag = File(context.cacheDir, "coil_v158_clean.flag")
+                    if (!resetFlag.exists()) {
+                        File(context.cacheDir, "image_cache").deleteRecursively()
+                        resetFlag.createNewFile()
+                    }
                 } catch (_: Exception) {}
-            }
+            }.start()
             val okHttpClient = OkHttpClient.Builder()
                 .connectTimeout(15, TimeUnit.SECONDS)
                 .readTimeout(20, TimeUnit.SECONDS)

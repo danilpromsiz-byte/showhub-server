@@ -146,8 +146,7 @@ fun isStubUrl(url: String): Boolean {
     val clean = url.lowercase().trim()
     return clean.contains("rhtie") || clean.contains("/1/4/4/4/3/4/3/") ||
            clean.contains("zrkms") || clean.contains("/1/5/3/6/4/2/4/") ||
-           clean.contains("trial") || clean.contains("promo") || clean.contains("teaser") ||
-           clean.contains("vibio.tv")
+           clean.contains("trial") || clean.contains("promo") || clean.contains("teaser")
 }
 
 fun isDirectVideoStream(url: String): Boolean {
@@ -863,6 +862,11 @@ private fun NativeExoPlayerScreen(
                 videoScalingMode = C.VIDEO_SCALING_MODE_SCALE_TO_FIT
                 if (currentStreamUrl.isNotBlank() && isDirectVideoStream(currentStreamUrl)) {
                     try {
+                        if (currentStreamUrl.contains(":8090") || currentStreamUrl.contains("/stream?link=")) {
+                            coroutineScope.launch(Dispatchers.IO) {
+                                com.example.tvmediaapp.data.torrserver.TorrServerManager.ensureServerAvailable(context)
+                            }
+                        }
                         setMediaItem(MediaItem.fromUri(currentStreamUrl))
                         if (startPositionMs > 1000L) {
                             seekTo(startPositionMs)
@@ -1502,14 +1506,19 @@ private fun NativeExoPlayerScreen(
         }
     }
 
-    // Fast watchdog: if initial stream loading stalls in STATE_BUFFERING for > 5.0 seconds, auto-fallback (only when not paused)
+    // Fast watchdog: if initial stream loading stalls in STATE_BUFFERING, auto-fallback (only when not paused)
     LaunchedEffect(currentStreamUrl, isBuffering, isPlaying, isUserPaused) {
         if (!isUserPaused && !userPausedAtomic.get() && isBuffering && !isPlaying && currentPosition < 1000L && currentStreamUrl.isNotBlank()) {
-            delay(5000L)
+            val isTorrStream = currentStreamUrl.contains(":8090") || currentStreamUrl.contains("/stream?link=")
+            val watchdogDelay = if (isTorrStream) 30000L else 6500L
+            if (isTorrStream) {
+                translatorNoticeBadge = "Подключение к BitTorrent раздаче (поиск пиров)..."
+            }
+            delay(watchdogDelay)
             if (!isUserPaused && !userPausedAtomic.get() && isBuffering && !isPlaying && currentPosition < 1000L) {
                 android.util.Log.w("PlayerScreen", "Fast watchdog: initial stream buffering timed out for $currentStreamUrl")
                 hasPlaybackError = true
-                playbackErrorMessage = "Поток не отвечает (таймаут)"
+                playbackErrorMessage = if (isTorrStream) "Раздача не отвечает (нет сидов или таймаут)" else "Поток не отвечает (таймаут)"
             }
         }
     }

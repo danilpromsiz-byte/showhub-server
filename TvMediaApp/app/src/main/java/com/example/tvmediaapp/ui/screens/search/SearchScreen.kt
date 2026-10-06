@@ -71,7 +71,9 @@ import com.example.tvmediaapp.ui.theme.LocalBackgroundColor
 import com.example.tvmediaapp.ui.theme.LocalFocusColor
 import com.example.tvmediaapp.ui.theme.TextGray
 import com.example.tvmediaapp.ui.theme.TextWhite
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.json.JSONArray
 
 @OptIn(ExperimentalTvMaterial3Api::class)
@@ -167,6 +169,55 @@ fun SearchScreen(
 
     var recentMovies by remember { mutableStateOf(loadRecentMovies()) }
 
+    LaunchedEffect(recentMovies) {
+        val needsEnrichment = recentMovies.filter { it.posterUrl.isBlank() || it.posterUrl.contains("noposter") || it.posterUrl.contains("no_image") }
+        if (needsEnrichment.isNotEmpty()) {
+            withContext(Dispatchers.IO) {
+                var modified = false
+                val updated = recentMovies.map { m ->
+                    if (m.posterUrl.isBlank() || m.posterUrl.contains("noposter") || m.posterUrl.contains("no_image")) {
+                        val real = ShowHubApiClient.resolveRealPoster(m.title, m.releaseYear, m.kinopoiskId)
+                        if (!real.isNullOrBlank()) {
+                            modified = true
+                            m.copy(posterUrl = real)
+                        } else m
+                    } else m
+                }
+                if (modified) {
+                    withContext(Dispatchers.Main) {
+                        recentMovies = updated
+                        val arr = JSONArray()
+                        updated.take(15).forEach { m ->
+                            val obj = org.json.JSONObject().apply {
+                                put("id", m.id)
+                                put("title", m.title)
+                                put("originalTitle", m.originalTitle)
+                                put("description", m.description)
+                                put("posterUrl", m.posterUrl)
+                                put("backdropUrl", m.backdropUrl)
+                                put("rating", m.rating)
+                                put("ratingKp", m.ratingKp)
+                                put("ratingImdb", m.ratingImdb)
+                                put("releaseYear", m.releaseYear)
+                                put("duration", m.duration)
+                                put("country", m.country)
+                                put("director", m.director)
+                                put("actors", m.actors)
+                                put("episodesInfo", m.episodesInfo)
+                                put("genres", JSONArray(m.genres))
+                                put("videoUrl", m.videoUrl)
+                                put("isSeries", m.isSeries)
+                                put("source", m.source)
+                            }
+                            arr.put(obj)
+                        }
+                        searchPrefs.edit().putString("clicked_movies", arr.toString()).apply()
+                    }
+                }
+            }
+        }
+    }
+
     fun saveRecentMovie(movie: Movie) {
         if (movie.id.isBlank() || movie.title.isBlank()) return
         val current = loadRecentMovies().toMutableList()
@@ -249,7 +300,24 @@ fun SearchScreen(
                 if (reqId != activeSearchId) return@launch
                 val res = if (byActor) ShowHubApiClient.searchByActor(q.trim()) else ShowHubApiClient.searchMovies(q.trim())
                 if (reqId == activeSearchId) {
-                    results = if (res.isNotEmpty()) res else localMatches
+                    val finalResults = if (res.isNotEmpty()) res else localMatches
+                    results = finalResults
+                    val missingPosters = finalResults.filter { it.posterUrl.isBlank() || it.posterUrl.contains("noposter") || it.posterUrl.contains("no_image") }
+                    if (missingPosters.isNotEmpty()) {
+                        launch(Dispatchers.IO) {
+                            val enriched = finalResults.map { m ->
+                                if (m.posterUrl.isBlank() || m.posterUrl.contains("noposter") || m.posterUrl.contains("no_image")) {
+                                    val real = ShowHubApiClient.resolveRealPoster(m.title, m.releaseYear, m.kinopoiskId)
+                                    if (!real.isNullOrBlank()) m.copy(posterUrl = real) else m
+                                } else m
+                            }
+                            if (reqId == activeSearchId) {
+                                withContext(Dispatchers.Main) {
+                                    results = enriched
+                                }
+                            }
+                        }
+                    }
                 }
             } catch (ce: kotlinx.coroutines.CancellationException) {
                 throw ce

@@ -35,7 +35,58 @@ object EmbeddedTorrServer {
     }
 
     private fun getBinaryFile(context: Context): File {
-        return File(context.applicationInfo.nativeLibraryDir, "libtorrserver.so")
+        val nativeLib = File(context.applicationInfo.nativeLibraryDir, "libtorrserver.so")
+        if (nativeLib.exists() && nativeLib.length() > 1_000_000L) {
+            return nativeLib
+        }
+
+        // Fallback: Check if extracted to filesDir
+        val extractedLib = File(context.filesDir, "libtorrserver.so")
+        if (extractedLib.exists() && extractedLib.length() > 1_000_000L) {
+            return extractedLib
+        }
+
+        // Fallback: extract from APK sourceDir directly if Android didn't extract native libs
+        try {
+            val apkFile = File(context.applicationInfo.sourceDir)
+            if (apkFile.exists()) {
+                java.util.zip.ZipFile(apkFile).use { zip ->
+                    val supportedAbis = android.os.Build.SUPPORTED_ABIS
+                    var candidateEntry: java.util.zip.ZipEntry? = null
+                    for (abi in supportedAbis) {
+                        val entry = zip.getEntry("lib/$abi/libtorrserver.so")
+                        if (entry != null) {
+                            candidateEntry = entry
+                            break
+                        }
+                    }
+                    if (candidateEntry == null) {
+                        candidateEntry = zip.getEntry("lib/armeabi-v7a/libtorrserver.so")
+                            ?: zip.getEntry("lib/arm64-v8a/libtorrserver.so")
+                    }
+
+                    if (candidateEntry != null) {
+                        val tempPart = File(context.filesDir, "libtorrserver.so.tmp")
+                        zip.getInputStream(candidateEntry).use { input ->
+                            java.io.FileOutputStream(tempPart).use { output ->
+                                input.copyTo(output)
+                            }
+                        }
+                        if (tempPart.length() > 1_000_000L) {
+                            tempPart.renameTo(extractedLib)
+                            extractedLib.setExecutable(true, false)
+                            extractedLib.setReadable(true, false)
+                            Log.i(TAG, "Successfully extracted libtorrserver.so (${extractedLib.length()} bytes) from APK")
+                            return extractedLib
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Fallback APK extraction failed: ${e.message}")
+        }
+
+        return nativeLib
     }
 
     suspend fun ensureRunning(context: Context): Boolean = withContext(Dispatchers.IO) {
@@ -63,11 +114,16 @@ object EmbeddedTorrServer {
 
         try {
             Log.i(TAG, "Starting embedded TorrServer from ${binary.absolutePath}...")
+            // Correct TorrServer arguments:
+            // -p: web server port (default 8090)
+            // -d: database and config dir path
+            // -k: don't kill server on signal
+            // (Note: -c is NOT a valid TorrServer flag; using it caused immediate crash exit code 2)
             val pb = ProcessBuilder(
                 binary.absolutePath,
                 "-p", PORT.toString(),
                 "-d", dataDir.absolutePath,
-                "-c", cacheDir.absolutePath
+                "-k"
             )
             pb.directory(dataDir)
             pb.redirectErrorStream(true)
@@ -80,20 +136,25 @@ object EmbeddedTorrServer {
             val proc = pb.start()
             serverProcess = proc
 
+            val capturedLogs = mutableListOf<String>()
+
             // Drain output stream in background so Go binary doesn't hang on full pipe
             scope.launch {
                 try {
                     val reader = BufferedReader(InputStreamReader(proc.inputStream))
                     var line: String?
                     while (reader.readLine().also { line = it } != null) {
-                        Log.d(TAG, "[TorrServer] $line")
+                        line?.let {
+                            if (capturedLogs.size < 50) capturedLogs.add(it)
+                            Log.d(TAG, "[TorrServer] $it")
+                        }
                     }
                 } catch (_: Exception) {}
             }
 
-            // Wait for /echo readiness (up to 4.5 seconds)
-            for (i in 1..30) {
-                delay(150)
+            // Wait for /echo readiness (up to 5 seconds)
+            for (i in 1..25) {
+                delay(200)
                 if (TorrServerManager.checkIsAlive(ECHO_URL)) {
                     Log.i(TAG, "Embedded TorrServer is online and responding to /echo!")
                     return@withContext true
@@ -101,15 +162,16 @@ object EmbeddedTorrServer {
                 // Check if process crashed early
                 try {
                     val exitVal = proc.exitValue()
-                    Log.e(TAG, "Embedded TorrServer process died immediately with code: $exitVal")
+                    Log.e(TAG, "Embedded TorrServer process died immediately with code: $exitVal. Logs: ${capturedLogs.joinToString(" | ")}")
                     return@withContext false
                 } catch (_: IllegalThreadStateException) {
                     // Process still running, continue waiting
                 }
             }
 
-            Log.w(TAG, "TorrServer started but timed out waiting for /echo")
-            return@withContext TorrServerManager.checkIsAlive(ECHO_URL)
+            val alive = TorrServerManager.checkIsAlive(ECHO_URL)
+            Log.i(TAG, "TorrServer check completed. Alive: $alive")
+            return@withContext alive
         } catch (e: Exception) {
             Log.e(TAG, "Exception starting embedded TorrServer", e)
             false

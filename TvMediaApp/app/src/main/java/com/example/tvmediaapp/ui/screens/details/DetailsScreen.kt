@@ -202,7 +202,7 @@ fun DetailsScreen(
         val sq = st.quality.lowercase()
         val resP = sq.substringBefore("(").trim()
         if (su.contains("rhtie") || su.contains("zrkms") || su.contains("/1/4/4/4/3/4/3/") || su.contains("/1/5/3/6/4/2/4/") ||
-            su.contains("trial") || su.contains("promo") || su.contains("teaser") || su.contains("vibio.tv")) return true
+            su.contains("trial") || su.contains("promo") || su.contains("teaser")) return true
         if ((st.source.contains("rezka", ignoreCase = true) || su.contains("voidboost")) &&
             (resP.contains("ultra") || resP.contains("4k") || resP.contains("2160") || resP.contains("1440") || resP.contains("premium") || resP.contains("vip") || resP.contains("sub") || st.isPremium)) return true
         val isFx = st.source.contains("filmix", ignoreCase = true) || su.contains("cdnsqu.com") || su.contains("werkecdn.me")
@@ -215,6 +215,8 @@ fun DetailsScreen(
 
     val availableSourcesInfo = remember(currentMovie.sources, currentMovie.audioTracks, currentMovie.seasons, selectedSeason, streamOptions, currentMovie.isSeries) {
         val detectedSources = linkedSetOf<String>()
+        val standardSources = listOf("Collaps", "Filmix", "HDRezka", "Zona", "Торренты (TorrServe)")
+        standardSources.forEach { detectedSources.add(it) }
         currentMovie.sources.forEach { if (it.name.isNotBlank()) detectedSources.add(it.name) }
         currentMovie.audioTracks.forEach { trk ->
             val s = trk.source.trim()
@@ -293,8 +295,9 @@ fun DetailsScreen(
                 }
             }
             val cleanStreams = srcStreams.filter { !isStreamStub(it) }
-            // Filter out sources that have neither playable clean streams nor audio tracks once streams are loaded
-            if (streamOptions.isNotEmpty() && cleanStreams.isEmpty() && !hasTracks) {
+            val isStandard = sKey.contains("rezka") || sKey.contains("filmix") || sKey.contains("collaps") || sKey.contains("zona") || sKey.contains("торрент") || sKey.contains("torrent")
+            // Never prune standard sources
+            if (streamOptions.isNotEmpty() && cleanStreams.isEmpty() && !hasTracks && !isStandard) {
                 return@mapNotNull null
             }
             val hasHls = if (srcStreams.isNotEmpty()) {
@@ -310,7 +313,15 @@ fun DetailsScreen(
                     }
                     if (match != null) return@run match.quality.replace(Regex("\\(.*?\\)"), "").trim()
                 }
-                cleanStreams.firstOrNull()?.quality?.replace(Regex("\\(.*?\\)"), "")?.trim() ?: ""
+                val firstClean = cleanStreams.firstOrNull()?.quality?.replace(Regex("\\(.*?\\)"), "")?.trim()
+                if (!firstClean.isNullOrBlank()) return@run firstClean
+                when {
+                    sKey.contains("zona") || sKey.contains("торрент") || sKey.contains("torrent") -> "4K"
+                    sKey.contains("filmix") -> if (isFilmixProPlus || isFilmixPro) "4K" else "1080p"
+                    sKey.contains("rezka") -> "1080p"
+                    sKey.contains("collaps") || sKey.contains("delivembd") -> "1080p"
+                    else -> ""
+                }
             }
             val epC = if (currentMovie.isSeries) {
                 currentMovie.sources.firstOrNull { it.name.equals(srcName, ignoreCase = true) }?.seasonsEpisodes?.get(selectedSeason)
@@ -501,18 +512,103 @@ fun DetailsScreen(
         return resP.contains(tq)
     }
 
+    val isContentSeries = currentMovie.isSeries || currentMovie.seasons.isNotEmpty() || selectedSeason > 1 || selectedEpisode > 1
+    var isSourceStreamsLoading by remember { mutableStateOf(false) }
+
+    LaunchedEffect(selectedSourceFilter, selectedSeason, selectedEpisode, selectedAudioId) {
+        if (selectedSourceFilter == "Все" || selectedSourceFilter.startsWith("Все")) return@LaunchedEffect
+        val sKey = selectedSourceFilter.lowercase()
+        val hasStreamsAlready = streamOptions.any { st ->
+            val stSrc = st.source.lowercase()
+            when {
+                sKey.contains("kodik") -> stSrc.contains("kodik")
+                sKey.contains("rezka") -> stSrc.contains("rezka")
+                sKey.contains("filmix") -> stSrc.contains("filmix")
+                sKey.contains("videocdn") -> stSrc.contains("videocdn") || st.url.contains("allarknow") || st.url.contains("bayas") || st.url.contains("videoframe")
+                sKey.contains("collaps") || sKey.contains("delivembd") -> stSrc.contains("collaps") || stSrc.contains("delivembd") || st.url.contains("interkh") || st.url.contains("namy.ws")
+                sKey.contains("anilibria") -> stSrc.contains("anilibria") || st.url.contains("libria")
+                sKey.contains("bazon") -> stSrc.contains("bazon")
+                sKey.contains("zona") -> stSrc.contains("zona") || stSrc.contains("torrent") || stSrc.contains("торрент") || stSrc.contains("p2p")
+                sKey.contains("торрент") || sKey.contains("torrent") -> stSrc.contains("torrent") || stSrc.contains("торрент") || stSrc.contains("zona")
+                else -> stSrc.contains(sKey)
+            }
+        }
+        if (!hasStreamsAlready) {
+            isSourceStreamsLoading = true
+            withContext(Dispatchers.IO) {
+                try {
+                    val fetched = when {
+                        sKey.contains("filmix") -> {
+                            val fx = FilmixNativeResolver.resolveStreams(
+                                movieId = currentMovie.id,
+                                title = currentMovie.title,
+                                year = currentMovie.releaseYear,
+                                isSeries = isContentSeries,
+                                season = selectedSeason,
+                                episode = selectedEpisode,
+                                audioId = selectedAudioId,
+                                isPro = isFilmixPro,
+                                isProPlus = isFilmixProPlus
+                            )
+                            val srv = ShowHubApiClient.fetchStreams(currentMovie.copy(source = "filmix", isSeries = isContentSeries), season = if (isContentSeries) selectedSeason else null, episode = if (isContentSeries) selectedEpisode else null, audioId = selectedAudioId)
+                            (fx + srv).distinctBy { it.url }
+                        }
+                        sKey.contains("rezka") -> {
+                            val rz = RezkaNativeResolver.resolveStreams(
+                                title = currentMovie.title,
+                                year = currentMovie.releaseYear,
+                                isSeries = isContentSeries,
+                                season = selectedSeason,
+                                episode = selectedEpisode,
+                                translatorId = selectedAudioId,
+                                mediaUrl = currentMovie.videoUrl.takeIf { it.contains("rezka") }
+                            )
+                            val srv = ShowHubApiClient.fetchStreams(currentMovie.copy(source = "hdrezka", isSeries = isContentSeries), season = if (isContentSeries) selectedSeason else null, episode = if (isContentSeries) selectedEpisode else null, audioId = selectedAudioId)
+                            (rz + srv).distinctBy { it.url }
+                        }
+                        sKey.contains("zona") -> {
+                            ShowHubApiClient.fetchStreams(currentMovie.copy(source = "zona", isSeries = isContentSeries), season = if (isContentSeries) selectedSeason else null, episode = if (isContentSeries) selectedEpisode else null, audioId = selectedAudioId)
+                        }
+                        sKey.contains("торрент") || sKey.contains("torrent") -> {
+                            ShowHubApiClient.fetchStreams(currentMovie.copy(source = "torrents", isSeries = isContentSeries), season = if (isContentSeries) selectedSeason else null, episode = if (isContentSeries) selectedEpisode else null, audioId = selectedAudioId)
+                        }
+                        sKey.contains("collaps") || sKey.contains("delivembd") -> {
+                            ShowHubApiClient.fetchStreams(currentMovie.copy(source = "collaps", isSeries = isContentSeries), season = if (isContentSeries) selectedSeason else null, episode = if (isContentSeries) selectedEpisode else null, audioId = selectedAudioId)
+                        }
+                        else -> {
+                            ShowHubApiClient.fetchStreams(currentMovie.copy(source = selectedSourceFilter, isSeries = isContentSeries), season = if (isContentSeries) selectedSeason else null, episode = if (isContentSeries) selectedEpisode else null, audioId = selectedAudioId)
+                        }
+                    }
+                    if (fetched.isNotEmpty()) {
+                        withContext(Dispatchers.Main) {
+                            streamOptions = (fetched + streamOptions).distinctBy { it.url }
+                                .sortedWith(compareByDescending<StreamOption> { isDirectVideoStream(it.url) }.thenByDescending { getStreamQualityRank(it.quality) })
+                        }
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                } finally {
+                    withContext(Dispatchers.Main) {
+                        isSourceStreamsLoading = false
+                    }
+                }
+            }
+        }
+    }
+
     val availableQualities = remember(streamOptions, selectedSourceFilter, selectedAudioId) {
         val sKey = selectedSourceFilter.lowercase()
         val rawCandidates = if (selectedSourceFilter == "Все" || selectedSourceFilter.startsWith("Все")) {
             streamOptions
         } else {
-            val forSrc = streamOptions.filter { st ->
+            streamOptions.filter { st ->
                 val stSrc = st.source.lowercase()
                 when {
                     sKey.contains("kodik") -> stSrc.contains("kodik")
                     sKey.contains("rezka") -> stSrc.contains("rezka")
                     sKey.contains("filmix") -> stSrc.contains("filmix")
                     sKey.contains("videocdn") -> stSrc.contains("videocdn") || st.url.contains("allarknow") || st.url.contains("bayas") || st.url.contains("videoframe")
+                    sKey.contains("collaps") || sKey.contains("delivembd") -> stSrc.contains("collaps") || stSrc.contains("delivembd") || st.url.contains("interkh") || st.url.contains("namy.ws")
                     sKey.contains("anilibria") -> stSrc.contains("anilibria") || st.url.contains("libria")
                     sKey.contains("bazon") -> stSrc.contains("bazon")
                     sKey.contains("zona") -> stSrc.contains("zona") || stSrc.contains("torrent") || stSrc.contains("торрент") || stSrc.contains("p2p")
@@ -520,7 +616,6 @@ fun DetailsScreen(
                     else -> stSrc.contains(sKey)
                 }
             }
-            if (forSrc.isNotEmpty()) forSrc else streamOptions
         }
         val candidateStreams = rawCandidates.filter { !isStreamStub(it) }
 
@@ -537,7 +632,7 @@ fun DetailsScreen(
                 qualSet.add(cleanQ)
             }
         }
-        if (qualSet.isNotEmpty()) qualSet.toList() else listOf("1080p", "720p", "480p")
+        qualSet.toList()
     }
 
     LaunchedEffect(availableQualities) {
@@ -1127,12 +1222,11 @@ fun DetailsScreen(
                             else -> stSrc.contains(sKey)
                         }
                     }
-                    if (filteredClean.isNotEmpty()) {
-                        filteredClean
-                    } else {
-                        // Fallback to all clean streams if specific source only has premium/stub streams
-                        cleanStreams.ifEmpty { targetPool }
+                    if (filteredClean.isEmpty()) {
+                        streamStatus = "⚠️ Источник «$selectedSourceFilter» не содержит доступных потоков. Выберите другой источник или «Все»."
+                        return@launch
                     }
+                    filteredClean
                 }
 
                 val matched = candidateStreams.firstOrNull { matchStreamQuality(it, selectedQuality) && !isStreamStub(it) }
@@ -2391,11 +2485,13 @@ fun DetailsScreen(
                                         Text(text = "Все", fontSize = 10.sp, fontWeight = if (isAllSelected) FontWeight.Bold else FontWeight.Normal)
                                     }
                                 }
-                                // Source chips with type badge and best quality
+                                 // Source chips with type badge and best quality
                                 itemsIndexed(availableSourcesInfo) { _, srcInfo ->
                                     val isSrcSelected = selectedSourceFilter.equals(srcInfo.name, ignoreCase = true)
-                                    val typeBadge = if (srcInfo.isHls) "HLS" else "IFRAME"
-                                    val typeColor = if (srcInfo.isHls) Color(0xFF4ADE80) else Color(0xFFFBBF24)
+                                    val sKey = srcInfo.name.lowercase()
+                                    val isTorrentP2P = sKey.contains("zona") || sKey.contains("торрент") || sKey.contains("torrent")
+                                    val typeBadge = if (isTorrentP2P) "P2P" else if (srcInfo.isHls) "HLS" else "IFRAME"
+                                    val typeColor = if (isTorrentP2P) Color(0xFF38BDF8) else if (srcInfo.isHls) Color(0xFF4ADE80) else Color(0xFFFBBF24)
                                     val chipLabel = buildString {
                                         append(srcInfo.name)
                                         if (srcInfo.bestQuality.isNotEmpty()) append(" · ${srcInfo.bestQuality}")
@@ -2470,7 +2566,7 @@ fun DetailsScreen(
                                     ) {
                                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                             Text(text = chipLabel, fontSize = 10.sp, fontWeight = if (isSrcSelected) FontWeight.Bold else FontWeight.Normal)
-                                            // Type badge (HLS = green, IFRAME = yellow)
+                                            // Type badge (P2P = cyan, HLS = green, IFRAME = yellow)
                                             Box(
                                                 modifier = Modifier
                                                     .background(typeColor.copy(alpha = 0.25f), RoundedCornerShape(3.dp))
@@ -2528,6 +2624,15 @@ fun DetailsScreen(
                                     }
                                 }
                             }
+                            Spacer(modifier = Modifier.height(8.dp))
+                        } else if (isSourceStreamsLoading) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                NeonSpinner(size = 14.dp, strokeWidth = 2.dp)
+                                Text(text = "Загрузка качеств для $selectedSourceFilter...", fontSize = 11.sp, color = TextGray)
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                        } else if (!selectedSourceFilter.equals("Все", ignoreCase = true)) {
+                            Text(text = "Для «$selectedSourceFilter» нет отдельных потоков", fontSize = 11.sp, color = TextGray)
                             Spacer(modifier = Modifier.height(8.dp))
                         }
 

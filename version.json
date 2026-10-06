@@ -1,8 +1,8 @@
 {
-    "version_name": "2.8.100",
-    "version_code": 159,
-    "versionName": "2.8.100",
-    "versionCode": 159,
+    "version_name": "2.8.101",
+    "version_code": 160,
+    "versionName": "2.8.101",
+    "versionCode": 160,
     "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
     "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
     "apkUrl": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
@@ -10,39 +10,39 @@
     "forceUpdate": false,
     "min_version_code": 70,
     "minVersionCode": 70,
-    "changelog": "v2.8.100: Устранены периодические фризы приложения, исправлен источник Zona (прямой поток HLS/P2P вместо IFRAME, выбор качества 2K и 4K).",
-    "releaseNotes": "v2.8.100: Устранены периодические фризы приложения, исправлен источник Zona (прямой поток HLS/P2P вместо IFRAME, выбор качества 2K и 4K).",
+    "changelog": "v2.8.101: Переработан выбор источников и качеств в карточке; автономный встроенный TorrServer для P2P потоков (Zona 2K/4K и торренты); восстановлена работа Filmix и HDRezka; исправлена загрузка постеров в поиске.",
+    "releaseNotes": "v2.8.101: Переработан выбор источников и качеств в карточке; автономный встроенный TorrServer для P2P потоков (Zona 2K/4K и торренты); восстановлена работа Filmix и HDRezka; исправлена загрузка постеров в поиске.",
     "tv": {
-        "version_name": "2.8.100",
-        "version_code": 159,
-        "versionName": "2.8.100",
-        "versionCode": 159,
+        "version_name": "2.8.101",
+        "version_code": 160,
+        "versionName": "2.8.101",
+        "versionCode": 160,
         "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
         "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
         "apkUrl": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
-        "changelog": "v2.8.100: Устранены периодические фризы приложения, исправлен источник Zona (прямой поток HLS/P2P вместо IFRAME, выбор качества 2K и 4K).",
-        "releaseNotes": "v2.8.100: Устранены периодические фризы приложения, исправлен источник Zona (прямой поток HLS/P2P вместо IFRAME, выбор качества 2K и 4K)."
+        "changelog": "v2.8.101: Переработан выбор источников и качеств в карточке; автономный встроенный TorrServer для P2P потоков (Zona 2K/4K и торренты); восстановлена работа Filmix и HDRezka; исправлена загрузка постеров в поиске.",
+        "releaseNotes": "v2.8.101: Переработан выбор источников и качеств в карточке; автономный встроенный TorrServer для P2P потоков (Zona 2K/4K и торренты); восстановлена работа Filmix и HDRezka; исправлена загрузка постеров в поиске."
     },
     "mobile": {
-        "version_name": "2.8.100",
-        "version_code": 159,
-        "versionName": "2.8.100",
-        "versionCode": 159,
+        "version_name": "2.8.101",
+        "version_code": 160,
+        "versionName": "2.8.101",
+        "versionCode": 160,
         "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-Mobile.apk",
         "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-Mobile.apk",
         "apkUrl": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-Mobile.apk",
-        "changelog": "v2.8.100: Устранены периодические фризы приложения, исправлен источник Zona (прямой поток HLS/P2P вместо IFRAME, выбор качества 2K и 4K).",
-        "releaseNotes": "v2.8.100: Устранены периодические фризы приложения, исправлен источник Zona (прямой поток HLS/P2P вместо IFRAME, выбор качества 2K и 4K)."
+        "changelog": "v2.8.101: Переработан выбор источников и качеств в карточке; автономный встроенный TorrServer для P2P потоков (Zona 2K/4K и торренты); восстановлена работа Filmix и HDRezka; исправлена загрузка постеров в поиске.",
+        "releaseNotes": "v2.8.101: Переработан выбор источников и качеств в карточке; автономный встроенный TorrServer для P2P потоков (Zona 2K/4K и торренты); восстановлена работа Filmix и HDRezka; исправлена загрузка постеров в поиске."
     },
     "pc": {
-        "version_name": "2.8.100",
-        "version_code": 159,
-        "versionName": "2.8.100",
-        "versionCode": 159,
+        "version_name": "2.8.101",
+        "version_code": 160,
+        "versionName": "2.8.101",
+        "versionCode": 160,
         "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-PC.zip",
         "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-PC.zip",
         "apkUrl": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-PC.zip",
-        "changelog": "v2.8.100: Устранены периодические фризы приложения, исправлен источник Zona (прямой поток HLS/P2P вместо IFRAME, выбор качества 2K и 4K).",
-        "releaseNotes": "v2.8.100: Устранены периодические фризы приложения, исправлен источник Zona (прямой поток HLS/P2P вместо IFRAME, выбор качества 2K и 4K)."
+        "changelog": "v2.8.101: Переработан выбор источников и качеств в карточке; автономный встроенный TorrServer для P2P потоков (Zona 2K/4K и торренты); восстановлена работа Filmix и HDRezka; исправлена загрузка постеров в поиске.",
+        "releaseNotes": "v2.8.101: Переработан выбор источников и качеств в карточке; автономный встроенный TorrServer для P2P потоков (Zona 2K/4K и торренты); восстановлена работа Filmix и HDRezka; исправлена загрузка постеров в поиске."
     }
 }

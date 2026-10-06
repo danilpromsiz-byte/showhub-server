@@ -2483,54 +2483,55 @@ def _fetch_media_details(
             "episodes_count": kd_max_eps if kd_max_eps > 0 else total_series_eps,
             "seasons_episodes": kd_seasons_eps
         })
-    if rz_found and (rz_max_eps > 0 or details.get("translators") or any(t.get("source") == "hdrezka" for t in details.get("translators", []))):
+    if not any(s.get("source") == "hdrezka" for s in sources_info):
         sources_info.append({
             "source": "hdrezka",
             "name": "HDRezka",
             "episodes_count": rz_max_eps if rz_max_eps > 0 else total_series_eps,
             "seasons_episodes": rz_seasons_eps
         })
-    if collaps_available:
-        sources_info.append({
-            "source": "delivembd",
-            "name": "Collaps",
-            "episodes_count": total_series_eps,
-            "seasons_episodes": rz_seasons_eps
-        })
-    if fx_available or any(t.get("source") == "filmix" for t in details.get("translators", [])):
+    if not any(s.get("source") == "filmix" for s in sources_info):
         sources_info.append({
             "source": "filmix",
             "name": "Filmix",
             "episodes_count": total_series_eps,
             "seasons_episodes": rz_seasons_eps
         })
-    if videocdn_available:
+    if not any(s.get("source") == "delivembd" for s in sources_info):
+        sources_info.append({
+            "source": "delivembd",
+            "name": "Collaps",
+            "episodes_count": total_series_eps,
+            "seasons_episodes": rz_seasons_eps
+        })
+    if videocdn_available and not any(s.get("source") == "videocdn" for s in sources_info):
         sources_info.append({
             "source": "videocdn",
             "name": "VideoCDN",
             "episodes_count": total_series_eps,
             "seasons_episodes": rz_seasons_eps
         })
-    if anilibria_available:
+    if anilibria_available and not any(s.get("source") == "anilibria" for s in sources_info):
         sources_info.append({
             "source": "anilibria",
             "name": "AniLibria",
             "episodes_count": total_series_eps,
             "seasons_episodes": rz_seasons_eps
         })
-    if zona_available:
+    if not any(s.get("source") == "zona" for s in sources_info):
         sources_info.append({
             "source": "zona",
             "name": "Zona",
             "episodes_count": total_series_eps,
             "seasons_episodes": rz_seasons_eps
         })
-    sources_info.append({
-        "source": "torrents",
-        "name": "Торренты (TorrServe)",
-        "episodes_count": total_series_eps,
-        "seasons_episodes": rz_seasons_eps
-    })
+    if not any(s.get("source") == "torrents" for s in sources_info):
+        sources_info.append({
+            "source": "torrents",
+            "name": "Торренты (TorrServe)",
+            "episodes_count": total_series_eps,
+            "seasons_episodes": rz_seasons_eps
+        })
     details["sources_info"] = sources_info
 
     # 4b. Enrich missing ratings from Kodik and Shikimori (especially for anime and fresh titles)

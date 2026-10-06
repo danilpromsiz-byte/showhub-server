@@ -491,7 +491,30 @@ fun MovieCard(
                     }
 
                     // Async Image with Coil with elegant fallback for movies with or without poster
-                    val effectiveImage = movie.posterUrl.ifEmpty { movie.backdropUrl }
+                    fun isValidPoster(url: String?): Boolean {
+                        if (url.isNullOrBlank()) return false
+                        val low = url.lowercase().trim()
+                        return low != "null" && low != "none" && !low.contains("noposter") && !low.contains("no_image")
+                    }
+                    var resolvedPoster by remember(movie.id) { mutableStateOf("") }
+                    val effectiveImage = when {
+                        isValidPoster(movie.posterUrl) -> movie.posterUrl
+                        isValidPoster(movie.backdropUrl) -> movie.backdropUrl
+                        isValidPoster(resolvedPoster) -> resolvedPoster
+                        else -> ""
+                    }
+
+                    LaunchedEffect(movie.id, movie.title) {
+                        if (effectiveImage.isBlank()) {
+                            try {
+                                val real = ShowHubApiClient.resolveRealPoster(movie.title, movie.releaseYear, movie.kinopoiskId)
+                                if (!real.isNullOrBlank() && isValidPoster(real)) {
+                                    resolvedPoster = real
+                                }
+                            } catch (_: Exception) {}
+                        }
+                    }
+
                     if (effectiveImage.isBlank()) {
                         Box(
                             modifier = Modifier

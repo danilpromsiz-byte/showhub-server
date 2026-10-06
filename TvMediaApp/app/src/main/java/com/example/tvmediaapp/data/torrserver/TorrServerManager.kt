@@ -32,8 +32,8 @@ object TorrServerManager {
             val cleanHost = host.trimEnd('/')
             val url = URL("$cleanHost/echo")
             val conn = url.openConnection() as HttpURLConnection
-            conn.connectTimeout = 800
-            conn.readTimeout = 800
+            conn.connectTimeout = 1500
+            conn.readTimeout = 1500
             conn.requestMethod = "GET"
             conn.connect()
             conn.responseCode == 200
@@ -47,17 +47,15 @@ object TorrServerManager {
 
         // 1. Try launching embedded TorrServer inside this app
         if (host.contains("127.0.0.1") || host.contains("localhost")) {
-            if (EmbeddedTorrServer.isBinaryAvailable(context)) {
-                val ok = EmbeddedTorrServer.ensureRunning(context)
-                if (ok) return true
-            }
+            val ok = EmbeddedTorrServer.ensureRunning(context)
+            if (ok) return true
         }
 
         // 2. If external TorrServer app is installed, try waking it up
         if (isTorrServerInstalled(context)) {
             startTorrServerApp(context)
             for (i in 1..10) {
-                kotlinx.coroutines.delay(200)
+                kotlinx.coroutines.delay(250)
                 if (checkIsAlive(host)) return true
             }
         }

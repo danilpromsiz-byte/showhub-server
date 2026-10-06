@@ -856,6 +856,32 @@ object ShowHubApiClient {
         return "12+"
     }
 
+    suspend fun resolveRealPoster(title: String, year: String? = null, kpId: String? = null): String? = withContext(Dispatchers.IO) {
+        if (title.isBlank()) return@withContext null
+        try {
+            val encT = URLEncoder.encode(title.trim(), "UTF-8")
+            val yParam = if (!year.isNullOrBlank()) "&year=" + URLEncoder.encode(year.trim(), "UTF-8") else ""
+            val kpParam = if (!kpId.isNullOrBlank()) "&kp_id=" + URLEncoder.encode(kpId.trim(), "UTF-8") else ""
+            val url = URL("$activeServerBase/api/media/poster?title=$encT$yParam$kpParam")
+            val conn = url.openConnection() as HttpURLConnection
+            conn.connectTimeout = 5000
+            conn.readTimeout = 5000
+            prepareConnection(conn)
+            conn.connect()
+            if (conn.responseCode == 200) {
+                val body = BufferedReader(InputStreamReader(conn.inputStream, "UTF-8")).use { it.readText() }
+                val obj = JSONObject(body)
+                if (obj.optBoolean("success", false)) {
+                    val p = obj.optString("poster", "")
+                    if (p.isNotBlank() && !p.contains("noposter")) {
+                        return@withContext if (p.startsWith("http")) p else "$activeServerBase$p"
+                    }
+                }
+            }
+        } catch (_: Exception) {}
+        null
+    }
+
     private fun parseMoviesJson(arr: JSONArray, outList: MutableList<Movie>, isRanked: Boolean = false) {
         val parsed = mutableListOf<Movie>()
         for (i in 0 until arr.length()) {

@@ -602,9 +602,9 @@ def _bg_harvest_query(query_str: str):
         if live_items:
             media_registry.upsert_batch(live_items)
             try:
-                from mediacenter.core.turso_manager import turso_manager
-                if turso_manager.is_configured():
-                    turso_manager.push_items_batch(live_items)
+                from mediacenter.core.cloud_manager import cloud_manager
+                if cloud_manager.is_configured():
+                    cloud_manager.push_items_batch(live_items)
             except Exception:
                 pass
     except Exception:
@@ -1082,23 +1082,13 @@ def get_catalog_stats() -> Dict[str, Any]:
 def get_harvester_status() -> Dict[str, Any]:
     """Returns detailed autonomous catalog harvester crawler status and metrics."""
     stats = media_registry.get_stats()
-    from mediacenter.core.turso_manager import turso_manager, HAS_LIBSQL
-    masked_url = None
-    if turso_manager._url:
-        masked_url = turso_manager._url[:15] + "..." + turso_manager._url[-12:]
+    from mediacenter.core.cloud_manager import cloud_manager
     return {
         "is_running": getattr(media_harvester, "_started", False),
         "total_indexed": stats.get("total_items", 0),
         "by_category": stats.get("by_category", {}),
         "crawler_states": stats.get("harvester_states", {}),
-        "turso_cloud": {
-            "configured": turso_manager.is_configured(),
-            "url_detected": bool(turso_manager._url),
-            "token_detected": bool(turso_manager._token),
-            "env_keys": [k for k in sorted(os.environ.keys()) if not any(k.startswith(p) for p in ("npm_", "PATH", "PWD", "SHLVL", "_", "HOME", "USER", "TERM", "LANG", "LC_", "LESS", "HOSTNAME", "SHELL", "PIP_", "NODE_", "PYTHON"))],
-            "remote_url": masked_url,
-            "remote_count": turso_manager.get_remote_count() if turso_manager.is_configured() else 0
-        }
+        "cloud_db": cloud_manager.get_status()
     }
 
 _catalog_cache: Dict[str, Tuple[float, List[Dict[str, Any]]]] = {}
@@ -1852,41 +1842,28 @@ def _fetch_media_details(
     # 0b. If reg_item missing translators/seasons, check Turso Cloud
     if not reg_item or (is_ser_bool and not reg_item.get("seasons")) or (not reg_item.get("translators") and not reg_item.get("description")):
         try:
-            from mediacenter.core.turso_manager import turso_manager
-            if turso_manager.is_configured():
+            from mediacenter.core.cloud_manager import cloud_manager
+            if cloud_manager.is_configured():
                 cloud_ids = [str(media_id)]
                 if str(media_id).startswith("tmdb_"):
                     cloud_ids.append(str(media_id).replace("tmdb_tv_", "").replace("tmdb_", ""))
                 if resolved_kp:
                     cloud_ids.append(str(resolved_kp))
-                q_marks = ",".join(["?"] * len(cloud_ids))
-                cloud_res = turso_manager._post_pipeline([{
-                    "sql": f"SELECT * FROM media_items WHERE id IN ({q_marks}) OR tmdb_id IN ({q_marks}) OR kinopoisk_id IN ({q_marks}) LIMIT 1;",
-                    "args": cloud_ids * 3
-                }])
-                if cloud_res and "results" in cloud_res and cloud_res["results"]:
-                    first_res = cloud_res["results"][0]
-                    if first_res.get("type") == "ok" and "response" in first_res:
-                        r_data = first_res["response"].get("result", {})
-                        cols = [c["name"] for c in r_data.get("cols", [])]
-                        rows = r_data.get("rows", [])
-                        if rows:
-                            row_vals = rows[0]
-                            c_dict = {}
-                            for col_name, val_dict in zip(cols, row_vals):
-                                v = val_dict.get("value")
-                                if val_dict.get("type") == "null": v = None
-                                elif val_dict.get("type") == "integer" and v is not None: v = int(v)
-                                c_dict[col_name] = v
-                            t_reg = media_registry._row_to_dict(c_dict) if hasattr(media_registry, "_row_to_dict") else c_dict
-                            if t_reg.get("translators") or t_reg.get("seasons"):
-                                reg_item = t_reg
-                                try:
-                                    media_registry.upsert_item(reg_item)
-                                except Exception:
-                                    pass
+                c_item = None
+                for cid in cloud_ids:
+                    c_item = cloud_manager.get_item(cid)
+                    if c_item:
+                        break
+                if c_item:
+                    t_reg = media_registry._row_to_dict(c_item) if hasattr(media_registry, "_row_to_dict") else c_item
+                    if t_reg.get("translators") or t_reg.get("seasons"):
+                        reg_item = t_reg
+                        try:
+                            media_registry.upsert_item(reg_item)
+                        except Exception:
+                            pass
         except Exception as e:
-            logger.debug(f"Turso details lookup error: {e}")
+            logger.debug(f"Cloud details lookup error: {e}")
 
     # FAST-PATH: If registry (local or cloud) has complete data (translators, description, seasons if series):
     # return immediately in <2ms!
@@ -2822,9 +2799,9 @@ def _fetch_media_details(
     # Auto-enrich registry on local machine disk & Turso cloud in background
     try:
         media_registry.upsert_item(details)
-        from mediacenter.core.turso_manager import turso_manager
-        if turso_manager.is_configured():
-            threading.Thread(target=turso_manager.push_items_batch, args=([details],), daemon=True).start()
+        from mediacenter.core.cloud_manager import cloud_manager
+        if cloud_manager.is_configured():
+            threading.Thread(target=cloud_manager.push_items_batch, args=([details],), daemon=True).start()
     except Exception:
         pass
 

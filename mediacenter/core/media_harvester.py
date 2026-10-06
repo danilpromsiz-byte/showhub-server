@@ -18,7 +18,7 @@ import requests
 
 from .media_registry import media_registry
 from .lampa_source import lampa_source
-from .turso_manager import turso_manager
+from .cloud_manager import cloud_manager
 
 logger = logging.getLogger("media_harvester")
 
@@ -79,30 +79,29 @@ class MediaHarvester:
         logger.info("[Harvester] Autonomous continuous background harvester started.")
 
     def _upsert_and_cloud_sync(self, items: List[Dict[str, Any]]) -> int:
-        """Upserts items into local SQLite and mirrors batch to Turso Cloud if configured."""
+        """Upserts items into local SQLite and mirrors batch to Cloud DB if configured."""
         c = media_registry.upsert_batch(items)
-        if turso_manager.is_configured() and items:
+        if cloud_manager.is_configured() and items:
             try:
-                turso_manager.push_items_batch(items)
+                cloud_manager.push_items_batch(items)
             except Exception as e:
-                logger.debug(f"[Harvester] Turso push error: {e}")
+                logger.debug(f"[Harvester] Cloud push error: {e}")
         return c
 
     def _run_crawler_loop(self):
         """Continuous stateful crawler that populates ALL available titles from Kodik and TMDb."""
         logger.info("[Harvester] Seeding and starting continuous catalog expansion...")
 
-        # Initial Turso Cloud synchronization if configured
-        if turso_manager.is_configured():
+        # Initial Cloud synchronization if configured
+        if cloud_manager.is_configured():
             try:
-                turso_manager.init_schema()
                 last_updated = media_registry._get_connection().execute("SELECT MAX(updated_at) FROM media_items;").fetchone()[0] or 0.0
-                delta = turso_manager.pull_items_delta(since_updated_at=last_updated, limit=5000)
+                delta = cloud_manager.pull_items_delta(since_updated_at=last_updated, limit=5000)
                 if delta:
                     media_registry.upsert_batch(delta)
-                    logger.info(f"[Harvester] Synced {len(delta)} delta items from Turso Cloud on startup.")
+                    logger.info(f"[Harvester] Synced {len(delta)} delta items from {cloud_manager.provider} Cloud on startup.")
             except Exception as e:
-                logger.debug(f"[Harvester] Turso boot sync error: {e}")
+                logger.debug(f"[Harvester] Cloud boot sync error: {e}")
 
         # Initial Lampa feeds sync
         try:

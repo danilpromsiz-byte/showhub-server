@@ -34,4 +34,7 @@ mediacenter/data/covers/
 !/mediacenter/data/
 !/mediacenter/data/users_stats.json
 mediacenter/data/turso.json
+mediacenter/data/supabase.json
+*.env
+.env*
 

@@ -2226,11 +2226,12 @@ def _fetch_media_details(
                     if z_match:
                         cand_id = z_match.id
             if cand_id:
+                zona_available = True
+                zona_cand_id = cand_id
                 z_res = zona.get_streams(cand_id, season=1, episode=1)
                 if z_res.streams:
-                    zona_available = True
-                    zona_cand_id = cand_id
                     return cand_id
+                return cand_id
         except Exception:
             pass
         return None
@@ -2524,6 +2525,12 @@ def _fetch_media_details(
             "episodes_count": total_series_eps,
             "seasons_episodes": rz_seasons_eps
         })
+    sources_info.append({
+        "source": "torrents",
+        "name": "Торренты (TorrServe)",
+        "episodes_count": total_series_eps,
+        "seasons_episodes": rz_seasons_eps
+    })
     details["sources_info"] = sources_info
 
     # 4b. Enrich missing ratings from Kodik and Shikimori (especially for anime and fresh titles)
@@ -2966,7 +2973,21 @@ def _fetch_media_streams(
             v_alt = re.sub(r'бэтмен', 'бетмен', t_cand, flags=re.I)
             if v_alt not in titles_to_try and v_alt not in alt_vowels:
                 alt_vowels.append(v_alt)
-    titles_to_try.extend(alt_vowels)
+    if not original_title and (clean_title or media_id_str):
+        try:
+            reg_it = None
+            if media_id_str and media_id_str.startswith("tmdb_"):
+                reg_it = media_registry.get_item(media_id_str)
+            if not reg_it and clean_title:
+                reg_it = media_registry.find_item(clean_title, year_int, kp_id=resolved_kp, is_series=is_ser_bool)
+            if reg_it:
+                original_title = reg_it.get("original_title") or reg_it.get("orig_title")
+                if not original_title and reg_it.get("extra_data"):
+                    ed = reg_it["extra_data"]
+                    if isinstance(ed, dict):
+                        original_title = ed.get("original_title") or ed.get("orig_title") or ed.get("name_orig")
+        except Exception:
+            pass
 
     if original_title:
         import html
@@ -3168,37 +3189,62 @@ def _fetch_media_streams(
         return None
 
     def _resolve_torrents():
-        t_list = titles_to_try if titles_to_try else ([clean_title] if clean_title else [])
-        for q in t_list:
-            if not q or len(q) < 2:
-                continue
+        t_list = []
+        for q in titles_to_try:
+            if q and len(q) >= 2 and q not in t_list:
+                t_list.append(q)
+        if clean_title and clean_title not in t_list:
+            t_list.append(clean_title)
+        if original_title and original_title not in t_list:
+            t_list.append(original_title)
+
+        all_torr_items = []
+        seen_magnets = set()
+
+        for q in t_list[:3]:
             try:
-                torr_items = torrents.search(q, year=year_int, season=season, episode=episode)
-                if torr_items:
-                    torr_streams = [
-                        {
-                            "quality": t.extra_data.get("quality_label") or f"{t.extra_data.get('size', '')} (Сиды: {t.extra_data.get('seeds', '0')})",
-                            "url": t.extra_data.get("stream_url", ""),
-                            "stream_type": "torrent",
-                            "headers": {},
-                            "magnet": t.extra_data.get("magnet", ""),
-                            "torrent_title": t.title,
-                            "size": t.extra_data.get("size", ""),
-                            "seeds": t.extra_data.get("seeds", "0"),
-                            "quality_tier": t.extra_data.get("quality_tier", "1080p")
-                        }
-                        for t in torr_items[:12]
-                    ]
-                    return ("torrents", {
-                        "source_name": "Rutor / TorrServe",
-                        "media_id": media_id_str,
-                        "title": title,
-                        "streams": torr_streams,
-                        "embed_url": None,
-                        "error": None
-                    })
+                items = torrents.search(q, year=year_int, season=season, episode=episode)
+                for it in items:
+                    mag = it.extra_data.get("magnet") or it.id
+                    if mag and mag not in seen_magnets:
+                        seen_magnets.add(mag)
+                        all_torr_items.append(it)
             except Exception:
                 pass
+            if len(all_torr_items) >= 25:
+                break
+
+        if all_torr_items:
+            def _torr_sort_key(it):
+                rank = it.extra_data.get("quality_rank", 720)
+                raw_seeds = str(it.extra_data.get("seeds", "0")).split()[0].replace("\xa0", "").strip()
+                seeds_int = int(raw_seeds) if raw_seeds.isdigit() else 0
+                return (rank, seeds_int)
+
+            all_torr_items.sort(key=_torr_sort_key, reverse=True)
+
+            torr_streams = [
+                {
+                    "quality": t.extra_data.get("quality_label") or f"{t.extra_data.get('size', '')} (Сиды: {t.extra_data.get('seeds', '0')})",
+                    "url": t.extra_data.get("stream_url", ""),
+                    "stream_type": "torrent",
+                    "headers": {},
+                    "magnet": t.extra_data.get("magnet", ""),
+                    "torrent_title": t.title,
+                    "size": t.extra_data.get("size", ""),
+                    "seeds": t.extra_data.get("seeds", "0"),
+                    "quality_tier": t.extra_data.get("quality_tier", "1080p")
+                }
+                for t in all_torr_items[:24]
+            ]
+            return ("torrents", {
+                "source_name": "Rutor / TorrServe",
+                "media_id": media_id_str,
+                "title": title,
+                "streams": torr_streams,
+                "embed_url": None,
+                "error": None
+            })
         return None
 
     def _resolve_zona():
@@ -3266,6 +3312,37 @@ def _fetch_media_streams(
                 pass
     finally:
         executor.shutdown(wait=False, cancel_futures=True)
+
+    # Link P2P torrent streams to Zona (in official Zona app, 2K and 4K are P2P torrent streams)
+    if "torrents" in resolved and resolved["torrents"].get("streams"):
+        torr_data = resolved["torrents"]
+        if "zona" not in resolved or not resolved["zona"].get("streams"):
+            zona_p2p_streams = [
+                {
+                    **dict(st),
+                    "name": f"Zona ({st.get('quality', '')})",
+                    "source": "zona"
+                }
+                for st in torr_data["streams"]
+            ]
+            resolved["zona"] = {
+                "source_name": "Zona",
+                "media_id": media_id_str,
+                "title": title,
+                "streams": zona_p2p_streams,
+                "embed_url": None,
+                "error": None
+            }
+        else:
+            existing_urls = {st.get("url") for st in resolved["zona"]["streams"]}
+            for t_st in torr_data["streams"]:
+                t_q = t_st.get("quality", "").lower()
+                if any(k in t_q for k in ["4k", "2160", "2k", "1440"]) and t_st.get("url") not in existing_urls:
+                    resolved["zona"]["streams"].append({
+                        **dict(t_st),
+                        "name": f"Zona ({t_st.get('quality', '')})",
+                        "source": "zona"
+                    })
 
     # Filter out HDRezka and Filmix paid-tariff promo stubs (rhtie.mp4, zrkms.mp4, PRO/PRO+ stubs) and tag premium streams
     has_rezka_vip = bool(hdrezka.session.cookies.get("dle_user_id"))

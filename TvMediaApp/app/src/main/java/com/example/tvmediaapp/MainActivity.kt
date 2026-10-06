@@ -170,6 +170,12 @@ class MainActivity : ComponentActivity() {
         ThemeManager.init(this)
         ShowHubApiClient.init(this, getInstalledVersionName())
 
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+            try {
+                com.example.tvmediaapp.data.torrserver.TorrServerManager.ensureServerAvailable(this@MainActivity)
+            } catch (_: Exception) {}
+        }
+
         setContent {
             TvMediaAppTheme {
                 TvAppNavHost(activity = this)

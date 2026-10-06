@@ -83,93 +83,108 @@ class TorrentsSource(BaseSource):
         if not clean_query:
             return []
 
-        # For search, clean query works best across Russian trackers.
-        # Trackers do not match "s01e01"; instead, they match title and have season info in release names.
+        # For series, search category 4 (Foreign series) and 16 (Russian series) first, then category 0
+        categories_to_search = [4, 16, 0] if season else [1, 5, 0]
         encoded = urllib.parse.quote(clean_query)
-        url = f"{base}/search/0/0/0/0/{encoded}"
+        seen_magnets = set()
 
-        try:
-            res = requests.get(url, headers=self.headers, timeout=6)
-            if res.status_code == 200:
-                soup = BeautifulSoup(res.text, "html.parser")
-                rows = soup.select("#index tr")
-                for tr in rows[1:25]:  # Top 24 torrents
-                    cols = tr.find_all("td")
-                    if len(cols) >= 4:
-                        magnet = ""
-                        title = ""
-                        for a_tag in cols[1].find_all("a"):
-                            href = a_tag.get("href", "")
-                            if href.startswith("magnet:"):
-                                magnet = href
-                            elif href.startswith("/torrent/"):
-                                title = a_tag.text.strip()
+        for cat in categories_to_search:
+            url = f"{base}/search/0/{cat}/0/0/{encoded}"
+            try:
+                res = requests.get(url, headers=self.headers, timeout=6)
+                if res.status_code == 200:
+                    soup = BeautifulSoup(res.text, "html.parser")
+                    rows = soup.select("#index tr")
+                    for tr in rows[1:75]:  # Up to 75 rows
+                        cols = tr.find_all("td")
+                        if len(cols) >= 4:
+                            magnet = ""
+                            title = ""
+                            for a_tag in cols[1].find_all("a"):
+                                href = a_tag.get("href", "")
+                                if href.startswith("magnet:"):
+                                    magnet = href
+                                elif href.startswith("/torrent/"):
+                                    title = a_tag.text.strip()
 
-                        if not magnet:
-                            continue
-                        if not title:
-                            title = cols[1].text.strip()
+                            if not magnet or magnet in seen_magnets:
+                                continue
+                            if not title:
+                                title = cols[1].text.strip()
 
-                        if len(cols) >= 5:
-                            size = cols[3].text.strip()
-                            green_span = cols[4].select_one("span.green")
-                            seeds = green_span.text.strip() if green_span else (cols[4].text.strip().split()[0] if cols[4].text.strip() else "0")
-                        elif len(cols) >= 4:
-                            size = cols[2].text.strip()
-                            seeds = cols[3].text.strip()
-                        else:
-                            size = "N/A"
-                            seeds = "0"
+                            if len(cols) >= 5:
+                                size = cols[3].text.strip()
+                                green_span = cols[4].select_one("span.green")
+                                seeds = green_span.text.strip() if green_span else (cols[4].text.strip().split()[0] if cols[4].text.strip() else "0")
+                            elif len(cols) >= 4:
+                                size = cols[2].text.strip()
+                                seeds = cols[3].text.strip()
+                            else:
+                                size = "N/A"
+                                seeds = "0"
 
-                        # Skip audiobooks / music albums / games / software
-                        t_low = title.lower()
-                        if any(bad in t_low for bad in ["mp3", "flac", "lossless", "аудиокнига", "soundtrack", "ost", "pc | repack", "repack от"]):
-                            continue
+                            # Skip audiobooks / music albums / PC and console games / software
+                            t_low = title.lower()
+                            if any(bad in t_low for bad in ["mp3", "flac", "lossless", "аудиокнига", "soundtrack", "ost", "pc |", "repack", "dlc", "portable", "gog", "repack от", "digital deluxe"]):
+                                continue
 
-                        quality_label, quality_tier, quality_rank = parse_torrent_quality(title, size, seeds)
-                        # Clean slug for player URL (keep letters/digits, replace punctuation/slashes)
-                        clean_title_part = re.sub(r'[\s/\\|:?*<>"+#]+', '_', title[:45]).strip('_') or "video"
-                        stream_url = f"{self.TORRSERVE_HOST}/stream/{urllib.parse.quote(clean_title_part)}.mkv?link={urllib.parse.quote(magnet)}&play"
+                            seen_magnets.add(magnet)
+                            quality_label, quality_tier, quality_rank = parse_torrent_quality(title, size, seeds)
+                            # Clean slug for player URL (keep letters/digits, replace punctuation/slashes)
+                            clean_title_part = re.sub(r'[\s/\\|:?*<>"+#]+', '_', title[:45]).strip('_') or "video"
+                            stream_url = f"{self.TORRSERVE_HOST}/stream/{urllib.parse.quote(clean_title_part)}.mkv?link={urllib.parse.quote(magnet)}&play"
 
-                        items.append(MediaItem(
-                            id=magnet,
-                            source_name=self.name,
-                            title=title,
-                            year=year,
-                            description=f"Размер: {size} | Сиды: {seeds}",
-                            extra_data={
-                                "magnet": magnet,
-                                "size": size,
-                                "seeds": seeds,
-                                "quality_label": quality_label,
-                                "quality_tier": quality_tier,
-                                "quality_rank": quality_rank,
-                                "stream_url": stream_url
-                            }
-                        ))
-        except Exception:
-            pass
+                            items.append(MediaItem(
+                                id=magnet,
+                                source_name=self.name,
+                                title=title,
+                                year=year,
+                                description=f"Размер: {size} | Сиды: {seeds}",
+                                extra_data={
+                                    "magnet": magnet,
+                                    "size": size,
+                                    "seeds": seeds,
+                                    "quality_label": quality_label,
+                                    "quality_tier": quality_tier,
+                                    "quality_rank": quality_rank,
+                                    "stream_url": stream_url
+                                }
+                            ))
+            except Exception:
+                pass
 
-        # If a specific season was requested, rank matching season releases first
+            # If we found enough items in specific categories, no need to search category 0
+            if len(items) >= 20:
+                break
+
+        def _sort_key(it):
+            rank = it.extra_data.get("quality_rank", 720)
+            raw_seeds = str(it.extra_data.get("seeds", "0")).split()[0].replace("\xa0", "").strip()
+            seeds_int = int(raw_seeds) if raw_seeds.isdigit() else 0
+            return (rank, seeds_int)
+
+        # If a specific season was requested, rank matching season releases first by quality
         if season and items:
             s_patterns = [
                 f"s{season:02d}", f"s{season}",
+                f"s0{season}-", f"s{season}-",
                 f"{season} сезон", f"{season}-й сезон", f"{season}й сезон",
                 f"сезон {season}", f"сезон: {season}"
             ]
             matching_season = [it for it in items if any(p in it.title.lower() for p in s_patterns)]
-            if matching_season:
-                # Keep matching season items at the top
-                other_items = [it for it in items if it not in matching_season]
-                items = matching_season + other_items
-
-        # If year was specified for a movie, prioritize items containing that year
+            matching_season.sort(key=_sort_key, reverse=True)
+            other_items = [it for it in items if it not in matching_season]
+            other_items.sort(key=_sort_key, reverse=True)
+            items = matching_season + other_items
         elif year and items:
             y_str = str(year)
             matching_year = [it for it in items if y_str in it.title]
-            if matching_year:
-                other_items = [it for it in items if it not in matching_year]
-                items = matching_year + other_items
+            matching_year.sort(key=_sort_key, reverse=True)
+            other_items = [it for it in items if it not in matching_year]
+            other_items.sort(key=_sort_key, reverse=True)
+            items = matching_year + other_items
+        else:
+            items.sort(key=_sort_key, reverse=True)
 
         return items
 

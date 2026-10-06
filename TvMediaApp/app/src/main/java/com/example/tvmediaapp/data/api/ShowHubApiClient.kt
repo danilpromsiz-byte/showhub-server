@@ -602,7 +602,7 @@ object ShowHubApiClient {
                             )
                             val isRezkaUltraStub = (src.equals("hdrezka", ignoreCase = true) || uLow.contains("voidboost")) &&
                                     (resP.contains("ultra") || resP.contains("4k") || resP.contains("2160") || resP.contains("1440") || resP.contains("premium") || resP.contains("vip") || isPremFlag)
-                            val isZonaStub = src.equals("zona", ignoreCase = true) || uLow.contains("vibio.tv")
+                            val isZonaStub = uLow.contains("vibio.tv")
                             val isStub = uLow.contains("rhtie") || uLow.contains("/1/4/4/4/3/4/3/") ||
                                     uLow.contains("zrkms") || uLow.contains("/1/5/3/6/4/2/4/") ||
                                     uLow.contains("trial") || uLow.contains("promo") || uLow.contains("teaser") ||

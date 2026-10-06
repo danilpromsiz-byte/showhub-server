@@ -1070,12 +1070,13 @@ private fun NativeExoPlayerScreen(
                 s.contains("VideoCDN", ignoreCase = true) -> "VideoCDN"
                 s.contains("Collaps", ignoreCase = true) || s.contains("Delivembd", ignoreCase = true) -> "Collaps"
                 s.contains("Bazon", ignoreCase = true) -> "Bazon"
+                s.contains("Zona", ignoreCase = true) -> "Zona"
                 s.isNotEmpty() -> s.replaceFirstChar { it.uppercase() }
                 else -> "Collaps"
             }
             srcSet.add(cleanName)
         }
-        val preferredOrder = listOf("Collaps", "VideoCDN", "Filmix", "HDrezka", "Kodik", "Торренты (TorrServe)", "Bazon")
+        val preferredOrder = listOf("Collaps", "VideoCDN", "Filmix", "HDrezka", "Kodik", "Zona", "Торренты (TorrServe)", "Bazon")
         val sortedSources = srcSet.sortedBy { src ->
             val idx = preferredOrder.indexOfFirst { it.equals(src, ignoreCase = true) }
             if (idx >= 0) idx else 99
@@ -1207,8 +1208,8 @@ private fun NativeExoPlayerScreen(
                 val sourceStreams = if (newSource.isNotBlank() && !newSource.equals("Все", ignoreCase = true)) {
                     val matched = allResolved.filter { s ->
                         when {
-                            newSource.contains("Torr", ignoreCase = true) ->
-                                s.url.contains(":8090") || s.quality.contains("P2P", ignoreCase = true) || s.source.contains("torrent", ignoreCase = true)
+                            newSource.contains("Torr", ignoreCase = true) || newSource.contains("Zona", ignoreCase = true) ->
+                                s.url.contains(":8090") || s.quality.contains("P2P", ignoreCase = true) || s.source.contains("torrent", ignoreCase = true) || s.source.contains("zona", ignoreCase = true)
                             newSource.equals("HDrezka", ignoreCase = true) ->
                                 s.source.equals("HDrezka", ignoreCase = true) || s.url.contains("voidboost") || s.url.contains("rezka")
                             newSource.equals("Collaps", ignoreCase = true) || newSource.equals("Delivembd", ignoreCase = true) ->

@@ -1,8 +1,8 @@
 {
-    "version_name": "2.8.97",
-    "version_code": 156,
-    "versionName": "2.8.97",
-    "versionCode": 156,
+    "version_name": "2.8.98",
+    "version_code": 157,
+    "versionName": "2.8.98",
+    "versionCode": 157,
     "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
     "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
     "apkUrl": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
@@ -10,39 +10,39 @@
     "forceUpdate": false,
     "min_version_code": 70,
     "minVersionCode": 70,
-    "changelog": "v2.8.97: Встроенный P2P-движок (полностью как в Zona) — никаких сторонних программ и серверов ставить не нужно! 2K и 4K торренты работают прямо из коробки в одном приложении ShowHub.",
-    "releaseNotes": "v2.8.97: Встроенный P2P-движок (полностью как в Zona) — никаких сторонних программ и серверов ставить не нужно! 2K и 4K торренты работают прямо из коробки в одном приложении ShowHub.",
+    "changelog": "v2.8.98: Добавлены 2K и 4K P2P раздачи для Zona и зарубежных сериалов (включая 'Одни из нас'), автоопределение оригинальных названий, улучшенная сортировка качества.",
+    "releaseNotes": "v2.8.98: Добавлены 2K и 4K P2P раздачи для Zona и зарубежных сериалов (включая 'Одни из нас'), автоопределение оригинальных названий, улучшенная сортировка качества.",
     "tv": {
-        "version_name": "2.8.97",
-        "version_code": 156,
-        "versionName": "2.8.97",
-        "versionCode": 156,
+        "version_name": "2.8.98",
+        "version_code": 157,
+        "versionName": "2.8.98",
+        "versionCode": 157,
         "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
         "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
         "apkUrl": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
-        "changelog": "v2.8.97: Встроенный P2P-движок (полностью как в Zona) — никаких сторонних программ и серверов ставить не нужно! 2K и 4K торренты работают прямо из коробки в одном приложении ShowHub.",
-        "releaseNotes": "v2.8.97: Встроенный P2P-движок (полностью как в Zona) — никаких сторонних программ и серверов ставить не нужно! 2K и 4K торренты работают прямо из коробки в одном приложении ShowHub."
+        "changelog": "v2.8.98: Добавлены 2K и 4K P2P раздачи для Zona и зарубежных сериалов (включая 'Одни из нас'), автоопределение оригинальных названий, улучшенная сортировка качества.",
+        "releaseNotes": "v2.8.98: Добавлены 2K и 4K P2P раздачи для Zona и зарубежных сериалов (включая 'Одни из нас'), автоопределение оригинальных названий, улучшенная сортировка качества."
     },
     "mobile": {
-        "version_name": "2.8.97",
-        "version_code": 156,
-        "versionName": "2.8.97",
-        "versionCode": 156,
+        "version_name": "2.8.98",
+        "version_code": 157,
+        "versionName": "2.8.98",
+        "versionCode": 157,
         "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-Mobile.apk",
         "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-Mobile.apk",
         "apkUrl": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-Mobile.apk",
-        "changelog": "v2.8.97: Встроенный P2P-движок (полностью как в Zona) — никаких сторонних программ и серверов ставить не нужно! 2K и 4K торренты работают прямо из коробки в одном приложении ShowHub.",
-        "releaseNotes": "v2.8.97: Встроенный P2P-движок (полностью как в Zona) — никаких сторонних программ и серверов ставить не нужно! 2K и 4K торренты работают прямо из коробки в одном приложении ShowHub."
+        "changelog": "v2.8.98: Добавлены 2K и 4K P2P раздачи для Zona и зарубежных сериалов (включая 'Одни из нас'), автоопределение оригинальных названий, улучшенная сортировка качества.",
+        "releaseNotes": "v2.8.98: Добавлены 2K и 4K P2P раздачи для Zona и зарубежных сериалов (включая 'Одни из нас'), автоопределение оригинальных названий, улучшенная сортировка качества."
     },
     "pc": {
-        "version_name": "2.8.97",
-        "version_code": 156,
-        "versionName": "2.8.97",
-        "versionCode": 156,
+        "version_name": "2.8.98",
+        "version_code": 157,
+        "versionName": "2.8.98",
+        "versionCode": 157,
         "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-PC.zip",
         "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-PC.zip",
         "apkUrl": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-PC.zip",
-        "changelog": "v2.8.97: Встроенный P2P-движок (полностью как в Zona) — никаких сторонних программ и серверов ставить не нужно! 2K и 4K торренты работают прямо из коробки в одном приложении ShowHub.",
-        "releaseNotes": "v2.8.97: Встроенный P2P-движок (полностью как в Zona) — никаких сторонних программ и серверов ставить не нужно! 2K и 4K торренты работают прямо из коробки в одном приложении ShowHub."
+        "changelog": "v2.8.98: Добавлены 2K и 4K P2P раздачи для Zona и зарубежных сериалов (включая 'Одни из нас'), автоопределение оригинальных названий, улучшенная сортировка качества.",
+        "releaseNotes": "v2.8.98: Добавлены 2K и 4K P2P раздачи для Zona и зарубежных сериалов (включая 'Одни из нас'), автоопределение оригинальных названий, улучшенная сортировка качества."
     }
 }

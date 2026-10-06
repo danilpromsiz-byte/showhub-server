@@ -273,8 +273,8 @@ fun DetailsScreen(
                     sKey.contains("collaps") || sKey.contains("delivembd") -> stSrc.contains("collaps") || stSrc.contains("delivembd") || st.url.contains("interkh") || st.url.contains("namy.ws")
                     sKey.contains("anilibria") -> stSrc.contains("anilibria") || st.url.contains("libria")
                     sKey.contains("bazon") -> stSrc.contains("bazon")
-                    sKey.contains("zona") -> stSrc.contains("zona")
-                    sKey.contains("торрент") || sKey.contains("torrent") -> stSrc.contains("torrent")
+                    sKey.contains("zona") -> stSrc.contains("zona") || stSrc.contains("torrent") || stSrc.contains("p2p")
+                    sKey.contains("торрент") || sKey.contains("torrent") -> stSrc.contains("torrent") || stSrc.contains("zona")
                     else -> stSrc.contains(sKey)
                 }
             }
@@ -512,8 +512,10 @@ fun DetailsScreen(
                     sKey.contains("rezka") -> stSrc.contains("rezka")
                     sKey.contains("filmix") -> stSrc.contains("filmix")
                     sKey.contains("videocdn") -> stSrc.contains("videocdn") || st.url.contains("allarknow") || st.url.contains("bayas") || st.url.contains("videoframe")
-                    sKey.contains("collaps") || sKey.contains("delivembd") -> stSrc.contains("collaps") || stSrc.contains("delivembd") || st.url.contains("interkh") || st.url.contains("namy.ws")
+                    sKey.contains("anilibria") -> stSrc.contains("anilibria") || st.url.contains("libria")
                     sKey.contains("bazon") -> stSrc.contains("bazon")
+                    sKey.contains("zona") -> stSrc.contains("zona") || stSrc.contains("torrent") || stSrc.contains("p2p")
+                    sKey.contains("торрент") || sKey.contains("torrent") -> stSrc.contains("torrent") || stSrc.contains("zona")
                     else -> stSrc.contains(sKey)
                 }
             }
@@ -522,7 +524,7 @@ fun DetailsScreen(
         val candidateStreams = rawCandidates.filter { !isStreamStub(it) }
 
         val qualSet = linkedSetOf<String>()
-        val order = listOf("4K", "1080p", "720p", "480p", "360p")
+        val order = listOf("4K", "2K", "1080p", "720p", "480p", "360p")
         for (target in order) {
             if (candidateStreams.any { matchStreamQuality(it, target) }) {
                 qualSet.add(target)
@@ -1117,6 +1119,8 @@ fun DetailsScreen(
                             sKey.contains("videocdn") -> stSrc.contains("videocdn") || st.url.contains("allarknow") || st.url.contains("bayas") || st.url.contains("videoframe")
                             sKey.contains("collaps") || sKey.contains("delivembd") -> stSrc.contains("collaps") || stSrc.contains("delivembd") || st.url.contains("interkh") || st.url.contains("namy.ws")
                             sKey.contains("bazon") -> stSrc.contains("bazon")
+                            sKey.contains("zona") -> stSrc.contains("zona") || stSrc.contains("torrent") || stSrc.contains("p2p")
+                            sKey.contains("торрент") || sKey.contains("torrent") -> stSrc.contains("torrent") || stSrc.contains("zona")
                             else -> stSrc.contains(sKey)
                         }
                     }

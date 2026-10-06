@@ -170,12 +170,12 @@ fun SearchScreen(
     var recentMovies by remember { mutableStateOf(loadRecentMovies()) }
 
     LaunchedEffect(recentMovies) {
-        val needsEnrichment = recentMovies.filter { it.posterUrl.isBlank() || it.posterUrl.contains("noposter") || it.posterUrl.contains("no_image") }
+        val needsEnrichment = recentMovies.filter { it.posterUrl.isBlank() || it.posterUrl.contains("noposter") || it.posterUrl.contains("no_image") || it.posterUrl.contains("zonapic") }
         if (needsEnrichment.isNotEmpty()) {
             withContext(Dispatchers.IO) {
                 var modified = false
                 val updated = recentMovies.map { m ->
-                    if (m.posterUrl.isBlank() || m.posterUrl.contains("noposter") || m.posterUrl.contains("no_image")) {
+                    if (m.posterUrl.isBlank() || m.posterUrl.contains("noposter") || m.posterUrl.contains("no_image") || m.posterUrl.contains("zonapic")) {
                         val real = ShowHubApiClient.resolveRealPoster(m.title, m.releaseYear, m.kinopoiskId)
                         if (!real.isNullOrBlank()) {
                             modified = true
@@ -302,11 +302,11 @@ fun SearchScreen(
                 if (reqId == activeSearchId) {
                     val finalResults = if (res.isNotEmpty()) res else localMatches
                     results = finalResults
-                    val missingPosters = finalResults.filter { it.posterUrl.isBlank() || it.posterUrl.contains("noposter") || it.posterUrl.contains("no_image") }
+                    val missingPosters = finalResults.filter { it.posterUrl.isBlank() || it.posterUrl.contains("noposter") || it.posterUrl.contains("no_image") || it.posterUrl.contains("zonapic") }
                     if (missingPosters.isNotEmpty()) {
                         launch(Dispatchers.IO) {
                             val enriched = finalResults.map { m ->
-                                if (m.posterUrl.isBlank() || m.posterUrl.contains("noposter") || m.posterUrl.contains("no_image")) {
+                                if (m.posterUrl.isBlank() || m.posterUrl.contains("noposter") || m.posterUrl.contains("no_image") || m.posterUrl.contains("zonapic")) {
                                     val real = ShowHubApiClient.resolveRealPoster(m.title, m.releaseYear, m.kinopoiskId)
                                     if (!real.isNullOrBlank()) m.copy(posterUrl = real) else m
                                 } else m
@@ -332,8 +332,8 @@ fun SearchScreen(
     }
 
     LaunchedEffect(initialActiveQuery) {
-        if (initialActiveQuery.isNotBlank()) {
-            performSearch(initialActiveQuery, byActor = isActorSearch, debounceMs = 0L)
+        if (initialActiveQuery.isNotBlank() && isActorSearch) {
+            performSearch(initialActiveQuery, byActor = true, debounceMs = 0L)
         }
     }
 

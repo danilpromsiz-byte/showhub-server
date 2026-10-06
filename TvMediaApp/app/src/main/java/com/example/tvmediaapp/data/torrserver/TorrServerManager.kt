@@ -32,8 +32,8 @@ object TorrServerManager {
             val cleanHost = host.trimEnd('/')
             val url = URL("$cleanHost/echo")
             val conn = url.openConnection() as HttpURLConnection
-            conn.connectTimeout = 1500
-            conn.readTimeout = 1500
+            conn.connectTimeout = 2500
+            conn.readTimeout = 2500
             conn.requestMethod = "GET"
             conn.connect()
             conn.responseCode == 200

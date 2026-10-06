@@ -123,7 +123,8 @@ object EmbeddedTorrServer {
                 binary.absolutePath,
                 "-p", PORT.toString(),
                 "-d", dataDir.absolutePath,
-                "-k"
+                "-k",
+                "-i", "127.0.0.1"
             )
             pb.directory(dataDir)
             pb.redirectErrorStream(true)
@@ -152,9 +153,9 @@ object EmbeddedTorrServer {
                 } catch (_: Exception) {}
             }
 
-            // Wait for /echo readiness (up to 5 seconds)
-            for (i in 1..25) {
-                delay(200)
+            // Wait for /echo readiness (up to 15 seconds for slow TV hardware and db initialization)
+            for (i in 1..50) {
+                delay(300)
                 if (TorrServerManager.checkIsAlive(ECHO_URL)) {
                     Log.i(TAG, "Embedded TorrServer is online and responding to /echo!")
                     return@withContext true

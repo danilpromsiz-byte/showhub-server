@@ -149,9 +149,11 @@ fun HomeScreen(
         if (displayMovies.isNotEmpty() && !isInitialPrep && !initialFocusDone && !isModalActive) {
             initialFocusDone = true
             delay(150)
-            try {
-                targetCardFocusRequester.requestFocus()
-            } catch (_: Exception) {}
+            if (!isModalActive) {
+                try {
+                    targetCardFocusRequester.requestFocus()
+                } catch (_: Exception) {}
+            }
         }
     }
 

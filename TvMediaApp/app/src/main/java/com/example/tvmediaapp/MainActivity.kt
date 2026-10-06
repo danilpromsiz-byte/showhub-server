@@ -264,8 +264,8 @@ fun TvAppNavHost(activity: MainActivity) {
     fun navigateTo(
         newScreen: Screen,
         movie: Movie? = selectedMovie,
-        searchQuery: String = searchInitialQuery,
-        searchIsActorVal: Boolean = searchIsActor,
+        searchQuery: String = if (newScreen == Screen.SEARCH) "" else searchInitialQuery,
+        searchIsActorVal: Boolean = if (newScreen == Screen.SEARCH) false else searchIsActor,
         videoUrl: String = activeVideoUrl,
         positionMs: Long = startPositionMs,
         season: Int = activeSeason,
@@ -697,10 +697,12 @@ fun TvAppNavHost(activity: MainActivity) {
             var updatePercent by remember { mutableIntStateOf(0) }
 
             LaunchedEffect(update) {
-                delay(30)
-                try {
-                    updateFocusRequester.requestFocus()
-                } catch (_: Exception) {}
+                for (d in listOf(20L, 80L, 180L, 350L)) {
+                    delay(d)
+                    try {
+                        updateFocusRequester.requestFocus()
+                    } catch (_: Exception) {}
+                }
             }
 
             Box(

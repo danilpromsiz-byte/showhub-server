@@ -2269,7 +2269,7 @@ def _fetch_media_details(
         al_future = probe_pool.submit(_probe_anilibria_details)
         zn_future = probe_pool.submit(_probe_zona_details)
 
-        concurrent.futures.wait([rz_future, fx_future, col_future, vc_future, al_future, zn_future], timeout=2.5)
+        concurrent.futures.wait([rz_future, fx_future, col_future, vc_future, al_future, zn_future], timeout=7.0)
 
         if rz_future.done():
             try:
@@ -2454,6 +2454,7 @@ def _fetch_media_details(
     # Normalize and ensure all translators have accurate series episode count and seasons mapping
     rz_seasons_eps = {s.get("season_number", s.get("season_id", 1)): len(s.get("episodes", [])) for s in details.get("seasons", [])}
     total_series_eps = max(rz_seasons_eps.values(), default=0)
+    rz_max_eps = total_series_eps
     if total_series_eps > 0:
         details["is_series"] = True
     for t in details.get("translators", []):
@@ -2473,7 +2474,7 @@ def _fetch_media_details(
             else:
                 t["episodes_count"] = 0
 
-    # Source availability metadata for UI Source selector
+    # Source availability metadata for UI Source selector (strictly verified available sources only)
     sources_info = []
     kodik_available = bool(kd_max_eps > 0 or (k_items if 'k_items' in locals() else False) or any(t.get("source") == "kodik" or t.get("kodik_id") for t in details.get("translators", [])) or source == "kodik")
     if kodik_available:
@@ -2483,27 +2484,33 @@ def _fetch_media_details(
             "episodes_count": kd_max_eps if kd_max_eps > 0 else total_series_eps,
             "seasons_episodes": kd_seasons_eps
         })
-    if not any(s.get("source") == "hdrezka" for s in sources_info):
+
+    hdrezka_available = bool(rz_found or any(t.get("source") == "hdrezka" for t in details.get("translators", [])) or source == "hdrezka")
+    if hdrezka_available and not any(s.get("source") == "hdrezka" for s in sources_info):
         sources_info.append({
             "source": "hdrezka",
             "name": "HDRezka",
             "episodes_count": rz_max_eps if rz_max_eps > 0 else total_series_eps,
             "seasons_episodes": rz_seasons_eps
         })
-    if not any(s.get("source") == "filmix" for s in sources_info):
+
+    filmix_available = bool(fx_available or any(t.get("source") == "filmix" for t in details.get("translators", [])) or source == "filmix")
+    if filmix_available and not any(s.get("source") == "filmix" for s in sources_info):
         sources_info.append({
             "source": "filmix",
             "name": "Filmix",
             "episodes_count": total_series_eps,
             "seasons_episodes": rz_seasons_eps
         })
-    if not any(s.get("source") == "delivembd" for s in sources_info):
+
+    if collaps_available and not any(s.get("source") == "delivembd" for s in sources_info):
         sources_info.append({
             "source": "delivembd",
             "name": "Collaps",
             "episodes_count": total_series_eps,
             "seasons_episodes": rz_seasons_eps
         })
+
     if videocdn_available and not any(s.get("source") == "videocdn" for s in sources_info):
         sources_info.append({
             "source": "videocdn",
@@ -2511,6 +2518,7 @@ def _fetch_media_details(
             "episodes_count": total_series_eps,
             "seasons_episodes": rz_seasons_eps
         })
+
     if anilibria_available and not any(s.get("source") == "anilibria" for s in sources_info):
         sources_info.append({
             "source": "anilibria",
@@ -2518,20 +2526,23 @@ def _fetch_media_details(
             "episodes_count": total_series_eps,
             "seasons_episodes": rz_seasons_eps
         })
-    if not any(s.get("source") == "zona" for s in sources_info):
+
+    if (zona_available or any(t.get("source") == "zona" for t in details.get("translators", [])) or source == "zona") and not any(s.get("source") == "zona" for s in sources_info):
         sources_info.append({
             "source": "zona",
             "name": "Zona",
             "episodes_count": total_series_eps,
             "seasons_episodes": rz_seasons_eps
         })
-    if not any(s.get("source") == "torrents" for s in sources_info):
-        sources_info.append({
-            "source": "torrents",
-            "name": "Торренты (TorrServe)",
-            "episodes_count": total_series_eps,
-            "seasons_episodes": rz_seasons_eps
-        })
+
+    if clean_title and (source in ("torrents", "rutor") or details.get("translators") or total_series_eps > 0 or details.get("year")):
+        if not any(s.get("source") == "torrents" for s in sources_info):
+            sources_info.append({
+                "source": "torrents",
+                "name": "Торренты (TorrServe)",
+                "episodes_count": total_series_eps,
+                "seasons_episodes": rz_seasons_eps
+            })
     details["sources_info"] = sources_info
 
     # 4b. Enrich missing ratings from Kodik and Shikimori (especially for anime and fresh titles)

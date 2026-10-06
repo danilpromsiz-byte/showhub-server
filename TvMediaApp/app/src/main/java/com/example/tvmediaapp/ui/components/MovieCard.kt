@@ -494,7 +494,7 @@ fun MovieCard(
                     fun isValidPoster(url: String?): Boolean {
                         if (url.isNullOrBlank()) return false
                         val low = url.lowercase().trim()
-                        return low != "null" && low != "none" && !low.contains("noposter") && !low.contains("no_image")
+                        return low != "null" && low != "none" && !low.contains("noposter") && !low.contains("no_image") && !low.contains("zonapic")
                     }
                     var resolvedPoster by remember(movie.id) { mutableStateOf("") }
                     val effectiveImage = when {

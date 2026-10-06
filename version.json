@@ -1,8 +1,8 @@
 {
-    "version_name": "2.8.101",
-    "version_code": 160,
-    "versionName": "2.8.101",
-    "versionCode": 160,
+    "version_name": "2.8.102",
+    "version_code": 161,
+    "versionName": "2.8.102",
+    "versionCode": 161,
     "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
     "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
     "apkUrl": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
@@ -10,39 +10,39 @@
     "forceUpdate": false,
     "min_version_code": 70,
     "minVersionCode": 70,
-    "changelog": "v2.8.101: Переработан выбор источников и качеств в карточке; автономный встроенный TorrServer для P2P потоков (Zona 2K/4K и торренты); восстановлена работа Filmix и HDRezka; исправлена загрузка постеров в поиске.",
-    "releaseNotes": "v2.8.101: Переработан выбор источников и качеств в карточке; автономный встроенный TorrServer для P2P потоков (Zona 2K/4K и торренты); восстановлена работа Filmix и HDRezka; исправлена загрузка постеров в поиске.",
+    "changelog": "v2.8.102: Кинематографичный Apple TV+ фон в карточке фильма (убрано затемнение); точный список источников и стандартизация качеств (4K/2K/1080p); улучшены кнопки управления без дублирования текста; приоритетный фокус диалога обновления; исправлен автопоиск при входе и загрузка постеров Zona.",
+    "releaseNotes": "v2.8.102: Кинематографичный Apple TV+ фон в карточке фильма (убрано затемнение); точный список источников и стандартизация качеств (4K/2K/1080p); улучшены кнопки управления без дублирования текста; приоритетный фокус диалога обновления; исправлен автопоиск при входе и загрузка постеров Zona.",
     "tv": {
-        "version_name": "2.8.101",
-        "version_code": 160,
-        "versionName": "2.8.101",
-        "versionCode": 160,
+        "version_name": "2.8.102",
+        "version_code": 161,
+        "versionName": "2.8.102",
+        "versionCode": 161,
         "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
         "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
         "apkUrl": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
-        "changelog": "v2.8.101: Переработан выбор источников и качеств в карточке; автономный встроенный TorrServer для P2P потоков (Zona 2K/4K и торренты); восстановлена работа Filmix и HDRezka; исправлена загрузка постеров в поиске.",
-        "releaseNotes": "v2.8.101: Переработан выбор источников и качеств в карточке; автономный встроенный TorrServer для P2P потоков (Zona 2K/4K и торренты); восстановлена работа Filmix и HDRezka; исправлена загрузка постеров в поиске."
+        "changelog": "v2.8.102: Кинематографичный Apple TV+ фон в карточке фильма (убрано затемнение); точный список источников и стандартизация качеств (4K/2K/1080p); улучшены кнопки управления без дублирования текста; приоритетный фокус диалога обновления; исправлен автопоиск при входе и загрузка постеров Zona.",
+        "releaseNotes": "v2.8.102: Кинематографичный Apple TV+ фон в карточке фильма (убрано затемнение); точный список источников и стандартизация качеств (4K/2K/1080p); улучшены кнопки управления без дублирования текста; приоритетный фокус диалога обновления; исправлен автопоиск при входе и загрузка постеров Zona."
     },
     "mobile": {
-        "version_name": "2.8.101",
-        "version_code": 160,
-        "versionName": "2.8.101",
-        "versionCode": 160,
+        "version_name": "2.8.102",
+        "version_code": 161,
+        "versionName": "2.8.102",
+        "versionCode": 161,
         "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-Mobile.apk",
         "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-Mobile.apk",
         "apkUrl": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-Mobile.apk",
-        "changelog": "v2.8.101: Переработан выбор источников и качеств в карточке; автономный встроенный TorrServer для P2P потоков (Zona 2K/4K и торренты); восстановлена работа Filmix и HDRezka; исправлена загрузка постеров в поиске.",
-        "releaseNotes": "v2.8.101: Переработан выбор источников и качеств в карточке; автономный встроенный TorrServer для P2P потоков (Zona 2K/4K и торренты); восстановлена работа Filmix и HDRezka; исправлена загрузка постеров в поиске."
+        "changelog": "v2.8.102: Кинематографичный Apple TV+ фон в карточке фильма (убрано затемнение); точный список источников и стандартизация качеств (4K/2K/1080p); улучшены кнопки управления без дублирования текста; приоритетный фокус диалога обновления; исправлен автопоиск при входе и загрузка постеров Zona.",
+        "releaseNotes": "v2.8.102: Кинематографичный Apple TV+ фон в карточке фильма (убрано затемнение); точный список источников и стандартизация качеств (4K/2K/1080p); улучшены кнопки управления без дублирования текста; приоритетный фокус диалога обновления; исправлен автопоиск при входе и загрузка постеров Zona."
     },
     "pc": {
-        "version_name": "2.8.101",
-        "version_code": 160,
-        "versionName": "2.8.101",
-        "versionCode": 160,
+        "version_name": "2.8.102",
+        "version_code": 161,
+        "versionName": "2.8.102",
+        "versionCode": 161,
         "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-PC.zip",
         "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-PC.zip",
         "apkUrl": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-PC.zip",
-        "changelog": "v2.8.101: Переработан выбор источников и качеств в карточке; автономный встроенный TorrServer для P2P потоков (Zona 2K/4K и торренты); восстановлена работа Filmix и HDRezka; исправлена загрузка постеров в поиске.",
-        "releaseNotes": "v2.8.101: Переработан выбор источников и качеств в карточке; автономный встроенный TorrServer для P2P потоков (Zona 2K/4K и торренты); восстановлена работа Filmix и HDRezka; исправлена загрузка постеров в поиске."
+        "changelog": "v2.8.102: Кинематографичный Apple TV+ фон в карточке фильма (убрано затемнение); точный список источников и стандартизация качеств (4K/2K/1080p); улучшены кнопки управления без дублирования текста; приоритетный фокус диалога обновления; исправлен автопоиск при входе и загрузка постеров Zona.",
+        "releaseNotes": "v2.8.102: Кинематографичный Apple TV+ фон в карточке фильма (убрано затемнение); точный список источников и стандартизация качеств (4K/2K/1080p); улучшены кнопки управления без дублирования текста; приоритетный фокус диалога обновления; исправлен автопоиск при входе и загрузка постеров Zona."
     }
 }

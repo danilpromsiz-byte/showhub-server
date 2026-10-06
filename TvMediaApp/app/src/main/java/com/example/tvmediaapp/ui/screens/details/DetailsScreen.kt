@@ -213,11 +213,25 @@ fun DetailsScreen(
         return false
     }
 
+    fun normalizeQuality(raw: String): String {
+        val low = raw.lowercase().trim()
+        val clean = low.substringBefore("(").trim()
+        return when {
+            clean.contains("4k") || clean.contains("2160") || clean.contains("uhd") -> "4K"
+            clean.contains("2k") || clean.contains("1440") || clean.contains("qhd") -> "2K"
+            clean.contains("1080") || clean.contains("fhd") -> "1080p"
+            clean.contains("720") || clean.contains("hd") -> "720p"
+            clean.contains("480") || clean.contains("sd") -> "480p"
+            clean.contains("360") -> "360p"
+            else -> raw.replace(Regex("\\(.*?\\)"), "").trim().ifEmpty { "1080p" }
+        }
+    }
+
     val availableSourcesInfo = remember(currentMovie.sources, currentMovie.audioTracks, currentMovie.seasons, selectedSeason, streamOptions, currentMovie.isSeries) {
         val detectedSources = linkedSetOf<String>()
-        val standardSources = listOf("Collaps", "Filmix", "HDRezka", "Zona", "Торренты (TorrServe)")
-        standardSources.forEach { detectedSources.add(it) }
+        // 1. First add sources verified by media details endpoint
         currentMovie.sources.forEach { if (it.name.isNotBlank()) detectedSources.add(it.name) }
+        // 2. Add sources that provided audio tracks (translators)
         currentMovie.audioTracks.forEach { trk ->
             val s = trk.source.trim()
             val name = when {
@@ -234,6 +248,7 @@ fun DetailsScreen(
             }
             if (name.isNotEmpty()) detectedSources.add(name)
         }
+        // 3. Add sources that provided streams
         streamOptions.forEach { st ->
             val s = st.source.trim()
             val name = when {
@@ -251,13 +266,24 @@ fun DetailsScreen(
             }
             if (name.isNotEmpty()) detectedSources.add(name)
         }
+        // 4. Initial fallback if details are still loading
+        if (detectedSources.isEmpty()) {
+            val initSrc = when {
+                currentMovie.source.contains("filmix", ignoreCase = true) -> "Filmix"
+                currentMovie.source.contains("zona", ignoreCase = true) -> "Zona"
+                currentMovie.source.contains("torrent", ignoreCase = true) -> "Торренты (TorrServe)"
+                currentMovie.source.isNotBlank() -> currentMovie.source.replaceFirstChar { it.uppercase() }
+                else -> "HDRezka"
+            }
+            detectedSources.add(initSrc)
+        }
 
         val curSeasonEps = if (currentMovie.isSeries) {
             currentMovie.seasons.firstOrNull { it.seasonNumber == selectedSeason }?.episodes?.size
                 ?: currentMovie.seasons.sumOf { it.episodes.size }
         } else 0
 
-        val qualityOrder = listOf("4K", "2160", "2K", "1440", "1080p HD", "1080p", "1080", "720p", "720", "480p", "480", "360p", "360")
+        val qualityOrder = listOf("4K", "2160", "2K", "1440", "1080p", "1080", "720p", "720", "480p", "480", "360p", "360")
 
         val isTv = com.example.tvmediaapp.BuildConfig.PLATFORM_TYPE == "tv"
         val sourceInfoList = detectedSources.mapNotNull { srcName ->
@@ -295,32 +321,46 @@ fun DetailsScreen(
                 }
             }
             val cleanStreams = srcStreams.filter { !isStreamStub(it) }
-            val isStandard = sKey.contains("rezka") || sKey.contains("filmix") || sKey.contains("collaps") || sKey.contains("zona") || sKey.contains("торрент") || sKey.contains("torrent")
-            // Never prune standard sources
-            if (streamOptions.isNotEmpty() && cleanStreams.isEmpty() && !hasTracks && !isStandard) {
+            val isVerified = currentMovie.sources.any {
+                it.name.equals(srcName, ignoreCase = true) ||
+                it.id.equals(sKey, ignoreCase = true) ||
+                (sKey.contains("rezka") && (it.id.contains("rezka") || it.name.contains("rezka", ignoreCase = true))) ||
+                (sKey.contains("filmix") && (it.id.contains("filmix") || it.name.contains("filmix", ignoreCase = true))) ||
+                (sKey.contains("zona") && (it.id.contains("zona") || it.name.contains("zona", ignoreCase = true))) ||
+                (sKey.contains("torrent") && (it.id.contains("torrent") || it.name.contains("торрент", ignoreCase = true))) ||
+                (sKey.contains("collaps") && (it.id.contains("collaps") || it.id.contains("delivembd") || it.name.contains("collaps", ignoreCase = true)))
+            }
+
+            // Strictly filter: A source must have verified streams, audio tracks, or explicit backend verification
+            if (!isVerified && cleanStreams.isEmpty() && !hasTracks) {
                 return@mapNotNull null
             }
-            val hasHls = if (srcStreams.isNotEmpty()) {
+
+            val isTorrentP2P = sKey.contains("zona") || sKey.contains("торрент") || sKey.contains("torrent") || sKey.contains("p2p") || srcStreams.any { it.url.contains(":8090") || it.url.contains("stream?link=") }
+            val hasHls = if (isTorrentP2P) {
+                true
+            } else if (srcStreams.isNotEmpty()) {
                 cleanStreams.any { isDirectVideoStream(it.url) }
             } else {
-                sKey.contains("rezka") || sKey.contains("filmix") || sKey.contains("collaps") || sKey.contains("anilibria") || sKey.contains("zona") || sKey.contains("торрент") || sKey.contains("torrent")
+                sKey.contains("rezka") || sKey.contains("filmix") || sKey.contains("collaps") || sKey.contains("anilibria")
             }
+
             val bestQ = run {
                 for (q in qualityOrder) {
                     val match = cleanStreams.firstOrNull { st ->
                         val resP = st.quality.substringBefore("(").trim().lowercase()
                         resP.contains(q.lowercase()) && (!q.contains("1080") || (!resP.contains("ultra") && !resP.contains("premium")))
                     }
-                    if (match != null) return@run match.quality.replace(Regex("\\(.*?\\)"), "").trim()
+                    if (match != null) return@run normalizeQuality(match.quality)
                 }
-                val firstClean = cleanStreams.firstOrNull()?.quality?.replace(Regex("\\(.*?\\)"), "")?.trim()
+                val firstClean = cleanStreams.firstOrNull()?.quality?.let { normalizeQuality(it) }
                 if (!firstClean.isNullOrBlank()) return@run firstClean
                 when {
-                    sKey.contains("zona") || sKey.contains("торрент") || sKey.contains("torrent") -> "4K"
+                    isTorrentP2P -> "4K"
                     sKey.contains("filmix") -> if (isFilmixProPlus || isFilmixPro) "4K" else "1080p"
                     sKey.contains("rezka") -> "1080p"
                     sKey.contains("collaps") || sKey.contains("delivembd") -> "1080p"
-                    else -> ""
+                    else -> "1080p"
                 }
             }
             val epC = if (currentMovie.isSeries) {
@@ -502,13 +542,12 @@ fun DetailsScreen(
         if (tq.contains("max") || tq.contains("макс") || tq.contains("авто") || tq.contains("auto")) {
             return true
         }
-        if (tq.contains("ultra")) return resP.contains("ultra")
-        if (tq.contains("4k") || tq.contains("2160")) return resP.contains("4k") || resP.contains("2160")
-        if (tq.contains("1440") || tq.contains("2k")) return resP.contains("1440") || resP.contains("2k")
-        if (tq.contains("1080")) return resP.contains("1080") && !resP.contains("ultra") && !resP.contains("premium")
-        if (tq.contains("720")) return resP.contains("720")
-        if (tq.contains("480")) return resP.contains("480")
-        if (tq.contains("360")) return resP.contains("360")
+        if (tq == "4k" || tq.contains("2160")) return resP.contains("4k") || resP.contains("2160") || resP.contains("uhd")
+        if (tq == "2k" || tq.contains("1440")) return resP.contains("1440") || resP.contains("2k") || resP.contains("qhd")
+        if (tq == "1080p" || tq.contains("1080")) return resP.contains("1080") && !resP.contains("ultra") && !resP.contains("premium")
+        if (tq == "720p" || tq.contains("720")) return resP.contains("720")
+        if (tq == "480p" || tq.contains("480")) return resP.contains("480")
+        if (tq == "360p" || tq.contains("360")) return resP.contains("360")
         return resP.contains(tq)
     }
 
@@ -627,8 +666,8 @@ fun DetailsScreen(
             }
         }
         candidateStreams.forEach { st ->
-            val cleanQ = st.quality.replace(Regex("\\(.*?\\)"), "").trim()
-            if (cleanQ.isNotEmpty() && !qualSet.contains(cleanQ) && qualSet.none { it.contains(cleanQ, ignoreCase = true) }) {
+            val cleanQ = normalizeQuality(st.quality)
+            if (cleanQ.isNotEmpty() && !qualSet.contains(cleanQ)) {
                 qualSet.add(cleanQ)
             }
         }
@@ -1304,44 +1343,42 @@ fun DetailsScreen(
             .fillMaxSize()
             .background(screenBg)
     ) {
-        // High-res backdrop — vivid but not overwhelming
+        // High-res backdrop — clean, vivid and cinematic
         AsyncImage(
             model = currentMovie.backdropUrl.ifEmpty { currentMovie.posterUrl },
             contentDescription = currentMovie.title,
             contentScale = ContentScale.Crop,
             modifier = Modifier
                 .fillMaxSize()
-                .alpha(0.40f)
+                .alpha(0.85f)
         )
 
-        // Multi-layer gradient overlay for depth and readability
-        // Horizontal: left side darker (content area), right lighter (backdrop visible)
+        // Apple TV+ / Netflix cinematic gradient overlay:
+        // Left side solid dark gradient for poster & controls, smoothly fading to transparent on the right
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(
                     Brush.horizontalGradient(
-                        colors = listOf(
-                            screenBg.copy(alpha = 0.94f),
-                            screenBg.copy(alpha = 0.82f),
-                            screenBg.copy(alpha = 0.60f)
-                        )
+                        0.0f to screenBg.copy(alpha = 0.98f),
+                        0.30f to screenBg.copy(alpha = 0.94f),
+                        0.52f to screenBg.copy(alpha = 0.65f),
+                        0.72f to screenBg.copy(alpha = 0.20f),
+                        0.88f to Color.Transparent,
+                        1.0f to Color.Transparent
                     )
                 )
         )
-        // Vertical: bottom darker for controls readability
+        // Subtle vertical gradient at the bottom edge only
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(
                     Brush.verticalGradient(
-                        colors = listOf(
-                            Color.Transparent,
-                            screenBg.copy(alpha = 0.30f),
-                            screenBg.copy(alpha = 0.85f)
-                        ),
-                        startY = 0f,
-                        endY = Float.POSITIVE_INFINITY
+                        0.0f to Color.Transparent,
+                        0.70f to Color.Transparent,
+                        0.88f to screenBg.copy(alpha = 0.35f),
+                        1.0f to screenBg.copy(alpha = 0.85f)
                     )
                 )
         )
@@ -1960,9 +1997,9 @@ fun DetailsScreen(
                         val mins = savedHistory!!.positionMs / 60000L
                         val isContentSeries = currentMovie.isSeries || currentMovie.seasons.isNotEmpty() || (savedHistory != null && (savedHistory.season > 1 || savedHistory.episode > 1))
                         val resumeLabel = if (isContentSeries) {
-                            "Продолжить (S${savedHistory.season} E${savedHistory.episode} · $selectedSourceFilter · $selectedQuality)"
+                            "Продолжить (S${savedHistory.season} E${savedHistory.episode})"
                         } else {
-                            "Продолжить ($mins мин · $selectedSourceFilter · $selectedQuality)"
+                            "Продолжить ($mins мин)"
                         }
 
                         Button(
@@ -1986,9 +2023,9 @@ fun DetailsScreen(
                             ),
                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                             scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
-                            contentPadding = PaddingValues(horizontal = 9.dp, vertical = 0.dp),
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
                             modifier = Modifier
-                                .height(25.dp)
+                                .height(36.dp)
                                 .focusRequester(playButtonFocusRequester)
                                 .focusProperties {
                                     left = leftPaneFocusRequester
@@ -1999,18 +2036,18 @@ fun DetailsScreen(
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(5.dp)
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
                                 AppIcon(
                                     resId = R.drawable.ic_play_arrow,
                                     tint = Color.Black,
-                                    size = 14.dp
+                                    size = 18.dp
                                 )
                                 Text(
                                     text = resumeLabel,
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 11.sp,
-                                    lineHeight = 13.sp
+                                    fontSize = 13.sp,
+                                    lineHeight = 15.sp
                                 )
                             }
                         }
@@ -2029,9 +2066,9 @@ fun DetailsScreen(
                             ),
                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                             scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
-                            contentPadding = PaddingValues(horizontal = 9.dp, vertical = 0.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
                             modifier = Modifier
-                                .height(25.dp)
+                                .height(36.dp)
                                 .focusRequester(fromStartButtonFocusRequester)
                                 .focusProperties {
                                     left = playButtonFocusRequester
@@ -2042,18 +2079,18 @@ fun DetailsScreen(
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(5.dp)
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
                                 AppIcon(
                                     resId = R.drawable.ic_replay_10,
                                     tint = androidx.tv.material3.LocalContentColor.current,
-                                    size = 13.dp
+                                    size = 16.dp
                                 )
                                 Text(
                                     text = "С начала",
                                     fontWeight = FontWeight.Medium,
-                                    fontSize = 11.sp,
-                                    lineHeight = 13.sp
+                                    fontSize = 13.sp,
+                                    lineHeight = 15.sp
                                 )
                             }
                         }
@@ -2072,9 +2109,9 @@ fun DetailsScreen(
                             ),
                             shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
                             scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
-                            contentPadding = PaddingValues(horizontal = 9.dp, vertical = 0.dp),
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
                             modifier = Modifier
-                                .height(25.dp)
+                                .height(36.dp)
                                 .focusRequester(playButtonFocusRequester)
                                 .focusProperties {
                                     left = leftPaneFocusRequester
@@ -2085,25 +2122,18 @@ fun DetailsScreen(
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(5.dp)
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
                                 AppIcon(
                                     resId = R.drawable.ic_play_arrow,
                                     tint = Color.Black,
-                                    size = 14.dp
+                                    size = 18.dp
                                 )
                                 Text(
-                                    text = if (isResolving) "Поиск потока..." else buildString {
-                                        append("Смотреть")
-                                        append(" ($selectedSourceFilter · $selectedQuality")
-                                        if (currentMovie.isSeries) {
-                                            append(" · S$selectedSeason E$selectedEpisode")
-                                        }
-                                        append(")")
-                                    },
+                                    text = if (isResolving) "Поиск потока..." else "Смотреть",
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 11.sp,
-                                    lineHeight = 13.sp
+                                    fontSize = 13.sp,
+                                    lineHeight = 15.sp
                                 )
                             }
                         }
@@ -2489,12 +2519,12 @@ fun DetailsScreen(
                                 itemsIndexed(availableSourcesInfo) { _, srcInfo ->
                                     val isSrcSelected = selectedSourceFilter.equals(srcInfo.name, ignoreCase = true)
                                     val sKey = srcInfo.name.lowercase()
-                                    val isTorrentP2P = sKey.contains("zona") || sKey.contains("торрент") || sKey.contains("torrent")
+                                    val isTorrentP2P = sKey.contains("zona") || sKey.contains("торрент") || sKey.contains("torrent") || sKey.contains("p2p")
                                     val typeBadge = if (isTorrentP2P) "P2P" else if (srcInfo.isHls) "HLS" else "IFRAME"
                                     val typeColor = if (isTorrentP2P) Color(0xFF38BDF8) else if (srcInfo.isHls) Color(0xFF4ADE80) else Color(0xFFFBBF24)
                                     val chipLabel = buildString {
                                         append(srcInfo.name)
-                                        if (srcInfo.bestQuality.isNotEmpty()) append(" · ${srcInfo.bestQuality}")
+                                        if (srcInfo.bestQuality.isNotEmpty()) append(" · ${normalizeQuality(srcInfo.bestQuality)}")
                                         if (srcInfo.epCount > 0) append(" (${srcInfo.epCount} сер.)")
                                     }
                                     Button(

@@ -129,6 +129,7 @@ val EXCLUDE_GENRE_OPTIONS = listOf(
 val QUALITY_OPTIONS = listOf(
     Pair("1080p", "1080p (Full HD)"),
     Pair("4k", "4K (Ultra HD)"),
+    Pair("2k", "2K (Quad HD)"),
     Pair("720p", "720p (HD)"),
     Pair("480p", "480p (SD)"),
     Pair("max", "Максимальное")
@@ -140,7 +141,8 @@ val SOURCE_OPTIONS = listOf(
     Pair("Filmix", "Filmix"),
     Pair("HDRezka", "HDRezka"),
     Pair("VideoCDN", "VideoCDN"),
-    Pair("Kodik", "Kodik")
+    Pair("Kodik", "Kodik"),
+    Pair("Торренты (TorrServe)", "Торренты (2K / 4K P2P)")
 )
 
 val PLAYER_OPTIONS = listOf(

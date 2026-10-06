@@ -610,7 +610,7 @@ object ShowHubApiClient {
                             if (uStr.startsWith("http") && !isStub && !isRezkaUltraStub) {
                                 val isDirect = sType == "hls" || sType == "mp4" || sType == "torrent" ||
                                         uStr.contains(".m3u8") || uStr.contains(".mp4") || uStr.contains("voidboost") ||
-                                        uStr.contains("/stream?link=")
+                                        uStr.contains("/stream") || uStr.contains(":8090") || src.equals("torrents", ignoreCase = true)
                                 val sourceName = when {
                                     sType == "torrent" || src.equals("torrents", ignoreCase = true) -> "Торренты (TorrServe)"
                                     src.equals("delivembd", ignoreCase = true) || src.equals("collaps", ignoreCase = true) -> "Collaps"

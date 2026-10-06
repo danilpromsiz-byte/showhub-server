@@ -161,7 +161,8 @@ fun isDirectVideoStream(url: String): Boolean {
         return false
     }
     return clean.contains(".m3u8") || clean.contains(".mp4") || clean.contains("voidboost") || 
-           clean.contains("/stream/") || clean.contains("/hls/") || clean.contains(".mkv") || clean.contains(".webm")
+           clean.contains("/stream") || clean.contains("/hls/") || clean.contains(".mkv") || clean.contains(".webm") ||
+           clean.contains(":8090") || clean.contains("/stream?link=")
 }
 
 fun resolveEmbedBaseUrl(streamUrl: String): String {
@@ -1063,7 +1064,7 @@ private fun NativeExoPlayerScreen(
             val s = st.source.trim()
             val cleanName = when {
                 s.startsWith("HDrezka", ignoreCase = true) -> "HDrezka"
-                s.contains("Torr", ignoreCase = true) -> "Торренты (TorrServe)"
+                s.contains("Torr", ignoreCase = true) || s.contains("торрент", ignoreCase = true) || s.contains("torrent", ignoreCase = true) -> "Торренты (TorrServe)"
                 s.contains("Filmix", ignoreCase = true) -> "Filmix"
                 s.contains("Kodik", ignoreCase = true) -> "Kodik"
                 s.contains("VideoCDN", ignoreCase = true) -> "VideoCDN"
@@ -1085,7 +1086,7 @@ private fun NativeExoPlayerScreen(
     fun extractQualities(streams: List<com.example.tvmediaapp.data.models.StreamOption>): List<String> {
         val clean = streams.filter { !isStubStream(it) }
         val qualSet = linkedSetOf<String>()
-        val order = listOf("4K", "1080p", "720p", "480p", "360p")
+        val order = listOf("4K", "2K", "1080p", "720p", "480p", "360p")
         for (target in order) {
             if (clean.any { matchQuality(it.quality, target) }) {
                 qualSet.add(target)

@@ -908,10 +908,10 @@ def get_proxied_image(url: str = Query(...)):
 def check_updates() -> Dict[str, Any]:
     showhub_fallback = {
         "success": True,
-        "version_name": "2.8.95",
-        "version_code": 154,
-        "versionName": "2.8.95",
-        "versionCode": 154,
+        "version_name": "2.8.96",
+        "version_code": 155,
+        "versionName": "2.8.96",
+        "versionCode": 155,
         "force_update": False,
         "forceUpdate": False,
         "min_version_code": 70,
@@ -919,40 +919,40 @@ def check_updates() -> Dict[str, Any]:
         "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
         "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
         "apkUrl": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
-        "changelog": "v2.8.95: Оптимизирован экран поиска (убран лишний баннер и дублирующиеся спиннеры, оставлен единый чистый индикатор), Supabase синхронизация.",
-        "releaseNotes": "v2.8.95: Оптимизирован экран поиска (убран лишний баннер и дублирующиеся спиннеры, оставлен единый чистый индикатор), Supabase синхронизация.",
+        "changelog": "v2.8.96: Воспроизведение 2K и 4K P2P торрентов через TorrServer (как в Zona): умный поиск раздач, авто-распознавание качества и HDR/DV, встроенный помощник запуска и 1-клик установки TorrServer MatriX (APK).",
+        "releaseNotes": "v2.8.96: Воспроизведение 2K и 4K P2P торрентов через TorrServer (как в Zona): умный поиск раздач, авто-распознавание качества и HDR/DV, встроенный помощник запуска и 1-клик установки TorrServer MatriX (APK).",
         "tv": {
-            "version_name": "2.8.95",
-            "version_code": 154,
-            "versionName": "2.8.95",
-            "versionCode": 154,
+            "version_name": "2.8.96",
+            "version_code": 155,
+            "versionName": "2.8.96",
+            "versionCode": 155,
             "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
             "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
             "apkUrl": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
-            "changelog": "v2.8.95: Оптимизирован экран поиска (убран лишний баннер и дублирующиеся спиннеры, оставлен единый чистый индикатор), Supabase синхронизация.",
-            "releaseNotes": "v2.8.95: Оптимизирован экран поиска (убран лишний баннер и дублирующиеся спиннеры, оставлен единый чистый индикатор), Supabase синхронизация."
+            "changelog": "v2.8.96: Воспроизведение 2K и 4K P2P торрентов через TorrServer (как в Zona): умный поиск раздач, авто-распознавание качества и HDR/DV, встроенный помощник запуска и 1-клик установки TorrServer MatriX (APK).",
+            "releaseNotes": "v2.8.96: Воспроизведение 2K и 4K P2P торрентов через TorrServer (как в Zona): умный поиск раздач, авто-распознавание качества и HDR/DV, встроенный помощник запуска и 1-клик установки TorrServer MatriX (APK)."
         },
         "mobile": {
-            "version_name": "2.8.95",
-            "version_code": 154,
-            "versionName": "2.8.95",
-            "versionCode": 154,
+            "version_name": "2.8.96",
+            "version_code": 155,
+            "versionName": "2.8.96",
+            "versionCode": 155,
             "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-Mobile.apk",
             "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-Mobile.apk",
             "apkUrl": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-Mobile.apk",
-            "changelog": "v2.8.95: Оптимизирован экран поиска (убран лишний баннер и дублирующиеся спиннеры, оставлен единый чистый индикатор), Supabase синхронизация.",
-            "releaseNotes": "v2.8.95: Оптимизирован экран поиска (убран лишний баннер и дублирующиеся спиннеры, оставлен единый чистый индикатор), Supabase синхронизация."
+            "changelog": "v2.8.96: Воспроизведение 2K и 4K P2P торрентов через TorrServer (как в Zona): умный поиск раздач, авто-распознавание качества и HDR/DV, встроенный помощник запуска и 1-клик установки TorrServer MatriX (APK).",
+            "releaseNotes": "v2.8.96: Воспроизведение 2K и 4K P2P торрентов через TorrServer (как в Zona): умный поиск раздач, авто-распознавание качества и HDR/DV, встроенный помощник запуска и 1-клик установки TorrServer MatriX (APK)."
         },
         "pc": {
-            "version_name": "2.8.95",
-            "version_code": 154,
-            "versionName": "2.8.95",
-            "versionCode": 154,
+            "version_name": "2.8.96",
+            "version_code": 155,
+            "versionName": "2.8.96",
+            "versionCode": 155,
             "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-PC.zip",
             "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-PC.zip",
             "apkUrl": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-PC.zip",
-            "changelog": "v2.8.95: Оптимизирован экран поиска (убран лишний баннер и дублирующиеся спиннеры, оставлен единый чистый индикатор), Supabase синхронизация.",
-            "releaseNotes": "v2.8.95: Оптимизирован экран поиска (убран лишний баннер и дублирующиеся спиннеры, оставлен единый чистый индикатор), Supabase синхронизация."
+            "changelog": "v2.8.96: Воспроизведение 2K и 4K P2P торрентов через TorrServer (как в Zona): умный поиск раздач, авто-распознавание качества и HDR/DV, встроенный помощник запуска и 1-клик установки TorrServer MatriX (APK).",
+            "releaseNotes": "v2.8.96: Воспроизведение 2K и 4K P2P торрентов через TorrServer (как в Zona): умный поиск раздач, авто-распознавание качества и HDR/DV, встроенный помощник запуска и 1-клик установки TorrServer MatriX (APK)."
         }
     }
     try:
@@ -3177,13 +3177,17 @@ def _fetch_media_streams(
                 if torr_items:
                     torr_streams = [
                         {
-                            "quality": f"{t.extra_data.get('size', '')} (Сиды: {t.extra_data.get('seeds', '0')})",
+                            "quality": t.extra_data.get("quality_label") or f"{t.extra_data.get('size', '')} (Сиды: {t.extra_data.get('seeds', '0')})",
                             "url": t.extra_data.get("stream_url", ""),
                             "stream_type": "torrent",
                             "headers": {},
-                            "magnet": t.extra_data.get("magnet", "")
+                            "magnet": t.extra_data.get("magnet", ""),
+                            "torrent_title": t.title,
+                            "size": t.extra_data.get("size", ""),
+                            "seeds": t.extra_data.get("seeds", "0"),
+                            "quality_tier": t.extra_data.get("quality_tier", "1080p")
                         }
-                        for t in torr_items[:8]
+                        for t in torr_items[:12]
                     ]
                     return ("torrents", {
                         "source_name": "Rutor / TorrServe",

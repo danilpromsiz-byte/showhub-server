@@ -107,6 +107,8 @@ import com.example.tvmediaapp.data.resolver.RezkaNativeResolver
 import com.example.tvmediaapp.data.resolver.FilmixNativeResolver
 import com.example.tvmediaapp.ui.components.AppIcon
 import com.example.tvmediaapp.ui.components.NeonSpinner
+import com.example.tvmediaapp.ui.components.TorrServerHelperDialog
+import com.example.tvmediaapp.data.torrserver.TorrServerManager
 import androidx.compose.foundation.focusable
 import com.example.tvmediaapp.ui.screens.player.isDirectVideoStream
 import com.example.tvmediaapp.ui.theme.BackgroundDark
@@ -191,6 +193,8 @@ fun DetailsScreen(
     var isLoadingComments by remember { mutableStateOf(false) }
     var isLoadingDetails by remember { mutableStateOf(currentMovie.seasons.isEmpty() && currentMovie.audioTracks.isEmpty()) }
     var isLoadingStreams by remember { mutableStateOf(true) }
+    var showTorrServerDialog by remember { mutableStateOf(false) }
+    var pendingTorrStream by remember { mutableStateOf<StreamOption?>(null) }
 
     fun isStreamStub(st: StreamOption): Boolean {
         val su = st.url.lowercase()
@@ -250,7 +254,7 @@ fun DetailsScreen(
                 ?: currentMovie.seasons.sumOf { it.episodes.size }
         } else 0
 
-        val qualityOrder = listOf("4K", "2160", "1080p HD", "1080p", "1080", "720p", "720", "480p", "480", "360p", "360")
+        val qualityOrder = listOf("4K", "2160", "2K", "1440", "1080p HD", "1080p", "1080", "720p", "720", "480p", "480", "360p", "360")
 
         val isTv = com.example.tvmediaapp.BuildConfig.PLATFORM_TYPE == "tv"
         val sourceInfoList = detectedSources.mapNotNull { srcName ->
@@ -1141,10 +1145,28 @@ fun DetailsScreen(
                 }
 
                 if (matched != null && matched.url.isNotBlank() && matched.url.startsWith("http")) {
+                    val isTorrent = matched.source.contains("torrent", ignoreCase = true) ||
+                            matched.url.contains(":8090") ||
+                            matched.url.contains("/stream?link=") ||
+                            matched.quality.contains("P2P", ignoreCase = true)
+                    val torrHost = TorrServerManager.getTorrHost(context)
+                    val adjustedUrl = if (isTorrent && matched.url.contains("127.0.0.1:8090") && torrHost != "http://127.0.0.1:8090") {
+                        matched.url.replace("http://127.0.0.1:8090", torrHost)
+                    } else matched.url
+
+                    if (isTorrent) {
+                        val isAlive = TorrServerManager.checkIsAlive(torrHost)
+                        if (!isAlive) {
+                            pendingTorrStream = matched.copy(url = adjustedUrl)
+                            showTorrServerDialog = true
+                            return@launch
+                        }
+                    }
+
                     streamStatus = "▶ ${matched.quality} (${matched.source}, ${if (isHls) "HLS" else "IFRAME"}) | Всего: $hlsCount HLS, $embedCount embed"
                     val movieToPlay = (if (isContentSeries) currentMovie.copy(isSeries = true) else currentMovie)
-                        .copy(source = matched.source, videoUrl = matched.url, streams = streams)
-                    onPlayClick(movieToPlay, matched.url, startPos, targetSeason, targetEpisode, targetAudioId)
+                        .copy(source = matched.source, videoUrl = adjustedUrl, streams = streams)
+                    onPlayClick(movieToPlay, adjustedUrl, startPos, targetSeason, targetEpisode, targetAudioId)
                 } else {
                     streamStatus = notFoundMsg
                     // Auto-report: streams expected but nothing playable found
@@ -3310,6 +3332,29 @@ fun DetailsScreen(
                 // Smooth bottom clearance for TV bezels and overscan
                 Spacer(modifier = Modifier.height(360.dp))
             }
+        }
+
+        if (showTorrServerDialog && pendingTorrStream != null) {
+            val torrHost = TorrServerManager.getTorrHost(context)
+            TorrServerHelperDialog(
+                host = torrHost,
+                streamTitle = pendingTorrStream?.quality ?: "4K / 2K P2P",
+                magnetOrStreamUrl = pendingTorrStream?.url ?: "",
+                onDismiss = {
+                    showTorrServerDialog = false
+                    pendingTorrStream = null
+                },
+                onRetryPlayback = {
+                    val streamToPlay = pendingTorrStream
+                    showTorrServerDialog = false
+                    pendingTorrStream = null
+                    if (streamToPlay != null) {
+                        val movieToPlay = (if (currentMovie.isSeries) currentMovie.copy(isSeries = true) else currentMovie)
+                            .copy(source = streamToPlay.source, videoUrl = streamToPlay.url, streams = streamOptions)
+                        onPlayClick(movieToPlay, streamToPlay.url, 0L, selectedSeason, selectedEpisode, selectedAudioId)
+                    }
+                }
+            )
         }
     }
 }

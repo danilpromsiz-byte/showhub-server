@@ -3,13 +3,63 @@ Torrents (Rutor / TorrServe) Source Adapter.
 Extracted from LazyMedia Deluxe and Кино HD torrent aggregators.
 Provides high-bitrate 4K/1080p magnets and direct streaming via TorrServe engine.
 """
+import re
 import time
 import urllib.parse
 import requests
 from bs4 import BeautifulSoup
-from typing import List, Optional
+from typing import List, Optional, Tuple
 from .base import BaseSource, MediaItem, StreamResult, VideoStream, CanaryReport
 from ..core.mirror_manager import mirror_manager
+
+def parse_torrent_quality(title: str, size: str = "", seeds: str = "0") -> Tuple[str, str, int]:
+    """
+    Parses torrent release title to extract resolution, HDR/DV, Remux/Rip,
+    and returns (display_label, quality_tier, quality_rank).
+    """
+    t_low = title.lower()
+
+    if any(k in t_low for k in ["2160", "4k", "uhd"]):
+        res = "4K"
+        rank = 2160
+    elif any(k in t_low for k in ["1440", "2k", "qhd"]):
+        res = "2K"
+        rank = 1440
+    elif "1080" in t_low:
+        res = "1080p"
+        rank = 1080
+    elif "720" in t_low:
+        res = "720p"
+        rank = 720
+    elif "480" in t_low:
+        res = "480p"
+        rank = 480
+    else:
+        res = "HD"
+        rank = 720
+
+    feats = []
+    if any(k in t_low for k in ["dolby vision", "dovi", "dv"]):
+        feats.append("DV")
+    elif "hdr" in t_low:
+        feats.append("HDR")
+
+    if "remux" in t_low:
+        feats.append("Remux")
+    elif any(k in t_low for k in ["bdrip", "bluray"]):
+        feats.append("BDRip")
+    elif any(k in t_low for k in ["web-dl", "webdl"]):
+        feats.append("WEB-DL")
+
+    feat_str = (" " + " ".join(feats)) if feats else ""
+    s_clean = size.replace("\xa0", " ").strip() if size else ""
+    seeds_clean = seeds.split()[0].replace("\xa0", "").strip() if seeds else "0"
+    label = f"{res}{feat_str}"
+    if s_clean and s_clean != "N/A":
+        label += f" • {s_clean}"
+    if seeds_clean and seeds_clean != "0":
+        label += f" (S: {seeds_clean})"
+    return label, res, rank
 
 class TorrentsSource(BaseSource):
     name = "torrents"
@@ -29,14 +79,12 @@ class TorrentsSource(BaseSource):
     def search(self, query: str, year: Optional[int] = None, kp_id: Optional[str] = None, season: Optional[int] = None, episode: Optional[int] = None) -> List[MediaItem]:
         items = []
         base = self._get_base()
-        clean_query = query
-        if season:
-            clean_query += f" s{season:02d}"
-            if episode:
-                clean_query += f"e{episode:02d}"
-        elif year:
-            clean_query += f" {year}"
+        clean_query = query.strip()
+        if not clean_query:
+            return []
 
+        # For search, clean query works best across Russian trackers.
+        # Trackers do not match "s01e01"; instead, they match title and have season info in release names.
         encoded = urllib.parse.quote(clean_query)
         url = f"{base}/search/0/0/0/0/{encoded}"
 
@@ -45,7 +93,7 @@ class TorrentsSource(BaseSource):
             if res.status_code == 200:
                 soup = BeautifulSoup(res.text, "html.parser")
                 rows = soup.select("#index tr")
-                for tr in rows[1:15]:  # Top 15 torrents
+                for tr in rows[1:25]:  # Top 24 torrents
                     cols = tr.find_all("td")
                     if len(cols) >= 4:
                         magnet = ""
@@ -56,7 +104,7 @@ class TorrentsSource(BaseSource):
                                 magnet = href
                             elif href.startswith("/torrent/"):
                                 title = a_tag.text.strip()
-                        
+
                         if not magnet:
                             continue
                         if not title:
@@ -73,10 +121,15 @@ class TorrentsSource(BaseSource):
                             size = "N/A"
                             seeds = "0"
 
-                        # Skip audiobooks / music albums
+                        # Skip audiobooks / music albums / games / software
                         t_low = title.lower()
-                        if any(bad in t_low for bad in ["mp3", "flac", "lossless", "аудиокнига", "soundtrack", "ost"]):
+                        if any(bad in t_low for bad in ["mp3", "flac", "lossless", "аудиокнига", "soundtrack", "ost", "pc | repack", "repack от"]):
                             continue
+
+                        quality_label, quality_tier, quality_rank = parse_torrent_quality(title, size, seeds)
+                        # Clean slug for player URL (keep letters/digits, replace punctuation/slashes)
+                        clean_title_part = re.sub(r'[\s/\\|:?*<>"+#]+', '_', title[:45]).strip('_') or "video"
+                        stream_url = f"{self.TORRSERVE_HOST}/stream/{urllib.parse.quote(clean_title_part)}.mkv?link={urllib.parse.quote(magnet)}&play"
 
                         items.append(MediaItem(
                             id=magnet,
@@ -88,26 +141,42 @@ class TorrentsSource(BaseSource):
                                 "magnet": magnet,
                                 "size": size,
                                 "seeds": seeds,
-                                "stream_url": f"{self.TORRSERVE_HOST}/stream?link={urllib.parse.quote(magnet)}"
+                                "quality_label": quality_label,
+                                "quality_tier": quality_tier,
+                                "quality_rank": quality_rank,
+                                "stream_url": stream_url
                             }
                         ))
         except Exception:
             pass
 
-        # If searching with year yielded no video results, retry without year and match year in title
-        if not items and year:
-            raw_items = self.search(query, year=None, kp_id=kp_id, season=season, episode=episode)
-            if raw_items:
-                y_str = str(year)
-                matched = [it for it in raw_items if y_str in it.title]
-                if matched:
-                    items = matched
+        # If a specific season was requested, rank matching season releases first
+        if season and items:
+            s_patterns = [
+                f"s{season:02d}", f"s{season}",
+                f"{season} сезон", f"{season}-й сезон", f"{season}й сезон",
+                f"сезон {season}", f"сезон: {season}"
+            ]
+            matching_season = [it for it in items if any(p in it.title.lower() for p in s_patterns)]
+            if matching_season:
+                # Keep matching season items at the top
+                other_items = [it for it in items if it not in matching_season]
+                items = matching_season + other_items
+
+        # If year was specified for a movie, prioritize items containing that year
+        elif year and items:
+            y_str = str(year)
+            matching_year = [it for it in items if y_str in it.title]
+            if matching_year:
+                other_items = [it for it in items if it not in matching_year]
+                items = matching_year + other_items
 
         return items
 
     def get_streams(self, media_id: str, season: Optional[int] = None, episode: Optional[int] = None, audio_id: Optional[str] = None) -> StreamResult:
         magnet = media_id
-        torr_stream = f"{self.TORRSERVE_HOST}/stream?link={urllib.parse.quote(magnet)}"
+        safe_slug = "video"
+        torr_stream = f"{self.TORRSERVE_HOST}/stream/{safe_slug}.mkv?link={urllib.parse.quote(magnet)}&play"
 
         return StreamResult(
             source_name=self.name,
@@ -117,7 +186,7 @@ class TorrentsSource(BaseSource):
                 VideoStream(
                     quality="Original Bitrate (TorrServe)",
                     url=torr_stream,
-                    stream_type="hls",
+                    stream_type="torrent",
                     headers={}
                 )
             ],

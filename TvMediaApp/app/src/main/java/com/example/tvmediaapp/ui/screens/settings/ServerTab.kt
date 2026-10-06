@@ -1,6 +1,8 @@
 package com.example.tvmediaapp.ui.screens.settings
 
+import android.app.Activity
 import android.content.Context
+import com.example.tvmediaapp.data.torrserver.TorrServerManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.focusable
@@ -190,8 +192,12 @@ fun ServerTab(
             }
         }
 
+        var isDownloadingTorr by remember { mutableStateOf(false) }
+        var torrDownloadStatus by remember { mutableStateOf<String?>(null) }
+        val isTorrInstalled = remember { TorrServerManager.isTorrServerInstalled(context) }
+
         Row(
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Button(
@@ -199,18 +205,7 @@ fun ServerTab(
                     coroutineScope.launch {
                         isTorrPinging = true
                         torrPingResult = "Проверка TorrServe..."
-                        val ok = withContext(Dispatchers.IO) {
-                            try {
-                                val url = URL("$torrServeHost/echo")
-                                val conn = url.openConnection() as HttpURLConnection
-                                conn.connectTimeout = 3000
-                                conn.readTimeout = 3000
-                                conn.connect()
-                                conn.responseCode == 200
-                            } catch (e: Exception) {
-                                false
-                            }
-                        }
+                        val ok = TorrServerManager.checkIsAlive(torrServeHost)
                         isTorrPinging = false
                         torrPingResult = if (ok) {
                             "TorrServe доступен и готов к воспроизведению!"
@@ -232,6 +227,56 @@ fun ServerTab(
             ) {
                 Text(text = if (isTorrPinging) "Проверка..." else "Тест TorrServe", fontWeight = FontWeight.Bold, fontSize = 11.sp, lineHeight = 13.sp)
             }
+
+            if (isTorrInstalled) {
+                Button(
+                    onClick = {
+                        TorrServerManager.startTorrServerApp(context)
+                        torrPingResult = "Приложение TorrServe запущено. Проверьте статус через 2 сек."
+                    },
+                    colors = ButtonDefaults.colors(
+                        containerColor = Color.White.copy(alpha = 0.12f),
+                        focusedContainerColor = LocalFocusColor.current,
+                        contentColor = TextWhite,
+                        focusedContentColor = Color.Black
+                    ),
+                    border = ButtonDefaults.border(border = Border.None, focusedBorder = Border.None),
+                    shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                    modifier = Modifier.height(28.dp)
+                ) {
+                    Text(text = "▶ Запустить TorrServe", fontWeight = FontWeight.Medium, fontSize = 11.sp, lineHeight = 13.sp)
+                }
+            } else {
+                Button(
+                    onClick = {
+                        val act = context as? Activity
+                        if (act != null) {
+                            coroutineScope.launch {
+                                isDownloadingTorr = true
+                                TorrServerManager.downloadAndInstallApk(act) { status, _ ->
+                                    torrDownloadStatus = status
+                                }
+                                isDownloadingTorr = false
+                            }
+                        }
+                    },
+                    colors = ButtonDefaults.colors(
+                        containerColor = Color.White.copy(alpha = 0.12f),
+                        focusedContainerColor = LocalFocusColor.current,
+                        contentColor = TextWhite,
+                        focusedContentColor = Color.Black
+                    ),
+                    border = ButtonDefaults.border(border = Border.None, focusedBorder = Border.None),
+                    shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                    scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.0f),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                    modifier = Modifier.height(28.dp)
+                ) {
+                    Text(text = if (isDownloadingTorr) "Загрузка..." else "📥 Скачать TorrServe MatriX (APK)", fontWeight = FontWeight.Medium, fontSize = 11.sp, lineHeight = 13.sp)
+                }
+            }
         }
 
         if (torrPingResult != null) {
@@ -239,6 +284,14 @@ fun ServerTab(
                 text = torrPingResult ?: "",
                 fontSize = 13.sp,
                 color = if (torrPingResult?.contains("готов") == true) accent else Color.Red
+            )
+        }
+
+        if (torrDownloadStatus != null) {
+            Text(
+                text = torrDownloadStatus ?: "",
+                fontSize = 12.sp,
+                color = if (torrDownloadStatus?.contains("Ошибка") == true) Color.Red else accent
             )
         }
 

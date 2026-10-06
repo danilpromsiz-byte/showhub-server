@@ -90,6 +90,8 @@ class TursoManager:
             self._token = self._token.strip()
 
     def is_configured(self) -> bool:
+        if getattr(self, "_quota_exceeded_until", 0) > time.time():
+            return False
         self._load_config()
         return bool(self._url and self._token)
 
@@ -122,16 +124,20 @@ class TursoManager:
             })
         reqs.append({"type": "close"})
 
-        for attempt in range(3):
+        for attempt in range(2):
             try:
-                resp = requests.post(pipeline_url, headers=headers, json={"requests": reqs}, timeout=12)
+                resp = requests.post(pipeline_url, headers=headers, json={"requests": reqs}, timeout=5)
                 if resp.status_code == 200:
                     return resp.json()
+                if resp.status_code in (403, 429) or (resp.text and "quota" in resp.text.lower()):
+                    logger.warning(f"[Turso] Quota exceeded or account blocked (HTTP {resp.status_code})! Circuit breaker tripped for 1 hour.")
+                    self._quota_exceeded_until = time.time() + 3600
+                    return None
                 logger.debug(f"[Turso] HTTP pipeline attempt {attempt+1} status: {resp.status_code}")
             except Exception as e:
                 logger.debug(f"[Turso] HTTP pipeline attempt {attempt+1} error: {e}")
-            if attempt < 2:
-                time.sleep(1.0 * (attempt + 1))
+            if attempt < 1:
+                time.sleep(0.5)
         return None
 
     def init_schema(self) -> bool:

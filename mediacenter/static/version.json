@@ -1,14 +1,48 @@
 {
+    "version_name": "2.8.94",
+    "version_code": 153,
+    "versionName": "2.8.94",
+    "versionCode": 153,
+    "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
+    "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
+    "apkUrl": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
+    "force_update": false,
+    "forceUpdate": false,
+    "min_version_code": 70,
+    "minVersionCode": 70,
+    "changelog": "v2.8.94: Мгновенный поиск FTS5 (<50 мс), прямые потоки и версии из Zona, 100% официальные трейлеры TMDb, исключение невышедших анонсов 2027 года.",
+    "releaseNotes": "v2.8.94: Мгновенный поиск FTS5 (<50 мс), прямые потоки и версии из Zona, 100% официальные трейлеры TMDb, исключение невышедших анонсов 2027 года.",
     "tv": {
+        "version_name": "2.8.94",
+        "version_code": 153,
         "versionName": "2.8.94",
         "versionCode": 153,
+        "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
+        "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
         "apkUrl": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
-        "releaseNotes": "v2.8.94: Мгновенный поиск FTS5 (<50 мс) по всей базе фильмов, прямые потоки и версии из Zona в деталях и озвучках, 100% официальные трейлеры TMDb и защита предпросмотра от чужих видео и заглушек, исключение невышедших анонсов 2027 года с главного экрана"
+        "changelog": "v2.8.94: Мгновенный поиск FTS5 (<50 мс), прямые потоки и версии из Zona, 100% официальные трейлеры TMDb, исключение невышедших анонсов 2027 года.",
+        "releaseNotes": "v2.8.94: Мгновенный поиск FTS5 (<50 мс), прямые потоки и версии из Zona, 100% официальные трейлеры TMDb, исключение невышедших анонсов 2027 года."
     },
     "mobile": {
+        "version_name": "2.8.94",
+        "version_code": 153,
         "versionName": "2.8.94",
         "versionCode": 153,
+        "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-Mobile.apk",
+        "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-Mobile.apk",
         "apkUrl": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-Mobile.apk",
-        "releaseNotes": "v2.8.94: Мгновенный поиск FTS5 (<50 мс) по всей базе фильмов, прямые потоки и версии из Zona в деталях и озвучках, 100% официальные трейлеры TMDb и защита предпросмотра от чужих видео и заглушек, исключение невышедших анонсов 2027 года с главного экрана"
+        "changelog": "v2.8.94: Мгновенный поиск FTS5 (<50 мс), прямые потоки и версии из Zona, 100% официальные трейлеры TMDb, исключение невышедших анонсов 2027 года.",
+        "releaseNotes": "v2.8.94: Мгновенный поиск FTS5 (<50 мс), прямые потоки и версии из Zona, 100% официальные трейлеры TMDb, исключение невышедших анонсов 2027 года."
+    },
+    "pc": {
+        "version_name": "2.8.94",
+        "version_code": 153,
+        "versionName": "2.8.94",
+        "versionCode": 153,
+        "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-PC.zip",
+        "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-PC.zip",
+        "apkUrl": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-PC.zip",
+        "changelog": "v2.8.94: Мгновенный поиск FTS5 (<50 мс), прямые потоки и версии из Zona, 100% официальные трейлеры TMDb, исключение невышедших анонсов 2027 года.",
+        "releaseNotes": "v2.8.94: Мгновенный поиск FTS5 (<50 мс), прямые потоки и версии из Zona, 100% официальные трейлеры TMDb, исключение невышедших анонсов 2027 года."
     }
 }

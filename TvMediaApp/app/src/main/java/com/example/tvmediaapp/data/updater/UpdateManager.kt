@@ -140,9 +140,12 @@ object UpdateManager {
     }
 
     private val VERSION_URLS = listOf(
-        "https://showhub-server.onrender.com/version.json",
         "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/version.json",
-        "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/version.json"
+        "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/version.json",
+        "https://showhub-server.onrender.com/version.json",
+        "https://showhub-server.onrender.com/static/version.json",
+        "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/version.json",
+        "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/version.json"
     )
 
     suspend fun checkUpdate(currentVersionCode: Int): UpdateInfo = withContext(Dispatchers.IO) {
@@ -166,15 +169,42 @@ object UpdateManager {
                         val platform = com.example.tvmediaapp.BuildConfig.PLATFORM_TYPE
                         val platformObj = json.optJSONObject(platform)
 
-                        val sCode = platformObj?.optInt("version_code") ?: json.optInt("version_code", 0)
-                        val sName = platformObj?.optString("version_name") ?: json.optString("version_name", "2.8.60")
+                        val sCode = platformObj?.optInt("version_code", 0)?.takeIf { it > 0 }
+                            ?: platformObj?.optInt("versionCode", 0)?.takeIf { it > 0 }
+                            ?: json.optInt("version_code", 0).takeIf { it > 0 }
+                            ?: json.optInt("versionCode", 0)
+
+                        val sName = platformObj?.optString("version_name", "")?.takeIf { it.isNotBlank() }
+                            ?: platformObj?.optString("versionName", "")?.takeIf { it.isNotBlank() }
+                            ?: json.optString("version_name", "").takeIf { it.isNotBlank() }
+                            ?: json.optString("versionName", "").takeIf { it.isNotBlank() }
+                            ?: "2.8.94"
+
                         val defaultApkName = if (platform == "mobile") "ShowHub-Mobile.apk" else "ShowHub.apk"
-                        val sUrl = platformObj?.optString("download_url", platformObj.optString("apk_url", ""))
-                            ?.takeIf { it.isNotBlank() }
-                            ?: json.optString("download_url", json.optString("apk_url", "https://showhub-server.onrender.com/$defaultApkName"))
-                        val sChangelog = json.optString("changelog", "Новая версия ShowHub")
-                        val forceUpdateFlag = json.optBoolean("force_update", false)
-                        val minVersionCode = json.optInt("min_version_code", 0)
+                        val sUrl = platformObj?.optString("download_url", "")?.takeIf { it.isNotBlank() }
+                            ?: platformObj?.optString("apk_url", "")?.takeIf { it.isNotBlank() }
+                            ?: platformObj?.optString("apkUrl", "")?.takeIf { it.isNotBlank() }
+                            ?: json.optString("download_url", "")?.takeIf { it.isNotBlank() }
+                            ?: json.optString("apk_url", "")?.takeIf { it.isNotBlank() }
+                            ?: json.optString("apkUrl", "")?.takeIf { it.isNotBlank() }
+                            ?: "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/$defaultApkName"
+
+                        val sChangelog = platformObj?.optString("changelog", "")?.takeIf { it.isNotBlank() }
+                            ?: platformObj?.optString("releaseNotes", "")?.takeIf { it.isNotBlank() }
+                            ?: json.optString("changelog", "")?.takeIf { it.isNotBlank() }
+                            ?: json.optString("releaseNotes", "")?.takeIf { it.isNotBlank() }
+                            ?: "Новая версия ShowHub"
+
+                        val forceUpdateFlag = platformObj?.optBoolean("force_update", false)
+                            ?: platformObj?.optBoolean("forceUpdate", false)
+                            ?: json.optBoolean("force_update", false)
+                            ?: json.optBoolean("forceUpdate", false)
+
+                        val minVersionCode = platformObj?.optInt("min_version_code", 0)?.takeIf { it > 0 }
+                            ?: platformObj?.optInt("minVersionCode", 0)?.takeIf { it > 0 }
+                            ?: json.optInt("min_version_code", 0).takeIf { it > 0 }
+                            ?: json.optInt("minVersionCode", 0)
+
                         val hasUpdate = sCode > currentVersionCode
                         val isForce = hasUpdate && (forceUpdateFlag || currentVersionCode < minVersionCode)
                         val info = UpdateInfo(hasUpdate, sName, sCode, sUrl, sChangelog, isForce)

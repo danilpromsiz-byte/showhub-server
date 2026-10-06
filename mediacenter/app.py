@@ -908,29 +908,51 @@ def get_proxied_image(url: str = Query(...)):
 def check_updates() -> Dict[str, Any]:
     showhub_fallback = {
         "success": True,
-        "version_name": "2.8.93",
-        "version_code": 152,
-        "force_update": True,
-        "min_version_code": 108,
+        "version_name": "2.8.94",
+        "version_code": 153,
+        "versionName": "2.8.94",
+        "versionCode": 153,
+        "force_update": False,
+        "forceUpdate": False,
+        "min_version_code": 70,
+        "minVersionCode": 70,
         "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
         "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
-        "changelog": "v2.8.93: Мгновенное открытие карточек за 1 мс, синхронизация с Turso Cloud, устранение таймаутов поиска и загрузки «Одни из нас», повторные попытки при пробуждении сервера.",
+        "apkUrl": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
+        "changelog": "v2.8.94: Мгновенный поиск FTS5 (<50 мс), прямые потоки и версии из Zona, 100% официальные трейлеры TMDb, исключение невышедших анонсов 2027 года.",
+        "releaseNotes": "v2.8.94: Мгновенный поиск FTS5 (<50 мс), прямые потоки и версии из Zona, 100% официальные трейлеры TMDb, исключение невышедших анонсов 2027 года.",
         "tv": {
-            "version_name": "2.8.93",
-            "version_code": 152,
+            "version_name": "2.8.94",
+            "version_code": 153,
+            "versionName": "2.8.94",
+            "versionCode": 153,
             "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
-            "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk"
+            "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
+            "apkUrl": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
+            "changelog": "v2.8.94: Мгновенный поиск FTS5 (<50 мс), прямые потоки и версии из Zona, 100% официальные трейлеры TMDb, исключение невышедших анонсов 2027 года.",
+            "releaseNotes": "v2.8.94: Мгновенный поиск FTS5 (<50 мс), прямые потоки и версии из Zona, 100% официальные трейлеры TMDb, исключение невышедших анонсов 2027 года."
         },
         "mobile": {
-            "version_name": "2.8.93",
-            "version_code": 152,
+            "version_name": "2.8.94",
+            "version_code": 153,
+            "versionName": "2.8.94",
+            "versionCode": 153,
             "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-Mobile.apk",
-            "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-Mobile.apk"
+            "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-Mobile.apk",
+            "apkUrl": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-Mobile.apk",
+            "changelog": "v2.8.94: Мгновенный поиск FTS5 (<50 мс), прямые потоки и версии из Zona, 100% официальные трейлеры TMDb, исключение невышедших анонсов 2027 года.",
+            "releaseNotes": "v2.8.94: Мгновенный поиск FTS5 (<50 мс), прямые потоки и версии из Zona, 100% официальные трейлеры TMDb, исключение невышедших анонсов 2027 года."
         },
         "pc": {
-            "version_name": "2.8.93",
-            "version_code": 152,
-            "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-PC.zip"
+            "version_name": "2.8.94",
+            "version_code": 153,
+            "versionName": "2.8.94",
+            "versionCode": 153,
+            "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-PC.zip",
+            "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-PC.zip",
+            "apkUrl": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-PC.zip",
+            "changelog": "v2.8.94: Мгновенный поиск FTS5 (<50 мс), прямые потоки и версии из Zona, 100% официальные трейлеры TMDb, исключение невышедших анонсов 2027 года.",
+            "releaseNotes": "v2.8.94: Мгновенный поиск FTS5 (<50 мс), прямые потоки и версии из Zona, 100% официальные трейлеры TMDb, исключение невышедших анонсов 2027 года."
         }
     }
     try:
@@ -947,11 +969,16 @@ def check_updates() -> Dict[str, Any]:
                     data = json.load(f)
                     if isinstance(data, dict):
                         merged = dict(data)
-                        if "tv" not in merged or not isinstance(merged.get("tv"), dict) or merged["tv"].get("version_code", 0) < 152:
+                        tv_code = 0
+                        if isinstance(merged.get("tv"), dict):
+                            tv_code = merged["tv"].get("version_code") or merged["tv"].get("versionCode") or 0
+                        if not tv_code:
+                            tv_code = merged.get("version_code") or merged.get("versionCode") or 0
+                        if tv_code < 153:
                             merged.update(showhub_fallback)
-                            for k in ["alert_screensaver", "alert_mobile", "alert_screensaver_premium", "alert_mobile_premium", "ads"]:
-                                if k in data:
-                                    merged[k] = data[k]
+                        for k in ["alert_screensaver", "alert_mobile", "alert_screensaver_premium", "alert_mobile_premium", "ads"]:
+                            if k in data:
+                                merged[k] = data[k]
                         return merged
     except Exception as e:
         logger.warning(f"Failed to read version.json from disk: {e}")

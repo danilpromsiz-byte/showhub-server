@@ -291,10 +291,10 @@ class MediaRegistry:
             conn.execute("CREATE INDEX IF NOT EXISTS idx_pop_desc ON media_items(popularity DESC);")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_country ON media_items(country);")
 
-            # Full-Text Search 5 Virtual Table Migration
+            # Full-Text Search 5 Virtual Table Migration (Title-Only Optimized)
             try:
                 fts_cols = [c[1] for c in conn.execute("PRAGMA table_info(media_fts);").fetchall()]
-                if "actors" not in fts_cols:
+                if "description" in fts_cols or "actors" in fts_cols or "clean_title" not in fts_cols:
                     conn.execute("DROP TABLE IF EXISTS media_fts;")
             except Exception:
                 pass
@@ -302,15 +302,24 @@ class MediaRegistry:
             conn.execute("""
                 CREATE VIRTUAL TABLE IF NOT EXISTS media_fts USING fts5(
                     item_id UNINDEXED,
+                    clean_title,
                     title,
                     original_title,
-                    description,
-                    actors,
-                    director,
-                    tags,
                     tokenize='unicode61 remove_diacritics 2'
                 );
             """)
+
+            # Auto-populate media_fts if empty
+            try:
+                fts_count = conn.execute("SELECT count(*) FROM media_fts;").fetchone()[0]
+                if fts_count == 0:
+                    conn.execute("""
+                        INSERT INTO media_fts (item_id, clean_title, title, original_title)
+                        SELECT id, clean_title, title, COALESCE(original_title, '')
+                        FROM media_items;
+                    """)
+            except Exception as e:
+                logger.debug(f"FTS initial population notice: {e}")
 
             # Harvester persistent state table
             conn.execute("""
@@ -576,8 +585,7 @@ class MediaRegistry:
                 ))
 
                 fts_rows.append((
-                    unique_id, title, orig_title or "", desc or "",
-                    actors_str or "", director_str or "", tags_json or ""
+                    unique_id, clean, title, orig_title or ""
                 ))
             except Exception as e:
                 logger.debug(f"Error preparing row for registry: {e}")
@@ -650,8 +658,8 @@ class MediaRegistry:
                     for fts in fts_rows:
                         conn.execute("DELETE FROM media_fts WHERE item_id = ?;", (fts[0],))
                         conn.execute("""
-                            INSERT INTO media_fts (item_id, title, original_title, description, actors, director, tags)
-                            VALUES (?, ?, ?, ?, ?, ?, ?);
+                            INSERT INTO media_fts (item_id, clean_title, title, original_title)
+                            VALUES (?, ?, ?, ?);
                         """, fts)
 
                     inserted_count = len(prepared_rows)

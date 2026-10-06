@@ -202,7 +202,7 @@ fun SearchScreen(
     }
 
     val initialActiveQuery = remember {
-        if (initialQuery.isNotBlank()) initialQuery else (recentQueries.firstOrNull() ?: "")
+        if (initialQuery.isNotBlank()) initialQuery else ""
     }
     var query by remember { mutableStateOf(initialActiveQuery) }
     var results by remember { mutableStateOf<List<Movie>>(emptyList()) }

@@ -84,6 +84,7 @@ fun HomeScreen(
     onCheckUpdateClick: (() -> Unit)? = null,
     hasUpdateAvailable: Boolean = false,
     appVersion: String = "1.0.0",
+    isModalActive: Boolean = false,
     modifier: Modifier = Modifier,
     viewModel: HomeViewModel = viewModel()
 ) {
@@ -144,8 +145,8 @@ fun HomeScreen(
     var initialFocusDone by remember { mutableStateOf(false) }
 
     // Automatically focus the active card ONCE on initial screen enter when displayMovies is ready
-    LaunchedEffect(displayMovies.isNotEmpty(), isInitialPrep) {
-        if (displayMovies.isNotEmpty() && !isInitialPrep && !initialFocusDone) {
+    LaunchedEffect(displayMovies.isNotEmpty(), isInitialPrep, isModalActive) {
+        if (displayMovies.isNotEmpty() && !isInitialPrep && !initialFocusDone && !isModalActive) {
             initialFocusDone = true
             delay(150)
             try {
@@ -203,7 +204,11 @@ fun HomeScreen(
                 .background(LocalBackgroundColor.current)
         ) {
             Column(
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier
+                    .fillMaxSize()
+                    .focusProperties {
+                        if (isModalActive) canFocus = false
+                    }
             ) {
                 // TOP NAVIGATION BAR: Logo + Search + Favorites + History + Settings + Update
                 TvTopBar(

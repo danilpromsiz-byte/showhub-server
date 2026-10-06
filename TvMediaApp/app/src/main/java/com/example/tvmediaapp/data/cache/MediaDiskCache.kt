@@ -24,6 +24,15 @@ object MediaDiskCache {
         }
         cacheDir = base
 
+        val v158PurgeFlag = File(base, "v158_streams_purged.flag")
+        if (!v158PurgeFlag.exists()) {
+            try {
+                File(base, "streams").deleteRecursively()
+                File(base, "details").deleteRecursively()
+                v158PurgeFlag.createNewFile()
+            } catch (_: Exception) {}
+        }
+
         val catFile = File(base, "catalog.json")
         try {
             if (catFile.exists()) {
@@ -244,6 +253,11 @@ object MediaDiskCache {
             val key = "${safeId}_s${season ?: 0}_e${episode ?: 0}_a${audioId ?: "def"}"
             val file = File(getStreamsDir(), "$key.json")
             if (!file.exists()) return null
+            // Streams cache TTL: 20 minutes to ensure dynamic torrents and newly added links update
+            if (System.currentTimeMillis() - file.lastModified() > 20 * 60 * 1000L) {
+                file.delete()
+                return null
+            }
             val content = file.readText()
             val arr = JSONArray(content)
             val list = mutableListOf<StreamOption>()

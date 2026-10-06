@@ -12,7 +12,7 @@ import java.util.concurrent.TimeUnit
 object CoilSetup {
     fun init(context: Context) {
         try {
-            val resetFlag = File(context.cacheDir, "coil_v141_clean.flag")
+            val resetFlag = File(context.cacheDir, "coil_v158_clean.flag")
             if (!resetFlag.exists()) {
                 try {
                     File(context.cacheDir, "image_cache").deleteRecursively()
@@ -34,7 +34,7 @@ object CoilSetup {
                     when {
                         host.contains("hdrezka") -> builder.header("Referer", "https://hdrezka-home.tv/")
                         host.contains("yandex") || host.contains("kinopoisk") -> builder.header("Referer", "https://www.kinopoisk.ru/")
-                        host.contains("filmix") || host.contains("werkecdn") || host.contains("cdnsqu") -> builder.header("Referer", "https://filmix.my/")
+                        host.contains("filmix") || host.contains("werkecdn") || host.contains("cdnsqu") -> builder.header("Referer", "https://filmix.biz/")
                         host.contains("kbd.so") || host.contains("bazon") -> builder.header("Referer", "https://bazon.cc/")
                         host.contains("kodik") || host.contains("kodikres") -> builder.header("Referer", "https://kodik.info/")
                         host.contains("tmdb") || host.contains("themoviedb") -> builder.header("Referer", "https://www.themoviedb.org/")

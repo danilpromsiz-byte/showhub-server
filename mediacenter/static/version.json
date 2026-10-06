@@ -1,8 +1,8 @@
 {
-    "version_name": "2.8.98",
-    "version_code": 157,
-    "versionName": "2.8.98",
-    "versionCode": 157,
+    "version_name": "2.8.99",
+    "version_code": 158,
+    "versionName": "2.8.99",
+    "versionCode": 158,
     "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
     "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
     "apkUrl": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
@@ -10,39 +10,39 @@
     "forceUpdate": false,
     "min_version_code": 70,
     "minVersionCode": 70,
-    "changelog": "v2.8.98: Добавлены 2K и 4K P2P раздачи для Zona и зарубежных сериалов (включая 'Одни из нас'), автоопределение оригинальных названий, улучшенная сортировка качества.",
-    "releaseNotes": "v2.8.98: Добавлены 2K и 4K P2P раздачи для Zona и зарубежных сериалов (включая 'Одни из нас'), автоопределение оригинальных названий, улучшенная сортировка качества.",
+    "changelog": "v2.8.99: Мгновенный фокус на диалогах обновления, чистый ввод поиска, постер 'Одни из нас' и автообновление 2K/4K P2P потоков Zona.",
+    "releaseNotes": "v2.8.99: Мгновенный фокус на диалогах обновления, чистый ввод поиска, постер 'Одни из нас' и автообновление 2K/4K P2P потоков Zona.",
     "tv": {
-        "version_name": "2.8.98",
-        "version_code": 157,
-        "versionName": "2.8.98",
-        "versionCode": 157,
+        "version_name": "2.8.99",
+        "version_code": 158,
+        "versionName": "2.8.99",
+        "versionCode": 158,
         "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
         "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
         "apkUrl": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub.apk",
-        "changelog": "v2.8.98: Добавлены 2K и 4K P2P раздачи для Zona и зарубежных сериалов (включая 'Одни из нас'), автоопределение оригинальных названий, улучшенная сортировка качества.",
-        "releaseNotes": "v2.8.98: Добавлены 2K и 4K P2P раздачи для Zona и зарубежных сериалов (включая 'Одни из нас'), автоопределение оригинальных названий, улучшенная сортировка качества."
+        "changelog": "v2.8.99: Мгновенный фокус на диалогах обновления, чистый ввод поиска, постер 'Одни из нас' и автообновление 2K/4K P2P потоков Zona.",
+        "releaseNotes": "v2.8.99: Мгновенный фокус на диалогах обновления, чистый ввод поиска, постер 'Одни из нас' и автообновление 2K/4K P2P потоков Zona."
     },
     "mobile": {
-        "version_name": "2.8.98",
-        "version_code": 157,
-        "versionName": "2.8.98",
-        "versionCode": 157,
+        "version_name": "2.8.99",
+        "version_code": 158,
+        "versionName": "2.8.99",
+        "versionCode": 158,
         "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-Mobile.apk",
         "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-Mobile.apk",
         "apkUrl": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-Mobile.apk",
-        "changelog": "v2.8.98: Добавлены 2K и 4K P2P раздачи для Zona и зарубежных сериалов (включая 'Одни из нас'), автоопределение оригинальных названий, улучшенная сортировка качества.",
-        "releaseNotes": "v2.8.98: Добавлены 2K и 4K P2P раздачи для Zona и зарубежных сериалов (включая 'Одни из нас'), автоопределение оригинальных названий, улучшенная сортировка качества."
+        "changelog": "v2.8.99: Мгновенный фокус на диалогах обновления, чистый ввод поиска, постер 'Одни из нас' и автообновление 2K/4K P2P потоков Zona.",
+        "releaseNotes": "v2.8.99: Мгновенный фокус на диалогах обновления, чистый ввод поиска, постер 'Одни из нас' и автообновление 2K/4K P2P потоков Zona."
     },
     "pc": {
-        "version_name": "2.8.98",
-        "version_code": 157,
-        "versionName": "2.8.98",
-        "versionCode": 157,
+        "version_name": "2.8.99",
+        "version_code": 158,
+        "versionName": "2.8.99",
+        "versionCode": 158,
         "download_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-PC.zip",
         "apk_url": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-PC.zip",
         "apkUrl": "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/ShowHub-PC.zip",
-        "changelog": "v2.8.98: Добавлены 2K и 4K P2P раздачи для Zona и зарубежных сериалов (включая 'Одни из нас'), автоопределение оригинальных названий, улучшенная сортировка качества.",
-        "releaseNotes": "v2.8.98: Добавлены 2K и 4K P2P раздачи для Zona и зарубежных сериалов (включая 'Одни из нас'), автоопределение оригинальных названий, улучшенная сортировка качества."
+        "changelog": "v2.8.99: Мгновенный фокус на диалогах обновления, чистый ввод поиска, постер 'Одни из нас' и автообновление 2K/4K P2P потоков Zona.",
+        "releaseNotes": "v2.8.99: Мгновенный фокус на диалогах обновления, чистый ввод поиска, постер 'Одни из нас' и автообновление 2K/4K P2P потоков Zona."
     }
 }

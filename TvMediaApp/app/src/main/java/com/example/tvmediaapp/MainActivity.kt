@@ -494,6 +494,7 @@ fun TvAppNavHost(activity: MainActivity) {
     val isUpdateDialogVisible = !isWatchingMovie && updateInfo?.let { it.versionCode > activity.getInstalledVersionCode() } == true
     val isMandatoryUpdate = updateInfo?.isForceUpdate == true
     val isEpisodeAlertVisible = !isWatchingMovie && episodeAlerts.isNotEmpty()
+    val isModalActive = isUpdateDialogVisible || showExitDialog || isEpisodeAlertVisible
 
     // Hardware Back button handling for Android TV remotes
     BackHandler(enabled = isUpdateDialogVisible) {
@@ -567,7 +568,8 @@ fun TvAppNavHost(activity: MainActivity) {
                     onCheckUpdateClick = { triggerUpdateCheck(isUserClick = true) },
                     hasUpdateAvailable = (updateInfo != null && updateInfo!!.versionCode > activity.getInstalledVersionCode()),
                     appVersion = activity.getInstalledVersionName(),
-                    viewModel = homeViewModel
+                    viewModel = homeViewModel,
+                    isModalActive = isModalActive
                 )
             }
 
@@ -665,7 +667,8 @@ fun TvAppNavHost(activity: MainActivity) {
                             isFavorite = isFav,
                             onSearchClick = { actorName ->
                                 navigateTo(Screen.SEARCH, searchQuery = actorName, searchIsActorVal = true)
-                            }
+                            },
+                            isModalActive = isModalActive
                         )
                     }
                 } ?: run {
@@ -706,19 +709,17 @@ fun TvAppNavHost(activity: MainActivity) {
             var updatePercent by remember { mutableIntStateOf(0) }
 
             LaunchedEffect(update) {
-                for (i in 1..5) {
-                    delay(120)
-                    try {
-                        updateFocusRequester.requestFocus()
-                        break
-                    } catch (_: Exception) {}
-                }
+                delay(30)
+                try {
+                    updateFocusRequester.requestFocus()
+                } catch (_: Exception) {}
             }
 
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.94f)),
+                    .background(Color.Black.copy(alpha = 0.94f))
+                    .focusGroup(),
                 contentAlignment = Alignment.Center
             ) {
                 val updateScrollState = rememberScrollState()

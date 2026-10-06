@@ -136,6 +136,7 @@ fun DetailsScreen(
     onToggleFavorite: (Movie) -> Unit,
     isFavorite: Boolean,
     onSearchClick: (String) -> Unit = {},
+    isModalActive: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     BackHandler {
@@ -593,12 +594,14 @@ fun DetailsScreen(
     val firstSeasonFocusRequester = remember { FocusRequester() }
     val translatorSeasonsCache = remember { mutableStateMapOf<String, List<SeasonInfo>>() }
 
-    // Automatically focus the primary play button as soon as movie card opens
-    LaunchedEffect(Unit) {
-        delay(150)
-        try {
-            playButtonFocusRequester.requestFocus()
-        } catch (_: Exception) {}
+    // Automatically focus the primary play button as soon as movie card opens, unless a modal dialog is active
+    LaunchedEffect(isModalActive) {
+        if (!isModalActive) {
+            delay(150)
+            try {
+                playButtonFocusRequester.requestFocus()
+            } catch (_: Exception) {}
+        }
     }
 
     // Background video preview state
@@ -1202,7 +1205,16 @@ fun DetailsScreen(
     }
 
     val screenBg = LocalBackgroundColor.current
-    Box(modifier = modifier.fillMaxSize().background(screenBg)) {
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(screenBg)
+            .focusProperties {
+                if (isModalActive) {
+                    canFocus = false
+                }
+            }
+    ) {
         // High-res backdrop — vivid but not overwhelming
         AsyncImage(
             model = currentMovie.backdropUrl.ifEmpty { currentMovie.posterUrl },

@@ -555,7 +555,8 @@ object ShowHubApiClient {
             val origQ = URLEncoder.encode(movie.originalTitle, "UTF-8")
             val encId = URLEncoder.encode(movie.id, "UTF-8")
             val isSeriesStr = if (movie.isSeries || (episode != null && episode > 1) || (season != null && season > 1)) "1" else "0"
-            val srcParam = if (!source.isNullOrEmpty()) source.lowercase().trim() else if (movie.source.isNotBlank()) movie.source else "all"
+            val rawSource = if (!source.isNullOrEmpty()) source.lowercase().trim() else if (movie.source.isNotBlank()) movie.source.lowercase().trim() else "all"
+            val srcParam = if (rawSource == "tmdb" || rawSource == "registry" || rawSource == "kinopoisk" || rawSource == "local") "all" else rawSource
             val kpParam = if (movie.kinopoiskId.isNotBlank() && !movie.kinopoiskId.equals("null", ignoreCase = true)) movie.kinopoiskId else if (movie.source == "bazon" && movie.id.all { it.isDigit() }) movie.id else ""
             val kpQuery = if (kpParam.isNotBlank()) "&kp_id=$kpParam" else ""
             val sb = StringBuilder("$activeServerBase/api/media/streams?source=$srcParam&media_id=$encId$kpQuery&title=$q&original_title=$origQ&year=${movie.releaseYear}&is_series=$isSeriesStr")
@@ -624,7 +625,7 @@ object ShowHubApiClient {
                                 if (isDirect) {
                                     directStreams.add(
                                         StreamOption(
-                                            quality = if (sType == "torrent") "P2P $qStr" else qStr,
+                                            quality = if (sType == "torrent" && !qStr.contains("P2P", ignoreCase = true)) "P2P $qStr" else qStr,
                                             url = uStr,
                                             isHls = uStr.contains(".m3u8"),
                                             source = sourceName,

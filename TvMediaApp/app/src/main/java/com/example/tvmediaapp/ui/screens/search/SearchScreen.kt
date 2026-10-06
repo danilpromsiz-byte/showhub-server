@@ -405,15 +405,15 @@ fun SearchScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    if (isSearching) {
+                    if (isSearching && results.isNotEmpty()) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
                             modifier = Modifier.padding(end = 4.dp)
                         ) {
-                            NeonSpinner(size = 16.dp, strokeWidth = 2.dp)
+                            NeonSpinner(size = 14.dp, strokeWidth = 2.dp)
                             Text(
-                                text = "Идёт поиск...",
+                                text = "Обновление...",
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = accent
@@ -560,43 +560,17 @@ fun SearchScreen(
 
         Spacer(modifier = Modifier.height(10.dp))
 
-        // Persistent Search Progress Notification Banner (always visible while search is running)
-        if (isSearching) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 10.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(accent.copy(alpha = 0.15f))
-                    .border(1.dp, accent.copy(alpha = 0.55f), RoundedCornerShape(10.dp))
-                    .padding(horizontal = 16.dp, vertical = 10.dp)
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    NeonSpinner(size = 20.dp, strokeWidth = 2.5.dp)
-                    Text(
-                        text = "Идёт поиск «${query.trim()}» по всем источникам ShowHub, пожалуйста подождите...",
-                        color = TextWhite,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-            }
-        }
-
         if (isSearching && results.isEmpty()) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(200.dp),
+                    .height(240.dp),
                 contentAlignment = Alignment.Center
             ) {
                 NeonSpinner(
-                    size = 48.dp,
+                    size = 44.dp,
                     strokeWidth = 3.5.dp,
-                    message = "Идёт поиск «${query.trim()}» по всем источникам, подождите..."
+                    message = "Идёт поиск «${query.trim()}»..."
                 )
             }
         } else if (!isSearching && results.isEmpty() && query.isNotEmpty()) {

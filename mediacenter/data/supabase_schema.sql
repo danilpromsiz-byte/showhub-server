@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS public.media_items (
     tmdb_id TEXT,
     genres TEXT DEFAULT '[]',
     actors TEXT,
-    cast TEXT DEFAULT '[]',
+    "cast" TEXT DEFAULT '[]',
     director TEXT,
     directors_list TEXT DEFAULT '[]',
     recommendations TEXT DEFAULT '[]',

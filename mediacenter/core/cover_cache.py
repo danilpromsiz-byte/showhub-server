@@ -144,6 +144,9 @@ class CoverCacheManager:
         if any(bad in url for bad in ["noposter", "no_image_poster", "/covers/"]):
             return
 
+        if os.environ.get("RENDER") or os.environ.get("CLOUD_ENV") or not os.environ.get("SERVE_LOCAL_COVERS"):
+            return
+
         h = get_image_hash(url)
         with self._lock:
             if h in self._queued_hashes:
@@ -168,14 +171,17 @@ class CoverCacheManager:
 
     def get_local_url(self, url: Optional[str]) -> Optional[str]:
         """
-        Converts an image URL into a local server URL.
-        If already cached on local disk: returns direct static path `/covers/{hash}.jpg`.
-        If not yet cached on local disk: returns original direct URL (so client never gets broken covers)
-        and enqueues background download to save it to local machine disk!
+        Converts an image URL into a direct CDN URL or local server URL.
+        On cloud environments (Render) or by default, returns original direct CDN URL
+        (TMDB, Kinopoisk, etc.) to completely avoid consuming server bandwidth quotas!
         """
         if not url or not str(url).strip():
             return None
         u_str = str(url).strip()
+        # Always return direct CDN URL to protect cloud server bandwidth limit (5 GB/mo on Render)
+        if os.environ.get("RENDER") or os.environ.get("CLOUD_ENV") or not os.environ.get("SERVE_LOCAL_COVERS"):
+            return u_str
+
         if u_str.startswith("/covers/"):
             return u_str
         if not u_str.startswith("http"):
@@ -189,6 +195,8 @@ class CoverCacheManager:
 
     def preload_registry_covers(self, db_path: str):
         """Asynchronously scans the SQLite media registry and downloads all posters & backdrops to disk."""
+        if os.environ.get("RENDER") or os.environ.get("CLOUD_ENV") or not os.environ.get("SERVE_LOCAL_COVERS"):
+            return
         import sqlite3
         def _scan():
             if not os.path.exists(db_path):

@@ -90,6 +90,19 @@ async def track_active_users_middleware(request: Request, call_next):
         pass
     return response
 
+GITHUB_STATIC_BASE = "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static"
+
+@app.middleware("http")
+async def heavy_distribution_bandwidth_saver(request: Request, call_next):
+    path = request.url.path
+    if os.environ.get("RENDER") or os.environ.get("CLOUD_ENV") or not os.environ.get("SERVE_LOCAL_APK"):
+        if path.endswith(".apk") or path.endswith(".zip") or path.endswith(".exe"):
+            filename = path.split("/")[-1]
+            if filename in ["ShowHub.apk", "ShowHub-Mobile.apk", "ShowHub-PC.zip", "AlertScreensaver.apk", "Alert-Mobile.apk"] or filename.startswith("ShowHub-") or filename.startswith("Alert-"):
+                from fastapi.responses import RedirectResponse
+                return RedirectResponse(f"{GITHUB_STATIC_BASE}/{filename}", status_code=302)
+    return await call_next(request)
+
 # Mount static files
 static_dir = os.path.join(CURRENT_DIR, "static")
 os.makedirs(static_dir, exist_ok=True)
@@ -155,12 +168,21 @@ def serve_hls_js():
 def serve_noposter():
     return FileResponse(os.path.join(static_dir, "noposter.png"))
 
+GITHUB_STATIC_BASE = "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static"
+
 @app.api_route("/ShowHub.apk", methods=["GET", "HEAD"])
+@app.api_route("/static/ShowHub.apk", methods=["GET", "HEAD"])
 @app.api_route("/ShowHub-v{version}.apk", methods=["GET", "HEAD"])
+@app.api_route("/static/ShowHub-v{version}.apk", methods=["GET", "HEAD"])
 @app.api_route("/apk", methods=["GET", "HEAD"])
 def serve_apk(version: Optional[str] = None):
     _get_or_increment_installs(is_install=True)
-    # 1. Check static directory (packaged for cloud / Render deployment)
+    target_name = f"ShowHub-v{version}.apk" if version else "ShowHub.apk"
+    if os.environ.get("RENDER") or os.environ.get("CLOUD_ENV") or not os.environ.get("SERVE_LOCAL_APK"):
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse(f"{GITHUB_STATIC_BASE}/{target_name}", status_code=302)
+
+    # 1. Check static directory (local development / self-hosted with SERVE_LOCAL_APK)
     apk_headers = {"Cache-Control": "public, max-age=86400, s-maxage=86400"}
     if version:
         static_target = os.path.join(static_dir, f"ShowHub-v{version}.apk")
@@ -187,11 +209,19 @@ def serve_apk(version: Optional[str] = None):
     if os.path.exists(fallback_path):
         return FileResponse(fallback_path, media_type="application/vnd.android.package-archive", filename="ShowHub.apk", headers=apk_headers)
     raise HTTPException(status_code=404, detail="APK not found")
+
 @app.api_route("/ShowHub-Mobile.apk", methods=["GET", "HEAD"])
+@app.api_route("/static/ShowHub-Mobile.apk", methods=["GET", "HEAD"])
 @app.api_route("/ShowHub-Mobile-v{version}.apk", methods=["GET", "HEAD"])
+@app.api_route("/static/ShowHub-Mobile-v{version}.apk", methods=["GET", "HEAD"])
 @app.api_route("/apk/mobile", methods=["GET", "HEAD"])
 def serve_mobile_apk(version: Optional[str] = None):
     _get_or_increment_installs(is_install=True)
+    target_name = f"ShowHub-Mobile-v{version}.apk" if version else "ShowHub-Mobile.apk"
+    if os.environ.get("RENDER") or os.environ.get("CLOUD_ENV") or not os.environ.get("SERVE_LOCAL_APK"):
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse(f"{GITHUB_STATIC_BASE}/{target_name}", status_code=302)
+
     apk_headers = {"Cache-Control": "public, max-age=86400, s-maxage=86400"}
     if version:
         static_target = os.path.join(static_dir, f"ShowHub-Mobile-v{version}.apk")
@@ -218,9 +248,14 @@ def serve_mobile_apk(version: Optional[str] = None):
     raise HTTPException(status_code=404, detail="Mobile APK not found")
 
 @app.api_route("/ShowHub-PC.zip", methods=["GET", "HEAD"])
+@app.api_route("/static/ShowHub-PC.zip", methods=["GET", "HEAD"])
 @app.api_route("/ShowHub-PC.exe", methods=["GET", "HEAD"])
 @app.api_route("/pc", methods=["GET", "HEAD"])
 def serve_pc_distribution():
+    if os.environ.get("RENDER") or os.environ.get("CLOUD_ENV") or not os.environ.get("SERVE_LOCAL_APK"):
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse(f"{GITHUB_STATIC_BASE}/ShowHub-PC.zip", status_code=302)
+
     pc_zip = os.path.join(static_dir, "ShowHub-PC.zip")
     if os.path.exists(pc_zip):
         return FileResponse(pc_zip, media_type="application/zip", filename="ShowHub-PC.zip")
@@ -230,19 +265,16 @@ def serve_pc_distribution():
     raise HTTPException(status_code=404, detail="PC package not found")
 
 @app.api_route("/AlertScreensaver.apk", methods=["GET", "HEAD"])
+@app.api_route("/static/AlertScreensaver.apk", methods=["GET", "HEAD"])
 def serve_alert_screensaver_apk():
-    static_apk = os.path.join(static_dir, "AlertScreensaver.apk")
-    if os.path.isfile(static_apk):
-        return FileResponse(static_apk, media_type="application/vnd.android.package-archive", filename="AlertScreensaver.apk")
     from fastapi.responses import RedirectResponse
-    return RedirectResponse("https://alert-server-nk21.onrender.com/AlertScreensaver.apk", status_code=302)
+    return RedirectResponse(f"{GITHUB_STATIC_BASE}/AlertScreensaver.apk", status_code=302)
 
 @app.api_route("/Alert-Mobile.apk", methods=["GET", "HEAD"])
+@app.api_route("/static/Alert-Mobile.apk", methods=["GET", "HEAD"])
 def serve_alert_mobile_apk():
-    static_apk = os.path.join(static_dir, "Alert-Mobile.apk")
-    if os.path.isfile(static_apk):
-        return FileResponse(static_apk, media_type="application/vnd.android.package-archive", filename="Alert-Mobile.apk")
     from fastapi.responses import RedirectResponse
+    return RedirectResponse(f"{GITHUB_STATIC_BASE}/Alert-Mobile.apk", status_code=302)
     return RedirectResponse("https://alert-server-nk21.onrender.com/Alert-Mobile.apk", status_code=302)
 
 # Alert background poller and proxy migrated to dedicated microservice: alert-server-nk21.onrender.com.
@@ -891,6 +923,10 @@ def get_proxied_image(url: str = Query(...)):
     if not url or not url.startswith("http"):
         return FileResponse(os.path.join(static_dir, "noposter.png"))
 
+    from fastapi.responses import RedirectResponse
+    if os.environ.get("RENDER") or os.environ.get("CLOUD_ENV") or not os.environ.get("SERVE_LOCAL_COVERS"):
+        return RedirectResponse(url=url, status_code=302)
+
     local_path = cover_cache.get_file_path(url)
     if cover_cache.is_cached(url):
         return FileResponse(local_path, media_type="image/jpeg", headers={"Cache-Control": "public, max-age=31536000, immutable"})
@@ -899,7 +935,6 @@ def get_proxied_image(url: str = Query(...)):
     cover_cache.enqueue_url(url)
 
     # Redirect directly to original CDN URL so the client never waits or gets broken image
-    from fastapi.responses import RedirectResponse
     return RedirectResponse(url=url, status_code=302)
 
 

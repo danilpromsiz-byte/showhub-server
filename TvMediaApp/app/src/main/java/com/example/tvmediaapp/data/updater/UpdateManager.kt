@@ -66,13 +66,15 @@ object UpdateManager {
                 }
             } catch (_: Exception) {}
 
-            val jsdUrl = "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/$defaultApkName"
+            val rawGithubUrl = "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/$defaultApkName"
+            val renderUrl = "https://showhub-server.onrender.com/$defaultApkName"
+            val renderStaticUrl = "https://showhub-server.onrender.com/static/$defaultApkName"
             val candidateUrls = listOf(
-                jsdUrl,
+                rawGithubUrl,
                 info.downloadUrl,
-                "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/$defaultApkName",
-                "https://showhub-server.onrender.com/$defaultApkName"
-            ).filter { it.isNotBlank() }.distinct()
+                renderUrl,
+                renderStaticUrl
+            ).filter { it.isNotBlank() && !it.contains("cdn.jsdelivr.net") }.distinct()
 
             for (currentUrl in candidateUrls) {
                 if (partFile.exists()) {
@@ -187,7 +189,7 @@ object UpdateManager {
                             ?: json.optString("download_url", "")?.takeIf { it.isNotBlank() }
                             ?: json.optString("apk_url", "")?.takeIf { it.isNotBlank() }
                             ?: json.optString("apkUrl", "")?.takeIf { it.isNotBlank() }
-                            ?: "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/$defaultApkName"
+                            ?: "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/$defaultApkName"
 
                         val sChangelog = platformObj?.optString("changelog", "")?.takeIf { it.isNotBlank() }
                             ?: platformObj?.optString("releaseNotes", "")?.takeIf { it.isNotBlank() }
@@ -277,13 +279,15 @@ object UpdateManager {
                     onProgress?.invoke("Файл обновления готов ($mb МБ)", 100)
                 }
             } else {
-            val jsdUrl = "https://cdn.jsdelivr.net/gh/danilpromsiz-byte/showhub-server@main/mediacenter/static/$defaultApkName"
+            val rawGithubUrl = "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/$defaultApkName"
+            val renderUrl = "https://showhub-server.onrender.com/$defaultApkName"
+            val renderStaticUrl = "https://showhub-server.onrender.com/static/$defaultApkName"
             val candidateUrls = listOf(
-                jsdUrl,
+                rawGithubUrl,
                 apkUrl,
-                "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/$defaultApkName",
-                "https://showhub-server.onrender.com/$defaultApkName"
-            ).filter { it.isNotBlank() }.distinct()
+                renderUrl,
+                renderStaticUrl
+            ).filter { it.isNotBlank() && !it.contains("cdn.jsdelivr.net") }.distinct()
 
             var downloadSuccess = false
             for (currentUrl in candidateUrls) {
@@ -480,7 +484,14 @@ object UpdateManager {
 
     fun openDownloadUrlInBrowser(activity: Activity, apkUrl: String) {
         try {
-            val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(apkUrl)).apply {
+            val isMobile = com.example.tvmediaapp.BuildConfig.PLATFORM_TYPE == "mobile"
+            val defaultApkName = if (isMobile) "ShowHub-Mobile.apk" else "ShowHub.apk"
+            val targetUrl = if (apkUrl.isBlank() || apkUrl.contains("cdn.jsdelivr.net")) {
+                "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/$defaultApkName"
+            } else {
+                apkUrl
+            }
+            val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(targetUrl)).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
             activity.startActivity(browserIntent)

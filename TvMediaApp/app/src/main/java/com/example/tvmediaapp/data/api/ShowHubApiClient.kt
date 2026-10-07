@@ -5,6 +5,7 @@ import com.example.tvmediaapp.data.models.AudioTrackInfo
 import com.example.tvmediaapp.data.models.CommentItem
 import com.example.tvmediaapp.data.models.EpisodeInfo
 import com.example.tvmediaapp.data.models.Movie
+import com.example.tvmediaapp.data.models.MovieCategory
 import com.example.tvmediaapp.data.models.PersonInfo
 import com.example.tvmediaapp.data.models.SeasonInfo
 import com.example.tvmediaapp.data.models.StreamOption
@@ -131,6 +132,36 @@ object ShowHubApiClient {
             e.printStackTrace()
         }
         movies
+    }
+
+    suspend fun fetchHomeCatalog(): List<MovieCategory> = withContext(Dispatchers.IO) {
+        val categories = mutableListOf<MovieCategory>()
+        try {
+            val url = URL("$activeServerBase/api/media/home")
+            val conn = url.openConnection() as HttpURLConnection
+            conn.connectTimeout = 8000
+            conn.readTimeout = 12000
+            prepareConnection(conn)
+            conn.connect()
+            if (conn.responseCode == 200) {
+                val body = BufferedReader(InputStreamReader(conn.inputStream, "UTF-8")).use { it.readText() }
+                val arr = JSONArray(body)
+                for (i in 0 until arr.length()) {
+                    val catObj = arr.getJSONObject(i)
+                    val catId = catObj.optString("id", "")
+                    val catTitle = catObj.optString("title", "")
+                    val movArr = catObj.optJSONArray("movies") ?: JSONArray()
+                    val movList = mutableListOf<Movie>()
+                    parseMoviesJson(movArr, movList, isRanked = (catId == "popular"))
+                    if (movList.isNotEmpty()) {
+                        categories.add(MovieCategory(id = catId, title = catTitle, movies = movList))
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        categories
     }
 
     suspend fun searchMovies(query: String, type: String? = null): List<Movie> = withContext(Dispatchers.IO) {
@@ -544,9 +575,13 @@ object ShowHubApiClient {
         audioId: String? = null,
         source: String? = null
     ): List<StreamOption> = withContext(Dispatchers.IO) {
-        val cached = MediaDiskCache.getCachedStreams(movie.id, season, episode, audioId)
+        val rawSource = if (!source.isNullOrEmpty()) source.lowercase().trim() else if (movie.source.isNotBlank()) movie.source.lowercase().trim() else "all"
+        val srcParam = if (rawSource == "tmdb" || rawSource == "registry" || rawSource == "kinopoisk" || rawSource == "local") "all" else rawSource
+        val cached = MediaDiskCache.getCachedStreams(movie.id, season, episode, audioId, source = srcParam)
         if (!cached.isNullOrEmpty()) {
-            return@withContext cached
+            if (srcParam == "all" || cached.any { it.source.contains(srcParam, ignoreCase = true) }) {
+                return@withContext cached
+            }
         }
         val directStreams = mutableListOf<StreamOption>()
         val embedStreams = mutableListOf<StreamOption>()
@@ -555,8 +590,6 @@ object ShowHubApiClient {
             val origQ = URLEncoder.encode(movie.originalTitle, "UTF-8")
             val encId = URLEncoder.encode(movie.id, "UTF-8")
             val isSeriesStr = if (movie.isSeries || (episode != null && episode > 1) || (season != null && season > 1)) "1" else "0"
-            val rawSource = if (!source.isNullOrEmpty()) source.lowercase().trim() else if (movie.source.isNotBlank()) movie.source.lowercase().trim() else "all"
-            val srcParam = if (rawSource == "tmdb" || rawSource == "registry" || rawSource == "kinopoisk" || rawSource == "local") "all" else rawSource
             val kpParam = if (movie.kinopoiskId.isNotBlank() && !movie.kinopoiskId.equals("null", ignoreCase = true)) movie.kinopoiskId else if (movie.source == "bazon" && movie.id.all { it.isDigit() }) movie.id else ""
             val kpQuery = if (kpParam.isNotBlank()) "&kp_id=$kpParam" else ""
             val sb = StringBuilder("$activeServerBase/api/media/streams?source=$srcParam&media_id=$encId$kpQuery&title=$q&original_title=$origQ&year=${movie.releaseYear}&is_series=$isSeriesStr")
@@ -702,7 +735,7 @@ object ShowHubApiClient {
         result.addAll(directStreams)
         result.addAll(embedStreams)
         if (result.isNotEmpty()) {
-            MediaDiskCache.putCachedStreams(movie.id, season, episode, audioId, result)
+            MediaDiskCache.putCachedStreams(movie.id, season, episode, audioId, result, source = srcParam)
         }
         result
     }

@@ -1,8 +1,11 @@
 package com.example.tvmediaapp.ui.components
 
-import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
@@ -12,8 +15,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -27,8 +29,6 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 import com.example.tvmediaapp.ui.theme.LocalAccentColor
 import com.example.tvmediaapp.ui.theme.TextGray
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
 
 @Composable
 fun NeonSpinner(
@@ -38,32 +38,25 @@ fun NeonSpinner(
     message: String? = null,
     accentColor: Color = LocalAccentColor.current
 ) {
-    val rotationAnim = remember { Animatable(0f) }
-    val sweepAnim = remember { Animatable(50f) }
-
-    LaunchedEffect(Unit) {
-        launch {
-            while (isActive) {
-                rotationAnim.animateTo(
-                    targetValue = rotationAnim.value + 360f,
-                    animationSpec = tween(durationMillis = 1100, easing = LinearEasing)
-                )
-                rotationAnim.snapTo(rotationAnim.value % 360f)
-            }
-        }
-        launch {
-            while (isActive) {
-                sweepAnim.animateTo(
-                    targetValue = 260f,
-                    animationSpec = tween(durationMillis = 850, easing = FastOutSlowInEasing)
-                )
-                sweepAnim.animateTo(
-                    targetValue = 50f,
-                    animationSpec = tween(durationMillis = 850, easing = FastOutSlowInEasing)
-                )
-            }
-        }
-    }
+    val infiniteTransition = rememberInfiniteTransition(label = "NeonSpinnerTransition")
+    val rotation by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1100, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "rotation"
+    )
+    val sweep by infiniteTransition.animateFloat(
+        initialValue = 50f,
+        targetValue = 260f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 850, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "sweep"
+    )
 
     Column(
         modifier = modifier,
@@ -87,18 +80,18 @@ fun NeonSpinner(
                 modifier = Modifier
                     .size(size)
                     .graphicsLayer {
-                        rotationZ = rotationAnim.value
+                        rotationZ = rotation
                     }
             ) {
                 val strokePx = strokeWidth.toPx()
                 val glowStrokePx = strokePx * 2.2f
-                val sweep = sweepAnim.value
+                val sweepAngle = sweep
 
                 // Soft outer glowing halo
                 drawArc(
                     color = accentColor.copy(alpha = 0.35f),
                     startAngle = 0f,
-                    sweepAngle = sweep,
+                    sweepAngle = sweepAngle,
                     useCenter = false,
                     style = Stroke(width = glowStrokePx, cap = StrokeCap.Round)
                 )
@@ -107,7 +100,7 @@ fun NeonSpinner(
                 drawArc(
                     color = accentColor,
                     startAngle = 0f,
-                    sweepAngle = sweep,
+                    sweepAngle = sweepAngle,
                     useCenter = false,
                     style = Stroke(width = strokePx, cap = StrokeCap.Round)
                 )

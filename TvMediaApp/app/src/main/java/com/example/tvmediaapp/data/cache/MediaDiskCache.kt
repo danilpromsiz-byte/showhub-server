@@ -243,10 +243,11 @@ object MediaDiskCache {
         }
     }
 
-    fun getCachedStreams(movieId: String, season: Int?, episode: Int?, audioId: String?): List<StreamOption>? {
+    fun getCachedStreams(movieId: String, season: Int?, episode: Int?, audioId: String?, source: String? = null): List<StreamOption>? {
         return try {
             val safeId = movieId.replace(Regex("[^a-zA-Z0-9_-]"), "_")
-            val key = "${safeId}_s${season ?: 0}_e${episode ?: 0}_a${audioId ?: "def"}"
+            val srcKey = source?.lowercase()?.trim() ?: "all"
+            val key = "${safeId}_${srcKey}_s${season ?: 0}_e${episode ?: 0}_a${audioId ?: "def"}"
             val file = File(getStreamsDir(), "$key.json")
             if (!file.exists()) return null
             // Streams cache TTL: 20 minutes to ensure dynamic torrents and newly added links update
@@ -274,11 +275,12 @@ object MediaDiskCache {
         }
     }
 
-    fun putCachedStreams(movieId: String, season: Int?, episode: Int?, audioId: String?, streams: List<StreamOption>) {
+    fun putCachedStreams(movieId: String, season: Int?, episode: Int?, audioId: String?, streams: List<StreamOption>, source: String? = null) {
         try {
             if (streams.isEmpty()) return
             val safeId = movieId.replace(Regex("[^a-zA-Z0-9_-]"), "_")
-            val key = "${safeId}_s${season ?: 0}_e${episode ?: 0}_a${audioId ?: "def"}"
+            val srcKey = source?.lowercase()?.trim() ?: "all"
+            val key = "${safeId}_${srcKey}_s${season ?: 0}_e${episode ?: 0}_a${audioId ?: "def"}"
             val file = File(getStreamsDir(), "$key.json")
             val arr = JSONArray()
             for (s in streams) {
@@ -294,6 +296,58 @@ object MediaDiskCache {
             file.writeText(arr.toString())
         } catch (e: Exception) {
             Log.w(TAG, "Failed to cache streams: ${e.message}")
+        }
+    }
+
+    fun getCachedHomeCatalog(): List<com.example.tvmediaapp.data.models.MovieCategory>? {
+        return try {
+            val file = File(cacheDir, "home_catalog.json")
+            if (!file.exists()) return null
+            val content = file.readText()
+            val arr = JSONArray(content)
+            val catList = mutableListOf<com.example.tvmediaapp.data.models.MovieCategory>()
+            for (i in 0 until arr.length()) {
+                val catObj = arr.getJSONObject(i)
+                val catId = catObj.optString("id", "")
+                val catTitle = catObj.optString("title", "")
+                val movArr = catObj.optJSONArray("movies") ?: JSONArray()
+                val movList = mutableListOf<Movie>()
+                for (j in 0 until movArr.length()) {
+                    val mObj = movArr.getJSONObject(j)
+                    val m = deserializeMovie(mObj)
+                    if (m != null) movList.add(m)
+                }
+                if (movList.isNotEmpty()) {
+                    catList.add(com.example.tvmediaapp.data.models.MovieCategory(catId, catTitle, movList))
+                }
+            }
+            if (catList.isNotEmpty()) catList else null
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to read cached home catalog: ${e.message}")
+            null
+        }
+    }
+
+    fun putCachedHomeCatalog(categories: List<com.example.tvmediaapp.data.models.MovieCategory>) {
+        try {
+            if (categories.isEmpty()) return
+            val file = File(cacheDir, "home_catalog.json")
+            val arr = JSONArray()
+            for (cat in categories) {
+                val catObj = JSONObject().apply {
+                    put("id", cat.id)
+                    put("title", cat.title)
+                    val movArr = JSONArray()
+                    for (m in cat.movies) {
+                        movArr.put(serializeMovie(m))
+                    }
+                    put("movies", movArr)
+                }
+                arr.put(catObj)
+            }
+            file.writeText(arr.toString())
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to write cached home catalog: ${e.message}")
         }
     }
 

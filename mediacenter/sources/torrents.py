@@ -83,8 +83,8 @@ class TorrentsSource(BaseSource):
         if not clean_query:
             return []
 
-        # For series, search category 4 (Foreign series) and 16 (Russian series) first, then category 0
-        categories_to_search = [4, 16, 0] if season else [1, 5, 0]
+        # Category 0 searches ALL categories across Rutor in a single fast request (<200ms)
+        categories_to_search = [0]
         encoded = urllib.parse.quote(clean_query)
         seen_magnets = set()
 

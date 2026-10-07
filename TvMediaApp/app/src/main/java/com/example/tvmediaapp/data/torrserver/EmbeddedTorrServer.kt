@@ -123,8 +123,7 @@ object EmbeddedTorrServer {
                 binary.absolutePath,
                 "-p", PORT.toString(),
                 "-d", dataDir.absolutePath,
-                "-k",
-                "-i", "127.0.0.1"
+                "-k"
             )
             pb.directory(dataDir)
             pb.redirectErrorStream(true)
@@ -133,6 +132,7 @@ object EmbeddedTorrServer {
             val env = pb.environment()
             env["HOME"] = dataDir.absolutePath
             env["TMPDIR"] = cacheDir.absolutePath
+            env["LD_LIBRARY_PATH"] = context.applicationInfo.nativeLibraryDir
 
             val proc = pb.start()
             serverProcess = proc

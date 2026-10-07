@@ -567,8 +567,8 @@ fun DetailsScreen(
                 sKey.contains("collaps") || sKey.contains("delivembd") -> stSrc.contains("collaps") || stSrc.contains("delivembd") || st.url.contains("interkh") || st.url.contains("namy.ws")
                 sKey.contains("anilibria") -> stSrc.contains("anilibria") || st.url.contains("libria")
                 sKey.contains("bazon") -> stSrc.contains("bazon")
-                sKey.contains("zona") -> stSrc.contains("zona") || stSrc.contains("torrent") || stSrc.contains("торрент") || stSrc.contains("p2p")
-                sKey.contains("торрент") || sKey.contains("torrent") -> stSrc.contains("torrent") || stSrc.contains("торрент") || stSrc.contains("zona")
+                sKey.contains("zona") -> stSrc.contains("zona")
+                sKey.contains("торрент") || sKey.contains("torrent") -> stSrc.contains("torrent") || stSrc.contains("торрент")
                 else -> stSrc.contains(sKey)
             }
         }
@@ -619,9 +619,12 @@ fun DetailsScreen(
                         }
                     }
                     if (fetched.isNotEmpty()) {
-                        withContext(Dispatchers.Main) {
-                            streamOptions = (fetched + streamOptions).distinctBy { it.url }
+                        val sortedFetched = withContext(Dispatchers.Default) {
+                            (fetched + streamOptions).distinctBy { it.url }
                                 .sortedWith(compareByDescending<StreamOption> { isDirectVideoStream(it.url) }.thenByDescending { getStreamQualityRank(it.quality) })
+                        }
+                        withContext(Dispatchers.Main) {
+                            streamOptions = sortedFetched
                         }
                     }
                 } catch (e: Exception) {
@@ -842,17 +845,20 @@ fun DetailsScreen(
                         movie = currentMovie.copy(isSeries = isContentSeries),
                         season = if (isContentSeries) selectedSeason else null,
                         episode = if (isContentSeries) selectedEpisode else null,
-                        audioId = selectedAudioId
+                        audioId = selectedAudioId,
+                        source = if (selectedSourceFilter != "Все" && !selectedSourceFilter.startsWith("Все")) selectedSourceFilter else null
                     )
                 }
 
                 // Progressive stream update: emit native streams immediately when available!
                 val nativeStreams = nativeDeferred.await()
                 if (nativeStreams.isNotEmpty()) {
-                    withContext(Dispatchers.Main) {
+                    val merged = withContext(Dispatchers.Default) {
                         val otherExisting = streamOptions.filterNot { it.source.contains("rezka", ignoreCase = true) || it.source.contains("filmix", ignoreCase = true) }
-                        val merged = (nativeStreams + otherExisting).distinctBy { it.url }
+                        (nativeStreams + otherExisting).distinctBy { it.url }
                             .sortedWith(compareByDescending<StreamOption> { isDirectVideoStream(it.url) }.thenByDescending { getStreamQualityRank(it.quality) })
+                    }
+                    withContext(Dispatchers.Main) {
                         if (merged.isNotEmpty()) {
                             streamOptions = merged
                         }
@@ -875,12 +881,13 @@ fun DetailsScreen(
                 } else {
                     (nativeStreams + serverStreams).distinctBy { it.url }
                 }
-                val sorted = combined.sortedWith(compareByDescending<StreamOption> { isDirectVideoStream(it.url) }.thenByDescending { getStreamQualityRank(it.quality) })
-                if (sorted.isNotEmpty()) {
+                val mergedAll = withContext(Dispatchers.Default) {
+                    val sorted = combined.sortedWith(compareByDescending<StreamOption> { isDirectVideoStream(it.url) }.thenByDescending { getStreamQualityRank(it.quality) })
+                    (sorted + streamOptions).distinctBy { it.url }
+                        .sortedWith(compareByDescending<StreamOption> { isDirectVideoStream(it.url) }.thenByDescending { getStreamQualityRank(it.quality) })
+                }
+                if (mergedAll.isNotEmpty()) {
                     withContext(Dispatchers.Main) {
-                        // Merge with existing streams to preserve all discovered sources (Collaps, VideoCDN, AniLibria, etc.)
-                        val mergedAll = (sorted + streamOptions).distinctBy { it.url }
-                            .sortedWith(compareByDescending<StreamOption> { isDirectVideoStream(it.url) }.thenByDescending { getStreamQualityRank(it.quality) })
                         streamOptions = mergedAll
                         if (mergedAll.any { it.source.contains("torrent", ignoreCase = true) || it.url.contains(":8090") }) {
                             coroutineScope.launch(Dispatchers.IO) {
@@ -1195,7 +1202,8 @@ fun DetailsScreen(
                     movie = currentMovie.copy(isSeries = isContentSeries),
                     season = if (isContentSeries) targetSeason else null,
                     episode = if (isContentSeries) targetEpisode else null,
-                    audioId = targetAudioId
+                    audioId = targetAudioId,
+                    source = if (selectedSourceFilter != "Все" && !selectedSourceFilter.startsWith("Все")) selectedSourceFilter else null
                 )
             }
 
@@ -1216,8 +1224,10 @@ fun DetailsScreen(
             } else {
                 (nativeStreams + serverStreams).distinctBy { it.url }
             }
-            // Sort direct streams (HLS/MP4) first, balancers last
-            val streams = combined.sortedByDescending { isDirectVideoStream(it.url) }
+            // Sort direct streams (HLS/MP4) first, balancers last on Dispatchers.Default
+            val streams = withContext(Dispatchers.Default) {
+                combined.sortedByDescending { isDirectVideoStream(it.url) }
+            }
 
             streamOptions = streams
             isResolving = false
@@ -1256,8 +1266,8 @@ fun DetailsScreen(
                             sKey.contains("videocdn") -> stSrc.contains("videocdn") || st.url.contains("allarknow") || st.url.contains("bayas") || st.url.contains("videoframe")
                             sKey.contains("collaps") || sKey.contains("delivembd") -> stSrc.contains("collaps") || stSrc.contains("delivembd") || st.url.contains("interkh") || st.url.contains("namy.ws")
                             sKey.contains("bazon") -> stSrc.contains("bazon")
-                            sKey.contains("zona") -> stSrc.contains("zona") || stSrc.contains("torrent") || stSrc.contains("p2p")
-                            sKey.contains("торрент") || sKey.contains("torrent") -> stSrc.contains("torrent") || stSrc.contains("zona")
+                            sKey.contains("zona") -> stSrc.contains("zona") || stSrc.contains("torrent") || stSrc.contains("торрент") || stSrc.contains("p2p")
+                            sKey.contains("торрент") || sKey.contains("torrent") -> stSrc.contains("torrent") || stSrc.contains("торрент") || stSrc.contains("zona")
                             else -> stSrc.contains(sKey)
                         }
                     }

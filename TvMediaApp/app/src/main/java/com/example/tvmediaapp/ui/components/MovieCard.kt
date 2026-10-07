@@ -558,8 +558,11 @@ fun MovieCard(
                                 .size(240, 360)
                                 .precision(coil.size.Precision.INEXACT)
                                 .bitmapConfig(Bitmap.Config.RGB_565)
+                                .diskCachePolicy(coil.request.CachePolicy.ENABLED)
+                                .memoryCachePolicy(coil.request.CachePolicy.ENABLED)
+                                .networkCachePolicy(coil.request.CachePolicy.ENABLED)
                                 .allowRgb565(true)
-                                .crossfade(150)
+                                .crossfade(false)
                                 .build()
                         }
                         var isImageError by remember(effectiveImage) { mutableStateOf(false) }

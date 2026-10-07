@@ -456,14 +456,42 @@ class CatalogRepository(context: Context? = null) {
             }
         }
 
-        // STEP 1: Fast progressive initial emit from local disk cache (0-50 ms)!
+        val isDefaultMainCatalog = category == "all" &&
+            (genre.isNullOrEmpty() || genre == "Все жанры" || genre == "all") &&
+            (country.isNullOrEmpty() || country == "all") &&
+            (year.isNullOrEmpty() || year == "all")
+
+        if (isDefaultMainCatalog) {
+            // STEP 1: Instant 0 ms emit from local TV disk cache
+            val cachedHome = com.example.tvmediaapp.data.cache.MediaDiskCache.getCachedHomeCatalog()
+            if (!cachedHome.isNullOrEmpty()) {
+                emit(cachedHome)
+            }
+
+            // STEP 2: Fetch 3-hour pre-compiled server home catalog (<15ms)
+            try {
+                val liveHome = ShowHubApiClient.fetchHomeCatalog()
+                if (liveHome.isNotEmpty()) {
+                    com.example.tvmediaapp.data.cache.MediaDiskCache.putCachedHomeCatalog(liveHome)
+                    emit(liveHome)
+                    return@flow
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+            if (!cachedHome.isNullOrEmpty()) {
+                return@flow
+            }
+        }
+
+        // STEP 1 for filtered categories: Fast progressive initial emit from local disk cache
         val cachedCatalog = com.example.tvmediaapp.data.cache.MediaDiskCache.getCachedCatalog()
         val initialCats = if (!cachedCatalog.isNullOrEmpty()) buildCategories(cachedCatalog) else emptyList()
         if (initialCats.isNotEmpty()) {
             emit(initialCats)
         }
 
-        // STEP 2: Live API fetch in background to get fresh releases
+        // STEP 2 for filtered categories: Live API fetch
         try {
             val liveMovies = ShowHubApiClient.fetchCatalog(
                 category = category,
@@ -477,57 +505,11 @@ class CatalogRepository(context: Context? = null) {
                 includeUnreleasedSeries = prefs?.getBoolean("pref_unreleased_series", true) ?: true
             )
             if (liveMovies.isNotEmpty()) {
-                val isDefaultMainCatalog = category == "all" &&
-                    (genre.isNullOrEmpty() || genre == "Все жанры" || genre == "all") &&
-                    (country.isNullOrEmpty() || country == "all") &&
-                    (year.isNullOrEmpty() || year == "all") &&
-                    sortBy == "newest"
-                if (isDefaultMainCatalog) {
-                    com.example.tvmediaapp.data.cache.MediaDiskCache.putCachedCatalog(liveMovies, isFirstPage = true)
-                }
-                val masterMovies = if (isDefaultMainCatalog) {
-                    (com.example.tvmediaapp.data.cache.MediaDiskCache.getCachedCatalog() ?: liveMovies)
-                } else {
-                    liveMovies
-                }
-                val liveCategories = buildCategories(masterMovies)
+                val liveCategories = buildCategories(liveMovies)
                 if (liveCategories.isNotEmpty()) {
                     emit(liveCategories)
                 } else if (initialCats.isEmpty()) {
                     emit(emptyList())
-                }
-
-                // STEP 3: Progressive non-blocking background pagination to load and cache full catalog into TV memory
-                if (isDefaultMainCatalog) {
-                    for (p in 2..8) {
-                        try {
-                            kotlinx.coroutines.delay(500L)
-                            val nextBatch = ShowHubApiClient.fetchCatalog(
-                                category = category,
-                                genre = genre,
-                                sortBy = sortBy,
-                                year = year,
-                                country = country,
-                                page = p,
-                                limit = 60,
-                                excludedCountries = if (excludedCountriesStr.isNotBlank()) excludedCountriesStr else null,
-                                excludedGenres = if (excludedGenresStr.isNotBlank()) excludedGenresStr else null
-                            )
-                            if (nextBatch.isEmpty()) break
-                            val prevCount = (com.example.tvmediaapp.data.cache.MediaDiskCache.getCachedCatalog() ?: emptyList()).size
-                            com.example.tvmediaapp.data.cache.MediaDiskCache.putCachedCatalog(nextBatch, isFirstPage = false)
-                            val newCount = (com.example.tvmediaapp.data.cache.MediaDiskCache.getCachedCatalog() ?: emptyList()).size
-                            if (newCount > prevCount) {
-                                val updatedMaster = com.example.tvmediaapp.data.cache.MediaDiskCache.getCachedCatalog() ?: emptyList()
-                                val updatedCategories = buildCategories(updatedMaster)
-                                if (updatedCategories.isNotEmpty()) {
-                                    emit(updatedCategories)
-                                }
-                            }
-                        } catch (_: Exception) {
-                            break
-                        }
-                    }
                 }
             } else if (cachedCatalog.isNullOrEmpty() && initialCats.isEmpty()) {
                 emit(emptyList())

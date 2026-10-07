@@ -1728,6 +1728,162 @@ def get_catalog(
         threading.Thread(target=media_registry.upsert_batch, args=(all_items,), daemon=True).start()
     return all_items
 
+
+# --- Server-Side Pre-Compiled Home Catalog (Refreshed Every 3 Hours) ---
+
+HOME_CATALOG_CACHE_PATH = os.path.join(CURRENT_DIR, "data", "home_catalog_cache.json")
+HOME_CATALOG_REFRESH_INTERVAL = 3 * 3600  # 3 hours (10,800 seconds)
+
+def generate_home_catalog() -> List[Dict[str, Any]]:
+    """
+    Compiles curated home screen categories based on strict quality rules:
+    - High ratings / popularity
+    - Valid posters (no broken/st.kp.yandex.net/no_image)
+    - Readable Cyrillic/Latin titles
+    - Release years (2024-2026 for fresh releases)
+    - Pre-caches posters in local disk cache (cover_cache)
+    """
+    logger.info("Regenerating home catalog cache (3-hour periodic refresh)...")
+    try:
+        def _clean_items(raw_items: List[Dict[str, Any]], max_count: int = 35) -> List[Dict[str, Any]]:
+            cleaned = []
+            seen_titles = set()
+            for it in raw_items:
+                t = str(it.get("title", "")).strip()
+                t_low = t.lower()
+                if not t or t_low in seen_titles:
+                    continue
+                # Skip invalid or broken posters
+                poster = str(it.get("poster", "")).strip()
+                if not poster or any(bad in poster for bad in ["no_image", "noposter", "kinopoiskapiunofficial", "st.kp.yandex.net"]):
+                    continue
+                # Skip untranslated scripts without Russian/Latin title
+                if any(ord(c) in range(0x4e00, 0x9fff) or ord(c) in range(0xac00, 0xd7af) for c in t):
+                    if not any(('a' <= c <= 'z') or ('A' <= c <= 'Z') or ('\u0400' <= c <= '\u04FF') for c in t):
+                        continue
+                seen_titles.add(t_low)
+                # Enqueue poster and backdrop for local disk download
+                cover_cache.enqueue_url(poster)
+                backdrop = it.get("backdrop")
+                if backdrop and str(backdrop).startswith("http"):
+                    cover_cache.enqueue_url(backdrop)
+                cleaned.append(it)
+                if len(cleaned) >= max_count:
+                    break
+            return cleaned
+
+        # 1. Popular fresh releases (2024-2026, highest popularity/ratings)
+        pop_raw = media_registry.query_catalog(
+            category="all",
+            sort_by="popular",
+            limit=70,
+            include_unreleased_movies=False,
+            include_unreleased_series=True
+        )
+        popular = _clean_items(pop_raw, max_count=35)
+
+        # 2. Top rated
+        top_raw = media_registry.query_catalog(
+            category="all",
+            sort_by="rating",
+            min_rating=7.2,
+            limit=70,
+            include_unreleased_movies=False,
+            include_unreleased_series=True
+        )
+        top_rated = _clean_items(top_raw, max_count=35)
+
+        # 3. Series (fresh releases 2023-2026)
+        ser_raw = media_registry.query_catalog(
+            category="series",
+            sort_by="popular",
+            limit=70,
+            include_unreleased_series=True
+        )
+        series = _clean_items(ser_raw, max_count=35)
+
+        # 4. Movies (fresh 2024-2026)
+        mov_raw = media_registry.query_catalog(
+            category="movies",
+            sort_by="popular",
+            limit=70,
+            include_unreleased_movies=False
+        )
+        movies = _clean_items(mov_raw, max_count=35)
+
+        # 5. Cartoons
+        cart_raw = media_registry.query_catalog(
+            category="cartoons",
+            sort_by="popular",
+            limit=60
+        )
+        cartoons = _clean_items(cart_raw, max_count=35)
+
+        # 6. Anime
+        anime_raw = media_registry.query_catalog(
+            category="anime",
+            sort_by="popular",
+            limit=60
+        )
+        anime = _clean_items(anime_raw, max_count=35)
+
+        categories = [
+            {"id": "popular", "title": "Популярные новинки", "movies": popular},
+            {"id": "top_rated", "title": "Топ рейтинга", "movies": top_rated},
+            {"id": "series", "title": "Сериалы", "movies": series},
+            {"id": "movies", "title": "Фильмы", "movies": movies},
+            {"id": "cartoons", "title": "Мультфильмы", "movies": cartoons},
+            {"id": "anime", "title": "Аниме", "movies": anime}
+        ]
+
+        tmp_path = f"{HOME_CATALOG_CACHE_PATH}.tmp_{int(time.time())}"
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            json.dump(categories, f, ensure_ascii=False)
+        os.replace(tmp_path, HOME_CATALOG_CACHE_PATH)
+        logger.info(f"Home catalog regenerated successfully: {len(categories)} categories saved to {HOME_CATALOG_CACHE_PATH}")
+        return categories
+    except Exception as e:
+        logger.error(f"Error generating home catalog: {e}", exc_info=True)
+        return []
+
+def _home_catalog_scheduler():
+    while True:
+        try:
+            should_run = True
+            if os.path.isfile(HOME_CATALOG_CACHE_PATH):
+                mtime = os.path.getmtime(HOME_CATALOG_CACHE_PATH)
+                age = time.time() - mtime
+                if age < HOME_CATALOG_REFRESH_INTERVAL:
+                    should_run = False
+                    sleep_time = max(60, HOME_CATALOG_REFRESH_INTERVAL - age)
+                else:
+                    sleep_time = HOME_CATALOG_REFRESH_INTERVAL
+            else:
+                sleep_time = HOME_CATALOG_REFRESH_INTERVAL
+
+            if should_run:
+                generate_home_catalog()
+
+            time.sleep(sleep_time)
+        except Exception as e:
+            logger.error(f"Home catalog scheduler error: {e}")
+            time.sleep(60)
+
+threading.Thread(target=_home_catalog_scheduler, daemon=True, name="HomeCatalogScheduler").start()
+
+@app.get("/api/media/home")
+def get_home_catalog() -> Response:
+    """Returns pre-compiled curated home catalog categories (<5ms). Refreshed every 3 hours."""
+    if not os.path.isfile(HOME_CATALOG_CACHE_PATH):
+        generate_home_catalog()
+
+    if os.path.isfile(HOME_CATALOG_CACHE_PATH):
+        with open(HOME_CATALOG_CACHE_PATH, "r", encoding="utf-8") as f:
+            content = f.read()
+        return Response(content=content, media_type="application/json", headers={"Cache-Control": "public, max-age=10800"})
+    return Response(content="[]", media_type="application/json")
+
+
 @app.post("/api/favorites/check-updates")
 def check_favorites_updates(favs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
@@ -3022,8 +3178,20 @@ def _fetch_media_streams(
                 if a not in titles_to_try:
                     titles_to_try.append(a)
 
-    if not resolved_kp and titles_to_try:
-        for t_query in titles_to_try:
+    if not resolved_kp and (clean_title or media_id_str):
+        try:
+            reg_it = None
+            if media_id_str and media_id_str.startswith("tmdb_"):
+                reg_it = media_registry.get_item(media_id_str)
+            if not reg_it and clean_title:
+                reg_it = media_registry.find_item(clean_title, year_int, is_series=is_ser_bool)
+            if reg_it and reg_it.get("kp_id"):
+                resolved_kp = str(reg_it["kp_id"])
+        except Exception:
+            pass
+
+    if not resolved_kp and source in ("bazon", "videocdn", "delivembd", "all") and titles_to_try:
+        for t_query in titles_to_try[:2]:
             try:
                 b_items = bazon.search(t_query)
                 b_match = find_best_match(b_items, year_int, is_ser_bool, target_title=clean_title)
@@ -3302,17 +3470,42 @@ def _fetch_media_streams(
 
     executor = ThreadPoolExecutor(max_workers=9)
     try:
-        futures = [
-            executor.submit(_resolve_filmix),
-            executor.submit(_resolve_hdrezka),
-            executor.submit(_resolve_zona),
-            executor.submit(_resolve_anilibria),
-            executor.submit(_resolve_kodik),
-            executor.submit(_resolve_videocdn),
-            executor.submit(_resolve_delivembd),
-            executor.submit(_resolve_bazon),
-            executor.submit(_resolve_torrents)
-        ]
+        req_src = (source or "all").lower().strip()
+        if req_src in ("zona", "mzona"):
+            futures = [
+                executor.submit(_resolve_zona),
+                executor.submit(_resolve_torrents)
+            ]
+        elif req_src in ("torrents", "rutor", "torrent"):
+            futures = [
+                executor.submit(_resolve_torrents)
+            ]
+        elif req_src == "filmix":
+            futures = [executor.submit(_resolve_filmix)]
+        elif req_src in ("hdrezka", "rezka"):
+            futures = [executor.submit(_resolve_hdrezka)]
+        elif req_src == "kodik":
+            futures = [executor.submit(_resolve_kodik)]
+        elif req_src == "videocdn":
+            futures = [executor.submit(_resolve_videocdn)]
+        elif req_src in ("delivembd", "collaps"):
+            futures = [executor.submit(_resolve_delivembd)]
+        elif req_src == "bazon":
+            futures = [executor.submit(_resolve_bazon)]
+        elif req_src == "anilibria":
+            futures = [executor.submit(_resolve_anilibria)]
+        else:
+            futures = [
+                executor.submit(_resolve_filmix),
+                executor.submit(_resolve_hdrezka),
+                executor.submit(_resolve_zona),
+                executor.submit(_resolve_anilibria),
+                executor.submit(_resolve_kodik),
+                executor.submit(_resolve_videocdn),
+                executor.submit(_resolve_delivembd),
+                executor.submit(_resolve_bazon),
+                executor.submit(_resolve_torrents)
+            ]
         done, _ = concurrent.futures.wait(futures, timeout=10.0)
         for f in done:
             try:

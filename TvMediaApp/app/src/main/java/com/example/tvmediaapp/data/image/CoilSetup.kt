@@ -12,18 +12,13 @@ import java.util.concurrent.TimeUnit
 object CoilSetup {
     fun init(context: Context) {
         try {
-            Thread {
-                try {
-                    val resetFlag = File(context.cacheDir, "coil_v158_clean.flag")
-                    if (!resetFlag.exists()) {
-                        File(context.cacheDir, "image_cache").deleteRecursively()
-                        resetFlag.createNewFile()
-                    }
-                } catch (_: Exception) {}
-            }.start()
+            val okhttpCacheDir = File(context.filesDir, "okhttp_image_cache").apply { mkdirs() }
+            val okhttpCache = okhttp3.Cache(okhttpCacheDir, 512L * 1024L * 1024L)
+
             val okHttpClient = OkHttpClient.Builder()
-                .connectTimeout(15, TimeUnit.SECONDS)
-                .readTimeout(20, TimeUnit.SECONDS)
+                .cache(okhttpCache)
+                .connectTimeout(10, TimeUnit.SECONDS)
+                .readTimeout(15, TimeUnit.SECONDS)
                 .addInterceptor { chain ->
                     val request = chain.request()
                     val host = request.url.host.lowercase()
@@ -44,23 +39,34 @@ object CoilSetup {
                     }
                     chain.proceed(builder.build())
                 }
+                .addNetworkInterceptor { chain ->
+                    // Force infinite cache for all image responses so TV loads instantaneously without revalidating
+                    val original = chain.proceed(chain.request())
+                    original.newBuilder()
+                        .header("Cache-Control", "public, max-age=31536000, immutable")
+                        .removeHeader("Pragma")
+                        .build()
+                }
                 .build()
 
             val imageLoader = ImageLoader.Builder(context)
                 .okHttpClient(okHttpClient)
                 .memoryCache {
                     MemoryCache.Builder(context)
-                        .maxSizePercent(0.20)
+                        .maxSizePercent(0.25)
                         .build()
                 }
                 .diskCache {
                     DiskCache.Builder()
-                        .directory(File(context.cacheDir, "image_cache"))
-                        .maxSizeBytes(256L * 1024L * 1024L)
+                        .directory(File(context.filesDir, "image_cache"))
+                        .maxSizeBytes(512L * 1024L * 1024L)
                         .build()
                 }
+                .diskCachePolicy(coil.request.CachePolicy.ENABLED)
+                .memoryCachePolicy(coil.request.CachePolicy.ENABLED)
+                .networkCachePolicy(coil.request.CachePolicy.ENABLED)
                 .allowRgb565(true)
-                .crossfade(true)
+                .crossfade(false)
                 .respectCacheHeaders(false)
                 .build()
 

@@ -406,6 +406,13 @@ fun TvAppNavHost(activity: MainActivity) {
         }
     }
 
+    val actPrefs = remember { activity.getSharedPreferences("showhub_prefs", android.content.Context.MODE_PRIVATE) }
+    val initialHasUpdate = remember {
+        val cachedCode = actPrefs.getInt("pref_update_version_code", 0)
+        val curCode = activity.getInstalledVersionCode()
+        cachedCode > curCode
+    }
+    var hasUpdateAvailableState by remember { mutableStateOf(initialHasUpdate) }
     var updateInfo by remember { mutableStateOf<UpdateInfo?>(null) }
     var isDownloadingUpdate by remember { mutableStateOf(false) }
     var isCheckingUpdate by remember { mutableStateOf(false) }
@@ -425,6 +432,8 @@ fun TvAppNavHost(activity: MainActivity) {
                 val myCode = activity.getInstalledVersionCode()
                 val info = UpdateManager.checkUpdate(myCode)
                 if (info.hasUpdate && info.versionCode > myCode) {
+                    actPrefs.edit().putInt("pref_update_version_code", info.versionCode).apply()
+                    hasUpdateAvailableState = true
                     if (info.isForceUpdate || isUserClick || info.versionCode != dismissedVersionCode) {
                         updateInfo = info
                     }
@@ -432,6 +441,8 @@ fun TvAppNavHost(activity: MainActivity) {
                         Toast.makeText(activity, "Доступно обновление ShowHub TV v${info.versionName}!", Toast.LENGTH_SHORT).show()
                     }
                 } else {
+                    actPrefs.edit().remove("pref_update_version_code").apply()
+                    hasUpdateAvailableState = false
                     updateInfo = null
                     if (isUserClick) {
                         if (info.versionCode > 0) {
@@ -554,7 +565,7 @@ fun TvAppNavHost(activity: MainActivity) {
                         navigateTo(Screen.SETTINGS)
                     },
                     onCheckUpdateClick = { triggerUpdateCheck(isUserClick = true) },
-                    hasUpdateAvailable = (updateInfo != null && updateInfo!!.versionCode > activity.getInstalledVersionCode()),
+                    hasUpdateAvailable = hasUpdateAvailableState || (updateInfo != null && updateInfo!!.versionCode > activity.getInstalledVersionCode()),
                     appVersion = activity.getInstalledVersionName(),
                     viewModel = homeViewModel,
                     isModalActive = isModalActive
@@ -573,7 +584,7 @@ fun TvAppNavHost(activity: MainActivity) {
                     onHistoryClick = { navigateTo(Screen.HISTORY) },
                     onScheduleClick = { navigateTo(Screen.SCHEDULE) },
                     onCheckUpdateClick = { triggerUpdateCheck(isUserClick = true) },
-                    hasUpdateAvailable = (updateInfo != null && updateInfo!!.versionCode > activity.getInstalledVersionCode())
+                    hasUpdateAvailable = hasUpdateAvailableState || (updateInfo != null && updateInfo!!.versionCode > activity.getInstalledVersionCode())
                 )
             }
 
@@ -785,18 +796,10 @@ fun TvAppNavHost(activity: MainActivity) {
                     } else if (isApkReady) {
                         Spacer(modifier = Modifier.height(10.dp))
                         Text(
-                            text = "✓ Файл обновления уже загружен в фоне и готов к установке",
+                            text = "✓ Файл обновления загружен и готов к установке",
                             style = MaterialTheme.typography.bodyMedium,
                             color = Color(0xFF4ADE80),
                             fontWeight = FontWeight.SemiBold
-                        )
-                    } else if (UpdateManager.isPredownloading && !isDownloadingUpdate) {
-                        Spacer(modifier = Modifier.height(10.dp))
-                        Text(
-                            text = "Фоновая загрузка файла обновления...",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = Color.LightGray,
-                            fontWeight = FontWeight.Normal
                         )
                     }
 

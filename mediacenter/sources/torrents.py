@@ -61,6 +61,34 @@ def parse_torrent_quality(title: str, size: str = "", seeds: str = "0") -> Tuple
         label += f" (S: {seeds_clean})"
     return label, res, rank
 
+PUBLIC_TRACKERS = [
+    "udp://tracker.opentrackr.org:1337/announce",
+    "udp://open.demonii.com:1337/announce",
+    "udp://open.stealth.si:80/announce",
+    "udp://tracker.torrent.eu.org:451/announce",
+    "udp://explodie.org:6969/announce",
+    "udp://tracker.openbittorrent.com:6969/announce",
+    "http://tracker.openbittorrent.com:80/announce",
+    "udp://exodus.desync.com:6969/announce",
+    "udp://tracker.moeking.me:6969/announce",
+    "udp://opentracker.i2p.rocks:6969/announce",
+    "udp://tracker.dler.org:6969/announce",
+    "udp://retracker.hotplug.ru:2710/announce",
+    "http://retracker.mgts.by:80/announce",
+]
+
+def inject_trackers(magnet_url: str) -> str:
+    """Injects high-speed public BitTorrent trackers into magnet link to ensure immediate peer discovery in TorrServer."""
+    if not magnet_url or not magnet_url.startswith("magnet:"):
+        return magnet_url
+    existing = magnet_url
+    added = []
+    for tr in PUBLIC_TRACKERS:
+        encoded_tr = urllib.parse.quote(tr, safe="")
+        if tr not in existing and encoded_tr not in existing:
+            added.append(f"&tr={encoded_tr}")
+    return existing + "".join(added)
+
 class TorrentsSource(BaseSource):
     name = "torrents"
     display_name = "Rutor & TorrServe"
@@ -128,6 +156,7 @@ class TorrentsSource(BaseSource):
                             if any(bad in t_low for bad in ["mp3", "flac", "lossless", "аудиокнига", "soundtrack", "ost", "pc |", "repack", "dlc", "portable", "gog", "repack от", "digital deluxe"]):
                                 continue
 
+                            magnet = inject_trackers(magnet)
                             seen_magnets.add(magnet)
                             quality_label, quality_tier, quality_rank = parse_torrent_quality(title, size, seeds)
                             # Clean slug for player URL (keep letters/digits, replace punctuation/slashes)
@@ -189,7 +218,7 @@ class TorrentsSource(BaseSource):
         return items
 
     def get_streams(self, media_id: str, season: Optional[int] = None, episode: Optional[int] = None, audio_id: Optional[str] = None) -> StreamResult:
-        magnet = media_id
+        magnet = inject_trackers(media_id)
         safe_slug = "video"
         torr_stream = f"{self.TORRSERVE_HOST}/stream/{safe_slug}.mkv?link={urllib.parse.quote(magnet)}&play"
 

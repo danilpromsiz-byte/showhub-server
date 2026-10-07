@@ -25,20 +25,20 @@ import java.util.zip.GZIPInputStream
 
 object RezkaNativeResolver {
     private val MIRRORS = listOf(
-        "https://hdrezka.me",
+        "https://rezka.fi",
+        "https://rezka.si",
+        "https://rezka.ag",
+        "https://hdrezka-home.tv",
         "https://omnirezka.tv",
+        "https://hdrezka.me",
+        "https://hello-rezka.tv",
         "https://hdrezka.club",
         "https://hdrezka.in",
-        "https://hello-rezka.tv",
-        "https://hdrezka-home.tv",
         "https://hdrezka.name",
         "https://hdrezka.sh",
         "https://hdrezka.kim",
         "https://rezkery.com",
-        "https://rezka.pub",
-        "https://rezka.ag",
-        "https://rezka.si",
-        "https://rezka.fi"
+        "https://rezka.pub"
     )
 
     private const val USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
@@ -510,8 +510,8 @@ object RezkaNativeResolver {
         val cleanTitle = cleanTitle(title)
         if (cleanTitle.isEmpty() && mediaUrl.isNullOrEmpty()) return@withContext emptyList()
 
-        // Try primary and fallback mirrors (max 4 with fast connect timeouts)
-        for (baseUrl in MIRRORS.take(4)) {
+        // Try primary and fallback mirrors (max 5 with fast connect timeouts)
+        for (baseUrl in MIRRORS.take(5)) {
             val result = tryResolveFromMirror(baseUrl, cleanTitle, year, isSeries, season, episode, translatorId, mediaUrl, rawTitle = title, originalTitle = originalTitle)
             if (result.isNotEmpty()) {
                 return@withContext result
@@ -717,8 +717,8 @@ object RezkaNativeResolver {
             val url = URL(urlStr)
             val conn = url.openConnection() as HttpURLConnection
             conn.requestMethod = "GET"
-            conn.connectTimeout = 3500
-            conn.readTimeout = 4500
+            conn.connectTimeout = 2500
+            conn.readTimeout = 3000
             conn.setRequestProperty("User-Agent", USER_AGENT)
             conn.setRequestProperty("Accept-Encoding", "gzip, deflate")
             if (referer != null) conn.setRequestProperty("Referer", referer)
@@ -762,8 +762,8 @@ object RezkaNativeResolver {
             val url = URL(urlStr)
             val conn = url.openConnection() as HttpURLConnection
             conn.requestMethod = "POST"
-            conn.connectTimeout = 3500
-            conn.readTimeout = 4500
+            conn.connectTimeout = 2500
+            conn.readTimeout = 3000
             conn.doOutput = true
             conn.setRequestProperty("User-Agent", USER_AGENT)
             conn.setRequestProperty("Accept-Encoding", "gzip, deflate")

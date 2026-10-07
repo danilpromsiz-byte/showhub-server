@@ -21,9 +21,8 @@ class DelivembdSource(BaseSource):
     API_BASE = "https://dfg.apicollaps.cc"
     TOKEN = "eedefb541aeba871dcfc756e6b31c02e"
     EMBED_MIRRORS = [
-        "https://api.namy.ws",
         "https://api.embess.ws",
-        "https://api.nextembed.ws",
+        "https://api.namy.ws",
     ]
 
     def __init__(self):
@@ -113,7 +112,7 @@ class DelivembdSource(BaseSource):
                 r = requests.get(url, headers={
                     "User-Agent": self.headers["User-Agent"],
                     "Referer": f"{mirror}/"
-                }, timeout=6)
+                }, timeout=3.5)
                 if r.status_code == 200 and ("makePlayer" in r.text or ".m3u8" in r.text):
                     r.encoding = "utf-8"
                     return r.text, url

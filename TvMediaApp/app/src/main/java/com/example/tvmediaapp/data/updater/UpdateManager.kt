@@ -27,10 +27,6 @@ data class UpdateInfo(
 )
 
 object UpdateManager {
-    @Volatile
-    var isPredownloading: Boolean = false
-        private set
-
     fun isApkReady(context: Context, targetVersionCode: Int): Boolean {
         return try {
             val prefix = if (com.example.tvmediaapp.BuildConfig.PLATFORM_TYPE == "mobile") "ShowHub-Mobile-update" else "ShowHub-update"
@@ -42,102 +38,6 @@ object UpdateManager {
             if (targetVersionCode > 0) code >= targetVersionCode else code > 0
         } catch (_: Exception) {
             false
-        }
-    }
-
-    suspend fun predownloadUpdate(context: Context, info: UpdateInfo): Boolean = withContext(Dispatchers.IO) {
-        if (isPredownloading) return@withContext false
-        if (isApkReady(context, info.versionCode)) return@withContext true
-        isPredownloading = true
-        try {
-            val isMobile = com.example.tvmediaapp.BuildConfig.PLATFORM_TYPE == "mobile"
-            val prefix = if (isMobile) "ShowHub-Mobile-update" else "ShowHub-update"
-            val defaultApkName = if (isMobile) "ShowHub-Mobile.apk" else "ShowHub.apk"
-            val cacheDir = context.externalCacheDir ?: context.cacheDir
-            val targetFile = File(cacheDir, if (info.versionCode > 0) "$prefix-v${info.versionCode}.apk" else "$prefix.apk")
-            val partFile = File(cacheDir, if (info.versionCode > 0) "$prefix-v${info.versionCode}.apk.part" else "$prefix.apk.part")
-
-            // Clean older updates
-            try {
-                cacheDir.listFiles()?.forEach { file ->
-                    if (file.name.startsWith(prefix) && file.name != targetFile.name && file.name != partFile.name) {
-                        file.delete()
-                    }
-                }
-            } catch (_: Exception) {}
-
-            val rawGithubUrl = "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/$defaultApkName"
-            val renderUrl = "https://showhub-server.onrender.com/$defaultApkName"
-            val renderStaticUrl = "https://showhub-server.onrender.com/static/$defaultApkName"
-            val candidateUrls = listOf(
-                rawGithubUrl,
-                info.downloadUrl,
-                renderUrl,
-                renderStaticUrl
-            ).filter { it.isNotBlank() && !it.contains("cdn.jsdelivr.net") }.distinct()
-
-            for (currentUrl in candidateUrls) {
-                if (partFile.exists()) {
-                    try { partFile.delete() } catch (_: Exception) {}
-                }
-                try {
-                    val url = URL(currentUrl)
-                    val conn = url.openConnection() as HttpURLConnection
-                    conn.connectTimeout = 15000
-                    conn.readTimeout = 60000
-                    conn.setRequestProperty("User-Agent", "ShowHubTV-Native/2.8.18")
-                    conn.connect()
-                    if (conn.responseCode !in 200..299) continue
-
-                    val startTime = System.currentTimeMillis()
-                    var bytesTotal = 0L
-
-                    conn.inputStream.use { input ->
-                        FileOutputStream(partFile).use { output ->
-                            val buffer = ByteArray(65536)
-                            var bytesRead: Int
-                            while (input.read(buffer).also { bytesRead = it } > 0) {
-                                output.write(buffer, 0, bytesRead)
-                                bytesTotal += bytesRead
-
-                                val now = System.currentTimeMillis()
-                                if (now - startTime > 5000 && bytesTotal < 500 * 1024L && candidateUrls.indexOf(currentUrl) < candidateUrls.size - 1) {
-                                    throw java.io.IOException("Predownload mirror too slow, switching")
-                                }
-                            }
-                            output.flush()
-                        }
-                    }
-
-                    if (partFile.length() < 1_000_000L) {
-                        try { partFile.delete() } catch (_: Exception) {}
-                        continue
-                    }
-
-                    val archiveInfo = context.packageManager.getPackageArchiveInfo(partFile.absolutePath, 0)
-                    val downloadedVersion = if (archiveInfo != null) {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) archiveInfo.longVersionCode.toInt() else archiveInfo.versionCode
-                    } else 0
-
-                    if (info.versionCode > 0 && downloadedVersion < info.versionCode) {
-                        try { partFile.delete() } catch (_: Exception) {}
-                        continue
-                    }
-
-                    if (targetFile.exists()) {
-                        try { targetFile.delete() } catch (_: Exception) {}
-                    }
-                    if (partFile.renameTo(targetFile)) {
-                        targetFile.setReadable(true, false)
-                        return@withContext true
-                    }
-                } catch (_: Exception) {
-                    try { partFile.delete() } catch (_: Exception) {}
-                }
-            }
-            false
-        } finally {
-            isPredownloading = false
         }
     }
 
@@ -233,16 +133,6 @@ object UpdateManager {
         onProgress: ((status: String, percent: Int) -> Unit)? = null
     ): Boolean = withContext(Dispatchers.IO) {
         try {
-            if (isPredownloading) {
-                withContext(Dispatchers.Main) {
-                    onProgress?.invoke("Завершение фоновой загрузки...", -1)
-                }
-                for (i in 1..40) {
-                    if (!isPredownloading || isApkReady(activity, targetVersionCode)) break
-                    delay(500)
-                }
-            }
-
             withContext(Dispatchers.Main) {
                 onProgress?.invoke("Подключение к серверу...", 0)
             }

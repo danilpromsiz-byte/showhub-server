@@ -38,4 +38,6 @@ mediacenter/data/turso.json
 mediacenter/data/supabase.json
 *.env
 .env*
+*.db-shm
+*.db-wal
 

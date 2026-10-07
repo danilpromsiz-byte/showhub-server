@@ -117,6 +117,7 @@ import com.example.tvmediaapp.ui.theme.ChipBackground
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 object MediaKeyDispatcher {
     @Volatile
@@ -865,14 +866,27 @@ private fun NativeExoPlayerScreen(
                         if (currentStreamUrl.contains(":8090") || currentStreamUrl.contains("/stream?link=")) {
                             coroutineScope.launch(Dispatchers.IO) {
                                 com.example.tvmediaapp.data.torrserver.TorrServerManager.ensureServerAvailable(context)
+                                withContext(Dispatchers.Main) {
+                                    try {
+                                        setMediaItem(MediaItem.fromUri(currentStreamUrl))
+                                        if (startPositionMs > 1000L) {
+                                            seekTo(startPositionMs)
+                                        }
+                                        prepare()
+                                        playWhenReady = true
+                                    } catch (e: Exception) {
+                                        e.printStackTrace()
+                                    }
+                                }
                             }
+                        } else {
+                            setMediaItem(MediaItem.fromUri(currentStreamUrl))
+                            if (startPositionMs > 1000L) {
+                                seekTo(startPositionMs)
+                            }
+                            prepare()
+                            playWhenReady = true
                         }
-                        setMediaItem(MediaItem.fromUri(currentStreamUrl))
-                        if (startPositionMs > 1000L) {
-                            seekTo(startPositionMs)
-                        }
-                        prepare()
-                        playWhenReady = true
                     } catch (e: Exception) {
                         e.printStackTrace()
                     }
@@ -1155,7 +1169,7 @@ private fun NativeExoPlayerScreen(
                         val rezkaMediaUrl = if (currentMovieState.id.startsWith("http") || currentMovieState.id.contains("hdrezka") || currentMovieState.id.startsWith("rezka:")) {
                             currentMovieState.id
                         } else null
-                        kotlinx.coroutines.withTimeoutOrNull(4500L) {
+                        kotlinx.coroutines.withTimeoutOrNull(7500L) {
                             RezkaNativeResolver.resolveStreams(
                                 title = currentMovieState.title,
                                 year = currentMovieState.releaseYear,
@@ -1274,6 +1288,11 @@ private fun NativeExoPlayerScreen(
                     }
                     selectedSource = actualSource
                     if (isDirectVideoStream(targetStream.url)) {
+                        if (targetStream.url.contains(":8090") || targetStream.url.contains("/stream?link=")) {
+                            coroutineScope.launch(Dispatchers.IO) {
+                                com.example.tvmediaapp.data.torrserver.TorrServerManager.ensureServerAvailable(context)
+                            }
+                        }
                         exoPlayer.setMediaItem(MediaItem.fromUri(targetStream.url))
                         val curTrackObj = currentMovieState.audioTracks.firstOrNull { it.id == newAudioId }
                         if (curTrackObj != null) {
@@ -1620,7 +1639,7 @@ private fun NativeExoPlayerScreen(
             }
             val serverStreams = serverDeferred.await()
             val rezkaStreams = rezkaDeferred.await()
-            val combined = (serverStreams + rezkaStreams)
+            val combined = (rezkaStreams + serverStreams).distinctBy { it.url }
             allStreamOptions = combined
             val extractedSrc = extractSources(combined)
             if (extractedSrc.isNotEmpty()) {

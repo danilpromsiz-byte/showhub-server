@@ -908,10 +908,10 @@ def get_proxied_image(url: str = Query(...)):
 def check_updates() -> Dict[str, Any]:
     showhub_fallback = {
         "success": True,
-        "version_name": "2.8.106",
-        "version_code": 165,
-        "versionName": "2.8.106",
-        "versionCode": 165,
+        "version_name": "2.8.107",
+        "version_code": 166,
+        "versionName": "2.8.107",
+        "versionCode": 166,
         "force_update": False,
         "forceUpdate": False,
         "min_version_code": 70,
@@ -919,40 +919,40 @@ def check_updates() -> Dict[str, Any]:
         "apk_url": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/ShowHub.apk",
         "download_url": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/ShowHub.apk",
         "apkUrl": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/ShowHub.apk",
-        "changelog": "v2.8.106: Прямое высокоскоростное скачивание обновлений ShowHub.apk без ограничений CDN (исправлен сбой 20 МБ); серверная генерация каталога главной (кэш 3 часа); оффлайн-кэш постеров; устранены фризы и залипания D-pad; рабочие потоки Zona 4K и TorrServe P2P.",
-        "releaseNotes": "v2.8.106: Прямое высокоскоростное скачивание обновлений ShowHub.apk без ограничений CDN (исправлен сбой 20 МБ); серверная генерация каталога главной (кэш 3 часа); оффлайн-кэш постеров; устранены фризы и залипания D-pad; рабочие потоки Zona 4K и TorrServe P2P.",
+        "changelog": "v2.8.107: Мгновенно активная кнопка «Обновить» на старте без задержек; внедрены 15 скоростных BitTorrent-трекеров для моментального подключения Zona 4K P2P (TorrServer); ускорен и восстановлен балансер Collaps (прямой HLS за 600 мс); оптимизированы рабочие зеркала HDRezka без зависаний.",
+        "releaseNotes": "v2.8.107: Мгновенно активная кнопка «Обновить» на старте без задержек; внедрены 15 скоростных BitTorrent-трекеров для моментального подключения Zona 4K P2P (TorrServer); ускорен и восстановлен балансер Collaps (прямой HLS за 600 мс); оптимизированы рабочие зеркала HDRezka без зависаний.",
         "tv": {
-            "version_name": "2.8.106",
-            "version_code": 165,
-            "versionName": "2.8.106",
-            "versionCode": 165,
+            "version_name": "2.8.107",
+            "version_code": 166,
+            "versionName": "2.8.107",
+            "versionCode": 166,
             "download_url": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/ShowHub.apk",
             "apk_url": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/ShowHub.apk",
             "apkUrl": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/ShowHub.apk",
-            "changelog": "v2.8.106: Прямое высокоскоростное скачивание обновлений ShowHub.apk без ограничений CDN (исправлен сбой 20 МБ); серверная генерация каталога главной (кэш 3 часа); оффлайн-кэш постеров; устранены фризы и залипания D-pad; рабочие потоки Zona 4K и TorrServe P2P.",
-            "releaseNotes": "v2.8.106: Прямое высокоскоростное скачивание обновлений ShowHub.apk без ограничений CDN (исправлен сбой 20 МБ); серверная генерация каталога главной (кэш 3 часа); оффлайн-кэш постеров; устранены фризы и залипания D-pad; рабочие потоки Zona 4K и TorrServe P2P."
+            "changelog": "v2.8.107: Мгновенно активная кнопка «Обновить» на старте без задержек; внедрены 15 скоростных BitTorrent-трекеров для моментального подключения Zona 4K P2P (TorrServer); ускорен и восстановлен балансер Collaps (прямой HLS за 600 мс); оптимизированы рабочие зеркала HDRezka без зависаний.",
+            "releaseNotes": "v2.8.107: Мгновенно активная кнопка «Обновить» на старте без задержек; внедрены 15 скоростных BitTorrent-трекеров для моментального подключения Zona 4K P2P (TorrServer); ускорен и восстановлен балансер Collaps (прямой HLS за 600 мс); оптимизированы рабочие зеркала HDRezka без зависаний."
         },
         "mobile": {
-            "version_name": "2.8.106",
-            "version_code": 165,
-            "versionName": "2.8.106",
-            "versionCode": 165,
+            "version_name": "2.8.107",
+            "version_code": 166,
+            "versionName": "2.8.107",
+            "versionCode": 166,
             "download_url": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/ShowHub-Mobile.apk",
             "apk_url": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/ShowHub-Mobile.apk",
             "apkUrl": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/ShowHub-Mobile.apk",
-            "changelog": "v2.8.106: Прямое высокоскоростное скачивание обновлений ShowHub.apk без ограничений CDN (исправлен сбой 20 МБ); серверная генерация каталога главной (кэш 3 часа); оффлайн-кэш постеров; устранены фризы и залипания D-pad; рабочие потоки Zona 4K и TorrServe P2P.",
-            "releaseNotes": "v2.8.106: Прямое высокоскоростное скачивание обновлений ShowHub.apk без ограничений CDN (исправлен сбой 20 МБ); серверная генерация каталога главной (кэш 3 часа); оффлайн-кэш постеров; устранены фризы и залипания D-pad; рабочие потоки Zona 4K и TorrServe P2P."
+            "changelog": "v2.8.107: Мгновенно активная кнопка «Обновить» на старте без задержек; внедрены 15 скоростных BitTorrent-трекеров для моментального подключения Zona 4K P2P (TorrServer); ускорен и восстановлен балансер Collaps (прямой HLS за 600 мс); оптимизированы рабочие зеркала HDRezka без зависаний.",
+            "releaseNotes": "v2.8.107: Мгновенно активная кнопка «Обновить» на старте без задержек; внедрены 15 скоростных BitTorrent-трекеров для моментального подключения Zona 4K P2P (TorrServer); ускорен и восстановлен балансер Collaps (прямой HLS за 600 мс); оптимизированы рабочие зеркала HDRezka без зависаний."
         },
         "pc": {
-            "version_name": "2.8.106",
-            "version_code": 165,
-            "versionName": "2.8.106",
-            "versionCode": 165,
+            "version_name": "2.8.107",
+            "version_code": 166,
+            "versionName": "2.8.107",
+            "versionCode": 166,
             "download_url": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/ShowHub-PC.zip",
             "apk_url": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/ShowHub-PC.zip",
             "apkUrl": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/ShowHub-PC.zip",
-            "changelog": "v2.8.106: Прямое высокоскоростное скачивание обновлений ShowHub.apk без ограничений CDN (исправлен сбой 20 МБ); серверная генерация каталога главной (кэш 3 часа); оффлайн-кэш постеров; устранены фризы и залипания D-pad; рабочие потоки Zona 4K и TorrServe P2P.",
-            "releaseNotes": "v2.8.106: Прямое высокоскоростное скачивание обновлений ShowHub.apk без ограничений CDN (исправлен сбой 20 МБ); серверная генерация каталога главной (кэш 3 часа); оффлайн-кэш постеров; устранены фризы и залипания D-pad; рабочие потоки Zona 4K и TorrServe P2P."
+            "changelog": "v2.8.107: Мгновенно активная кнопка «Обновить» на старте без задержек; внедрены 15 скоростных BitTorrent-трекеров для моментального подключения Zona 4K P2P (TorrServer); ускорен и восстановлен балансер Collaps (прямой HLS за 600 мс); оптимизированы рабочие зеркала HDRezka без зависаний.",
+            "releaseNotes": "v2.8.107: Мгновенно активная кнопка «Обновить» на старте без задержек; внедрены 15 скоростных BitTorrent-трекеров для моментального подключения Zona 4K P2P (TorrServer); ускорен и восстановлен балансер Collaps (прямой HLS за 600 мс); оптимизированы рабочие зеркала HDRezka без зависаний."
         }
     }
     try:
@@ -3506,7 +3506,7 @@ def _fetch_media_streams(
                 executor.submit(_resolve_bazon),
                 executor.submit(_resolve_torrents)
             ]
-        done, _ = concurrent.futures.wait(futures, timeout=10.0)
+        done, _ = concurrent.futures.wait(futures, timeout=12.0)
         for f in done:
             try:
                 res = f.result(timeout=0.05)

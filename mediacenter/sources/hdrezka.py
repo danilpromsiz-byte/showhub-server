@@ -213,24 +213,24 @@ class HDRezkaSource(BaseSource):
                 self.proxy_session = None
                 self.active_proxy = None
 
-        # 2. Probe proxies in parallel using ThreadPoolExecutor
-        candidates = self._get_eu_proxies(fetch_remote=True)[:40]
+        # 2. Probe proxies in parallel using ThreadPoolExecutor (max 10, 3.0s timeout to prevent stall)
+        candidates = self._get_eu_proxies(fetch_remote=False)[:10]
 
         def _try_single_proxy(p: str):
             sess = requests.Session()
             sess.headers.update(self.session.headers)
             sess.proxies = {"http": f"http://{p}", "https": f"http://{p}"}
-            r = sess.get(ag_url, headers={"Referer": f"{ag_base}/"}, timeout=(2.5, 5.0))
+            r = sess.get(ag_url, headers={"Referer": f"{ag_base}/"}, timeout=(2.0, 3.0))
             if "anubis_challenge" in r.text:
                 r = self._solve_anubis(ag_base, r.text, ag_url, session=sess)
             if r.status_code == 200 and 'id="check-form"' not in r.text and '<title>Вход</title>' not in r.text and 'b-player__restricted' not in r.text:
                 return (p, sess, r)
             return None
 
-        executor = concurrent.futures.ThreadPoolExecutor(max_workers=24)
+        executor = concurrent.futures.ThreadPoolExecutor(max_workers=10)
         futures = [executor.submit(_try_single_proxy, p) for p in candidates]
         try:
-            for fut in concurrent.futures.as_completed(futures, timeout=7.5):
+            for fut in concurrent.futures.as_completed(futures, timeout=3.0):
                 try:
                     res_tuple = fut.result()
                     if res_tuple is not None:

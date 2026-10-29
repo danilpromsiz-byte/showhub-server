@@ -143,6 +143,10 @@ def startup_event():
         media_harvester.start_background_harvest()
     except Exception as e:
         logger.warning(f"Failed to start media harvester: {e}")
+    try:
+        threading.Thread(target=generate_home_catalog, daemon=True, name="StartupHomeCatalog").start()
+    except Exception as e:
+        logger.warning(f"Failed to start startup home catalog generation: {e}")
 
 @app.api_route("/", methods=["GET", "HEAD"], response_class=HTMLResponse)
 async def serve_index():
@@ -943,10 +947,10 @@ def get_proxied_image(url: str = Query(...)):
 def check_updates() -> Dict[str, Any]:
     showhub_fallback = {
         "success": True,
-        "version_name": "2.8.107",
-        "version_code": 166,
-        "versionName": "2.8.107",
-        "versionCode": 166,
+        "version_name": "2.8.108",
+        "version_code": 167,
+        "versionName": "2.8.108",
+        "versionCode": 167,
         "force_update": False,
         "forceUpdate": False,
         "min_version_code": 70,
@@ -954,40 +958,40 @@ def check_updates() -> Dict[str, Any]:
         "apk_url": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/ShowHub.apk",
         "download_url": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/ShowHub.apk",
         "apkUrl": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/ShowHub.apk",
-        "changelog": "v2.8.107: Мгновенно активная кнопка «Обновить» на старте без задержек; внедрены 15 скоростных BitTorrent-трекеров для моментального подключения Zona 4K P2P (TorrServer); ускорен и восстановлен балансер Collaps (прямой HLS за 600 мс); оптимизированы рабочие зеркала HDRezka без зависаний.",
-        "releaseNotes": "v2.8.107: Мгновенно активная кнопка «Обновить» на старте без задержек; внедрены 15 скоростных BitTorrent-трекеров для моментального подключения Zona 4K P2P (TorrServer); ускорен и восстановлен балансер Collaps (прямой HLS за 600 мс); оптимизированы рабочие зеркала HDRezka без зависаний.",
+        "changelog": "v2.8.108: Автоматическое обновление каталога главной каждые 3 часа с живыми новинками Lampa/TMDb; устойчивая загрузка при пробуждении сервера (cold start retry); полная защита трафика Render.",
+        "releaseNotes": "v2.8.108: Автоматическое обновление каталога главной каждые 3 часа с живыми новинками Lampa/TMDb; устойчивая загрузка при пробуждении сервера (cold start retry); полная защита трафика Render.",
         "tv": {
-            "version_name": "2.8.107",
-            "version_code": 166,
-            "versionName": "2.8.107",
-            "versionCode": 166,
+            "version_name": "2.8.108",
+            "version_code": 167,
+            "versionName": "2.8.108",
+            "versionCode": 167,
             "download_url": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/ShowHub.apk",
             "apk_url": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/ShowHub.apk",
             "apkUrl": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/ShowHub.apk",
-            "changelog": "v2.8.107: Мгновенно активная кнопка «Обновить» на старте без задержек; внедрены 15 скоростных BitTorrent-трекеров для моментального подключения Zona 4K P2P (TorrServer); ускорен и восстановлен балансер Collaps (прямой HLS за 600 мс); оптимизированы рабочие зеркала HDRezka без зависаний.",
-            "releaseNotes": "v2.8.107: Мгновенно активная кнопка «Обновить» на старте без задержек; внедрены 15 скоростных BitTorrent-трекеров для моментального подключения Zona 4K P2P (TorrServer); ускорен и восстановлен балансер Collaps (прямой HLS за 600 мс); оптимизированы рабочие зеркала HDRezka без зависаний."
+            "changelog": "v2.8.108: Автоматическое обновление каталога главной каждые 3 часа с живыми новинками Lampa/TMDb; устойчивая загрузка при пробуждении сервера (cold start retry); полная защита трафика Render.",
+            "releaseNotes": "v2.8.108: Автоматическое обновление каталога главной каждые 3 часа с живыми новинками Lampa/TMDb; устойчивая загрузка при пробуждении сервера (cold start retry); полная защита трафика Render."
         },
         "mobile": {
-            "version_name": "2.8.107",
-            "version_code": 166,
-            "versionName": "2.8.107",
-            "versionCode": 166,
+            "version_name": "2.8.108",
+            "version_code": 167,
+            "versionName": "2.8.108",
+            "versionCode": 167,
             "download_url": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/ShowHub-Mobile.apk",
             "apk_url": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/ShowHub-Mobile.apk",
             "apkUrl": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/ShowHub-Mobile.apk",
-            "changelog": "v2.8.107: Мгновенно активная кнопка «Обновить» на старте без задержек; внедрены 15 скоростных BitTorrent-трекеров для моментального подключения Zona 4K P2P (TorrServer); ускорен и восстановлен балансер Collaps (прямой HLS за 600 мс); оптимизированы рабочие зеркала HDRezka без зависаний.",
-            "releaseNotes": "v2.8.107: Мгновенно активная кнопка «Обновить» на старте без задержек; внедрены 15 скоростных BitTorrent-трекеров для моментального подключения Zona 4K P2P (TorrServer); ускорен и восстановлен балансер Collaps (прямой HLS за 600 мс); оптимизированы рабочие зеркала HDRezka без зависаний."
+            "changelog": "v2.8.108: Автоматическое обновление каталога главной каждые 3 часа с живыми новинками Lampa/TMDb; устойчивая загрузка при пробуждении сервера (cold start retry); полная защита трафика Render.",
+            "releaseNotes": "v2.8.108: Автоматическое обновление каталога главной каждые 3 часа с живыми новинками Lampa/TMDb; устойчивая загрузка при пробуждении сервера (cold start retry); полная защита трафика Render."
         },
         "pc": {
-            "version_name": "2.8.107",
-            "version_code": 166,
-            "versionName": "2.8.107",
-            "versionCode": 166,
+            "version_name": "2.8.108",
+            "version_code": 167,
+            "versionName": "2.8.108",
+            "versionCode": 167,
             "download_url": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/ShowHub-PC.zip",
             "apk_url": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/ShowHub-PC.zip",
             "apkUrl": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/ShowHub-PC.zip",
-            "changelog": "v2.8.107: Мгновенно активная кнопка «Обновить» на старте без задержек; внедрены 15 скоростных BitTorrent-трекеров для моментального подключения Zona 4K P2P (TorrServer); ускорен и восстановлен балансер Collaps (прямой HLS за 600 мс); оптимизированы рабочие зеркала HDRezka без зависаний.",
-            "releaseNotes": "v2.8.107: Мгновенно активная кнопка «Обновить» на старте без задержек; внедрены 15 скоростных BitTorrent-трекеров для моментального подключения Zona 4K P2P (TorrServer); ускорен и восстановлен балансер Collaps (прямой HLS за 600 мс); оптимизированы рабочие зеркала HDRezka без зависаний."
+            "changelog": "v2.8.108: Автоматическое обновление каталога главной каждые 3 часа с живыми новинками Lampa/TMDb; устойчивая загрузка при пробуждении сервера (cold start retry); полная защита трафика Render.",
+            "releaseNotes": "v2.8.108: Автоматическое обновление каталога главной каждые 3 часа с живыми новинками Lampa/TMDb; устойчивая загрузка при пробуждении сервера (cold start retry); полная защита трафика Render."
         }
     }
     try:
@@ -1768,18 +1772,38 @@ def get_catalog(
 
 HOME_CATALOG_CACHE_PATH = os.path.join(CURRENT_DIR, "data", "home_catalog_cache.json")
 HOME_CATALOG_REFRESH_INTERVAL = 3 * 3600  # 3 hours (10,800 seconds)
+_last_home_catalog_gen_time: float = 0.0
+_home_catalog_generating: bool = False
+_home_catalog_lock = threading.Lock()
 
 def generate_home_catalog() -> List[Dict[str, Any]]:
     """
     Compiles curated home screen categories based on strict quality rules:
+    - Injects live fresh daily trending releases from Lampa / TMDb directly into DB and categories
     - High ratings / popularity
     - Valid posters (no broken/st.kp.yandex.net/no_image)
     - Readable Cyrillic/Latin titles
     - Release years (2024-2026 for fresh releases)
-    - Pre-caches posters in local disk cache (cover_cache)
     """
-    logger.info("Regenerating home catalog cache (3-hour periodic refresh)...")
+    global _last_home_catalog_gen_time, _home_catalog_generating
+    with _home_catalog_lock:
+        if _home_catalog_generating:
+            logger.info("Home catalog generation already in progress, skipping duplicate call.")
+            return []
+        _home_catalog_generating = True
+
+    logger.info("Regenerating home catalog cache (3-hour periodic refresh with live feeds)...")
     try:
+        # Step 0: Live harvest fresh main screen feeds from Lampa / TMDb
+        live_cards = []
+        try:
+            live_cards = lampa_source.get_main_screen_feeds(max_pages_per_feed=2)
+            if live_cards:
+                media_registry.upsert_batch(live_cards, enqueue_covers=False)
+                logger.info(f"Injected {len(live_cards)} live fresh cards from Lampa into registry")
+        except Exception as e:
+            logger.warning(f"Failed to fetch live cards for home catalog: {e}")
+
         def _clean_items(raw_items: List[Dict[str, Any]], max_count: int = 35) -> List[Dict[str, Any]]:
             cleaned = []
             seen_titles = set()
@@ -1797,7 +1821,6 @@ def generate_home_catalog() -> List[Dict[str, Any]]:
                     if not any(('a' <= c <= 'z') or ('A' <= c <= 'Z') or ('\u0400' <= c <= '\u04FF') for c in t):
                         continue
                 seen_titles.add(t_low)
-                # Enqueue poster and backdrop for local disk download
                 cover_cache.enqueue_url(poster)
                 backdrop = it.get("backdrop")
                 if backdrop and str(backdrop).startswith("http"):
@@ -1807,7 +1830,7 @@ def generate_home_catalog() -> List[Dict[str, Any]]:
                     break
             return cleaned
 
-        # 1. Popular fresh releases (2024-2026, highest popularity/ratings)
+        # 1. Popular fresh releases (combine live trending cards + top registry 2024-2026)
         pop_raw = media_registry.query_catalog(
             category="all",
             sort_by="popular",
@@ -1815,7 +1838,8 @@ def generate_home_catalog() -> List[Dict[str, Any]]:
             include_unreleased_movies=False,
             include_unreleased_series=True
         )
-        popular = _clean_items(pop_raw, max_count=35)
+        live_pop = [c for c in live_cards if (c.get("year") is None or c.get("year", 0) >= 2024)]
+        popular = _clean_items(live_pop + pop_raw, max_count=35)
 
         # 2. Top rated
         top_raw = media_registry.query_catalog(
@@ -1828,23 +1852,25 @@ def generate_home_catalog() -> List[Dict[str, Any]]:
         )
         top_rated = _clean_items(top_raw, max_count=35)
 
-        # 3. Series (fresh releases 2023-2026)
+        # 3. Series (fresh releases 2023-2026 + live series)
         ser_raw = media_registry.query_catalog(
             category="series",
             sort_by="popular",
             limit=70,
             include_unreleased_series=True
         )
-        series = _clean_items(ser_raw, max_count=35)
+        live_series = [c for c in live_cards if c.get("is_series")]
+        series = _clean_items(live_series + ser_raw, max_count=35)
 
-        # 4. Movies (fresh 2024-2026)
+        # 4. Movies (fresh 2024-2026 + live movies)
         mov_raw = media_registry.query_catalog(
             category="movies",
             sort_by="popular",
             limit=70,
             include_unreleased_movies=False
         )
-        movies = _clean_items(mov_raw, max_count=35)
+        live_movies = [c for c in live_cards if not c.get("is_series") and (c.get("year") is None or c.get("year", 0) >= 2024)]
+        movies = _clean_items(live_movies + mov_raw, max_count=35)
 
         # 5. Cartoons
         cart_raw = media_registry.query_catalog(
@@ -1875,31 +1901,24 @@ def generate_home_catalog() -> List[Dict[str, Any]]:
         with open(tmp_path, "w", encoding="utf-8") as f:
             json.dump(categories, f, ensure_ascii=False)
         os.replace(tmp_path, HOME_CATALOG_CACHE_PATH)
+        _last_home_catalog_gen_time = time.time()
         logger.info(f"Home catalog regenerated successfully: {len(categories)} categories saved to {HOME_CATALOG_CACHE_PATH}")
         return categories
     except Exception as e:
         logger.error(f"Error generating home catalog: {e}", exc_info=True)
         return []
+    finally:
+        _home_catalog_generating = False
 
 def _home_catalog_scheduler():
     while True:
         try:
-            should_run = True
-            if os.path.isfile(HOME_CATALOG_CACHE_PATH):
-                mtime = os.path.getmtime(HOME_CATALOG_CACHE_PATH)
-                age = time.time() - mtime
-                if age < HOME_CATALOG_REFRESH_INTERVAL:
-                    should_run = False
-                    sleep_time = max(60, HOME_CATALOG_REFRESH_INTERVAL - age)
-                else:
-                    sleep_time = HOME_CATALOG_REFRESH_INTERVAL
-            else:
-                sleep_time = HOME_CATALOG_REFRESH_INTERVAL
-
-            if should_run:
+            now = time.time()
+            mtime = os.path.getmtime(HOME_CATALOG_CACHE_PATH) if os.path.isfile(HOME_CATALOG_CACHE_PATH) else 0.0
+            last_time = max(_last_home_catalog_gen_time, mtime)
+            if (now - last_time) >= HOME_CATALOG_REFRESH_INTERVAL or last_time == 0.0:
                 generate_home_catalog()
-
-            time.sleep(sleep_time)
+            time.sleep(300)  # Check every 5 minutes
         except Exception as e:
             logger.error(f"Home catalog scheduler error: {e}")
             time.sleep(60)
@@ -1909,14 +1928,35 @@ threading.Thread(target=_home_catalog_scheduler, daemon=True, name="HomeCatalogS
 @app.get("/api/media/home")
 def get_home_catalog() -> Response:
     """Returns pre-compiled curated home catalog categories (<5ms). Refreshed every 3 hours."""
-    if not os.path.isfile(HOME_CATALOG_CACHE_PATH):
+    global _last_home_catalog_gen_time
+    now = time.time()
+    cache_exists = os.path.isfile(HOME_CATALOG_CACHE_PATH)
+
+    is_stale = False
+    if cache_exists:
+        mtime = os.path.getmtime(HOME_CATALOG_CACHE_PATH)
+        last_time = max(_last_home_catalog_gen_time, mtime)
+        if (now - last_time) >= HOME_CATALOG_REFRESH_INTERVAL:
+            is_stale = True
+    else:
+        is_stale = True
+
+    if not cache_exists:
         generate_home_catalog()
+    elif is_stale and not _home_catalog_generating:
+        threading.Thread(target=generate_home_catalog, daemon=True, name="AsyncHomeCatalogRefresh").start()
 
     if os.path.isfile(HOME_CATALOG_CACHE_PATH):
         with open(HOME_CATALOG_CACHE_PATH, "r", encoding="utf-8") as f:
             content = f.read()
         return Response(content=content, media_type="application/json", headers={"Cache-Control": "public, max-age=10800"})
     return Response(content="[]", media_type="application/json")
+
+@app.api_route("/api/media/home/refresh", methods=["GET", "POST"])
+def force_refresh_home_catalog():
+    """Forces immediate live regeneration of curated home catalog categories with fresh releases."""
+    cats = generate_home_catalog()
+    return JSONResponse(content={"success": True, "count": len(cats), "categories": [c["id"] for c in cats]})
 
 
 @app.post("/api/favorites/check-updates")

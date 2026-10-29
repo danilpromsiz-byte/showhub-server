@@ -136,30 +136,44 @@ object ShowHubApiClient {
 
     suspend fun fetchHomeCatalog(): List<MovieCategory> = withContext(Dispatchers.IO) {
         val categories = mutableListOf<MovieCategory>()
-        try {
-            val url = URL("$activeServerBase/api/media/home")
-            val conn = url.openConnection() as HttpURLConnection
-            conn.connectTimeout = 8000
-            conn.readTimeout = 12000
-            prepareConnection(conn)
-            conn.connect()
-            if (conn.responseCode == 200) {
-                val body = BufferedReader(InputStreamReader(conn.inputStream, "UTF-8")).use { it.readText() }
-                val arr = JSONArray(body)
-                for (i in 0 until arr.length()) {
-                    val catObj = arr.getJSONObject(i)
-                    val catId = catObj.optString("id", "")
-                    val catTitle = catObj.optString("title", "")
-                    val movArr = catObj.optJSONArray("movies") ?: JSONArray()
-                    val movList = mutableListOf<Movie>()
-                    parseMoviesJson(movArr, movList, isRanked = (catId == "popular"))
-                    if (movList.isNotEmpty()) {
-                        categories.add(MovieCategory(id = catId, title = catTitle, movies = movList))
+        val url = URL("$activeServerBase/api/media/home")
+
+        for (attempt in 0..2) {
+            try {
+                val conn = url.openConnection() as HttpURLConnection
+                conn.connectTimeout = 15000
+                conn.readTimeout = 20000
+                prepareConnection(conn)
+                conn.connect()
+                val code = conn.responseCode
+                if (code == 200) {
+                    val body = BufferedReader(InputStreamReader(conn.inputStream, "UTF-8")).use { it.readText() }
+                    val arr = JSONArray(body)
+                    for (i in 0 until arr.length()) {
+                        val catObj = arr.getJSONObject(i)
+                        val catId = catObj.optString("id", "")
+                        val catTitle = catObj.optString("title", "")
+                        val movArr = catObj.optJSONArray("movies") ?: JSONArray()
+                        val movList = mutableListOf<Movie>()
+                        parseMoviesJson(movArr, movList, isRanked = (catId == "popular"))
+                        if (movList.isNotEmpty()) {
+                            categories.add(MovieCategory(id = catId, title = catTitle, movies = movList))
+                        }
                     }
+                    if (categories.isNotEmpty()) {
+                        break
+                    }
+                } else if ((code == 503 || code == 502 || code == 504) && attempt < 2) {
+                    kotlinx.coroutines.delay(2000L * (attempt + 1))
+                    continue
                 }
+            } catch (e: Exception) {
+                if (attempt < 2) {
+                    kotlinx.coroutines.delay(2000L * (attempt + 1))
+                    continue
+                }
+                e.printStackTrace()
             }
-        } catch (e: Exception) {
-            e.printStackTrace()
         }
         categories
     }

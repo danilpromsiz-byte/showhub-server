@@ -100,6 +100,26 @@ fun HomeScreen(
         categories.firstOrNull()?.movies ?: emptyList()
     }
 
+    val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+    androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                viewModel.refreshCatalog()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(2 * 3600 * 1000L) // Refresh catalog every 2 hours if app is running
+            viewModel.refreshCatalog()
+        }
+    }
+
     var isInitialPrep by remember { mutableStateOf(true) }
     LaunchedEffect(displayMovies.isNotEmpty()) {
         if (displayMovies.isNotEmpty()) {

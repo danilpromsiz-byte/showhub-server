@@ -136,43 +136,51 @@ object ShowHubApiClient {
 
     suspend fun fetchHomeCatalog(): List<MovieCategory> = withContext(Dispatchers.IO) {
         val categories = mutableListOf<MovieCategory>()
-        val url = URL("$activeServerBase/api/media/home")
+        val candidateUrls = listOf(
+            "$activeServerBase/api/media/home",
+            "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/data/home_catalog_cache.json"
+        )
 
-        for (attempt in 0..2) {
-            try {
-                val conn = url.openConnection() as HttpURLConnection
-                conn.connectTimeout = 15000
-                conn.readTimeout = 20000
-                prepareConnection(conn)
-                conn.connect()
-                val code = conn.responseCode
-                if (code == 200) {
-                    val body = BufferedReader(InputStreamReader(conn.inputStream, "UTF-8")).use { it.readText() }
-                    val arr = JSONArray(body)
-                    for (i in 0 until arr.length()) {
-                        val catObj = arr.getJSONObject(i)
-                        val catId = catObj.optString("id", "")
-                        val catTitle = catObj.optString("title", "")
-                        val movArr = catObj.optJSONArray("movies") ?: JSONArray()
-                        val movList = mutableListOf<Movie>()
-                        parseMoviesJson(movArr, movList, isRanked = (catId == "popular"))
-                        if (movList.isNotEmpty()) {
-                            categories.add(MovieCategory(id = catId, title = catTitle, movies = movList))
+        for (targetUrl in candidateUrls) {
+            val isFallback = targetUrl.contains("raw.githubusercontent.com")
+            val maxAttempts = if (isFallback) 1 else 2
+            for (attempt in 0 until maxAttempts) {
+                try {
+                    val url = URL(targetUrl)
+                    val conn = url.openConnection() as HttpURLConnection
+                    conn.connectTimeout = if (isFallback) 7000 else 10000
+                    conn.readTimeout = if (isFallback) 10000 else 15000
+                    prepareConnection(conn)
+                    conn.connect()
+                    val code = conn.responseCode
+                    if (code == 200) {
+                        val body = BufferedReader(InputStreamReader(conn.inputStream, "UTF-8")).use { it.readText() }
+                        val arr = JSONArray(body)
+                        for (i in 0 until arr.length()) {
+                            val catObj = arr.getJSONObject(i)
+                            val catId = catObj.optString("id", "")
+                            val catTitle = catObj.optString("title", "")
+                            val movArr = catObj.optJSONArray("movies") ?: JSONArray()
+                            val movList = mutableListOf<Movie>()
+                            parseMoviesJson(movArr, movList, isRanked = (catId == "popular"))
+                            if (movList.isNotEmpty()) {
+                                categories.add(MovieCategory(id = catId, title = catTitle, movies = movList))
+                            }
                         }
-                    }
-                    if (categories.isNotEmpty()) {
+                        if (categories.isNotEmpty()) {
+                            return@withContext categories
+                        }
+                    } else if (!isFallback && (code == 503 || code == 502 || code == 504)) {
+                        // Server is down or waking up: immediately try GitHub raw fallback on 503
                         break
                     }
-                } else if ((code == 503 || code == 502 || code == 504) && attempt < 2) {
-                    kotlinx.coroutines.delay(2000L * (attempt + 1))
-                    continue
+                } catch (e: Exception) {
+                    if (!isFallback && attempt < maxAttempts - 1) {
+                        kotlinx.coroutines.delay(1000L)
+                        continue
+                    }
+                    e.printStackTrace()
                 }
-            } catch (e: Exception) {
-                if (attempt < 2) {
-                    kotlinx.coroutines.delay(2000L * (attempt + 1))
-                    continue
-                }
-                e.printStackTrace()
             }
         }
         categories

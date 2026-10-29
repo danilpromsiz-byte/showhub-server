@@ -947,10 +947,10 @@ def get_proxied_image(url: str = Query(...)):
 def check_updates() -> Dict[str, Any]:
     showhub_fallback = {
         "success": True,
-        "version_name": "2.8.108",
-        "version_code": 167,
-        "versionName": "2.8.108",
-        "versionCode": 167,
+        "version_name": "2.8.109",
+        "version_code": 168,
+        "versionName": "2.8.109",
+        "versionCode": 168,
         "force_update": False,
         "forceUpdate": False,
         "min_version_code": 70,
@@ -958,40 +958,40 @@ def check_updates() -> Dict[str, Any]:
         "apk_url": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/ShowHub.apk",
         "download_url": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/ShowHub.apk",
         "apkUrl": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/ShowHub.apk",
-        "changelog": "v2.8.108: Автоматическое обновление каталога главной каждые 3 часа с живыми новинками Lampa/TMDb; устойчивая загрузка при пробуждении сервера (cold start retry); полная защита трафика Render.",
-        "releaseNotes": "v2.8.108: Автоматическое обновление каталога главной каждые 3 часа с живыми новинками Lampa/TMDb; устойчивая загрузка при пробуждении сервера (cold start retry); полная защита трафика Render.",
+        "changelog": "v2.8.109: Мгновенная подгрузка каталога через резервный CDN GitHub при недоступности Render; автоматическое обновление каталога каждые 2 часа и при возврате в приложение; живые новинки 2026 года.",
+        "releaseNotes": "v2.8.109: Мгновенная подгрузка каталога через резервный CDN GitHub при недоступности Render; автоматическое обновление каталога каждые 2 часа и при возврате в приложение; живые новинки 2026 года.",
         "tv": {
-            "version_name": "2.8.108",
-            "version_code": 167,
-            "versionName": "2.8.108",
-            "versionCode": 167,
+            "version_name": "2.8.109",
+            "version_code": 168,
+            "versionName": "2.8.109",
+            "versionCode": 168,
             "download_url": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/ShowHub.apk",
             "apk_url": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/ShowHub.apk",
             "apkUrl": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/ShowHub.apk",
-            "changelog": "v2.8.108: Автоматическое обновление каталога главной каждые 3 часа с живыми новинками Lampa/TMDb; устойчивая загрузка при пробуждении сервера (cold start retry); полная защита трафика Render.",
-            "releaseNotes": "v2.8.108: Автоматическое обновление каталога главной каждые 3 часа с живыми новинками Lampa/TMDb; устойчивая загрузка при пробуждении сервера (cold start retry); полная защита трафика Render."
+            "changelog": "v2.8.109: Мгновенная подгрузка каталога через резервный CDN GitHub при недоступности Render; автоматическое обновление каталога каждые 2 часа и при возврате в приложение; живые новинки 2026 года.",
+            "releaseNotes": "v2.8.109: Мгновенная подгрузка каталога через резервный CDN GitHub при недоступности Render; автоматическое обновление каталога каждые 2 часа и при возврате в приложение; живые новинки 2026 года."
         },
         "mobile": {
-            "version_name": "2.8.108",
-            "version_code": 167,
-            "versionName": "2.8.108",
-            "versionCode": 167,
+            "version_name": "2.8.109",
+            "version_code": 168,
+            "versionName": "2.8.109",
+            "versionCode": 168,
             "download_url": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/ShowHub-Mobile.apk",
             "apk_url": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/ShowHub-Mobile.apk",
             "apkUrl": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/ShowHub-Mobile.apk",
-            "changelog": "v2.8.108: Автоматическое обновление каталога главной каждые 3 часа с живыми новинками Lampa/TMDb; устойчивая загрузка при пробуждении сервера (cold start retry); полная защита трафика Render.",
-            "releaseNotes": "v2.8.108: Автоматическое обновление каталога главной каждые 3 часа с живыми новинками Lampa/TMDb; устойчивая загрузка при пробуждении сервера (cold start retry); полная защита трафика Render."
+            "changelog": "v2.8.109: Мгновенная подгрузка каталога через резервный CDN GitHub при недоступности Render; автоматическое обновление каталога каждые 2 часа и при возврате в приложение; живые новинки 2026 года.",
+            "releaseNotes": "v2.8.109: Мгновенная подгрузка каталога через резервный CDN GitHub при недоступности Render; автоматическое обновление каталога каждые 2 часа и при возврате в приложение; живые новинки 2026 года."
         },
         "pc": {
-            "version_name": "2.8.108",
-            "version_code": 167,
-            "versionName": "2.8.108",
-            "versionCode": 167,
+            "version_name": "2.8.109",
+            "version_code": 168,
+            "versionName": "2.8.109",
+            "versionCode": 168,
             "download_url": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/ShowHub-PC.zip",
             "apk_url": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/ShowHub-PC.zip",
             "apkUrl": "https://raw.githubusercontent.com/danilpromsiz-byte/showhub-server/main/mediacenter/static/ShowHub-PC.zip",
-            "changelog": "v2.8.108: Автоматическое обновление каталога главной каждые 3 часа с живыми новинками Lampa/TMDb; устойчивая загрузка при пробуждении сервера (cold start retry); полная защита трафика Render.",
-            "releaseNotes": "v2.8.108: Автоматическое обновление каталога главной каждые 3 часа с живыми новинками Lampa/TMDb; устойчивая загрузка при пробуждении сервера (cold start retry); полная защита трафика Render."
+            "changelog": "v2.8.109: Мгновенная подгрузка каталога через резервный CDN GitHub при недоступности Render; автоматическое обновление каталога каждые 2 часа и при возврате в приложение; живые новинки 2026 года.",
+            "releaseNotes": "v2.8.109: Мгновенная подгрузка каталога через резервный CDN GitHub при недоступности Render; автоматическое обновление каталога каждые 2 часа и при возврате в приложение; живые новинки 2026 года."
         }
     }
     try:
